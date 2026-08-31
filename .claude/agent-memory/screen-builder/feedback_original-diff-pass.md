@@ -63,4 +63,4 @@ metadata:
 상세 화면이 배치에 없어 링크가 갈 곳이 없을 때는 **미리보기 시트로 받되 푸터를 두지 않는다**
 (`MemberListPage` 가 세운 선례). 푸터를 만드는 순간 없는 기능을 지어내게 된다.
 
-관련: [[babycube-admin]] · [[feedback-report-failures]]
+관련: [[babycube-admin]] · [[feedback_report-failures]]

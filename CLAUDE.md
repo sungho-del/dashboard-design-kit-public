@@ -25,7 +25,7 @@
 - `tokens/primitive/` — 원시 스케일(slate·blue·coral-red… / radius·text·shadow). 브랜드 교체 시 여기만 수정
 - `tokens/semantic/` — 컴포넌트가 쓰는 의미 토큰(action-primary, text-sub…). 구조: `docs/token-architecture.md`
 - `src/tokens/_generated.css` — Style Dictionary가 자동 생성 (직접 수정 금지)
-- `src/styles/tokens.css` — Tailwind 진입 계층. `@import "tailwindcss"` + `_generated.css` 재수출 + `@font-face` + **타이포 프리셋 24종(`@utility`)**. **수기 편집이 허용된 유일한 CSS**
+- `src/styles/tokens.css` — Tailwind 진입 계층. `@import "tailwindcss"` + `_generated.css` 재수출 + `@font-face` + **타이포 프리셋 27종(`@utility`)**. **수기 편집이 허용된 유일한 CSS**
 - `public/fonts/` — Pretendard woff2 4종(400/500/600/700)
 - `src/index.css` — 전역 진입. `styles/tokens.css`만 import
 - `src/components/ui/` — 디자인 시스템 UI 컴포넌트 **37종**. 배럴 `index.ts`에 등록해 `import { Button } from "@/components/ui"` 로 쓴다
@@ -61,7 +61,7 @@ CSS 로딩 체인: `src/index.css` → `src/styles/tokens.css` → `src/tokens/_
 - **색상은 Semantic만 사용** — Primitive(`bg-slate-900`, `var(--color-blue-500)` 등) 직접 사용 금지. 구조: `docs/token-architecture.md`
 - ⚠️ **Primary는 파랑이 아니라 near-black**(`action-primary` = `#15181e`). 파랑(`action-accent` `#00b9ff`)은 링크·강조 전용이며 주 버튼에 쓰지 않는다. 레거시 `#1a6dff`는 폐기된 색 — 절대 금지.
 - **스페이싱은 Tailwind 유틸리티 그대로**: `p-2`(8) `gap-3`(12) `p-4`(16) `gap-6`(24). `--spacing: 4px` 기반 4px 그리드라 Clay 스케일과 일치한다. 임의 `p-[15px]` 금지.
-- **타이포는 프리셋 24종만**: `heading-2xlarge-bold` · `body-medium` · `label-medium-bold` 등 (`src/styles/tokens.css`의 `@utility`). Tailwind 기본 `text-sm`·`text-base` 류와 임의 `text-[15px]` **금지**. 목록은 `docs/design-core.md`.
+- **타이포는 프리셋 27종만**(일반 24 + 수치 전용 `metric-*` 3): `heading-2xlarge-bold` · `body-medium` · `label-medium-bold` · `metric-large` 등 (`src/styles/tokens.css`의 `@utility`). Tailwind 기본 `text-sm`·`text-base` 류와 임의 `text-[15px]` **금지**. 목록은 `docs/design-core.md`.
 - **경계선·포커스는 `outline` + 음수 offset**으로 그린다(`border` 아님). 기본 `outline:1px solid border; offset:-1px` → focus `2px / -2px / focus`. 레이아웃 밀림 방지를 위한 필수 규칙.
 - 컨트롤 높이는 **48/40/32/28** 체계를 따른다 (`--size-control-*`).
 - ⚠️ **무언가를 옮기거나 새로 만들 때는 그 자리의 기존 사례를 먼저 확인한다.**
@@ -136,7 +136,7 @@ CSS 로딩 체인: `src/index.css` → `src/styles/tokens.css` → `src/tokens/_
 - `npm test` — Vitest (`npm test -- --run` 으로 단발 실행)
 - `npm run lint` — ESLint
 - `npm run format` — Prettier 전체 포맷 (저장 시 훅이 파일 단위로도 실행)
-- `npm run reset:project` — **새 프로젝트 시작**: 데모 화면 34종(babycube · classon · 차트온)과 BabyCube GNB·로고를 걷어내고 템플릿 4종만 남긴다. `--dry` 로 미리보기 · `--yes` 로 무확인 실행. 갈아끼울 깨끗한 원본은 `scripts/reset-project/*.tpl`
+- `npm run reset:project` — **새 프로젝트 시작**: 데모 화면 34종(babycube · classon · 차트온)과 BabyCube GNB·로고를 걷어내고 템플릿 4종만 남긴다. `--dry` 미리보기 · `--yes` 무확인 · 이미 리셋된 폴더에서는 **멈춰서** 사용자 화면을 덮지 않는다(강행은 `--force`). 갈아끼울 깨끗한 원본은 `scripts/reset-project/*.tpl`
 - `npm run typecheck` — tsc -b (project references 구성이라 `-b` 필요)
 
 ## 자동 실행 훅 (`.claude/settings.json`)

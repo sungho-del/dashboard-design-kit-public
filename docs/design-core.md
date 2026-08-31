@@ -11,7 +11,9 @@
 -->
 
 > **기준: 데스크톱 관리자 대시보드.** 브레이크포인트 992px(데스크톱) / 588px(모바일 경계).
-> 모든 값의 원천은 아임웹 **Clay 디자인 시스템**(`_reference/…/design-system/clay/vars.css`).
+> 모든 값의 원천은 아임웹 **Clay 디자인 시스템**이다.
+> (대조했던 원본 사본 `_reference/` 는 **2026-08-29 저장소에서 삭제**했다 — 서드파티 자산이라
+> 공개할 수 없다. 아래 수치들은 그 대조의 **결과물**이고, 지금은 이 문서가 원천이다.)
 > 라이트 테마만 구현한다(다크 정의는 `token-architecture.md` §5에 보존).
 
 ## 색상 — Semantic 토큰만 (임의 hex 금지 · Primitive 직접 사용 금지)
@@ -33,7 +35,8 @@
 
 ## 타이포 (Pretendard · weight 400/500/600/700)
 
-**임의 크기 금지.** 아래 프리셋 클래스 24종이 정본이다 (`src/styles/tokens.css`의 `@utility`).
+**임의 크기 금지.** 아래 프리셋 클래스 **27종**이 정본이다 (`src/styles/tokens.css`의 `@utility`).
+일반 24종 + 대시보드 수치 전용 `metric-*` 3종.
 
 | 계열    | 클래스                   | 크기/행간   | 용도                      |
 | ------- | ------------------------ | ----------- | ------------------------- |
@@ -48,7 +51,13 @@
 |         | `label-medium` `-bold`   | **14 / 24** | **버튼·인풋·메뉴 기본**   |
 |         | `label-small` `-bold`    | 12 / 16     | 작은 버튼·태그            |
 |         | `label-xsmall`           | 11 / 12     | 배지·최소 라벨            |
+| Metric  | `metric-large`           | 36 / 44     | 대시보드 대표 수치            |
+|         | `metric-medium`          | 30 / 36     | 지표 타일 수치              |
+|         | `metric-small`           | 24 / 32     | 좁은 타일·보조 수치          |
 
+> **metric-\* 는 수치 전용이다.** 지표 타일의 **값**에만 쓴다 — 라벨·단위·제목에 쓰지 않는다.
+> 상세는 `docs/DESIGN-dashboard.md`.
+>
 > **body vs label**: 같은 14px라도 문단은 `body-medium`(행간 20), 인라인 UI 텍스트는 `label-medium`(행간 24).
 > 확장 스케일(`heading-3xlarge~5xlarge`, `label-3xlarge`, `label-xlarge`)은 대시보드에서 거의 쓰지 않는다.
 

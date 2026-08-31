@@ -31,4 +31,4 @@ metadata:
 판정 결과는 `meta.gaps` 와 해당 화면의 `notes` **양쪽에** 적는다 — gaps 는 사용자 질문용,
 notes 는 Stage 5 가 화면을 만들 때 읽는 자리라 역할이 다르다.
 
-관련: [[project-babycube-source]]
+관련: [[project_babycube-source]]

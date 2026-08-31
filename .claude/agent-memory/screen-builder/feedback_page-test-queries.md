@@ -26,4 +26,4 @@ metadata:
   이름이 겹치기 쉽다(둘 다 상태 라벨을 쓴다).
 - 화면 하나를 끝낼 때마다 그 화면 테스트를 돌려 **통과시킨 뒤** 다음으로 간다.
 
-관련: [[babycube-admin]] · [[feedback-report-failures]]
+관련: [[babycube-admin]] · [[feedback_report-failures]]

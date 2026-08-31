@@ -20,4 +20,4 @@ metadata:
 `text-right` 가 있고, 글자 열에는 `text-right` 도 `text-center` 도 없다
 (문자열 부분 일치는 `text-right` 와 다른 클래스를 못 가른다).
 
-관련: [[babycube-admin]] · [[feedback-original-diff-pass]]
+관련: [[babycube-admin]] · [[feedback_original-diff-pass]]

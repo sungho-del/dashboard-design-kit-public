@@ -45,7 +45,7 @@
 ## 빠른 시작
 
 0. `node -v` (18+) · `claude --version` 확인 → `npm install` — 상세: `SETUP.md` §0
-0-1. **새 프로젝트라면 `npm run reset:project`** — 실증용 데모 화면 34종(BabyCube 28 · 차트온 4 · 클래스온 2)과
+   0-1. **새 프로젝트라면 `npm run reset:project`** — 실증용 데모 화면 34종(BabyCube 28 · 차트온 4 · 클래스온 2)과
    BabyCube GNB 를 걷어내고 템플릿 4종만 남긴다. 안 지우면 사이드바가 남의 메뉴로 채워진 채 시작한다
 1. 기획서를 **`_plan/`에 넣거나**, URL이면 대화에 주소를 준다 — 받는 형태: `_plan/README.md`
 2. Claude 대화에 **`프로젝트 작업 진행 시작`** 입력

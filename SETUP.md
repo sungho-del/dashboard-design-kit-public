@@ -45,7 +45,7 @@
 - [ ] `CLAUDE.md` 상단 — `[프로젝트명]`과 설명 치환
       Semantic(`tokens/semantic/*`)은 대개 그대로 두고 primitive만 교체. 구조: `docs/token-architecture.md`
 - [ ] `npm run build:tokens` — `src/tokens/_generated.css` 재생성
-- [ ] `docs/design-tokens.md` — 표준 Semantic 변수표를 실제 값과 일치
+- [ ] `docs/token-architecture.md` — Semantic 변수표를 실제 값과 일치 (예전 이름 `design-tokens.md` 는 없어졌다)
 - [ ] `npm install` → `npm run build:tokens` → `npm run typecheck` 로 부팅 확인
 
 ## 3. 프로젝트 정보 (여기에 기록)

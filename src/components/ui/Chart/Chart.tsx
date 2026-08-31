@@ -61,6 +61,61 @@ export interface ChartSeries {
 export type ChartDatum = Record<string, string | number>;
 
 /** 계열 인덱스 → 색. 5를 넘으면 되돌리지 않고 마지막 색에 고정한다(색 순환 금지) */
+/* -------------------------------------------------------------------------
+ * y축 폭 — 규격 48 을 **바닥**으로 두고 라벨이 길면 늘린다
+ *
+ * 예전엔 `width={48}` 고정이었다. 그랬더니 금액 단위가 붙는 한글 눈금
+ * `10,000만`(7글자)에서 앞의 `1` 이 잘려 화면에 **`0,000만`** 으로 떴다.
+ * 한글은 전각이라 48 에 들어가지 않는다.
+ *
+ * ## recharts 의 `width="auto"` 를 쓰지 않는 이유
+ *
+ * 그것은 **렌더 시점에 실측**하는 방식이라, 텍스트 측정이 없는 jsdom 에서
+ * 플롯 영역이 0 이 되어 **차트가 통째로 안 그려진다**(테스트 7건이 그렇게 깨졌다).
+ * 그래서 측정에 기대지 않고 **값으로 계산**한다 — 브라우저든 jsdom 이든 같은 결과.
+ * ---------------------------------------------------------------------- */
+
+/** recharts 가 고를 법한 "둥근" 상한. 9,240 → 10,000 */
+function niceCeil(v: number): number {
+  if (!Number.isFinite(v) || v <= 0) return 0;
+  const base = Math.pow(10, Math.floor(Math.log10(v)));
+  for (const m of [1, 1.5, 2, 2.5, 3, 4, 5, 7.5]) {
+    if (v <= m * base) return m * base;
+  }
+  return 10 * base;
+}
+
+/** 12px Pretendard 근사 — 숫자 7 · 구분자 4 · 그 밖(한글·기호) 12 */
+function textWidth(label: string): number {
+  let w = 0;
+  for (const ch of label) {
+    if (ch >= "0" && ch <= "9") w += 7;
+    else if (ch === "," || ch === "." || ch === " ") w += 4;
+    else w += 12;
+  }
+  return w;
+}
+
+/**
+ * 눈금 중 가장 긴 것이 들어갈 폭. 기본 48, 모자라면 늘린다.
+ * 눈금 간격 8 을 더해 축선과 붙지 않게 한다.
+ */
+function yAxisWidth(
+  data: ChartDatum[],
+  series: ChartSeries[],
+  format?: (value: number | string) => string,
+): number {
+  if (!format) return 48;
+  let max = 0;
+  for (const row of data) {
+    for (const s of series) {
+      const v = Number(row[s.key]);
+      if (Number.isFinite(v) && v > max) max = v;
+    }
+  }
+  return Math.max(48, textWidth(format(niceCeil(max))) + 8);
+}
+
 const seriesColor = (i: number) =>
   CHART_SERIES_COLORS[Math.min(i, CHART_SERIES_COLORS.length - 1)];
 const fillColor = (i: number) =>
@@ -264,7 +319,7 @@ export function LineChart({
           tick={tickStyle}
           tickLine={false}
           axisLine={false}
-          width={48}
+          width={yAxisWidth(data, series, format)}
           tickFormatter={format}
           /* `fit` 이면 recharts 가 데이터 최소·최대에 맞춰 눈금을 다시 고른다 */
           domain={yBaseline === "fit" ? ["auto", "auto"] : [0, "auto"]}
@@ -358,7 +413,7 @@ export function BarChart({
           tick={tickStyle}
           tickLine={false}
           axisLine={false}
-          width={48}
+          width={yAxisWidth(data, series, format)}
           tickFormatter={format}
         />
         <Tooltip

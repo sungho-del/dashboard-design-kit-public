@@ -33,11 +33,19 @@ if [ "$TARGET_DIR" != "$HARNESS_DIR" ]; then
   info "하네스를 복사합니다: $HARNESS_DIR → $TARGET_DIR"
 
   # 루트 문서/설정
-  cp "$HARNESS_DIR/CLAUDE.md"                   "$TARGET_DIR/CLAUDE.md"
-  cp "$HARNESS_DIR/SETUP.md"                    "$TARGET_DIR/SETUP.md"
-  cp "$HARNESS_DIR/figma-code-connect.json"     "$TARGET_DIR/figma-code-connect.json"
-  cp "$HARNESS_DIR/style-dictionary.config.mjs" "$TARGET_DIR/style-dictionary.config.mjs"
-  cp "$HARNESS_DIR/.prettierignore"             "$TARGET_DIR/.prettierignore"
+  #
+  # ⚠️ `set -euo pipefail` 아래에서는 **없는 파일을 cp 하면 설치가 통째로 중단된다.**
+  # 실제로 두 번 당했다 — `scripts/` 가 사라졌을 때, 그리고 Figma 단계를 걷어내며
+  # `figma-code-connect.json` 이 사라졌을 때. 그래서 있으면 복사하는 함수를 쓴다.
+  copy_if_exists() {
+    if [ -e "$1" ]; then cp "$1" "$2"; else info "건너뜀(없음): $(basename "$1")"; fi
+  }
+
+  copy_if_exists "$HARNESS_DIR/CLAUDE.md"                   "$TARGET_DIR/CLAUDE.md"
+  copy_if_exists "$HARNESS_DIR/SETUP.md"                    "$TARGET_DIR/SETUP.md"
+  copy_if_exists "$HARNESS_DIR/figma-code-connect.json"     "$TARGET_DIR/figma-code-connect.json"
+  copy_if_exists "$HARNESS_DIR/style-dictionary.config.mjs" "$TARGET_DIR/style-dictionary.config.mjs"
+  copy_if_exists "$HARNESS_DIR/.prettierignore"             "$TARGET_DIR/.prettierignore"
 
   # .claude (settings.local.json 은 복사하지 않는다)
   mkdir -p "$TARGET_DIR/.claude"
@@ -55,8 +63,6 @@ if [ "$TARGET_DIR" != "$HARNESS_DIR" ]; then
   fi
 
   # 토큰 원본 + 문서
-  # (`scripts/` 는 이 하네스에 없다. 예전엔 복사 대상이었는데 폴더가 사라지면서
-  #  `set -euo pipefail` 아래에서 이 줄이 설치를 통째로 중단시켰다 — 그래서 뺐다.)
   mkdir -p "$TARGET_DIR/tokens" "$TARGET_DIR/docs"
   cp -r "$HARNESS_DIR/tokens/."  "$TARGET_DIR/tokens/"
   # 예전엔 docs 3개(DESIGN·design-tokens·style-dictionary-guide)만 복사했다.
@@ -129,12 +135,14 @@ node -e "JSON.parse(require('fs').readFileSync('.claude/settings.json','utf8'))"
   || fail ".claude/settings.json JSON 파싱 실패"
 ok "settings.json 유효"
 
-# 파이프라인 Stage 1~5 에이전트 6종 + 상시 도구 5종 = 11종.
-# 하나라도 빠지면 `/run-pipeline` 이 중간에 멈추므로 전부 검사한다.
+# ⚠️ 이 목록은 `.claude/agents/` 의 실물과 맞아야 한다 — 하나라도 없으면 설치가 실패한다.
+# 한때 브랜드(brand-*)·Figma(figma-*)·token-checker·qa-reporter 까지 11종을 검사했는데,
+# 그 에이전트들을 삭제한 뒤로도 목록이 남아 **설치가 항상 실패**하고 있었다.
+# 에이전트를 추가·삭제하면 여기도 함께 고칠 것.
 AGENTS=(
-  service-analyzer brand-strategist brand-builder brand-applier
-  figma-designer screen-builder
-  figma-implementer token-checker design-qa design-reviewer qa-reporter
+  service-analyzer screen-builder
+  ux-designer component-builder
+  ui-inspector design-qa design-reviewer
 )
 for a in "${AGENTS[@]}"; do
   [ -f ".claude/agents/$a.md" ] || fail "에이전트 파일이 없습니다: .claude/agents/$a.md"
@@ -182,6 +190,6 @@ fi
 echo
 ok "설치 완료"
 echo "다음 단계: SETUP.md 체크리스트를 따라 프로젝트별 값을 갱신하세요."
-echo "  1) CLAUDE.md 상단 [프로젝트명] 치환"
+echo "  1) CLAUDE.md 의 프로젝트 설명·디렉토리 구조를 이 프로젝트에 맞게 갱신"
 echo "  2) tokens/primitive/*.json 을 브랜드 팔레트 값으로 갱신 → npm run build:tokens"
 echo "  3) Claude Code 재시작 후 /hooks 로 훅 활성화 확인"

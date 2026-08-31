@@ -6,7 +6,7 @@ metadata:
 ---
 
 Stage 5(screen-builder)를 **리허설**로 돌린 기록이다. 목적은 결과물이 아니라
-**템플릿 4종과 스키마의 빈 곳을 드러내는 것**이다 → [[feedback-report-failures]].
+**템플릿 4종과 스키마의 빈 곳을 드러내는 것**이다 → [[feedback_report-failures]].
 
 ## 1~3차 (2026-08-19) — 차트온 · 병·의원 예약 관리
 
@@ -50,7 +50,7 @@ Stage 5(screen-builder)를 **리허설**로 돌린 기록이다. 목적은 결�
 
 **목록형의 `stats` 3장을 비웠다.** 기획서 S02 의 상단은 상태 건수 대시이고 수강생 지표의
 증감·비교 기준이 기획서 어디에도 없었다 — 3장을 채우려면 ±수치와 "지난주 대비"를 지어내야 한다.
-**계약(A-7)보다 "근거 없는 증감은 만들지 않는다"가 우선한다**([[feedback-no-invented-values]]).
+**계약(A-7)보다 "근거 없는 증감은 만들지 않는다"가 우선한다**([[feedback_no-invented-values]]).
 계획서 `validation.results` 에 rule 7 을 `pass: false` 로 남기고 사유를 적었다.
 같은 판단이 babycube 화면들에서도 이미 내려져 있다(요약 카드를 걷어낸 이력).
 

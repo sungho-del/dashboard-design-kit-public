@@ -28,4 +28,4 @@ metadata:
 - 걷어낸 것은 **테스트로 못을 박는다** — `queryByRole(...).not.toBeInTheDocument()` 로
   지어낸 열 이름·버튼 이름·`/^[+-]\d+건$/` 패턴이 다시 기어드는 것을 막는다.
 
-관련: [[babycube-order-family]] · [[feedback-report-failures]]
+관련: [[babycube-order-family]] · [[feedback_report-failures]]

@@ -24,4 +24,4 @@ metadata:
 - **미저장 영역**: 스타일시트(`1ts4wttg4nykw.css`)와 상세/등록 라우트 구현은 저장본에 없다.
   색상값과 상세형 화면 구성은 이 소스에서 절대 나오지 않는다 — 추측하지 말고 gaps 유지.
 
-관련: [[project-babycube-domain]]
+관련: [[project_babycube-domain]]

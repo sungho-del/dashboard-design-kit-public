@@ -6,7 +6,8 @@
 > - "언제 무엇을 쓰는가" → `docs/DESIGN_참고.md`
 > - "컴포넌트 상세 수치" → `docs/DESIGN.md`
 >
-> **원천**: 아임웹 Clay 디자인 시스템 `_reference/vhf535763542.imweb.me/design-system/clay/vars.css`
+> **원천**: 아임웹 Clay 디자인 시스템에서 역추출했다.
+> 대조한 사본(`_reference/`)은 **2026-08-29 저장소에서 삭제** — 지금은 `tokens/*.json` 이 원천이다.
 
 ## 0. 한눈에
 

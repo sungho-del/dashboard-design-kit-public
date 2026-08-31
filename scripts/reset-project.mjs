@@ -22,9 +22,16 @@
  *
  * ## 사용법
  *
- *   npm run reset:project           확인 프롬프트 후 실행
- *   npm run reset:project -- --yes  묻지 않고 실행
- *   npm run reset:project -- --dry  무엇이 바뀌는지만 보여주고 끝낸다
+ *   npm run reset:project            확인 프롬프트 후 실행
+ *   npm run reset:project -- --yes   묻지 않고 실행
+ *   npm run reset:project -- --dry   무엇이 바뀌는지만 보여주고 끝낸다
+ *   npm run reset:project -- --force 이미 리셋된 폴더에서도 강행 (아래 경고 참조)
+ *
+ * ## ⚠️ 두 번 돌리면 안 된다
+ *
+ * 이 스크립트는 `App.tsx` · `routes.ts` · `gnbSections.tsx` 를 **템플릿으로 덮는다.**
+ * 화면을 다 만든 뒤에 다시 돌리면 당신이 추가한 경로와 메뉴가 통째로 사라진다.
+ * 그래서 지울 데모가 남아 있지 않으면 **먼저 멈춘다** — 정말 되돌리려면 `--force`.
  */
 import { createInterface } from "node:readline/promises";
 import { existsSync, readdirSync, rmSync, copyFileSync } from "node:fs";
@@ -37,6 +44,7 @@ const TPL = join(ROOT, "scripts", "reset-project");
 const args = new Set(process.argv.slice(2));
 const YES = args.has("--yes") || args.has("-y");
 const DRY = args.has("--dry") || args.has("--dry-run");
+const FORCE = args.has("--force");
 
 const c = {
   dim: (s) => `\x1b[2m${s}\x1b[0m`,
@@ -128,8 +136,29 @@ const totalRemoved =
 
 console.log(`\n${c.bold("새 프로젝트 시작 — 데모 화면을 걷어냅니다")}\n`);
 
-if (totalRemoved === 0 && plan.replace.length === 0) {
-  console.log(c.green("이미 깨끗한 상태입니다. 할 일이 없습니다.\n"));
+/*
+ * ⚠️ 지울 데모가 하나도 없다 = **이미 리셋된 폴더다.**
+ *
+ * 그대로 진행하면 `App.tsx` · `routes.ts` · `gnbSections.tsx` 를 템플릿으로 덮어,
+ * 그동안 추가한 경로와 메뉴가 통째로 사라진다. 그래서 먼저 멈춘다.
+ *
+ * (예전 판정은 `plan.replace.length === 0` 도 함께 봤는데, 템플릿 파일은 항상 있으므로
+ *  그 조건이 참이 되는 일이 없어 **이 분기가 한 번도 실행되지 않았다.**)
+ */
+if (totalRemoved === 0 && !FORCE) {
+  console.log(
+    c.green("이미 리셋된 폴더입니다 — 걷어낼 데모 화면이 없습니다.\n"),
+  );
+  console.log(
+    `${c.red("여기서 멈춥니다.")} 계속하면 아래가 ${c.bold("템플릿 상태로 되돌아갑니다")}:`,
+  );
+  for (const t of plan.replace) console.log(`  ${t}`);
+  console.log(
+    `\n  ${c.dim("화면을 이미 만들었다면 추가한 경로와 메뉴가 사라집니다.")}`,
+  );
+  console.log(
+    `  ${c.dim("그래도 되돌리려면:")} ${c.cyan("npm run reset:project -- --force")}\n`,
+  );
   process.exit(0);
 }
 

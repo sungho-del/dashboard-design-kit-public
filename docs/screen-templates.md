@@ -356,5 +356,5 @@
 - **GNB 구성·로고는 `gnbSections.tsx` 에서** 가져다 쓴다. 페이지에 직접 두면 그 화면에서만 로고가 보인다
 - **셸 골격**: `AppShell`(GNB 224/60) + `PageHeader`(min-h 72) + 콘텐츠 gutter 40 (§0)
 - **색상은 semantic 토큰만** — primitive(`bg-slate-900`) 직접 사용 금지
-- **타이포는 프리셋 24종만** — `text-sm` 류 금지
+- **타이포는 프리셋 27종만**(일반 24 + 수치 전용 `metric-*` 3) — `text-sm` 류 금지
 - **임의값 금지** — 단 `colgroup` 의 `w-[NN%]` 는 확립된 관행(§7)

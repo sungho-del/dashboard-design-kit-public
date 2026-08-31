@@ -29,4 +29,4 @@ metadata:
 - 클래스 검증은 `className.split(/\s+/)` 배열에 `toContain` — 문자열 부분 일치는
   `text-text-critical` 과 `text-text-critical-hover` 를 못 가른다.
 
-관련: [[babycube-stage5]] · [[report-failures]]
+관련: [[babycube-stage5]] · [[feedback_report-failures]]

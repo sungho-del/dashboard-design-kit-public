@@ -26,4 +26,4 @@ metadata:
   대상으로 하면 다른 배치와 충돌하지 않는다. 네 화면을 다 만든 뒤 한꺼번에 돌리면
   같은 실수가 네 배로 쌓인다.
 
-관련: [[stage5-babycube-batches]] · [[feedback-report-failures]]
+관련: [[stage5-babycube-batches]] · [[feedback_report-failures]]

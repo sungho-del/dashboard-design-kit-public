@@ -6,7 +6,8 @@ import StyleDictionary from "style-dictionary";
 // var(--color-action-primary) 같은 직접 참조도 동작한다.
 // 상세: docs/token-architecture.md
 //
-// 토큰 값은 아임웹 Clay 디자인 시스템(_reference/…/design-system/clay/vars.css)이 원천.
+// 토큰 값은 아임웹 Clay 디자인 시스템에서 역추출했다.
+// (대조했던 `_reference/` 사본은 2026-08-29 삭제 — 지금은 tokens/*.json 이 원천이다.)
 
 // ── 커스텀 name transform ──
 // 기본 name/kebab 은 lodash kebabCase 를 쓰기 때문에 숫자·문자 경계를 쪼갠다.

@@ -192,7 +192,7 @@ import { ShoppingCart } from "lucide-react";
 | `bg-blue-500`, `var(--color-slate-900)` 직접 사용 | `bg-action-accent`, `text-text`    |
 | 파랑을 주요 버튼 색으로 사용                      | `action-primary` (near-black)      |
 | `#1a6dff` 등 레거시 색 참조                       | 폐기됨. Clay 토큰만                |
-| `text-sm`, `text-[15px]`                          | 프리셋 24종 (`body-medium` 등)     |
+| `text-sm`, `text-[15px]`                          | 프리셋 27종 (`body-medium` 등)     |
 | `p-[15px]`, `gap-[10px]`                          | 4px 그리드 유틸 (`p-4`, `gap-2.5`) |
 | `border: 1px solid` 로 상태 전환                  | `outline` + 음수 offset            |
 | `outline: none`                                   | `:focus-visible` 로 범위 조정      |
