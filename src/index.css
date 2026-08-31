@@ -1,0 +1,8 @@
+/* 전역 진입 CSS — 스타일 값은 전부 tokens.css 토큰을 참조한다 */
+@import "./styles/tokens.css";
+
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+}

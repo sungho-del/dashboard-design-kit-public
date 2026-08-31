@@ -1,0 +1,26 @@
+{
+  "size": {
+    "control-xsmall": { "value": "28px", "type": "dimension" },
+    "control-small": { "value": "32px", "type": "dimension" },
+    "control-medium": { "value": "40px", "type": "dimension" },
+    "control-large": { "value": "48px", "type": "dimension" },
+
+    "gnb-expanded": { "value": "224px", "type": "dimension" },
+    "gnb-collapsed": { "value": "60px", "type": "dimension" },
+    "gnb-drawer": { "value": "280px", "type": "dimension" },
+    "gnb-logo": { "value": "114px", "type": "dimension" },
+
+    "page-header": { "value": "72px", "type": "dimension" },
+    "page-header-compact": { "value": "52px", "type": "dimension" },
+    "page-gutter": { "value": "40px", "type": "dimension" },
+    "page-gutter-compact": { "value": "16px", "type": "dimension" },
+
+    "table-row": { "value": "48px", "type": "dimension" },
+    "sidesheet": { "value": "380px", "type": "dimension" }
+  },
+
+  "breakpoint": {
+    "tablet": { "value": "588px", "type": "dimension" },
+    "desktop": { "value": "992px", "type": "dimension" }
+  }
+}

@@ -1,0 +1,405 @@
+{
+  "meta": {
+    "generatedAt": "2026-08-28T00:00:00Z",
+    "source": "pipeline/01-service-brief.json",
+    "sourceScreens": 2,
+    "planned": 2,
+    "skipped": 0,
+    "platformNote": "데스크톱 관리자 화면이다. keyScreens[].sections 에 모바일 어휘(Dock Bar·Status Bar)가 없고 ia[].type 도 page·sheet 뿐이라 변환이 필요 없다."
+  },
+
+  "screens": [
+    {
+      "screenId": "S01",
+      "name": "운영 대시보드",
+      "template": "stats",
+      "reason": "name 이 '대시보드'이고 purpose 가 '오늘의 상태를 한 화면에서 파악', sections 에 핵심 지표 4종 + 추이 차트 + 강의별 현황, components 에 StatTile·LineChart 가 있다 (screen-templates §2 통계형 신호). 목록·폼·상세 신호는 하나도 없다.",
+      "navId": "/_classon/dashboard",
+      "inGnb": true,
+      "entryFrom": null,
+      "files": {
+        "page": "src/pages/classon/OpsDashboardPage.tsx",
+        "data": "src/pages/classon/OpsDashboardPage.data.ts",
+        "test": "src/pages/classon/OpsDashboardPage.test.tsx"
+      },
+      "domain": {
+        "kpis": [
+          {
+            "label": "총 수강생",
+            "value": "4,820명",
+            "unit": "명",
+            "icon": "Users",
+            "delta": "+332명",
+            "caption": "지난달 대비",
+            "up": true,
+            "good": true,
+            "goodDirection": "up"
+          },
+          {
+            "label": "진행 중 강의",
+            "value": "24개",
+            "unit": "개",
+            "icon": "BookOpen",
+            "delta": "+2개",
+            "caption": "지난달 대비",
+            "up": true,
+            "good": true,
+            "goodDirection": "up"
+          },
+          {
+            "label": "이번 달 매출",
+            "value": "12,480만원",
+            "unit": "만원",
+            "icon": "Wallet",
+            "delta": "+11.4%",
+            "caption": "지난달 대비",
+            "up": true,
+            "good": true,
+            "goodDirection": "up"
+          },
+          {
+            "label": "평균 완주율",
+            "value": "62.4%",
+            "unit": "",
+            "icon": "GraduationCap",
+            "delta": "-2.1%p",
+            "caption": "지난 분기 대비",
+            "up": false,
+            "good": false,
+            "goodDirection": "up"
+          }
+        ],
+        "charts": [
+          {
+            "kind": "line",
+            "title": "수강 추이",
+            "series": ["신규 수강 등록"],
+            "unit": "명",
+            "legend": false
+          }
+        ],
+        "progressList": {
+          "title": "강의별 완주 현황",
+          "description": "수강생 수 상위 5개 강의",
+          "rows": [
+            {
+              "name": "실무로 배우는 React 입문",
+              "students": 862,
+              "rate": 78.5,
+              "tone": "default"
+            },
+            {
+              "name": "데이터 분석 첫걸음: 파이썬",
+              "students": 743,
+              "rate": 64.2,
+              "tone": "default"
+            },
+            {
+              "name": "비전공자를 위한 SQL 기초",
+              "students": 615,
+              "rate": 58.9,
+              "tone": "default"
+            },
+            {
+              "name": "UX 라이팅 실전 워크숍",
+              "students": 528,
+              "rate": 41.3,
+              "tone": "default"
+            },
+            {
+              "name": "직장인 영어 회화 100일",
+              "students": 412,
+              "rate": 32.6,
+              "tone": "warning"
+            }
+          ],
+          "threshold": "완주율 40% 미만이면 tone='warning' — 판정은 .data.ts 의 completionTone() 이 하고 ProgressBar 는 결과만 받는다 (DESIGN.md §26-1)",
+          "ariaLabelRule": "`${강의명} 완주율` — 열 머리글이 없는 목록이라 주어를 붙인다"
+        },
+        "periods": ["4주", "12주", "6개월"],
+        "periodDefault": "12w"
+      },
+      "notes": [
+        "스키마에 없는 키 `progressList`·`periods`·`periodDefault` 를 썼다. 통계형 domain 에 '가로 막대 목록'과 '기간 세그먼트'를 담을 자리가 없는데, 둘 다 기획서 sections 에 명시된 구성이라 생략하면 계획서가 화면을 설명하지 못한다.",
+        "`charts[].legend: false` 사유(A-13) — 계열이 '신규 수강 등록' 1개뿐이다. 범례는 계열이 2개 이상일 때만 둔다(§3-3).",
+        "B-14 근거 — `goodDirection` 이 4장 모두 'up' 이다. 기획서 F01 이 '네 지표 모두 오르면 좋은 방향이다'라고 명시했고, 이 화면에는 이탈률·노쇼율 류의 '내려가면 좋은 지표'가 기획서상 존재하지 않는다. 대신 평균 완주율은 실제로 내려간 지표라 `up: false / good: false` 로 두 축이 갈리는 것을 화면에서 확인할 수 있다.",
+        "`caption` 은 기획서 F01 이 정한 그대로 앞 3장은 '지난달 대비', 평균 완주율만 '지난 분기 대비'다. 문자열이 겹치는 3장도 카드마다 따로 적는다.",
+        "B-19 — 숫자 정합: 12주 신규 등록 합 1,192명 · 최근 4주(=8월) 481명이고, 6개월 보기의 6·7·8월 값은 12주 데이터를 4주씩 묶어 .data.ts 에서 계산한다(상수로 박지 않는다). 총 수강생 증감 '+332명' 은 8월 신규 481명에서 환불·이탈을 뺀 순증이다. 평균 완주율 62.4% 는 24개 강의 전체 평균이고 상위 5개 강의의 가중평균은 59.1% 라 서로 다른 값이다 — 카드 설명에 '수강생 수 상위 5개 강의'라고 밝혀 두 수치가 같은 모집단으로 읽히지 않게 했다.",
+        "기획서 components 에 없는 것을 추가: `ProgressBar`(완주율 막대 — 기획서가 요구했으나 Stage 1 시점에 컴포넌트가 없어 목록에서 빠져 있었다. 지금은 구현되어 있다) · `Card`·`CardHeader`·`CardBody`(차트와 목록의 그릇).",
+        "기간 6개월을 골랐을 때의 X축 단위는 기획서 gap 이다 — 월 단위 6점으로 정했다(주 단위 26점은 축 라벨이 겹친다). 4주는 12주 데이터의 마지막 4점이라 두 보기가 서로 모순되지 않는다."
+      ]
+    },
+
+    {
+      "screenId": "S02",
+      "name": "수강생 관리",
+      "template": "list",
+      "reason": "name 에 '관리', purpose 에 '걸러 조회', components 에 Table·Pagination·DataTableShell·StatGrid 가 있다 (screen-templates §2 목록형 신호). states 에 filtered·rows-selected 가 있어 표를 좁히는 화면임이 확정된다.",
+      "navId": "/_classon/students",
+      "inGnb": true,
+      "entryFrom": null,
+      "files": {
+        "page": "src/pages/classon/StudentListPage.tsx",
+        "data": "src/pages/classon/StudentListPage.data.ts",
+        "test": "src/pages/classon/StudentListPage.test.tsx"
+      },
+      "domain": {
+        "rowType": {
+          "name": "Student",
+          "fields": [
+            { "key": "id", "type": "string", "label": "수강 ID" },
+            { "key": "name", "type": "string", "label": "이름" },
+            { "key": "email", "type": "string", "label": "이메일" },
+            { "key": "course", "type": "string", "label": "수강 강의" },
+            { "key": "progress", "type": "number", "label": "진도율(0~100)" },
+            {
+              "key": "lastStudiedAt",
+              "type": "string",
+              "label": "최근 학습 (YYYY-MM-DD HH:mm)"
+            },
+            { "key": "status", "type": "StudentStatus", "label": "상태" },
+            {
+              "key": "date",
+              "type": "string",
+              "label": "등록일 (YYYY-MM-DD HH:mm) — 기간 필터가 파싱한다"
+            },
+            {
+              "key": "select",
+              "type": "ui",
+              "label": "선택 체크박스 (행 데이터가 아니라 선택 열)"
+            },
+            { "key": "actions", "type": "ui", "label": "관리 열" }
+          ]
+        },
+        "columns": [
+          "select",
+          "name",
+          "email",
+          "course",
+          "progress",
+          "lastStudiedAt",
+          "status",
+          "actions"
+        ],
+        "columnWidths": ["4%", "10%", "19%", "21%", "16%", "14%", "8%", "8%"],
+        "statuses": [
+          { "value": "active", "label": "수강중", "tone": "success" },
+          { "value": "completed", "label": "완료", "tone": "default" },
+          { "value": "stopped", "label": "중단", "tone": "warning" },
+          { "value": "refunded", "label": "환불", "tone": "critical" }
+        ],
+        "filters": ["all", "active", "completed", "stopped", "refunded"],
+        "stats": [],
+        "unit": { "fn": "num", "suffix": "명" },
+        "rowActions": ["상세"],
+        "sideSheetItems": ["수강 강의", "진도율", "최근 학습", "등록일"],
+        "sideSheetActions": [],
+        "confirmModal": {
+          "trigger": "독려 메일 보내기 (SelectionBar)",
+          "title": "선택한 수강생에게 독려 메일을 보낼까요?",
+          "description": "선택 인원 수",
+          "body": "학습이 밀린 수강생에게 이어서 듣도록 안내하는 메일이 발송됩니다. 보낸 메일은 회수할 수 없습니다.",
+          "confirmLabel": "독려 메일 보내기",
+          "tone": "default"
+        },
+        "emptyState": {
+          "title": "조건에 맞는 수강생이 없습니다",
+          "description": "검색어나 등록일 기간을 바꿔 보세요."
+        },
+        "statDash": {
+          "component": "StatGrid",
+          "columns": 5,
+          "items": ["전체", "수강중", "완료", "중단", "환불"],
+          "unit": "명",
+          "countSource": "상태 축을 뺀 나머지 조건(검색어·등록일)으로 좁힌 집합에서 뼈대가 직접 센다 — 상수로 박으면 표와 어긋난다"
+        }
+      },
+      "notes": [
+        "⚠️ **`stats`(증감 요약 카드 3장)를 만들지 않았다 — A-7 의 의도적 미충족이다.** 기획서 S02 sections 에 요약 카드가 없고(상단은 상태 건수 대시다), 수강생 지표의 증감·비교 기준이 기획서 어디에도 없다. 3장을 세우려면 ±수치와 비교 기준 문구를 지어내야 하는데, 그것은 '요약 카드의 증감은 근거가 없으면 만들지 않는다'는 규칙에 정면으로 걸린다. 상단 자리는 기획서가 명시한 `StatGrid` 하나가 쓴다.",
+        "상태색 배정(B-15) — screen-templates §3-1 의 순서를 그대로 적용했다. ① '중단'(30일 이상 미접속)은 운영자가 독려 메일을 보내야 끝나는, 지금 주의를 요하는 상태 → `warning`. ② '환불'은 이미 끝났지만 정상적으로 끝나지 않은 종료(취소·반려와 같은 자리) → `critical`. ③ '완료'는 정상 종료라 더 볼 것이 없다 → `default`. ④ 남은 '수강중'은 진행 중이고 정상인 상태 → `success`. 결과적으로 4색이 겹치지 않아 `custom` 주입이 필요 없다.",
+        "기획서 domainVocabulary 는 '수강중'을 tagTone null(판단 필요), '환불'을 default 로 제안했다. 수강중은 §3-1 항목 4를 따라 success 로 정했고, 환불은 §3-1 항목 2(비정상 종료는 critical)를 따라 기획서 제안과 다르게 정했다 — 환불을 회색으로 묻으면 목록에서 돈이 되돌아간 건이 보이지 않는다. 되돌릴 여지가 있어 openQuestions Q2 로 남긴다.",
+        "선택 열(체크박스)은 기획서 columns 7개에 없지만 F08(선택한 수강생에게 독려 메일)이 선택 없이는 성립하지 않고, components 에 Checkbox·SelectionBar 가 있다. 헤더의 '이 페이지 전체 선택' 체크박스까지 둔다.",
+        "`date`(등록일)는 표에 보이지 않는 필드다 — F05 의 기간 조회가 파싱하는 값이라 rowType 에는 있고 columns 에는 없다. 대신 DatePicker 자리표시자를 '등록일 시작/종료'로 두어 무엇을 거르는 기간인지 밝힌다.",
+        "SideSheet 푸터를 두지 않는다(A-13). 수강생 상세 화면이 기획서에 없어 '전체 상세 보기'가 갈 곳이 없고, 푸터에 도메인 액션을 만들면 기획서에 없는 조치를 지어내게 된다(MemberListPage 선례). 독려 메일은 선택 → SelectionBar 경로가 이미 있다.",
+        "sideSheetItems 는 기획서 F07 의 4항목(이름·강의·진도율·최근 학습)이다. 이름은 시트 제목의 보조 문구로 올라가 InfoList 항목에서는 빠지고, 대신 그 자리에 '등록일'을 넣었다 — 기간 필터의 대상 값이라 시트에서 확인할 수 있어야 한다.",
+        "'관리' 열의 `상세` 버튼과 '행 클릭 → 우측 요약'의 관계가 기획서 gap 이다. 상세 화면이 없으므로 **둘 다 같은 요약 시트를 연다**(MemberListPage 선례). openQuestions Q3.",
+        "독려 메일 발송 전 확인 모달은 기획서 gap 이다(발송 UI 미정의). 되돌릴 수 없는 발송이라 확인 단계를 뒀고, 본문은 메일이 하는 일만 적어 기획서에 없는 정책(템플릿·예약 발송 등)을 지어내지 않았다. openQuestions Q4.",
+        "표의 진도율 막대에는 임계 색을 쓰지 않는다 — 기획서 thresholds 의 '완주율 40% 미만 주의'는 appliesTo: ['S01'] 로 명시돼 있다. S02 에 같은 임계를 적용하면 기획서에 없는 판정을 추가하는 것이 된다. 진도가 밀린 사람은 상태 Tag('중단')와 진도율 숫자가 말한다.",
+        "기획서 components 에 없는 것을 추가: `ProgressBar`(표 셀 진도율 막대 — S01 과 같은 사유) · `EmptyState`(검색 결과 없음) · `Modal`(발송 확인) · `Card`/`CardBody`(상태 대시의 그릇). 뒤 셋은 기획서 notes 가 '실제로는 필요하지만 근거가 없어 제외했다'고 스스로 적어 둔 것들이다.",
+        "B-19 — 상태 건수는 상수가 아니라 지금 남아 있는 행에서 센다(전체 8 = 수강중 4 + 완료 2 + 중단 1 + 환불 1). 페이지네이션의 '총 N명'도 필터 결과에서 센다. 표본 8행 · PAGE_SIZE 5 라 2페이지가 된다.",
+        "'중단 = 30일 이상 접속 없음'과 표본 데이터가 어긋나지 않게 맞췄다 — 오늘(2026-08-28) 기준 중단 행만 최근 학습이 2026-07-19(40일 전)이고 나머지는 30일 안이다."
+      ]
+    }
+  ],
+
+  "gnb": [
+    {
+      "sectionId": "g-classon",
+      "label": "클래스온",
+      "items": [
+        {
+          "id": "/_classon/dashboard",
+          "label": "운영 대시보드",
+          "icon": "LayoutDashboard"
+        },
+        {
+          "id": "/_classon/students",
+          "label": "수강생 관리",
+          "icon": "GraduationCap"
+        }
+      ]
+    }
+  ],
+
+  "gnbMode": "add",
+  "gnbNote": "기존 GNB 는 BabyCube 원본 어드민의 9그룹 28항목 + 저장소 색인 1항목이고 ' 임의로 재편하지 말 것'이라고 파일 주석이 못 박고 있다. 그래서 걷어내지 않고 **저장소 색인 바로 위에 새 섹션 하나를 덧붙인다**(add). 기존 템플릿 4종(이커머스)과 차트온 4종도 그대로 남긴다 — Stage 5 가 읽는 유일한 실물 계약이라 지우면 다음 실행이 읽을 것이 사라진다. ⚠️ 다만 이 저장소의 확립된 관행은 'BabyCube 이외의 생성물은 GNB 가 아니라 화면 목록(/screens)으로 진입한다'이다(템플릿 4종·차트온 4종 모두 GNB 에 없다 — 한 사이드바에 여러 서비스 메뉴가 섞여 이름이 충돌한 이력 때문이다). 이번에는 지시가 'GNB 에 넣고 배선까지'였으므로 섹션을 하나 두되, 서비스 메뉴와 섞이지 않도록 라벨을 '클래스온'으로 분리하고 맨 아래에 두었다. 실서비스 이식이라면 이 섹션만 남기고 replace 하는 것이 맞다.",
+
+  "openQuestions": [
+    {
+      "id": "Q1",
+      "screenId": "S01",
+      "question": "기획서의 라우트는 `/`(대시보드)와 `/students` 인데, 이 저장소의 `/` 는 이미 BabyCube 대시보드가 쓰고 있고 App.test.tsx 가 그것을 못 박고 있다.",
+      "recommendation": "차트온 선례(`/_charton/*`)를 따라 `/_classon/dashboard` · `/_classon/students` 로 접두사를 붙였다. 실서비스로 이식할 때 접두사만 떼면 기획서 경로가 된다."
+    },
+    {
+      "id": "Q2",
+      "screenId": "S02",
+      "question": "'환불' 상태의 Tag tone — 기획서는 중립(default)을 제안했고 screen-templates §3-1 은 비정상 종료를 critical 로 규정한다.",
+      "recommendation": "critical. 목록을 훑을 때 환불 건이 보여야 하고, 회색으로 묻으면 '취소를 회색으로 묻지 말 것'이라는 §3-1 의 판단과 어긋난다."
+    },
+    {
+      "id": "Q3",
+      "screenId": "S02",
+      "question": "'관리' 열의 `상세` 버튼이 별도 상세 화면으로 가야 하는가, 행 클릭과 같은 요약 시트를 열어야 하는가 (기획서 gap).",
+      "recommendation": "같은 요약 시트. 수강생 상세 화면이 기획서 화면 목록에도 '만들지 않는 것'에도 없어 죽은 링크를 만들 수 없다."
+    },
+    {
+      "id": "Q4",
+      "screenId": "S02",
+      "question": "독려 메일 발송 UI (확인 단계·템플릿 선택·본문 편집·결과 피드백)가 기획서에 없다.",
+      "recommendation": "확인 모달 1단계 + 발송 결과 toast 까지만. 템플릿 선택·본문 편집은 지어내지 않았다."
+    },
+    {
+      "id": "Q5",
+      "screenId": "S01",
+      "question": "기간 '6개월'을 골랐을 때 X축이 주 단위인가 월 단위인가 (기획서 gap).",
+      "recommendation": "월 단위 6점. 주 단위 26점은 축 라벨이 겹쳐 읽히지 않는다."
+    }
+  ],
+
+  "validation": {
+    "runAt": "2026-08-28T00:00:00Z",
+    "results": [
+      { "rule": 1, "name": "JSON 파싱 가능", "pass": true, "note": "" },
+      {
+        "rule": 2,
+        "name": "planned + skipped === sourceScreens",
+        "pass": true,
+        "note": "2 + 0 = 2"
+      },
+      {
+        "rule": 3,
+        "name": "screenId 가 keyScreens[].id 에 존재",
+        "pass": true,
+        "note": "S01 · S02"
+      },
+      {
+        "rule": 4,
+        "name": "template: null 규칙",
+        "pass": true,
+        "note": "해당 없음 — 건너뛴 화면이 없다"
+      },
+      {
+        "rule": 5,
+        "name": "files 3종 · src/pages/ 로 시작",
+        "pass": true,
+        "note": "src/pages/classon/ 아래 6개"
+      },
+      {
+        "rule": 6,
+        "name": "navId 중복 없음 · 기존 GNB id 와 충돌 없음 · gnb items 와 일치",
+        "pass": true,
+        "note": "gnbSections.tsx 의 기존 id 30개는 전부 `/` 또는 `/xxx` 형태이고 `/_classon/*` 는 없다"
+      },
+      {
+        "rule": 7,
+        "name": "유형별 필수 키",
+        "pass": false,
+        "note": "stats형(S01) ✅ kpis 4 + charts 1, 각 kpi 에 value·caption·up·good·goodDirection 전부. list형(S02) 는 rowType(id·date 포함)·columns·statuses·filters([0]=all)·emptyState 는 충족하나 **stats 3장을 의도적으로 비웠다** — 기획서에 증감 근거가 없어 지어내지 않았다(S02 notes 첫 항목)"
+      },
+      {
+        "rule": 8,
+        "name": "columns 와 columnWidths 길이 일치 · 합 100%",
+        "pass": true,
+        "note": "8개 / 4+10+19+21+16+14+8+8 = 100"
+      },
+      {
+        "rule": 9,
+        "name": "columns 항목이 rowType.fields 에 존재",
+        "pass": true,
+        "note": "select·actions 도 fields 에 UI 열로 명시했다"
+      },
+      {
+        "rule": 10,
+        "name": "GNB 로 갈 수 없는 화면의 entryFrom",
+        "pass": true,
+        "note": "해당 없음 — 두 화면 다 inGnb: true"
+      },
+      {
+        "rule": 11,
+        "name": "gnbMode + gnbNote",
+        "pass": true,
+        "note": "add · 이유는 gnbNote 에"
+      },
+      {
+        "rule": 12,
+        "name": "파일명 충돌 없음",
+        "pass": true,
+        "note": "OpsDashboardPage · StudentListPage — 저장소 전체에서 유일하다(기존 DashboardPage 2종과도 다르다)"
+      },
+      {
+        "rule": 13,
+        "name": "잔가지 계약",
+        "pass": true,
+        "note": "단일 계열이라 legend: false + 사유 기재 · labelWidthOverrides 없음 · sideSheetActions 없음(사유 기재)"
+      },
+      {
+        "rule": 14,
+        "name": "good === (up === (goodDirection === 'up'))",
+        "pass": true,
+        "note": "KPI 4장 모두 성립. goodDirection 이 전부 'up' 인 근거는 S01 notes 3번"
+      },
+      {
+        "rule": 15,
+        "name": "상태색이 의미와 맞는가",
+        "pass": true,
+        "note": "warning=중단(조치 필요) · critical=환불(비정상 종료) · default=완료(정상 종료) · success=수강중(정상 진행)"
+      },
+      {
+        "rule": 16,
+        "name": "차트 유형이 데이터 성격과 맞는가",
+        "pass": true,
+        "note": "추이 → line 1개. 도넛·막대 없음"
+      },
+      {
+        "rule": 17,
+        "name": "문구가 그 도메인의 말인가",
+        "pass": true,
+        "note": "emptyState·모달·시트 문구에 주문·배송·상품 어휘가 없다"
+      },
+      {
+        "rule": 18,
+        "name": "화면 제목·메뉴 이름이 기획서 용어와 일치",
+        "pass": true,
+        "note": "'운영 대시보드' · '수강생 관리' 그대로"
+      },
+      {
+        "rule": 19,
+        "name": "숫자가 서로 모순되지 않는가",
+        "pass": true,
+        "note": "S01 은 notes 5번, S02 는 notes 마지막 두 항목에 정합 근거를 적었다"
+      }
+    ],
+    "allPassed": false
+  }
+}

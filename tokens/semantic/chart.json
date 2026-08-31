@@ -1,0 +1,15 @@
+{
+  "color": {
+    "chart-series-1": { "value": "{color.blue.600}", "type": "color" },
+    "chart-series-2": { "value": "{color.mint.700}", "type": "color" },
+    "chart-series-3": { "value": "{color.mango.800}", "type": "color" },
+    "chart-series-4": { "value": "{color.grape.500}", "type": "color" },
+    "chart-series-5": { "value": "{color.raspberry.500}", "type": "color" },
+
+    "chart-fill-1": { "value": "{color.blue.100}", "type": "color" },
+    "chart-fill-2": { "value": "{color.mint.100}", "type": "color" },
+    "chart-fill-3": { "value": "{color.mango.100}", "type": "color" },
+    "chart-fill-4": { "value": "{color.grape.100}", "type": "color" },
+    "chart-fill-5": { "value": "{color.raspberry.100}", "type": "color" }
+  }
+}

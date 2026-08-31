@@ -1,0 +1,8 @@
+# 빌드 산출물 / 자동 생성 파일 — 포맷 대상 아님
+dist/
+storybook-static/
+src/tokens/_generated.css
+package-lock.json
+
+# 대시보드 제작에 쓰지 않는 자산 보관소 (사용자가 확인 후 삭제)
+_삭제예정/

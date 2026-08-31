@@ -1,0 +1,55 @@
+{
+  "color": {
+    "mint": {
+      "50": { "value": "#e5fbf6", "type": "color" },
+      "100": { "value": "#ccf7eb", "type": "color" },
+      "200": { "value": "#99f1da", "type": "color" },
+      "300": { "value": "#73ebcc", "type": "color" },
+      "400": { "value": "#4ce6bf", "type": "color" },
+      "500": { "value": "#00dba3", "type": "color" },
+      "600": { "value": "#00ba8b", "type": "color" },
+      "700": { "value": "#009972", "type": "color" },
+      "800": { "value": "#00785a", "type": "color" },
+      "900": { "value": "#005841", "type": "color" }
+    },
+
+    "mango": {
+      "50": { "value": "#fff6e7", "type": "color" },
+      "100": { "value": "#fff2db", "type": "color" },
+      "200": { "value": "#ffe0ac", "type": "color" },
+      "300": { "value": "#ffd388", "type": "color" },
+      "400": { "value": "#ffc258", "type": "color" },
+      "500": { "value": "#ffa811", "type": "color" },
+      "600": { "value": "#e5970f", "type": "color" },
+      "700": { "value": "#d68c0c", "type": "color" },
+      "800": { "value": "#99650a", "type": "color" },
+      "900": { "value": "#734c08", "type": "color" }
+    },
+
+    "grape": {
+      "50": { "value": "#f5edff", "type": "color" },
+      "100": { "value": "#ebdbff", "type": "color" },
+      "200": { "value": "#dcc0ff", "type": "color" },
+      "300": { "value": "#c79cff", "type": "color" },
+      "400": { "value": "#b378ff", "type": "color" },
+      "500": { "value": "#9a4bff", "type": "color" },
+      "600": { "value": "#8340d9", "type": "color" },
+      "700": { "value": "#7438bf", "type": "color" },
+      "800": { "value": "#6431a6", "type": "color" },
+      "900": { "value": "#55298c", "type": "color" }
+    },
+
+    "raspberry": {
+      "50": { "value": "#fff2f3", "type": "color" },
+      "100": { "value": "#ffe6e8", "type": "color" },
+      "200": { "value": "#fecdd3", "type": "color" },
+      "300": { "value": "#fea3ac", "type": "color" },
+      "400": { "value": "#fe7683", "type": "color" },
+      "500": { "value": "#fe5868", "type": "color" },
+      "600": { "value": "#dd3344", "type": "color" },
+      "700": { "value": "#c81e2e", "type": "color" },
+      "800": { "value": "#a51927", "type": "color" },
+      "900": { "value": "#88131a", "type": "color" }
+    }
+  }
+}

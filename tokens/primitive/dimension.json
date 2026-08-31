@@ -1,0 +1,33 @@
+{
+  "spacing": { "value": "4px", "type": "dimension" },
+
+  "radius": {
+    "none": { "value": "0px", "type": "dimension" },
+    "xsmall": { "value": "1px", "type": "dimension" },
+    "small": { "value": "6px", "type": "dimension" },
+    "base": { "value": "8px", "type": "dimension" },
+    "medium": { "value": "8px", "type": "dimension" },
+    "large": { "value": "12px", "type": "dimension" },
+    "xlarge": { "value": "16px", "type": "dimension" },
+    "full": { "value": "999999px", "type": "dimension" }
+  },
+
+  "border": {
+    "1": { "value": "1px", "type": "dimension" },
+    "2": { "value": "2px", "type": "dimension" },
+    "4": { "value": "4px", "type": "dimension" },
+    "icon": { "value": "1.2px", "type": "dimension" }
+  },
+
+  "divide": {
+    "x": { "value": "1px", "type": "dimension" },
+    "y": { "value": "1px", "type": "dimension" }
+  },
+
+  "z": {
+    "header": { "value": "8000", "type": "other" },
+    "sidesheet": { "value": "9000", "type": "other" },
+    "modal": { "value": "10000", "type": "other" },
+    "toast": { "value": "11000", "type": "other" }
+  }
+}

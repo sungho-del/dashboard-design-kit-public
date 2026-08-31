@@ -1,0 +1,55 @@
+{
+  "text": {
+    "2xsmall": { "value": "11px", "type": "fontSize" },
+    "xsmall": { "value": "12px", "type": "fontSize" },
+    "small": { "value": "14px", "type": "fontSize" },
+    "base": { "value": "16px", "type": "fontSize" },
+    "large": { "value": "18px", "type": "fontSize" },
+    "xlarge": { "value": "20px", "type": "fontSize" },
+    "2xlarge": { "value": "24px", "type": "fontSize" },
+    "3xlarge": { "value": "30px", "type": "fontSize" },
+    "4xlarge": { "value": "36px", "type": "fontSize" },
+    "5xlarge": { "value": "48px", "type": "fontSize" }
+  },
+
+  "leading": {
+    "3": { "value": "12px", "type": "lineHeight" },
+    "4": { "value": "16px", "type": "lineHeight" },
+    "5": { "value": "20px", "type": "lineHeight" },
+    "6": { "value": "24px", "type": "lineHeight" },
+    "7": { "value": "28px", "type": "lineHeight" },
+    "8": { "value": "32px", "type": "lineHeight" },
+    "9": { "value": "36px", "type": "lineHeight" },
+    "10": { "value": "40px", "type": "lineHeight" },
+    "11": { "value": "44px", "type": "lineHeight" },
+    "12": { "value": "48px", "type": "lineHeight" },
+    "13": { "value": "52px", "type": "lineHeight" },
+    "14": { "value": "56px", "type": "lineHeight" },
+    "15": { "value": "60px", "type": "lineHeight" },
+    "normal": { "value": "150%", "type": "lineHeight" },
+    "relaxed": { "value": "162.5%", "type": "lineHeight" },
+    "loose": { "value": "200%", "type": "lineHeight" }
+  },
+
+  "font-weight": {
+    "normal": { "value": "400", "type": "fontWeight" },
+    "medium": { "value": "500", "type": "fontWeight" },
+    "semibold": { "value": "600", "type": "fontWeight" },
+    "bold": { "value": "700", "type": "fontWeight" }
+  },
+
+  "font": {
+    "base": {
+      "value": "Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif",
+      "type": "fontFamily"
+    },
+    "large": {
+      "value": "Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif",
+      "type": "fontFamily"
+    },
+    "code": {
+      "value": "'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+      "type": "fontFamily"
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "color": {
+    "chart-axis": { "value": "{color.slate.200}", "type": "color" },
+    "chart-grid": { "value": "{color.slate.100}", "type": "color" },
+    "chart-tick": { "value": "{color.slate.500}", "type": "color" },
+
+    "chart-ordinal-1": { "value": "{color.blue.500}", "type": "color" },
+    "chart-ordinal-2": { "value": "{color.blue.600}", "type": "color" },
+    "chart-ordinal-3": { "value": "{color.blue.700}", "type": "color" },
+    "chart-ordinal-4": { "value": "{color.blue.900}", "type": "color" },
+
+    "chart-diverging-neg-1": {
+      "value": "{color.coral-red.400}",
+      "type": "color"
+    },
+    "chart-diverging-neg-2": {
+      "value": "{color.coral-red.600}",
+      "type": "color"
+    },
+    "chart-diverging-neg-3": {
+      "value": "{color.coral-red.800}",
+      "type": "color"
+    },
+    "chart-diverging-mid": { "value": "{color.slate.200}", "type": "color" },
+    "chart-diverging-pos-1": { "value": "{color.blue.500}", "type": "color" },
+    "chart-diverging-pos-2": { "value": "{color.blue.600}", "type": "color" },
+    "chart-diverging-pos-3": { "value": "{color.blue.900}", "type": "color" },
+
+    "chart-muted": { "value": "{color.slate.300}", "type": "color" },
+    "chart-muted-fill": { "value": "{color.slate.100}", "type": "color" },
+
+    "chart-delta-up": { "value": "{color.neon-green.800}", "type": "color" },
+    "chart-delta-down": { "value": "{color.coral-red.700}", "type": "color" },
+    "chart-delta-neutral": { "value": "{color.slate.500}", "type": "color" },
+
+    "progress-warning": { "value": "{color.mustard.700}", "type": "color" }
+  }
+}

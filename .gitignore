@@ -1,0 +1,39 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+storybook-static
+*storybook.log
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Claude Code — 로컬 전용 설정(Figma 토큰 등 비밀값이 들어간다)
+.claude/settings.local.json
+
+# 기획서 원본 저장본(용량이 크고 외부 서비스 소스다 — 입력일 뿐 산출물이 아니다)
+_plan/*/
+
+# 대시보드 제작에 쓰지 않는 자산 보관소 — 사용자가 확인 후 삭제한다.
+# 추적하지 않는다: 지울 폴더를 커밋하면 저장소만 커지고, 원본은 이 커밋 이전 이력에 남아 있다.
+_삭제예정/
+
+.vercel
+.env*

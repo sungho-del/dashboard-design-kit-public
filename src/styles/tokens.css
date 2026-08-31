@@ -1,0 +1,306 @@
+/* =========================================================
+ * 디자인 토큰 — Tailwind 연결 계층
+ *
+ * SSOT: tokens/primitive/*.json + tokens/semantic/*.json
+ *   → npm run build:tokens (Style Dictionary)
+ *   → src/tokens/_generated.css  (@theme 블록, 자동 생성, 직접 수정 금지)
+ *
+ * 토큰 값의 원천은 아임웹 Clay 디자인 시스템이다.
+ *   원본: _reference/vhf535763542.imweb.me/design-system/clay/vars.css
+ *
+ * 컴포넌트는 semantic 색상 토큰만 사용한다: bg-surface, text-text-sub,
+ * border-border 등. primitive(bg-slate-900, --color-blue-500) 직접 사용 금지.
+ * 치수(spacing/radius)는 Clay 와 동일하게 1층 구조다 — p-2, gap-4, rounded-medium.
+ * 상세: docs/token-architecture.md
+ * ========================================================= */
+/* ── 스캔 범위 ───────────────────────────────────────────
+ * `source(none)` 으로 자동 소스 탐지를 끄고 `@source` 로 대상을 명시한다.
+ *
+ * 자동 탐지는 프로젝트 전체를 훑으면서 **`.md` 문서까지 소스로 읽는다.** 그래서
+ * CLAUDE.md · docs/*.md · .claude/agents/*.md 에 적어 둔 "이렇게 쓰지 마라" 예시가
+ * 실제 CSS 규칙으로 컴파일됐다 — 배포 CSS 에 `.bg-[#22c55e]` · `.p-[15px]` ·
+ * `.text-[15px]` · `.gap-[10px]` 이 실측으로 들어 있었다.
+ * 소스 위반은 0건인데 **산출물에만** 하드코딩 색이 남는 상태였고,
+ * 훅(`check-design-tokens.mjs`)은 `.ts/.tsx` 만 보므로 이 경로를 잡지 못한다.
+ *
+ * ⚠️ 경로를 빠뜨리면 그 파일에서 쓴 클래스가 **통째로 사라진다.**
+ *    새 소스 디렉토리를 추가하면 여기에도 반드시 등록할 것.
+ * ------------------------------------------------------- */
+@import "tailwindcss" source(none);
+@source "../"; /* src/ — 컴포넌트·스토리·앱 */
+@source "../../index.html"; /* Vite 진입 HTML */
+@source "../../.storybook"; /* Storybook 설정 (현재 클래스 없음 · 예방적) */
+
+@import "../tokens/_generated.css";
+
+/* ── 폰트 ────────────────────────────────────────────────
+ * Clay 원본은 본문에 아임웹 독점 폰트 "imweb Sans"를 쓰지만,
+ * 재배포 라이선스가 불명확해 Pretendard(OFL) 단일 체계로 대체했다.
+ * Clay 도 heading 계열에는 이미 Pretendard 를 쓰므로 시각적 차이는 미미하다.
+ * 결정 근거: docs/PROGRESS.md
+ * ------------------------------------------------------- */
+@font-face {
+  font-family: "Pretendard";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/Pretendard-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Pretendard";
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/Pretendard-Medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Pretendard";
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/Pretendard-SemiBold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Pretendard";
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/Pretendard-Bold.woff2") format("woff2");
+}
+
+/* ── 전역 기본값 ─────────────────────────────────────────
+ * Clay 의 body 기본값(16px / imweb Sans)에 대응.
+ * ------------------------------------------------------- */
+@layer base {
+  html {
+    font-family: var(--font-base);
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-size: var(--text-base);
+    line-height: var(--leading-6);
+  }
+}
+
+/* ── 타이포그래피 프리셋 ─────────────────────────────────
+ * Clay 의 .clay-{category}-{size}[-bold] 24종을 Tailwind 유틸리티로 이식.
+ * 원본은 heading/label 을 Pretendard, body 를 imweb Sans 로 나누지만
+ * 여기서는 Pretendard 로 단일화했다(위 폰트 주석 참조).
+ *
+ * 사용: <h2 className="heading-2xlarge-bold">  <span className="label-medium">
+ * 임의의 text-[15px] 같은 값 사용 금지 — 이 24종이 정본이다.
+ * ------------------------------------------------------- */
+
+/* Heading — 페이지·섹션 제목 */
+@utility heading-5xlarge-bold {
+  font-family: var(--font-large);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--text-5xlarge);
+  line-height: var(--leading-15);
+}
+
+@utility heading-4xlarge-bold {
+  font-family: var(--font-large);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--text-4xlarge);
+  line-height: var(--leading-11);
+}
+
+@utility heading-3xlarge-bold {
+  font-family: var(--font-large);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--text-3xlarge);
+  line-height: var(--leading-9);
+}
+
+@utility heading-2xlarge-bold {
+  font-family: var(--font-large);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--text-2xlarge);
+  line-height: var(--leading-8);
+}
+
+@utility heading-xlarge-bold {
+  font-family: var(--font-large);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--text-xlarge);
+  line-height: var(--leading-7);
+}
+
+@utility heading-large {
+  font-family: var(--font-large);
+  font-weight: var(--font-weight-normal);
+  font-size: var(--text-large);
+  line-height: var(--leading-7);
+}
+
+@utility heading-large-bold {
+  font-family: var(--font-large);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--text-large);
+  line-height: var(--leading-7);
+}
+
+@utility heading-medium {
+  font-family: var(--font-large);
+  font-weight: var(--font-weight-normal);
+  font-size: var(--text-base);
+  line-height: var(--leading-6);
+}
+
+@utility heading-medium-bold {
+  font-family: var(--font-large);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--text-base);
+  line-height: var(--leading-6);
+}
+
+/* Body — 문단·설명 (행간 넉넉) */
+@utility body-large {
+  font-family: var(--font-base);
+  font-weight: var(--font-weight-normal);
+  font-size: var(--text-base);
+  line-height: var(--leading-6);
+}
+
+@utility body-large-bold {
+  font-family: var(--font-base);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--text-base);
+  line-height: var(--leading-6);
+}
+
+@utility body-medium {
+  font-family: var(--font-base);
+  font-weight: var(--font-weight-normal);
+  font-size: var(--text-small);
+  line-height: var(--leading-5);
+}
+
+@utility body-medium-bold {
+  font-family: var(--font-base);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--text-small);
+  line-height: var(--leading-5);
+}
+
+@utility body-small {
+  font-family: var(--font-base);
+  font-weight: var(--font-weight-normal);
+  font-size: var(--text-xsmall);
+  line-height: var(--leading-4);
+}
+
+@utility body-small-bold {
+  font-family: var(--font-base);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--text-xsmall);
+  line-height: var(--leading-4);
+}
+
+/* Label — 버튼·인풋·메뉴 등 인라인 UI 텍스트 (행간 타이트) */
+@utility label-3xlarge-bold {
+  font-family: var(--font-large);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--text-3xlarge);
+  line-height: var(--leading-9);
+}
+
+@utility label-xlarge-bold {
+  font-family: var(--font-large);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--text-xlarge);
+  line-height: var(--leading-7);
+}
+
+@utility label-large {
+  font-family: var(--font-base);
+  font-weight: var(--font-weight-normal);
+  font-size: var(--text-base);
+  line-height: var(--leading-6);
+}
+
+@utility label-large-bold {
+  font-family: var(--font-base);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--text-base);
+  line-height: var(--leading-6);
+}
+
+@utility label-medium {
+  font-family: var(--font-base);
+  font-weight: var(--font-weight-normal);
+  font-size: var(--text-small);
+  line-height: var(--leading-6);
+}
+
+@utility label-medium-bold {
+  font-family: var(--font-base);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--text-small);
+  line-height: var(--leading-6);
+}
+
+@utility label-small {
+  font-family: var(--font-base);
+  font-weight: var(--font-weight-normal);
+  font-size: var(--text-xsmall);
+  line-height: var(--leading-4);
+}
+
+@utility label-small-bold {
+  font-family: var(--font-base);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--text-xsmall);
+  line-height: var(--leading-4);
+}
+
+@utility label-xsmall {
+  font-family: var(--font-base);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--text-2xsmall);
+  line-height: var(--leading-3);
+}
+
+/* -------------------------------------------------------
+ * 수치 프리셋 3종 — 대시보드 지표값 전용 (위 24종과 다른 축)
+ *
+ * 왜 heading 을 쓰지 않고 따로 두는가:
+ * 지표값과 페이지 제목이 둘 다 `heading-2xlarge-bold`(24) 라 **같은 등급**이었다.
+ * 화면에서 가장 큰 글자가 "이 페이지의 이름"인지 "오늘 매출"인지 구별되지 않는다.
+ * 크기는 heading 확장 스케일과 같지만 **역할이 다르므로 이름을 나눈다** —
+ * 나중에 밀도(density) 축이 생기면 제목은 두고 수치만 줄일 수 있다.
+ * 이 때문에 `docs/design-core.md` 의 "확장 스케일은 대시보드에서 거의 쓰지 않는다"
+ * 는 문장은 **그대로 유효하다.** 대시보드가 쓰는 것은 heading 이 아니라 metric 이다.
+ *
+ * ⚠️ 숫자 글자폭은 **비례폭이 기본이다** — 여기에 `tabular-nums` 를 넣지 않는다.
+ * 등폭은 모든 숫자에 `0` 의 폭을 주므로 큰 글자에서 `121` 이 헐거워 보인다.
+ * 등폭이 필요한 곳은 **세로로 줄이 맞아야 하는 곳뿐**이다(표의 수치 열 · 차트 축 눈금).
+ * 그때는 Tailwind 의 `tabular-nums` 유틸리티를 따로 붙인다. 규격: `docs/DESIGN-dashboard.md` §D6
+ * ------------------------------------------------------- */
+
+@utility metric-large {
+  font-family: var(--font-large);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--text-4xlarge);
+  line-height: var(--leading-11);
+}
+
+@utility metric-medium {
+  font-family: var(--font-large);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--text-3xlarge);
+  line-height: var(--leading-9);
+}
+
+@utility metric-small {
+  font-family: var(--font-large);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--text-2xlarge);
+  line-height: var(--leading-8);
+}
