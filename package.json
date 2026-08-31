@@ -14,7 +14,8 @@
     "preview": "vite preview",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "check:consistency": "node scripts/check-consistency.mjs"
+    "check:consistency": "node scripts/check-consistency.mjs",
+    "reset:project": "node scripts/reset-project.mjs"
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.20",

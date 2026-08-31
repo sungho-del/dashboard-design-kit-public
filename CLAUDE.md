@@ -136,6 +136,7 @@ CSS 로딩 체인: `src/index.css` → `src/styles/tokens.css` → `src/tokens/_
 - `npm test` — Vitest (`npm test -- --run` 으로 단발 실행)
 - `npm run lint` — ESLint
 - `npm run format` — Prettier 전체 포맷 (저장 시 훅이 파일 단위로도 실행)
+- `npm run reset:project` — **새 프로젝트 시작**: 데모 화면 34종(babycube · classon · 차트온)과 BabyCube GNB·로고를 걷어내고 템플릿 4종만 남긴다. `--dry` 로 미리보기 · `--yes` 로 무확인 실행. 갈아끼울 깨끗한 원본은 `scripts/reset-project/*.tpl`
 - `npm run typecheck` — tsc -b (project references 구성이라 `-b` 필요)
 
 ## 자동 실행 훅 (`.claude/settings.json`)

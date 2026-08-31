@@ -76,6 +76,32 @@ if [ "$TARGET_DIR" != "$HARNESS_DIR" ]; then
     info "src/styles/tokens.css 이미 존재 — 건너뜀"
   fi
 
+  # UI 컴포넌트 37종 — **이게 빠지면 화면을 조립할 부품이 없다.**
+  # (예전엔 mkdir 만 하고 복사를 안 해서 빈 폴더만 생겼다)
+  cp -r "$HARNESS_DIR/src/components/ui/." "$TARGET_DIR/src/components/ui/"
+  UI_COUNT="$(find "$HARNESS_DIR/src/components/ui" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+  ok "UI 컴포넌트 ${UI_COUNT}종 복사"
+
+  # 유틸 — 컴포넌트가 `cn()` 등을 여기서 가져온다
+  cp -r "$HARNESS_DIR/src/lib/." "$TARGET_DIR/src/lib/"
+  ok "src/lib 복사"
+
+  # 화면 템플릿 4종 — Stage 5 가 읽어 도메인에 맞게 변형하는 원본.
+  # 화면 하나가 3파일(.tsx / .data.ts / .test.tsx)이다.
+  mkdir -p "$TARGET_DIR/src/pages"
+  for p in DashboardPage OrderListPage OrderDetailPage ProductFormPage; do
+    for ext in tsx data.ts test.tsx; do
+      if [ -f "$HARNESS_DIR/src/pages/$p.$ext" ]; then
+        cp "$HARNESS_DIR/src/pages/$p.$ext" "$TARGET_DIR/src/pages/$p.$ext"
+      fi
+    done
+  done
+  ok "화면 템플릿 4종 복사"
+
+  # 검사 도구 (슬롯 일관성)
+  mkdir -p "$TARGET_DIR/scripts"
+  cp "$HARNESS_DIR/scripts/check-consistency.mjs" "$TARGET_DIR/scripts/check-consistency.mjs"
+
   # .gitignore 시드
   if [ ! -f "$TARGET_DIR/.gitignore" ]; then
     printf '%s\n' "node_modules/" "dist/" "storybook-static/" ".env" \

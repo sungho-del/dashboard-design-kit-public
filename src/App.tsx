@@ -10,6 +10,7 @@ import { ProductFormPage } from "./pages/ProductFormPage";
 import { ReservationDetailPage } from "./pages/ReservationDetailPage";
 import { ReservationListPage } from "./pages/ReservationListPage";
 import { ScreenIndexPage } from "./pages/ScreenIndexPage";
+import { TEMPLATE_ROUTES } from "./pages/routes";
 
 /* 클래스온 — 온라인 강의 플랫폼 운영 어드민 (기획서 2화면, Stage 5 생성물) */
 import { OpsDashboardPage } from "./pages/classon/OpsDashboardPage";
@@ -123,10 +124,10 @@ const ROUTES: Record<string, ComponentType<NavProps>> = {
   "/screens": ScreenIndexPage,
 
   /* ── 손으로 만든 템플릿 4종 (이커머스) ── */
-  "/_template/dashboard": DashboardPage,
-  "/_template/orders": OrderListPage,
-  "/_template/order-detail": OrderDetailPage,
-  "/_template/product-new": ProductFormPage,
+  [TEMPLATE_ROUTES.dashboard]: DashboardPage,
+  [TEMPLATE_ROUTES.orders]: OrderListPage,
+  [TEMPLATE_ROUTES.orderDetail]: OrderDetailPage,
+  [TEMPLATE_ROUTES.productNew]: ProductFormPage,
 
   /* ── 차트온 — 병·의원 예약 관리 (첫 리허설 생성물) ── */
   "/_charton/clinic-status": ClinicStatusPage,

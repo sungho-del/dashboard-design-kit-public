@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../components/ui";
 import { OrderListPage } from "./OrderListPage";
+import { TEMPLATE_ROUTES } from "./routes";
 
 /**
  * `App.test.tsx` 는 이 화면을 **경유지로만** 훑는다 — 제목·컬럼 헤더가 있는지,
@@ -436,7 +437,7 @@ describe("OrderListPage", () => {
       expect(within(sheet).getByText("68,000원")).toBeVisible();
     });
 
-    it("'전체 상세 보기'는 order-detail 로 이동시키고 미리보기 모달을 닫는다", async () => {
+    it("'전체 상세 보기'는 주문 상세로 이동시키고 미리보기 모달을 닫는다", async () => {
       const { user, onNavSelect } = renderPage();
 
       await user.click(bodyRows()[0]);
@@ -445,7 +446,7 @@ describe("OrderListPage", () => {
       );
 
       expect(onNavSelect).toHaveBeenCalledTimes(1);
-      expect(onNavSelect).toHaveBeenCalledWith("order-detail");
+      expect(onNavSelect).toHaveBeenCalledWith(TEMPLATE_ROUTES.orderDetail);
       // 닫지 않고 이동하면 상세 페이지 위에 모달이 남는다
       await waitFor(() =>
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),

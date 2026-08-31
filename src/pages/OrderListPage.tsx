@@ -56,6 +56,7 @@ import {
   type Order,
 } from "./OrderListPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "./gnbSections";
+import { TEMPLATE_ROUTES } from "./routes";
 
 /* =========================================================================
  * 목록형 화면 템플릿 — 뼈대
@@ -441,7 +442,7 @@ export function OrderListPage({
             variant="secondary"
             onClick={() => {
               setDetail(null);
-              onNavSelect("order-detail");
+              onNavSelect(TEMPLATE_ROUTES.orderDetail);
             }}
           >
             전체 상세 보기

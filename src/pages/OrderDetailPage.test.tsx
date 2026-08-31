@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../components/ui";
 import { OrderDetailPage } from "./OrderDetailPage";
+import { TEMPLATE_ROUTES } from "./routes";
 
 /* -------------------------------------------------------------------------
  * 주문 상세 화면 (§30)
@@ -144,7 +145,7 @@ describe("OrderDetailPage", () => {
       await user.click(screen.getByRole("button", { name: "뒤로 가기" }));
 
       expect(onNavSelect).toHaveBeenCalledTimes(1);
-      expect(onNavSelect).toHaveBeenCalledWith("order-list");
+      expect(onNavSelect).toHaveBeenCalledWith(TEMPLATE_ROUTES.orders);
     });
   });
 

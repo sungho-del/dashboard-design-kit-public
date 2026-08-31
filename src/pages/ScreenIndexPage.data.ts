@@ -35,6 +35,7 @@ import {
   Wallet,
   XCircle,
 } from "lucide-react";
+import { TEMPLATE_ROUTES } from "./routes";
 
 /* -------------------------------------------------------------------------
  * 화면 목록의 **데이터 층**.
@@ -72,7 +73,7 @@ export interface ScreenEntry {
 export const SCREENS: ScreenEntry[] = [
   /* ── 손으로 만든 템플릿 4종 ── */
   {
-    navId: "/_template/dashboard",
+    navId: TEMPLATE_ROUTES.dashboard,
     name: "대시보드",
     type: "통계형",
     origin: "template",
@@ -81,7 +82,7 @@ export const SCREENS: ScreenEntry[] = [
     icon: LayoutDashboard,
   },
   {
-    navId: "/_template/orders",
+    navId: TEMPLATE_ROUTES.orders,
     name: "주문 관리",
     type: "목록형",
     origin: "template",
@@ -90,7 +91,7 @@ export const SCREENS: ScreenEntry[] = [
     icon: ShoppingCart,
   },
   {
-    navId: "/_template/order-detail",
+    navId: TEMPLATE_ROUTES.orderDetail,
     name: "주문 상세",
     type: "상세형",
     origin: "template",
@@ -100,7 +101,7 @@ export const SCREENS: ScreenEntry[] = [
     icon: Receipt,
   },
   {
-    navId: "/_template/product-new",
+    navId: TEMPLATE_ROUTES.productNew,
     name: "상품 등록",
     type: "폼형",
     origin: "template",

@@ -23,6 +23,7 @@ import {
 } from "../components/ui";
 import { CATEGORIES, SALE_STATES, won } from "./ProductFormPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "./gnbSections";
+import { TEMPLATE_ROUTES } from "./routes";
 
 /* =========================================================================
  * 폼형 화면 템플릿 — 뼈대
@@ -129,7 +130,7 @@ export function ProductFormPage({
       header={
         <PageHeader
           title="상품 등록"
-          onBack={() => onNavSelect("dashboard")}
+          onBack={() => onNavSelect(TEMPLATE_ROUTES.dashboard)}
           actions={
             <>
               <Button

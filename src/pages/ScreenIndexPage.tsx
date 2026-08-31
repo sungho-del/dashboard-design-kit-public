@@ -164,8 +164,13 @@ export function ScreenIndexPage({
         />
       }
     >
-      {(["template", "generated", "classon", "babycube"] as const).map(
-        (origin) => {
+      {/*
+        ⚠️ 화면이 하나도 없는 묶음은 건너뛴다. 안 그러면 `npm run reset:project` 직후처럼
+        템플릿만 남았을 때 **설명만 있고 카드가 없는 빈 섹션**이 세 개 뜬다.
+      */}
+      {(["template", "generated", "classon", "babycube"] as const)
+        .filter((o) => SCREENS.some((s) => s.origin === o))
+        .map((origin) => {
           const meta = ORIGIN_META[origin];
           const items = SCREENS.filter((s) => s.origin === origin);
 
@@ -199,8 +204,7 @@ export function ScreenIndexPage({
               </div>
             </section>
           );
-        },
-      )}
+        })}
     </AppShell>
   );
 }

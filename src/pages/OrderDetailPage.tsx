@@ -21,6 +21,7 @@ import {
 } from "../components/ui";
 import { ORDER, itemsTotal, total, won } from "./OrderDetailPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "./gnbSections";
+import { TEMPLATE_ROUTES } from "./routes";
 
 /* =========================================================================
  * 상세형 화면 템플릿 — 뼈대
@@ -97,7 +98,7 @@ export function OrderDetailPage({
       header={
         <PageHeader
           title="주문 상세"
-          onBack={() => onNavSelect("order-list")}
+          onBack={() => onNavSelect(TEMPLATE_ROUTES.orders)}
           badges={<Tag tone={ORDER.status.tone}>{ORDER.status.label}</Tag>}
           actions={
             <>
