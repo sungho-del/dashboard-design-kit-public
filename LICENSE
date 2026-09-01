@@ -1,0 +1,50 @@
+Copyright (c) 2026 메타몬스터 (Metamonster). All rights reserved.
+
+이 저장소는 **메타몬스터 구성원이 참고하고 가져다 쓸 수 있도록** 공개되어 있습니다.
+오픈소스 라이선스가 아닙니다 — 아래에 적힌 것 밖의 사용은 허용되지 않습니다.
+
+## 허용
+
+- 메타몬스터 구성원이 사내 프로젝트에 이 코드를 복사·수정·사용하는 것
+- 내용을 열람하고 참고하는 것
+
+## 허용하지 않음
+
+- 사외 재배포, 재라이선스
+- 메타몬스터 밖의 프로젝트에서 사용하는 것
+- 이 저장소를 기반으로 한 파생 저작물을 공개하는 것
+
+사외 사용이 필요하면 저장소 소유자에게 문의하세요.
+
+---
+
+## 함께 들어 있는 서드파티 자산
+
+이 저장소는 아래 자산을 포함하며, 각각 원 저작권자의 라이선스를 따릅니다.
+위의 사내 전용 조건은 **이 저장소가 만든 코드·문서에만** 적용되고, 아래 자산에는
+적용되지 않습니다.
+
+| 자산 | 위치 | 라이선스 |
+| --- | --- | --- |
+| Pretendard (woff2 4종) | `public/fonts/` | SIL Open Font License 1.1 — 전문은 `public/fonts/OFL.txt` |
+
+> Pretendard 는 OFL 1.1 이라 **재배포할 때 라이선스 전문을 함께 두어야 한다.**
+> `public/fonts/OFL.txt` 가 그것이다. 폰트 파일을 다른 프로젝트로 옮길 때도 같이 옮길 것.
+
+npm 의존성(React · Tailwind · Recharts …)은 이 저장소에 포함되지 않으며
+(`node_modules/` 는 배포물이 아니다) 각 패키지의 라이선스를 따릅니다.
+
+---
+
+(English)
+
+Copyright (c) 2026 Metamonster. All rights reserved.
+
+Published so that Metamonster members can reference and reuse it internally.
+This is **not** an open source license. Redistribution outside Metamonster,
+relicensing, and use in non-Metamonster projects are not permitted.
+Contact the repository owner for any other use.
+
+Bundled third-party assets keep their own licenses — see the table above.
+Pretendard is licensed under the SIL Open Font License 1.1; the full text
+ships alongside the font files at `public/fonts/OFL.txt`.

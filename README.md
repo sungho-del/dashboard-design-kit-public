@@ -89,6 +89,14 @@ React 19 + TypeScript 5 · Tailwind v4 · Style Dictionary(토큰) · Storybook 
 - `START-HERE.md` — **기획자용 진입 문서** (설치→실행→확인, 전문용어 없음)
 - `SETUP.md` — 새 프로젝트 셋업 체크리스트 (§0 전역 준비 포함)
 
+## 라이선스
+
+**사내 전용**입니다 — 메타몬스터 구성원이 참고·재사용하라고 공개해 둔 것이지
+오픈소스가 아니다. 조건은 [`LICENSE`](./LICENSE).
+
+번들된 Pretendard 폰트는 SIL OFL 1.1 이라 **전문을 함께 둔다**
+(`public/fonts/OFL.txt`). 폰트를 다른 프로젝트로 옮길 때 같이 옮길 것.
+
 ## 주요 명령어
 
 - `npm run build:tokens` — 토큰 빌드 (tokens/*.json → CSS)

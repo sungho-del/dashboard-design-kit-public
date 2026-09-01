@@ -136,6 +136,7 @@ CSS 로딩 체인: `src/index.css` → `src/styles/tokens.css` → `src/tokens/_
 - `npm test` — Vitest (`npm test -- --run` 으로 단발 실행)
 - `npm run lint` — ESLint
 - `npm run format` — Prettier 전체 포맷 (저장 시 훅이 파일 단위로도 실행)
+- `npm run sync:public` — 현재 커밋 상태를 **공개 저장소**에 반영. ⚠️ 이 저장소의 히스토리에는 공개하면 안 되는 서드파티 사본이 남아 있어 **원격을 걸어 push 하면 안 된다** — 이 스크립트는 파일만 옮긴다
 - `npm run reset:project` — **새 프로젝트 시작**: 데모 화면 34종(babycube · classon · 차트온)과 BabyCube GNB·로고를 걷어내고 템플릿 4종만 남긴다. `--dry` 미리보기 · `--yes` 무확인 · 이미 리셋된 폴더에서는 **멈춰서** 사용자 화면을 덮지 않는다(강행은 `--force`). 갈아끼울 깨끗한 원본은 `scripts/reset-project/*.tpl`
 - `npm run typecheck` — tsc -b (project references 구성이라 `-b` 필요)
 

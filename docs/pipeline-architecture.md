@@ -112,10 +112,10 @@ Stage 5 · 화면 생성 (@agent-screen-builder)
 | ------------------------------------------------- | --------------------------------------------------- |
 | Stage 1 (service-analyzer, /analyze-plan, 스키마) | ✅ 구현 · **실전 검증됨** (아래 참조)               |
 | Stage 2a (brand-strategist, 브랜드 정의)          | 🗑 **삭제됨** — 에이전트·커맨드 모두 없음            |
-| Stage 2b (brand-builder, §10 팔레트)              | 🗑 **삭제됨**                                          |
-| Stage 3 (brand-applier, 팔레트→토큰 반영)         | 🗑 **삭제됨**                                          |
+| Stage 2b (brand-builder, §10 팔레트)              | 🗑 **삭제됨**                                        |
+| Stage 3 (brand-applier, 팔레트→토큰 반영)         | 🗑 **삭제됨**                                        |
 | Stage 3+ (컴포넌트/스토리 — 기존 엔진)            | ✅ 기존 하네스                                      |
-| Stage 4 (figma-designer, 설계 전용)               | 🗑 **삭제됨**                                          |
+| Stage 4 (figma-designer, 설계 전용)               | 🗑 **삭제됨**                                        |
 | **Stage 5 (screen-builder, 화면 코드 생성)**      | **✅ 구현** (템플릿 4종 · 계획 체크포인트)          |
 | /run-pipeline 오케스트레이터                      | ✅ 커맨드 존재 (`.claude/commands/run-pipeline.md`) |
 

@@ -51,9 +51,9 @@
 |         | `label-medium` `-bold`   | **14 / 24** | **버튼·인풋·메뉴 기본**   |
 |         | `label-small` `-bold`    | 12 / 16     | 작은 버튼·태그            |
 |         | `label-xsmall`           | 11 / 12     | 배지·최소 라벨            |
-| Metric  | `metric-large`           | 36 / 44     | 대시보드 대표 수치            |
-|         | `metric-medium`          | 30 / 36     | 지표 타일 수치              |
-|         | `metric-small`           | 24 / 32     | 좁은 타일·보조 수치          |
+| Metric  | `metric-large`           | 36 / 44     | 대시보드 대표 수치        |
+|         | `metric-medium`          | 30 / 36     | 지표 타일 수치            |
+|         | `metric-small`           | 24 / 32     | 좁은 타일·보조 수치       |
 
 > **metric-\* 는 수치 전용이다.** 지표 타일의 **값**에만 쓴다 — 라벨·단위·제목에 쓰지 않는다.
 > 상세는 `docs/DESIGN-dashboard.md`.
