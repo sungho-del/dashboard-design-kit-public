@@ -28,6 +28,7 @@ import {
   phoneDigits,
 } from "./PatientFormPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "./gnbSections";
+import { CHARTON_ROUTES } from "./routes";
 
 /* =========================================================================
  * 환자 등록 (S04) — 폼형
@@ -188,7 +189,7 @@ export function PatientFormPage({
       header={
         <PageHeader
           title="환자 등록"
-          onBack={() => onNavSelect("reservation-list")}
+          onBack={() => onNavSelect(CHARTON_ROUTES.reservations)}
           actions={
             <>
               <Button

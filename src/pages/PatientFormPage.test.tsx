@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../components/ui";
 import { PatientFormPage } from "./PatientFormPage";
+import { CHARTON_ROUTES } from "./routes";
 
 /* -------------------------------------------------------------------------
  * 환자 등록 (S04) — 폼형 (§29)
@@ -432,7 +433,7 @@ describe("PatientFormPage", () => {
 
       await user.click(screen.getByRole("button", { name: "뒤로 가기" }));
 
-      expect(onNavSelect).toHaveBeenCalledWith("reservation-list");
+      expect(onNavSelect).toHaveBeenCalledWith(CHARTON_ROUTES.reservations);
     });
   });
 });

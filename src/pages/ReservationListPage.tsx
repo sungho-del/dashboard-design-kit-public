@@ -53,6 +53,7 @@ import {
   type Reservation,
 } from "./ReservationListPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "./gnbSections";
+import { CHARTON_ROUTES } from "./routes";
 
 /* =========================================================================
  * 예약 목록 (S01) — 목록형
@@ -402,7 +403,7 @@ export function ReservationListPage({
             variant="secondary"
             onClick={() => {
               setDetail(null);
-              onNavSelect("reservation-detail");
+              onNavSelect(CHARTON_ROUTES.reservationDetail);
             }}
           >
             전체 상세 보기

@@ -1,0 +1,1 @@
+- [Static-only QA runs](feedback_static-only-qa-runs.md) — 범위를 코드 대조로 좁히면 브라우저를 띄우지 말고, 못 돌린 검사는 blocked/SKIP 으로 짧게 보고

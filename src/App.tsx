@@ -10,7 +10,7 @@ import { ProductFormPage } from "./pages/ProductFormPage";
 import { ReservationDetailPage } from "./pages/ReservationDetailPage";
 import { ReservationListPage } from "./pages/ReservationListPage";
 import { ScreenIndexPage } from "./pages/ScreenIndexPage";
-import { TEMPLATE_ROUTES } from "./pages/routes";
+import { CHARTON_ROUTES, TEMPLATE_ROUTES } from "./pages/routes";
 
 /* 클래스온 — 온라인 강의 플랫폼 운영 어드민 (기획서 2화면, Stage 5 생성물) */
 import { OpsDashboardPage } from "./pages/classon/OpsDashboardPage";
@@ -130,14 +130,14 @@ const ROUTES: Record<string, ComponentType<NavProps>> = {
   [TEMPLATE_ROUTES.productNew]: ProductFormPage,
 
   /* ── 차트온 — 병·의원 예약 관리 (첫 리허설 생성물) ── */
-  "/_charton/clinic-status": ClinicStatusPage,
-  "/_charton/reservations": ReservationListPage,
+  [CHARTON_ROUTES.clinicStatus]: ClinicStatusPage,
+  [CHARTON_ROUTES.reservations]: ReservationListPage,
   /*
    * 상세형은 GNB 항목이 아니다(목록의 하위 화면). 메뉴에 없다고 화면이 없는 것은
    * 아니므로 **경로는 반드시 만든다** — 빠뜨리면 '전체 상세 보기'가 폴백으로 떨어진다.
    */
-  "/_charton/reservation-detail": ReservationDetailPage,
-  "/_charton/patient-new": PatientFormPage,
+  [CHARTON_ROUTES.reservationDetail]: ReservationDetailPage,
+  [CHARTON_ROUTES.patientNew]: PatientFormPage,
 
   /*
    * ── 클래스온 — 온라인 강의 플랫폼 운영 어드민 (두 번째 리허설 생성물) ──

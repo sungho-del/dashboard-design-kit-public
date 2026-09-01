@@ -41,3 +41,20 @@ export const TEMPLATE_ROUTES = {
   orderDetail: "/_template/order-detail",
   productNew: "/_template/product-new",
 } as const;
+
+/**
+ * 차트온(병·의원 예약) — Stage 5 첫 리허설 산출물.
+ *
+ * ⚠️ **여기도 같은 사고가 났었다.** 템플릿 4종을 상수화할 때 차트온을 빠뜨렸고,
+ * `onNavSelect("reservation-list")` 같은 **상대 경로**가 남아 뒤로가기 2곳이 죽어 있었다
+ * (`/_charton/reservation-list` — 없는 경로라 화면 목록으로 폴백됐다).
+ * 테스트는 그 깨진 문자열을 그대로 고정하고 있어 **통과했다.**
+ * `@agent-qa-e2e` 가 코드 대조로 찾았다.
+ */
+export const CHARTON_ROUTES = {
+  clinicStatus: "/_charton/clinic-status",
+  reservations: "/_charton/reservations",
+  /** GNB 항목이 아니다 — 예약 목록에서 행을 열어 들어간다 */
+  reservationDetail: "/_charton/reservation-detail",
+  patientNew: "/_charton/patient-new",
+} as const;

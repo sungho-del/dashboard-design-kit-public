@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../components/ui";
 import { ReservationDetailPage } from "./ReservationDetailPage";
+import { CHARTON_ROUTES } from "./routes";
 
 /* -------------------------------------------------------------------------
  * 예약 상세 (S02) — 상세형
@@ -184,7 +185,7 @@ describe("ReservationDetailPage", () => {
       await user.click(screen.getByRole("button", { name: "뒤로 가기" }));
 
       expect(onNavSelect).toHaveBeenCalledTimes(1);
-      expect(onNavSelect).toHaveBeenCalledWith("reservation-list");
+      expect(onNavSelect).toHaveBeenCalledWith(CHARTON_ROUTES.reservations);
     });
   });
 

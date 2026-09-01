@@ -26,6 +26,7 @@ import {
   won,
 } from "./ReservationDetailPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "./gnbSections";
+import { CHARTON_ROUTES } from "./routes";
 
 /* =========================================================================
  * 예약 상세 (S02) — 상세형
@@ -102,7 +103,7 @@ export function ReservationDetailPage({
       header={
         <PageHeader
           title="예약 상세"
-          onBack={() => onNavSelect("reservation-list")}
+          onBack={() => onNavSelect(CHARTON_ROUTES.reservations)}
           badges={
             <Tag tone={RESERVATION.status.tone}>{RESERVATION.status.label}</Tag>
           }

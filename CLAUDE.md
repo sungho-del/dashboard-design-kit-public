@@ -118,13 +118,18 @@ CSS 로딩 체인: `src/index.css` → `src/styles/tokens.css` → `src/tokens/_
      커맨드 `/new-component <요구>` 가 이 순서를 태운다. 규격: `DESIGN.md` §26
 - 디자인 감사/토큰 검증 요청 → `@agent-design-reviewer`에 위임
 - **화면을 만든 뒤 시각 점검** → `@agent-ui-inspector`에 위임 (`/inspect <경로>`). 실제 브라우저로 띄워 겹침·잘림·간격·**같은 종류 값이 이웃해 섞여 읽힘**을 측정한다. ⚠️ **jsdom 에는 레이아웃이 없어 테스트가 이런 결함을 못 잡는다**
+- **누른 뒤 실제로 되는지 확인** → `@agent-qa-e2e`에 위임. 이동이 진짜 도착하는가 · 딥링크 · 새로고침 지속성 · 뒤로가기 · 콘솔 에러를 눠러 본다.
+  ⚠️ **테스트가 통과해도 기능은 죽어 있을 수 있다** — `onNavSelect("order-list")` 를 검사하는 테스트가 있었고, 그 경로는 존재하지 않았다
 - 컴포넌트 구현 완료 후 품질 게이트 → `@agent-design-qa`에 위임 (타입·린트·테스트·빌드·Storybook·토큰·파일 구조·접근성 8항목. 검사 전용, 파일 수정 안 함)
 
 > 브랜드(2a·2b·3)·Figma(4) 에이전트는 **이 폴더에서 삭제했다**.
 > 실제로 돌리면 문서 표류로 빌드가 깨지는 상태였고, 대시보드 제작 경로(**Stage 1 → 5**)는
 > 그 단계를 거치지 않는다. 브랜드 색을 입히는 기능이 필요해지면 그때 복구한다.
 
-커맨드: `/run-pipeline` `/analyze-plan` **`/build-screens`** `/new-component` `/inspect` `/build-tokens` `/design-audit`
+커맨드: `/run-pipeline` `/analyze-plan` **`/build-screens`** `/new-component` `/inspect` **`/qa`** `/build-tokens` `/design-audit`
+
+> **`/qa` 는 세 축을 한 번에 태운다** — 정적(`design-qa`) · 시각(`ui-inspector`) · 기능(`qa-e2e`).
+> 판정은 `pass` / `fail` / `needs_human` / `blocked` 네 가지고, **못 돌린 검사는 `pass` 가 아니다.**
 
 ## 빌드 및 테스트 명령어
 

@@ -35,7 +35,7 @@ import {
   Wallet,
   XCircle,
 } from "lucide-react";
-import { TEMPLATE_ROUTES } from "./routes";
+import { CHARTON_ROUTES, TEMPLATE_ROUTES } from "./routes";
 
 /* -------------------------------------------------------------------------
  * 화면 목록의 **데이터 층**.
@@ -112,7 +112,7 @@ export const SCREENS: ScreenEntry[] = [
 
   /* ── 차트온(병·의원 예약 관리)에서 생성된 4종 ── */
   {
-    navId: "/_charton/clinic-status",
+    navId: CHARTON_ROUTES.clinicStatus,
     name: "진료 현황",
     type: "통계형",
     origin: "generated",
@@ -121,7 +121,7 @@ export const SCREENS: ScreenEntry[] = [
     icon: Stethoscope,
   },
   {
-    navId: "/_charton/reservations",
+    navId: CHARTON_ROUTES.reservations,
     name: "예약 목록",
     type: "목록형",
     origin: "generated",
@@ -130,7 +130,7 @@ export const SCREENS: ScreenEntry[] = [
     icon: CalendarCheck,
   },
   {
-    navId: "/_charton/reservation-detail",
+    navId: CHARTON_ROUTES.reservationDetail,
     name: "예약 상세",
     type: "상세형",
     origin: "generated",
@@ -140,7 +140,7 @@ export const SCREENS: ScreenEntry[] = [
     icon: ClipboardList,
   },
   {
-    navId: "/_charton/patient-new",
+    navId: CHARTON_ROUTES.patientNew,
     name: "환자 등록",
     type: "폼형",
     origin: "generated",

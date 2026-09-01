@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../components/ui";
 import { ReservationListPage } from "./ReservationListPage";
+import { CHARTON_ROUTES } from "./routes";
 
 /* -------------------------------------------------------------------------
  * 예약 목록 (S01) — 목록형
@@ -515,7 +516,7 @@ describe("ReservationListPage", () => {
       );
 
       expect(onNavSelect).toHaveBeenCalledTimes(1);
-      expect(onNavSelect).toHaveBeenCalledWith("reservation-detail");
+      expect(onNavSelect).toHaveBeenCalledWith(CHARTON_ROUTES.reservationDetail);
       await waitFor(() =>
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
       );
