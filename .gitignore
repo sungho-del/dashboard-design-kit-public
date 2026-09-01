@@ -37,3 +37,8 @@ _삭제예정/
 
 .vercel
 .env*
+
+# 설정 백업 등 임시 사본. `.claude/settings.local.json` 에는 토큰이 들어 있을 수 있는데
+# 그 백업(`*.bak`)은 gitignore 되지 않아 `git add -A` 한 번이면 추적 대상이 됐다.
+*.bak
+*.orig

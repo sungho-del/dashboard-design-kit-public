@@ -516,7 +516,9 @@ describe("ReservationListPage", () => {
       );
 
       expect(onNavSelect).toHaveBeenCalledTimes(1);
-      expect(onNavSelect).toHaveBeenCalledWith(CHARTON_ROUTES.reservationDetail);
+      expect(onNavSelect).toHaveBeenCalledWith(
+        CHARTON_ROUTES.reservationDetail,
+      );
       await waitFor(() =>
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
       );

@@ -32,6 +32,7 @@ import {
   copyFileSync,
   mkdirSync,
   readdirSync,
+  readFileSync,
   rmSync,
   existsSync,
 } from "node:fs";
@@ -134,6 +135,50 @@ const leaked = tracked.filter((f) => FORBIDDEN.some((re) => re.test(f)));
 if (leaked.length) {
   fail(
     `공개하면 안 되는 파일이 추적되고 있습니다:\n        ${leaked.join("\n        ")}`,
+  );
+}
+
+/* ── 4-2. 파일 **내용**에 자격증명이 섞였는지 ───────────────────────── */
+
+/*
+ * 경로 검사만으로는 부족하다. 실제로 `.claude/settings.local.json` 안에
+ * **Figma 개인 토큰이 평문으로** 들어 있었고, 그 백업(`*.bak`)은 gitignore 도 되지 않아
+ * `git add -A` 한 번이면 추적 대상이 될 뻔했다.
+ *
+ * 패턴을 문자열 조합으로 만드는 이유 — 그러지 않으면 **이 파일 자신이 걸린다.**
+ */
+const SECRET_PATTERNS = [
+  [new RegExp("figd" + "_[A-Za-z0-9_-]{20,}"), "Figma 개인 토큰"],
+  [new RegExp("ghp" + "_[A-Za-z0-9]{30,}"), "GitHub 토큰"],
+  [new RegExp("github" + "_pat_[A-Za-z0-9_]{40,}"), "GitHub PAT"],
+  [new RegExp("AKIA" + "[0-9A-Z]{16}"), "AWS 액세스 키"],
+  [new RegExp("AIza" + "[0-9A-Za-z_-]{30,}"), "Google API 키"],
+  [new RegExp("xox" + "[baprs]-[0-9A-Za-z-]{10,}"), "Slack 토큰"],
+  [new RegExp("-----BEGIN [A-Z ]*PRIVATE KEY-----"), "개인키"],
+];
+
+/** 바이너리는 건너뛴다 — 폰트·이미지에서 오탐이 난다 */
+const TEXT_LIKE =
+  /\.(ts|tsx|js|jsx|mjs|cjs|json|md|css|html|sh|yml|yaml|txt|svg)$/i;
+
+const secretHits = [];
+for (const rel of tracked) {
+  if (!TEXT_LIKE.test(rel)) continue;
+  let body;
+  try {
+    body = readFileSync(join(ROOT, rel), "utf8");
+  } catch {
+    continue;
+  }
+  for (const [re, label] of SECRET_PATTERNS) {
+    if (re.test(body)) secretHits.push(rel + " — " + label);
+  }
+}
+if (secretHits.length) {
+  fail(
+    "자격증명으로 보이는 문자열이 추적 파일 안에 있습니다:\n        " +
+      secretHits.join("\n        ") +
+      "\n        공개본에 올리면 되돌릴 수 없습니다. 제거하고 해당 토큰을 폐기하세요.",
   );
 }
 
