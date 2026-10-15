@@ -28,16 +28,16 @@
 - `src/styles/tokens.css` — Tailwind 진입 계층. `@import "tailwindcss"` + `_generated.css` 재수출 + `@font-face` + **타이포 프리셋 27종(`@utility`)**. **수기 편집이 허용된 유일한 CSS**
 - `public/fonts/` — Pretendard woff2 4종(400/500/600/700)
 - `src/index.css` — 전역 진입. `styles/tokens.css`만 import
-- `src/components/ui/` — 디자인 시스템 UI 컴포넌트 **37종**. 배럴 `index.ts`에 등록해 `import { Button } from "@/components/ui"` 로 쓴다
-  `AppShell` `Avatar` `Button` `Card` `Chart` `Checkbox` `DataTableShell` `DatePicker` `Divider` `Dropdown` `EmptyState` `FormField` `Gnb` `IconButton` `InfoList` `Input` `Modal` `PageHeader` `Pagination` `ProgressBar` `Radio` `SegmentedControl` `Select` `SelectionBar` `SideSheet` `Skeleton` `Spinner` `StatGrid` `StatTile` `Switch` `Table` `Tabs` `Tag` `Textarea` `TextButton` `Toast` `Tooltip`
+- `src/components/ui/` — 디자인 시스템 UI 컴포넌트 **38종**. 배럴 `index.ts`에 등록해 `import { Button } from "@/components/ui"` 로 쓴다
+  `AppShell` `Avatar` `Button` `Card` `Chart` `Checkbox` `DataTableShell` `DatePicker` `Divider` `Dropdown` `EmptyState` `FilterBar` `FormField` `Gnb` `IconButton` `InfoList` `Input` `Modal` `PageHeader` `Pagination` `ProgressBar` `Radio` `SegmentedControl` `Select` `SelectionBar` `SideSheet` `Skeleton` `Spinner` `StatGrid` `StatTile` `Switch` `Table` `Tabs` `Tag` `Textarea` `TextButton` `Toast` `Tooltip`
   버튼 계열 variant는 `Button/variants.ts`를 공유한다 (Button·IconButton 동일 규격)
   ⚠️ `FormField`는 **`Input`·`Textarea`·`Select` 전용**이다. `Switch`·`Checkbox`·`Radio`는 루트가 이미 `<label>`이라 감싸면 라벨이 중첩된다 — 자체 `label`·`description` prop을 쓴다
-- `src/pages/` — 조립된 화면 **39종** + GNB 구성 `gnbSections.tsx`(여러 페이지 공유). 네 갈래다:
+- `src/pages/` — 조립된 화면 **42종** + GNB 구성 `gnbSections.tsx`(여러 페이지 공유). 네 갈래다:
   - **템플릿 4종**(루트, 이커머스) — `OrderListPage`(목록형) · `ProductFormPage`(폼형) · `OrderDetailPage`(상세형) · `DashboardPage`(통계형). 화면 생성기가 변형해 쓰는 원본. 경로 `/_template/*`
   - **차트온 4종**(루트, 병·의원 예약 — 첫 리허설 생성물) — `ClinicStatusPage` · `ReservationListPage` · `ReservationDetailPage` · `PatientFormPage`. 경로 `/_charton/*`
-  - `src/pages/babycube/` **28종** — 실전 기획서(`pipeline/01-service-brief.json`)로 Stage 5 가 생성. **원본 route 그대로**(`/` · `/members` · …)
+  - `src/pages/babycube/` **31종** — 실전 기획서(`pipeline/01-service-brief.json`)로 Stage 5 가 생성. **원본 route 그대로**(`/` · `/members` · …)
   - `src/pages/classon/` **2종** — 두 번째 리허설 생성물. 경로 `/_classon/*` · 저장소 색인 `ScreenIndexPage`(`/screens`)가 전체 목록을 연다
-    모든 화면이 `{navOpen, onNavOpenChange, activeNav, onNavSelect}` props를 받는다. `src/App.tsx`는 **전역 Provider + 경로→화면 조회 맵만**(173줄). 화면마다 URL 이 있고, 라우터는 `src/lib/router.ts` 의 최소 구현이다 — **GNB 항목 id 가 곧 경로**라 별도 매핑표를 두지 않는다(한쪽만 고치면 조용히 어긋난다)
+    모든 화면이 `{navOpen, onNavOpenChange, activeNav, onNavSelect}` props를 받는다. `src/App.tsx`는 **전역 Provider + 경로→화면 조회 맵만**(215줄). 화면마다 URL 이 있고, 라우터는 `src/lib/router.ts` 의 최소 구현이다 — **GNB 항목 id 가 곧 경로**라 별도 매핑표를 두지 않는다(한쪽만 고치면 조용히 어긋난다)
     **GNB 구성·로고 슬롯을 페이지 파일에 두지 말 것** — `App → 페이지 → App` 순환 참조가 되고, 한 페이지에만 넘기면 나머지 화면에서 로고가 사라진다. 반드시 `gnbSections.tsx`의 `GNB_SECTIONS`·`GNB_LOGO_SLOTS`를 가져다 쓴다
 - **페이지는 3파일** — `.tsx`(뼈대) + `.data.ts`(도메인) + `.test.tsx`. **stories는 만들지 않는다**(앱 화면이지 디자인 시스템 컴포넌트가 아니다). 페이지 테스트는 **동작**(필터·모달·전환·계산)을 검증할 것 — 렌더 여부만 보면 화면이 통째로 빠져도 통과한다
 - ⚠️ **페이지는 템플릿이다 — 뼈대와 도메인을 섞지 말 것.**
@@ -46,7 +46,18 @@
   단위 포맷터(`won` 등)가 여러 `.data.ts`에 중복되는 것은 **의도된 것**이다 — 단위는 도메인이라(원·kg·시간) 공용화하면 서비스 교체 시 뼈대를 고쳐야 한다
   폼 화면은 **간격을 직접 지정하지 않는다** — `AppShell` gap-6(카드 24) · `CardBody` gap-5(필드 20) · `FormField` gap-1.5(라벨↔입력 6)가 실측 규격을 이미 준다. 상세: `docs/DESIGN.md` §29
 - `src/lib/cn.ts` — className 조합 유틸. **클래스 병합을 하지 않으므로** 같은 CSS 속성의 클래스를 두 곳에서 방출하지 말 것
-- `src/lib/` — 유틸리티
+- `src/lib/` — 유틸리티. `dataStatus.ts` 는 화면의 데이터 상태 4종(`ready`·`loading`·`empty`·`refreshing`)과 `?preview=` 해석을 담는다 — 도메인이 아니라 모든 화면에서 뜻이 같다 (§D8)
+- **`src/shadcn/ui/` — shadcn/ui 원본 층** (현재 `chart`). 설정 `components.json` · 전용 `cn` 은 `src/lib/shadcn-utils.ts`(tailwind-merge 병합 — 키트 `cn` 과 **섞지 말 것**). 아래 "shadcn 층 규칙" 참고
+
+### shadcn 층 규칙 (하이브리드)
+
+shadcn 은 **Clay 위에 얹힌 부품 공급원**이지 디자인 시스템의 교체가 아니다. Clay 규칙이 항상 이긴다.
+
+- **페이지는 `src/shadcn` 을 직접 import 하지 않는다.** `src/components/ui/*` 키트 래퍼가 감싸고, 페이지는 래퍼만 쓴다 (예: `ChartFrame` 이 `ChartContainer` 를 감싼다)
+- 색은 **브릿지**로만 닿는다 — `src/styles/tokens.css` 끝의 "shadcn 브릿지"가 `--primary`·`--card`·`--muted-foreground`·`--chart-1..5` 등을 **Clay semantic 토큰에 연결**한다. 새 값을 만들지 않는다. `--color-border` 는 키트 것을 공유한다(재정의하면 순환 참조)
+- **부품 추가 절차**: `npx shadcn@latest add <x> --dry-run` 먼저 → 의존성 버전이 **내려가지 않는지** 확인(`chart` 는 recharts 를 3.8.0 으로 내리려 해서 `--view` 로 원본만 옮겼다) → 원본을 Clay 규칙으로 치환(`text-xs`→`body-small` · `border`→`outline` −1 · `rounded-lg`→`rounded-medium`) → 키트 래퍼 + stories + tests
+- `ChartContainer` 의 config 키는 `--color-<키>` 변수가 된다 — **Clay 토큰 이름(`border`·`text`·`surface`…)을 키로 쓰지 말 것**
+- 경로 별칭 `@/` → `src/` (tsconfig `paths` + `vite.config.ts` `resolve.alias`). shadcn CLI 가 이것을 읽는다
 - `pipeline/` — 파이프라인 단계 산출물 (규약: `docs/pipeline-architecture.md`)
 - `docs/schemas/` — 파이프라인 산출물 JSON 스키마 (service-brief · screen-plan)
 - `_plan/` — 기획서 입력 위치 (파이프라인 트리거의 입력)
@@ -112,7 +123,7 @@ CSS 로딩 체인: `src/index.css` → `src/styles/tokens.css` → `src/tokens/_
 
 - 기획서 분석/서비스 분석 요청 → `@agent-service-analyzer`에 위임 (파이프라인 Stage 1)
 - **화면·페이지 생성 요청** (기획서 화면을 코드로) → `@agent-screen-builder`에 위임 (파이프라인 Stage 5). 템플릿 4종을 도메인에 맞게 변형한다. **계획서 승인 후 생성** — 카탈로그: `docs/screen-templates.md`
-- **새 UI 컴포넌트가 필요할 때** (기존 37종으로 안 되는 부품) → **2인 팀으로 나눈다**
+- **새 UI 컴포넌트가 필요할 때** (기존 38종으로 안 되는 부품) → **2인 팀으로 나눈다**
   1. `@agent-ux-designer` — 필요성 판정·anatomy·상태·상호작용·접근성 **설계만**(코드 안 씀). **만들지 않는 판단이 기본값**
   2. `@agent-component-builder` — 그 명세를 **구현만**(설계 안 바꿈). 4파일 + 배럴 + 검증
      커맨드 `/new-component <요구>` 가 이 순서를 태운다. 규격: `DESIGN.md` §26
@@ -142,7 +153,7 @@ CSS 로딩 체인: `src/index.css` → `src/styles/tokens.css` → `src/tokens/_
 - `npm run lint` — ESLint
 - `npm run format` — Prettier 전체 포맷 (저장 시 훅이 파일 단위로도 실행)
 - `npm run sync:public` — 현재 커밋 상태를 **공개 저장소**에 반영. ⚠️ 이 저장소의 히스토리에는 공개하면 안 되는 서드파티 사본이 남아 있어 **원격을 걸어 push 하면 안 된다** — 이 스크립트는 파일만 옮긴다
-- `npm run reset:project` — **새 프로젝트 시작**: 데모 화면 34종(babycube · classon · 차트온)과 BabyCube GNB·로고를 걷어내고 템플릿 4종만 남긴다. `--dry` 미리보기 · `--yes` 무확인 · 이미 리셋된 폴더에서는 **멈춰서** 사용자 화면을 덮지 않는다(강행은 `--force`). 갈아끼울 깨끗한 원본은 `scripts/reset-project/*.tpl`
+- `npm run reset:project` — **새 프로젝트 시작**: 데모 화면 37종(babycube · classon · 차트온)과 BabyCube GNB·로고를 걷어내고 템플릿 4종만 남긴다. `--dry` 미리보기 · `--yes` 무확인 · 이미 리셋된 폴더에서는 **멈춰서** 사용자 화면을 덮지 않는다(강행은 `--force`). 갈아끼울 깨끗한 원본은 `scripts/reset-project/*.tpl`
 - `npm run typecheck` — tsc -b (project references 구성이라 `-b` 필요)
 
 ## 자동 실행 훅 (`.claude/settings.json`)
