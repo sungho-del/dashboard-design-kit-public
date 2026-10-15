@@ -1,7 +1,9 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
   BarChart,
   CHART_FILL_COLORS,
+  CHART_ORDINAL_COLORS,
   CHART_SERIES_COLORS,
   ChartFrame,
   ChartLegend,
@@ -135,9 +137,23 @@ describe("계열색 상수", () => {
   });
 
   it("하드코딩된 색이 아니라 전부 토큰 참조다", () => {
-    for (const color of [...CHART_SERIES_COLORS, ...CHART_FILL_COLORS]) {
+    for (const color of [
+      ...CHART_SERIES_COLORS,
+      ...CHART_FILL_COLORS,
+      ...CHART_ORDINAL_COLORS,
+    ]) {
       expect(color).toMatch(/^var\(--color-chart-/);
     }
+  });
+
+  it("순서(ordinal)는 4단계가 상한이고 완전한 var() 문자열로 나열한다", () => {
+    // §D7-3 — 5단계 후보는 밝기차 0.055 로 단계가 보이지 않았다
+    expect([...CHART_ORDINAL_COLORS]).toEqual([
+      "var(--color-chart-ordinal-1)",
+      "var(--color-chart-ordinal-2)",
+      "var(--color-chart-ordinal-3)",
+      "var(--color-chart-ordinal-4)",
+    ]);
   });
 });
 
@@ -146,6 +162,23 @@ describe("계열색 상수", () => {
  * ---------------------------------------------------------------------- */
 
 describe("ChartFrame", () => {
+  it("안쪽은 shadcn ChartContainer 다 — 이름·역할은 바깥 role=img 가 든다", () => {
+    render(
+      <LineChart
+        data={MONTHLY}
+        xKey="month"
+        series={SALES_SERIES}
+        ariaLabel="월별 매출"
+      />,
+    );
+
+    const frame = screen.getByRole("img", { name: "월별 매출" });
+    const inner = frame.querySelector<HTMLElement>('[data-slot="chart"]');
+    expect(inner).not.toBeNull();
+    // shadcn 기본 16:9 를 끄고 height prop 을 따른다
+    expect(inner?.className.split(/\s+/)).toContain("aspect-auto");
+  });
+
   it("SVG 내용은 스크린리더에 전달되지 않으므로 role=img + 이름을 붙인다", () => {
     render(
       <ChartFrame ariaLabel="월별 매출 추이">
@@ -188,8 +221,12 @@ describe("ChartFrame", () => {
       />,
     );
 
+    /*
+      높이는 shadcn `ChartContainer`(`data-slot="chart"`)가 든다.
+      안쪽 `ResponsiveContainer` 는 그 100% 를 채운다.
+    */
     const responsive = () =>
-      container.querySelector<HTMLElement>(".recharts-responsive-container");
+      container.querySelector<HTMLElement>('[data-slot="chart"]');
 
     expect(responsive()?.style.height).toBe("240px");
 
@@ -249,7 +286,7 @@ describe("LineChart", () => {
     ).toBe("2");
   });
 
-  it("area 를 켜면 선 대신 면을 그리고, 면은 옅은 fill 토큰을 쓴다", () => {
+  it("area 를 켜면 선 대신 면을 그리고, 면은 같은 계열색이 아래로 사라지는 그라디언트다", () => {
     const { container } = render(
       <LineChart
         data={MONTHLY}
@@ -262,14 +299,59 @@ describe("LineChart", () => {
 
     expect(container.querySelectorAll(".recharts-line-curve")).toHaveLength(0);
 
-    const areaShape = container.querySelector(".recharts-area-area");
-    expect(areaShape?.getAttribute("fill")).toBe("var(--color-chart-fill-1)");
+    // 면은 그라디언트를 참조하고, 그 그라디언트가 문서에 실제로 있다
+    const fill = container
+      .querySelector(".recharts-area-area")
+      ?.getAttribute("fill");
+    const id = fill?.match(/^url\(#(.+)\)$/)?.[1];
+    expect(id).toBeTruthy();
+    const gradient = container.querySelector(`linearGradient[id="${id}"]`);
+    expect(gradient).not.toBeNull();
 
-    // 면 위의 윤곽선은 같은 계열의 진한 색
+    // 위는 계열색 24%, 아래는 0% — 하드코딩 색이 아니라 계열 토큰이다
+    const stops = Array.from(gradient?.querySelectorAll("stop") ?? []);
+    expect(stops.map((s) => s.getAttribute("stop-color"))).toEqual([
+      "var(--color-chart-series-1)",
+      "var(--color-chart-series-1)",
+    ]);
+    expect(stops.map((s) => s.getAttribute("stop-opacity"))).toEqual([
+      "0.24",
+      "0",
+    ]);
+
+    // 면 위의 윤곽선은 같은 계열의 진한 색 — 값은 선이 말한다
     const areaCurve = container.querySelector(".recharts-area-curve");
     expect(areaCurve?.getAttribute("stroke")).toBe(
       "var(--color-chart-series-1)",
     );
+  });
+
+  it("한 화면의 면 차트 둘은 서로 다른 그라디언트를 쓴다 (SVG id 는 문서 전역이다)", () => {
+    const { container } = render(
+      <>
+        <LineChart
+          data={MONTHLY}
+          xKey="month"
+          series={[SALES_SERIES[0]]}
+          area
+          ariaLabel="건수"
+        />
+        <LineChart
+          data={MONTHLY}
+          xKey="month"
+          series={[SALES_SERIES[0]]}
+          area
+          ariaLabel="금액"
+        />
+      </>,
+    );
+
+    const fills = Array.from(
+      container.querySelectorAll(".recharts-area-area"),
+    ).map((el) => el.getAttribute("fill"));
+
+    expect(fills).toHaveLength(2);
+    expect(new Set(fills).size).toBe(2);
   });
 
   it("격자는 가로선만 그리고 divide 토큰으로 눌러 둔다", () => {
@@ -554,6 +636,34 @@ describe("ChartTooltip", () => {
     expect(classes).toContain("shrink-0");
   });
 
+  it("indicator=line 이면 계열 키가 세로 띠가 되어 행 높이를 채운다 (면 차트용)", () => {
+    const { container } = render(
+      <ChartTooltip active label="1월" payload={PAYLOAD} indicator="line" />,
+    );
+
+    const bar = container.querySelector<HTMLElement>("li > span[aria-hidden]");
+    const classes = bar?.className.split(/\s+/) ?? [];
+    expect(classes).toContain("w-1");
+    expect(classes).not.toContain("size-2.5");
+    // 띠가 행 높이만큼 늘어나려면 행이 stretch 여야 한다
+    expect(container.querySelector("li")?.className.split(/\s+/)).toContain(
+      "items-stretch",
+    );
+    // 색은 여전히 payload 색 그대로
+    expect(swatchColors(container)).toEqual([
+      "var(--color-chart-series-1)",
+      "var(--color-chart-series-2)",
+    ]);
+  });
+
+  it("값은 등폭(tabular-nums)이라 커서를 옮겨도 패널이 흔들리지 않는다", () => {
+    render(<ChartTooltip active label="1월" payload={[PAYLOAD[1]]} />);
+
+    expect(screen.getByText("412").className.split(/\s+/)).toContain(
+      "tabular-nums",
+    );
+  });
+
   it("경계는 border 가 아니라 음수 offset outline 으로 그린다", () => {
     const { container } = render(
       <ChartTooltip active label="1월" payload={PAYLOAD} />,
@@ -688,5 +798,113 @@ describe("ChartLegend", () => {
     for (const swatch of container.querySelectorAll("li > span[aria-hidden]")) {
       expect(swatch).toHaveAttribute("aria-hidden");
     }
+  });
+});
+
+/* -------------------------------------------------------------------------
+ * ChartLegend — 값 · 토글 모드 (shadcn chart-bar-interactive 헤더 패턴)
+ * ---------------------------------------------------------------------- */
+
+describe("ChartLegend — 값과 토글", () => {
+  const VALUES = { revenue: "9,240만원", orders: "1,284건" };
+
+  it("values 를 주면 라벨 옆에 포맷된 값을 등폭으로 붙인다", () => {
+    render(<ChartLegend series={SALES_SERIES} values={VALUES} />);
+
+    const value = screen.getByText("1,284건");
+    expect(value.className.split(/\s+/)).toEqual(
+      expect.arrayContaining(["body-small-bold", "tabular-nums"]),
+    );
+  });
+
+  it("onToggle 을 주면 항목이 토글 버튼이 되고 이름이 라벨+값이다", async () => {
+    const onToggle = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ChartLegend series={SALES_SERIES} values={VALUES} onToggle={onToggle} />,
+    );
+
+    const button = screen.getByRole("button", { name: "주문 수 1,284건" });
+    expect(button).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(button);
+    expect(onToggle).toHaveBeenCalledWith("orders");
+  });
+
+  it("숨긴 계열은 aria-pressed=false 이고 스와치가 속 빈 테두리가 된다 — 색은 그대로다", () => {
+    render(
+      <ChartLegend
+        series={SALES_SERIES}
+        hiddenKeys={["revenue"]}
+        onToggle={() => {}}
+      />,
+    );
+
+    const hidden = screen.getByRole("button", { name: "매출" });
+    expect(hidden).toHaveAttribute("aria-pressed", "false");
+
+    const swatch = hidden.querySelector<HTMLElement>("span[aria-hidden]");
+    expect(swatch?.style.backgroundColor).toBe("");
+    // 채움 대신 같은 계열색의 테두리 — 색만이 아니라 모양으로도 상태를 말한다
+    expect(swatch?.style.boxShadow).toContain("var(--color-chart-series-1)");
+  });
+
+  it("마지막으로 보이는 계열은 끌 수 없다 (전부 끄면 빈 축만 남는다)", () => {
+    render(
+      <ChartLegend
+        series={SALES_SERIES}
+        hiddenKeys={["revenue"]}
+        onToggle={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "주문 수" })).toBeDisabled();
+    // 숨긴 쪽은 다시 켤 수 있어야 한다
+    expect(screen.getByRole("button", { name: "매출" })).toBeEnabled();
+  });
+});
+
+describe("LineChart — hiddenKeys · fill 높이", () => {
+  it("hiddenKeys 의 계열만 숨기고, 남은 계열의 색은 제 순서 그대로다", () => {
+    const { container } = render(
+      <LineChart
+        data={MONTHLY}
+        xKey="month"
+        series={SALES_SERIES}
+        hiddenKeys={["revenue"]}
+        ariaLabel="주문 수만"
+      />,
+    );
+
+    const strokes = Array.from(
+      container.querySelectorAll(".recharts-line-curve"),
+    ).map((el) => el.getAttribute("stroke"));
+
+    // 매출(1번)을 숨겨도 주문 수는 2번 색 — 1번 색으로 당겨지지 않는다
+    expect(strokes).toEqual(["var(--color-chart-series-2)"]);
+  });
+
+  it('height="fill" 이면 부모에 남는 높이를 채우고 최소 240 을 지킨다', () => {
+    render(
+      <LineChart
+        data={MONTHLY}
+        xKey="month"
+        series={SALES_SERIES}
+        height="fill"
+        ariaLabel="채우기"
+      />,
+    );
+
+    const frame = screen.getByRole("img", { name: "채우기" });
+    expect(frame.className.split(/\s+/)).toEqual(
+      expect.arrayContaining(["relative", "flex-1", "min-h-60", "w-full"]),
+    );
+
+    // 안쪽은 절대 위치로 채운다 — 고정 높이 style 을 두지 않는다
+    const inner = frame.querySelector<HTMLElement>('[data-slot="chart"]');
+    expect(inner?.className.split(/\s+/)).toEqual(
+      expect.arrayContaining(["absolute", "inset-0"]),
+    );
+    expect(inner?.style.height).toBe("");
   });
 });

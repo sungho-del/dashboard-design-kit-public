@@ -60,6 +60,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "./gnbSections";
  *
  * ## 그대로 두는 것 (도메인 무관)
  * KPI 4열 grid · 차트 2:1 grid · 차트+표 2열 grid · 도넛 옆 범례 목록 패턴 ·
+ * 추이는 **그라디언트 면**(`LineChart area`) — 반투명이라 올해·지난해가 겹쳐도 선이 안 가려진다 ·
  * 차트 색 인덱싱(`CHART_SERIES_COLORS[i]`, **문자열 조립 금지**) ·
  * 계열이 2개 이상이면 범례 필수(색만으로 식별하게 두지 않는다) ·
  * 증감을 색이 아니라 화살표+부호로 함께 전달하는 규칙
@@ -168,7 +169,12 @@ export function DashboardPage({
           <CardBody>
             {/* 계열이 2개 이상이면 범례를 항상 둔다 — 색만으로 식별하게 두지 않는다 */}
             <ChartLegend series={REVENUE_SERIES} />
+            {/*
+              `area` — 계열색이 아래로 사라지는 그라디언트 면(shadcn 면 차트 패턴).
+              값은 윤곽선이 말하고 면은 규모의 인상만 준다. 툴팁 계열 키도 세로 띠로 바뀐다.
+            */}
             <LineChart
+              area
               ariaLabel="월별 매출 추이. 올해와 지난해 비교"
               data={REVENUE}
               xKey="month"

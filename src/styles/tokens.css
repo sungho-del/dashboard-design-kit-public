@@ -304,3 +304,81 @@
   font-size: var(--text-2xlarge);
   line-height: var(--leading-8);
 }
+
+/* ── shadcn 브릿지 ───────────────────────────────────────
+ * shadcn/ui 원본(`src/shadcn/ui/*`)이 기대하는 변수 이름을 **Clay semantic 토큰에 연결**한다.
+ * 값을 새로 만들지 않는다 — 전부 기존 토큰을 가리키기만 하므로,
+ * 브랜드를 갈아끼우면 shadcn 부품도 함께 따라간다.
+ *
+ * ⚠️ 층 규칙: 페이지는 `src/shadcn` 을 **직접 import 하지 않는다.**
+ *    `src/components/ui/*` 의 키트 래퍼가 shadcn 원본을 감싸고, 페이지는 래퍼만 쓴다.
+ *
+ * ⚠️ `--color-border` 는 여기서 다시 정의하지 않는다. 키트에 이미 있고
+ *    shadcn 의 `border` 와 뜻이 같다(기본 경계선). 다시 정의하면
+ *    `--border: var(--color-border)` 와 맞물려 **순환 참조**가 된다.
+ *
+ * ⚠️ `ChartContainer` 는 config 키마다 `--color-<키>` 를 만든다. 이 이름 공간이
+ *    Clay 토큰과 같으므로 **config 키에 토큰 이름(`border`·`text`·`surface`…)을 쓰지 말 것.**
+ *    키트 `ChartFrame` 은 config 에 색을 넣지 않아 이 경로를 타지 않는다.
+ * ------------------------------------------------------- */
+:root {
+  --radius: 8px; /* rounded-medium */
+
+  --background: var(--color-surface);
+  --foreground: var(--color-text);
+  --card: var(--color-surface);
+  --card-foreground: var(--color-text);
+  --popover: var(--color-surface);
+  --popover-foreground: var(--color-text);
+
+  /* Primary 는 파랑이 아니라 near-black — CLAUDE.md "토큰 사용" */
+  --primary: var(--color-action-primary);
+  --primary-foreground: var(--color-text-on);
+  --secondary: var(--color-action-secondary);
+  --secondary-foreground: var(--color-text);
+  --muted: var(--color-surface-sub);
+  --muted-foreground: var(--color-text-sub);
+  --accent: var(--color-action-primary-tonal-hover);
+  --accent-foreground: var(--color-text);
+  --destructive: var(--color-action-critical);
+
+  --input: var(--color-border);
+  --ring: var(--color-focus);
+
+  --chart-1: var(--color-chart-series-1);
+  --chart-2: var(--color-chart-series-2);
+  --chart-3: var(--color-chart-series-3);
+  --chart-4: var(--color-chart-series-4);
+  --chart-5: var(--color-chart-series-5);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* shadcn 의 rounded-sm/md/lg/xl. 키트 코드는 계속 rounded-small/medium/large 를 쓴다 */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}

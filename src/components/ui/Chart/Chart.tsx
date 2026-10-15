@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import {
   Area,
   AreaChart as RAreaChart,
@@ -10,12 +10,16 @@ import {
   LineChart as RLineChart,
   Pie,
   PieChart as RPieChart,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import { cn } from "../../../lib/cn";
+/*
+  shadcn 원본 층. **키트가 감싸고 페이지는 이 파일만 쓴다** — 페이지가
+  `src/shadcn` 을 직접 import 하면 Clay 규격(§28)을 우회하는 길이 열린다.
+*/
+import { ChartContainer, type ChartConfig } from "../../../shadcn/ui/chart";
 
 /* -------------------------------------------------------------------------
  * 차트 — DESIGN.md §28
@@ -42,13 +46,30 @@ export const CHART_SERIES_COLORS = [
   "var(--color-chart-series-5)",
 ] as const;
 
-/** area 면 채우기. series 와 같은 계열의 옅은 단계 */
+/**
+ * 같은 계열의 옅은 단계(100). **면 차트는 더 이상 이 색을 쓰지 않는다** — 계열색
+ * 그라디언트로 바꿨다(아래 `AREA_OPACITY_TOP`). 배경 틴트 등 차트 밖 용도로 남겨 둔다.
+ */
 export const CHART_FILL_COLORS = [
   "var(--color-chart-fill-1)",
   "var(--color-chart-fill-2)",
   "var(--color-chart-fill-3)",
   "var(--color-chart-fill-4)",
   "var(--color-chart-fill-5)",
+] as const;
+
+/**
+ * 순서(ordinal) 4단계 — 퍼널 · 등급 · 구간처럼 **순서를 바꾸면 뜻이 달라지는 것**.
+ * 계열색(정체성)과 다른 일이라 따로 둔다. 규격: `DESIGN-dashboard.md` §D7-3
+ *
+ * **4단계가 상한이다** — 5단계 후보는 밝기차가 모자라 단계가 안 보였다.
+ * 계열색과 같은 이유로 **완전한 문자열**로 나열한다(인덱스 조립 금지).
+ */
+export const CHART_ORDINAL_COLORS = [
+  "var(--color-chart-ordinal-1)",
+  "var(--color-chart-ordinal-2)",
+  "var(--color-chart-ordinal-3)",
+  "var(--color-chart-ordinal-4)",
 ] as const;
 
 export interface ChartSeries {
@@ -118,8 +139,6 @@ function yAxisWidth(
 
 const seriesColor = (i: number) =>
   CHART_SERIES_COLORS[Math.min(i, CHART_SERIES_COLORS.length - 1)];
-const fillColor = (i: number) =>
-  CHART_FILL_COLORS[Math.min(i, CHART_FILL_COLORS.length - 1)];
 
 /* -------------------------------------------------------------------------
  * 공통 축·그리드
@@ -151,22 +170,35 @@ interface ChartTooltipProps {
   label?: string | number;
   /** 값 포맷터 (예: 원화, %) */
   format?: (value: number | string) => string;
+  /**
+   * 계열 키 모양. 기본 `dot`(10px 원형 · §28-3).
+   * `line` 은 면(area) 차트용 — 선의 색 띠라서 **면의 윤곽선**과 같은 모양으로 읽힌다.
+   * (shadcn `ChartTooltipContent` 의 `indicator` 와 같은 뜻이다)
+   */
+  indicator?: "dot" | "line";
 }
 
 /**
  * 차트 툴팁. 계열 키는 **10px 원형**, 항목 간 gap 8, padding 16 (실측 근거).
  * radius 는 참조값 2px 이 아니라 Clay `rounded-medium`(8) 을 쓴다.
+ *
+ * ## shadcn `ChartTooltipContent` 를 그대로 쓰지 않는 이유
+ * 그쪽은 `ChartContainer` 컨텍스트 **안에서만** 렌더되고(밖이면 throw), 포맷터가
+ * **행 전체**를 갈아끼우는 구조다. 키트 툴팁은 단독으로도 렌더되고 `format` 이
+ * **값만** 바꾼다 — 차트를 쓰는 화면 4곳이 이 계약에 기댄다. 그래서 모양(`indicator`)과
+ * 값 정렬(`tabular-nums`)만 그쪽 패턴을 가져왔다.
  */
 export function ChartTooltip({
   active,
   payload,
   label,
   format,
+  indicator = "dot",
 }: ChartTooltipProps) {
   if (!active || !payload?.length) return null;
 
   return (
-    <div className="flex flex-col gap-2 rounded-medium bg-surface p-4 shadow-popover outline-1 -outline-offset-1 outline-border">
+    <div className="flex min-w-40 flex-col gap-2 rounded-medium bg-surface p-4 shadow-popover outline-1 -outline-offset-1 outline-border">
       {label !== undefined && (
         <span className="body-small text-text-sub">{label}</span>
       )}
@@ -174,15 +206,26 @@ export function ChartTooltip({
         {payload.map((entry, i) => (
           <li
             key={`${entry.dataKey ?? i}`}
-            className="flex items-center gap-2 whitespace-nowrap"
+            className={cn(
+              "flex gap-2 whitespace-nowrap",
+              indicator === "dot" ? "items-center" : "items-stretch",
+            )}
           >
             <span
-              className="size-2.5 shrink-0 rounded-full"
+              className={cn(
+                "shrink-0 rounded-full",
+                indicator === "dot" ? "size-2.5" : "w-1",
+              )}
               style={{ backgroundColor: entry.color }}
               aria-hidden
             />
             <span className="body-small text-text-sub">{entry.name}</span>
-            <strong className="body-small-bold ml-auto text-text">
+            {/*
+              값은 **등폭**이다(§D6-2) — 커서를 옮기면 값이 바뀌는데, 비례폭이면
+              자릿수마다 폭이 달라 패널이 좌우로 흔들린다. 좌측 여백 16 은
+              이름과 값이 붙어 한 단어로 읽히지 않게 하는 최소 간격이다.
+            */}
+            <strong className="body-small-bold ml-auto pl-4 text-text tabular-nums">
               {format && entry.value !== undefined
                 ? format(entry.value)
                 : entry.value}
@@ -199,25 +242,125 @@ export interface ChartLegendProps {
   /** 계열별 색 오버라이드 (도넛처럼 조각마다 색이 다른 경우) */
   colors?: readonly string[];
   className?: string;
+  /**
+   * 계열 키 → **이미 포맷된** 값(기간 합계 등). 주면 라벨 옆에 굵게 붙는다.
+   * shadcn `chart-bar-interactive` 의 헤더 패턴 — 범례가 "무엇"과 "얼마"를 함께 말한다.
+   */
+  values?: Readonly<Record<string, string>>;
+  /** 숨긴 계열 키 — `onToggle` 과 짝. 차트의 `hiddenKeys` 에도 **같은 배열**을 넘긴다 */
+  hiddenKeys?: readonly string[];
+  /**
+   * 주면 항목이 **토글 버튼**이 된다(`aria-pressed` = 보이는 중).
+   * **마지막 하나는 끌 수 없다**(`disabled`) — 전부 끄면 빈 축만 남아 "데이터 없음"처럼 읽힌다.
+   */
+  onToggle?: (key: string) => void;
 }
 
 /**
  * 범례. **계열이 2개 이상이면 항상 노출한다** — 색만으로 식별하게 두지 않기 위해서다.
  * 스와치 16×16 + 간격 8 (실측 근거).
+ *
+ * ## 토글 모드 (`onToggle`)
+ * 항목이 높이 32 칩 버튼이 된다. 숨긴 계열은 스와치가 **속 빈 테두리**가 되고 글자가
+ * `text-disabled` 로 물러난다 — 색만이 아니라 **모양**(채움 ↔ 테두리)으로도 상태를 말한다.
+ * 숨겨도 계열의 **색은 바뀌지 않는다** — 차트는 `hiddenKeys` 로 숨길 뿐 계열 순서를 유지한다
+ * (`series` 를 걸러서 넘기면 남은 계열이 앞 색으로 당겨진다 · `DESIGN-dashboard.md` §D12).
  */
-export function ChartLegend({ series, colors, className }: ChartLegendProps) {
+export function ChartLegend({
+  series,
+  colors,
+  className,
+  values,
+  hiddenKeys,
+  onToggle,
+}: ChartLegendProps) {
+  const colorAt = (i: number) => colors?.[i] ?? seriesColor(i);
+
+  if (!onToggle) {
+    return (
+      <ul className={cn("flex flex-wrap items-center gap-4", className)}>
+        {series.map((s, i) => (
+          <li key={s.key} className="flex items-center gap-2">
+            <span
+              className="size-4 shrink-0 rounded-small"
+              style={{ backgroundColor: colorAt(i) }}
+              aria-hidden
+            />
+            <span className="body-small text-text-sub">{s.label}</span>
+            {values?.[s.key] !== undefined ? (
+              <span className="body-small-bold text-text tabular-nums">
+                {values[s.key]}
+              </span>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  const visibleCount = series.filter(
+    (s) => !hiddenKeys?.includes(s.key),
+  ).length;
+
   return (
-    <ul className={cn("flex flex-wrap items-center gap-4", className)}>
-      {series.map((s, i) => (
-        <li key={s.key} className="flex items-center gap-2">
-          <span
-            className="size-4 shrink-0 rounded-small"
-            style={{ backgroundColor: colors?.[i] ?? seriesColor(i) }}
-            aria-hidden
-          />
-          <span className="body-small text-text-sub">{s.label}</span>
-        </li>
-      ))}
+    /* 칩 사이 8 — 버튼 경계가 이미 항목을 가르므로 텍스트 범례(16)보다 좁힌다 */
+    <ul className={cn("flex flex-wrap items-center gap-2", className)}>
+      {series.map((s, i) => {
+        const visible = !hiddenKeys?.includes(s.key);
+        const color = colorAt(i);
+        return (
+          <li key={s.key}>
+            <button
+              type="button"
+              aria-pressed={visible}
+              /*
+                라벨과 값이 다른 요소라 그대로 두면 "주문 수1,284건" 으로 이어 읽힌다 —
+                읽을 문장을 직접 준다 (`DESIGN-dashboard.md` §D4-2 와 같은 이유)
+              */
+              aria-label={
+                values?.[s.key] !== undefined
+                  ? `${s.label} ${values[s.key]}`
+                  : s.label
+              }
+              disabled={visible && visibleCount === 1}
+              onClick={() => onToggle(s.key)}
+              className="flex h-8 cursor-pointer items-center gap-2 rounded-medium px-3 outline-1 -outline-offset-1 outline-border transition-colors duration-100 ease-out hover:bg-surface-sub focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus disabled:cursor-default disabled:hover:bg-transparent"
+            >
+              <span
+                className="size-4 shrink-0 rounded-small"
+                /*
+                  숨김 = 속 빈 테두리. inset 그림자로 그려 크기가 변하지 않게 한다
+                  (outline/border 를 켜고 끄면 스와치가 커 보이거나 밀린다).
+                */
+                style={
+                  visible
+                    ? { backgroundColor: color }
+                    : { boxShadow: `inset 0 0 0 2px ${color}` }
+                }
+                aria-hidden
+              />
+              <span
+                className={cn(
+                  "body-small",
+                  visible ? "text-text-sub" : "text-text-disabled",
+                )}
+              >
+                {s.label}
+              </span>
+              {values?.[s.key] !== undefined ? (
+                <span
+                  className={cn(
+                    "body-small-bold tabular-nums",
+                    visible ? "text-text" : "text-text-disabled",
+                  )}
+                >
+                  {values[s.key]}
+                </span>
+              ) : null}
+            </button>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -226,29 +369,70 @@ export function ChartLegend({ series, colors, className }: ChartLegendProps) {
  * 프레임
  * ---------------------------------------------------------------------- */
 
+/**
+ * 차트 높이. 숫자면 그 px 고정.
+ *
+ * `"fill"` 은 **부모(세로 flex)에 남는 높이를 전부 차지한다** — 최소 240(§28-2 기본 높이).
+ * 큰 모니터에서 화면 아래가 비는 대시보드가 남는 높이를 차트로 흡수하게 하는 값이다.
+ * 부모가 세로 flex 이고 **높이가 정해져 있어야** 늘어난다(카드의 `CardBody` 에 `flex-1`).
+ * 안쪽은 `absolute inset-0` 으로 채운다 — 퍼센트 높이는 조상 중 하나라도 높이가
+ * 정해지지 않으면 0 이 되지만, 절대 위치는 그 상자의 실제 크기를 따른다.
+ */
+export type ChartHeight = number | "fill";
+
 export interface ChartFrameProps {
   /** 차트가 무엇을 보여주는지. 스크린리더가 읽는 이름이 된다 */
   ariaLabel: string;
-  height?: number;
+  height?: ChartHeight;
   children: ReactNode;
   className?: string;
+  /**
+   * shadcn `ChartConfig` — 계열 키 → 라벨·아이콘. **색은 넣지 않는다.**
+   *
+   * 색을 넣으면 `ChartContainer` 가 `--color-<키>` 변수를 만드는데, 그 이름 공간이
+   * Clay 토큰과 같아 키가 `border`·`text` 면 차트 안에서 토큰을 덮어쓴다.
+   * 키트 차트는 색을 `CHART_SERIES_COLORS[i]` 로 직접 준다.
+   */
+  config?: ChartConfig;
 }
+
+const EMPTY_CONFIG: ChartConfig = {};
 
 /**
  * 차트 본체 래퍼. SVG 는 스크린리더에 내용이 전달되지 않으므로
  * `role="img"` + 이름을 부여하고, 표 대체 수단은 사용처가 제공한다.
+ *
+ * ## 안쪽은 shadcn `ChartContainer` 다
+ * 크기 감지(`ResponsiveContainer`)에 더해 recharts 내부 요소를 다듬는다 —
+ * 특히 **클릭하면 SVG 전체에 브라우저 포커스 테두리가 그려지던 것**(recharts 3 의
+ * `accessibilityLayer` 가 surface 에 tabindex 를 준다)을 지운다. 이름·역할은
+ * 바깥 `role="img"` 가 들고 있으므로 안쪽 포커스 표시는 정보가 없다.
+ * 높이는 컨테이너에 준다 — 안쪽 `ResponsiveContainer` 는 그 100% 를 채운다.
  */
 export function ChartFrame({
   ariaLabel,
   height = 240,
   children,
   className,
+  config = EMPTY_CONFIG,
 }: ChartFrameProps) {
+  const fill = height === "fill";
   return (
-    <div role="img" aria-label={ariaLabel} className={cn("w-full", className)}>
-      <ResponsiveContainer width="100%" height={height}>
+    <div
+      role="img"
+      aria-label={ariaLabel}
+      className={cn(
+        fill ? "relative min-h-60 w-full flex-1" : "w-full",
+        className,
+      )}
+    >
+      <ChartContainer
+        config={config}
+        className={fill ? "absolute inset-0 aspect-auto" : "aspect-auto w-full"}
+        style={fill ? undefined : { height }}
+      >
         {children as React.ReactElement}
-      </ResponsiveContainer>
+      </ChartContainer>
     </div>
   );
 }
@@ -264,7 +448,14 @@ export interface LineChartProps {
   series: ChartSeries[];
   /** 면을 채운다(area). 단일 계열 추이에 쓴다 */
   area?: boolean;
-  height?: number;
+  /** 숫자(px) 또는 `"fill"`(부모에 남는 높이 · 최소 240). `ChartHeight` 참조 */
+  height?: ChartHeight;
+  /**
+   * 숨길 계열 키. **`series` 를 걸러서 넘기지 말고 이것을 쓴다** — 걸러 넘기면 남은 계열이
+   * 인덱스가 당겨져 **색이 바뀐다**(렌트를 끄면 판매가 파랑이 된다). 여기서는 계열을 그대로 두고
+   * recharts `hide` 로 감출 뿐이라 색이 대상에 붙어 있다(§D12 "색을 순위에 배정하지 말 것").
+   */
+  hiddenKeys?: readonly string[];
   ariaLabel: string;
   /** 축·툴팁 값 포맷터 */
   format?: (value: number | string) => string;
@@ -284,6 +475,16 @@ export interface LineChartProps {
 }
 
 /**
+ * 면 그라디언트의 불투명도 — 위 24% → 아래 0%.
+ *
+ * 면은 **장식이고 값은 선이 말한다.** 그래서 윤곽선(계열색 · 명암비 3:1 통과)은
+ * 그대로 두고, 면만 아래로 갈수록 사라지게 한다. 계열 2개가 겹쳐도 24% 끼리
+ * 섞일 뿐이라 앞 계열의 선이 가려지지 않는다 — 불투명한 단색 `chart-fill` 이면
+ * SVG 는 나중에 그린 것이 위에 오므로 **뒤 계열의 면이 앞 계열의 선을 덮는다.**
+ */
+const AREA_OPACITY_TOP = 0.24;
+
+/**
  * 추이(시간에 따른 변화). 선 두께 2 · 마커 지름 8 · 가로 격자선만.
  * 격자·축은 `divide` 로 눌러 데이터가 앞에 오게 한다.
  */
@@ -293,16 +494,48 @@ export function LineChart({
   series,
   area = false,
   height = 240,
+  hiddenKeys,
   ariaLabel,
   format,
   yBaseline = "zero",
   className,
 }: LineChartProps) {
   const Root = area ? RAreaChart : RLineChart;
+  /*
+    그라디언트 id 는 **차트마다 달라야 한다.** SVG `<defs>` 의 id 는 문서 전역이라
+    한 화면에 면 차트가 둘이면(건수·금액) 뒤 것이 앞 것의 그라디언트를 가져다 쓴다.
+    `useId` 의 `:` 는 `url(#…)` 참조를 깨뜨리므로 걷어낸다.
+  */
+  const gradientId = `area-${useId().replace(/:/g, "")}`;
 
   return (
     <ChartFrame ariaLabel={ariaLabel} height={height} className={className}>
       <Root data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+        {area ? (
+          <defs>
+            {series.map((s, i) => (
+              <linearGradient
+                key={s.key}
+                id={`${gradientId}-${i}`}
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
+                <stop
+                  offset="0%"
+                  stopColor={seriesColor(i)}
+                  stopOpacity={AREA_OPACITY_TOP}
+                />
+                <stop
+                  offset="100%"
+                  stopColor={seriesColor(i)}
+                  stopOpacity={0}
+                />
+              </linearGradient>
+            ))}
+          </defs>
+        ) : null}
         <CartesianGrid
           vertical={false}
           stroke="var(--color-divide)"
@@ -326,7 +559,9 @@ export function LineChart({
         />
         <Tooltip
           cursor={{ stroke: "var(--color-border)", strokeWidth: 1 }}
-          content={<ChartTooltip format={format} />}
+          content={
+            <ChartTooltip format={format} indicator={area ? "line" : "dot"} />
+          }
         />
         {series.map((s, i) =>
           area ? (
@@ -335,8 +570,9 @@ export function LineChart({
               type="monotone"
               dataKey={s.key}
               name={s.label}
+              hide={hiddenKeys?.includes(s.key)}
               stroke={seriesColor(i)}
-              fill={fillColor(i)}
+              fill={`url(#${gradientId}-${i})`}
               strokeWidth={2}
               // 마커는 지름 8 이상 — 작은 점은 터치·클릭 대상이 되지 못한다
               dot={false}
@@ -352,6 +588,7 @@ export function LineChart({
               type="monotone"
               dataKey={s.key}
               name={s.label}
+              hide={hiddenKeys?.includes(s.key)}
               stroke={seriesColor(i)}
               strokeWidth={2}
               dot={false}

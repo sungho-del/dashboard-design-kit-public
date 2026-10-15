@@ -22,7 +22,10 @@
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+
+    /* 경로 별칭 — shadcn CLI 가 읽는다. vite.config.ts 의 resolve.alias 와 짝 */
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src"]
 }

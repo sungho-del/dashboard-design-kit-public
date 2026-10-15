@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, within } from "@storybook/test";
 import { Card, CardBody, CardHeader } from "../Card";
@@ -162,10 +163,33 @@ export const LineMultiSeries: Story = {
   ),
 };
 
-/** `area` — 단일 계열의 변화량을 강조한다. 면은 같은 계열의 옅은 fill 토큰을 쓴다 */
+/**
+ * `area` — 변화량을 강조한다. 면은 **같은 계열색이 위 24% → 아래 0% 로 사라지는
+ * 그라디언트**다(shadcn 면 차트 패턴). 값은 윤곽선이 말하고 면은 장식이다.
+ * 툴팁 계열 키는 면의 윤곽선과 같은 모양인 세로 띠(`indicator="line"`)로 바뀐다.
+ */
 export const Area: Story = {
   tags: ["autodocs"],
   args: { area: true, ariaLabel: "월별 매출 추이(면)" },
+};
+
+/**
+ * 계열 2개의 면 — 그라디언트가 반투명이라 **앞 계열의 선이 뒤 계열 면에 가려지지 않는다.**
+ * 불투명한 단색 면이면 나중에 그린 계열이 앞 계열의 선을 덮는다.
+ */
+export const AreaMultiSeries: Story = {
+  tags: ["autodocs"],
+  args: {
+    area: true,
+    series: SALES_SERIES,
+    ariaLabel: "월별 매출·주문 추이(면)",
+  },
+  render: (args) => (
+    <div className="flex flex-col gap-4">
+      <ChartLegend series={SALES_SERIES} />
+      <LineChart {...args} />
+    </div>
+  ),
 };
 
 /* -------------------------------------------------------------------------
@@ -315,6 +339,36 @@ export const Legend: Story = {
 };
 
 /**
+ * 토글 범례 — `values` + `onToggle` (shadcn `chart-bar-interactive` 헤더 패턴).
+ * 칩을 누르면 그 계열을 숨긴다. **차트에는 `series` 를 걸러 넘기지 않고 `hiddenKeys` 를 준다** —
+ * 걸러 넘기면 남은 계열의 색이 앞 색으로 당겨진다. 마지막 하나는 끌 수 없다.
+ */
+export const LegendToggle: Story = {
+  tags: ["autodocs"],
+  args: { series: SALES_SERIES, ariaLabel: "월별 매출·주문 추이(토글)" },
+  render: function Render(args) {
+    const [hidden, setHidden] = useState<string[]>([]);
+    return (
+      <div className="flex flex-col gap-4">
+        <ChartLegend
+          series={SALES_SERIES}
+          values={{ revenue: "3억 4,100만원", orders: "3,892건" }}
+          hiddenKeys={hidden}
+          onToggle={(key) =>
+            setHidden((prev) =>
+              prev.includes(key)
+                ? prev.filter((k) => k !== key)
+                : [...prev, key],
+            )
+          }
+        />
+        <LineChart {...args} area hiddenKeys={hidden} />
+      </div>
+    );
+  },
+};
+
+/**
  * `ChartTooltip` — 차트가 호버될 때 뜨는 패널. 여기서는 항상 열린 상태로 보여준다.
  * 계열 키는 10px 원형 · 항목 간 gap 8 · padding 16.
  */
@@ -361,6 +415,36 @@ export const Tooltip: Story = {
         format={won}
       />
     </div>
+  ),
+};
+
+/**
+ * `indicator="line"` — 면 차트의 툴팁. 계열 키가 세로 띠가 되어 윤곽선과 같은 모양으로 읽힌다.
+ * 값은 등폭(`tabular-nums`)이라 커서를 옮겨 자릿수가 바뀌어도 패널이 흔들리지 않는다.
+ */
+export const TooltipLineIndicator: Story = {
+  tags: ["autodocs"],
+  render: () => (
+    <ChartTooltip
+      active
+      indicator="line"
+      label="08-11"
+      payload={[
+        {
+          name: "렌트",
+          value: 1_284,
+          color: "var(--color-chart-series-1)",
+          dataKey: "rent",
+        },
+        {
+          name: "판매",
+          value: 412,
+          color: "var(--color-chart-series-2)",
+          dataKey: "sale",
+        },
+      ]}
+      format={count}
+    />
   ),
 };
 
