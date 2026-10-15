@@ -42,3 +42,8 @@ _삭제예정/
 # 그 백업(`*.bak`)은 gitignore 되지 않아 `git add -A` 한 번이면 추적 대상이 됐다.
 *.bak
 *.orig
+
+# shadcn CLI 가 설치한 에이전트 스킬 — 외부 도구라 이 저장소에서 관리하지 않는다
+.claude/skills/shadcn/
+.claude/skills/migrate-radix-to-base/
+skills-lock.json
