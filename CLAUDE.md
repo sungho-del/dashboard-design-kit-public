@@ -1,7 +1,9 @@
-# 프로젝트: 대시보드 디자인 시스템 (아임웹 Clay 클론)
+# 프로젝트: 베이비큐브 대시보드 (본사 어드민 · Clay 디자인 시스템)
 
-> 아임웹 관리자 대시보드의 디자인 시스템 **Clay**를 토큰부터 최종 페이지까지 재현해,
-> 기획자·개발자가 바로 가져다 쓸 수 있는 대시보드 규칙 + 컴포넌트 라이브러리를 만든다.
+> **베이비큐브 본사 운영 어드민** 화면을 아임웹 디자인 시스템 **Clay**(토큰 → 컴포넌트 → 페이지)로 만든다.
+> 2026-10-15 대시보드 디자인 키트에서 BabyCube 전용으로 전환했다 — 다른 서비스 데모(차트온·클래스온)는 걷어냈고,
+> 키트 원본은 git 태그 `backup/2026-10-15-before-babycube` 와 `../_backup/` 폴더 사본에 있다.
+> 결과물은 `babycube-admin-hq` 의 `publishing/` 으로 전달한다 (`npm run export:publishing`).
 > **데스크톱 관리자 화면이 기준이다** (모바일 앱 아님).
 
 > 개발자 인계: `DEVELOPERS.md` · **폴더 사용 지도: `GUIDE.md`** (무엇이 어디 있고 언제 무엇을 부르는가)
@@ -32,11 +34,10 @@
   `AppShell` `Avatar` `Button` `Card` `Chart` `Checkbox` `DataTableShell` `DatePicker` `Divider` `Dropdown` `EmptyState` `FilterBar` `FormField` `Gnb` `IconButton` `InfoList` `Input` `Modal` `PageHeader` `Pagination` `ProgressBar` `Radio` `SegmentedControl` `Select` `SelectionBar` `SideSheet` `Skeleton` `Spinner` `StatGrid` `StatTile` `Switch` `Table` `Tabs` `Tag` `Textarea` `TextButton` `Toast` `Tooltip`
   버튼 계열 variant는 `Button/variants.ts`를 공유한다 (Button·IconButton 동일 규격)
   ⚠️ `FormField`는 **`Input`·`Textarea`·`Select` 전용**이다. `Switch`·`Checkbox`·`Radio`는 루트가 이미 `<label>`이라 감싸면 라벨이 중첩된다 — 자체 `label`·`description` prop을 쓴다
-- `src/pages/` — 조립된 화면 **42종** + GNB 구성 `gnbSections.tsx`(여러 페이지 공유). 네 갈래다:
-  - **템플릿 4종**(루트, 이커머스) — `OrderListPage`(목록형) · `ProductFormPage`(폼형) · `OrderDetailPage`(상세형) · `DashboardPage`(통계형). 화면 생성기가 변형해 쓰는 원본. 경로 `/_template/*`
-  - **차트온 4종**(루트, 병·의원 예약 — 첫 리허설 생성물) — `ClinicStatusPage` · `ReservationListPage` · `ReservationDetailPage` · `PatientFormPage`. 경로 `/_charton/*`
+- `src/pages/` — BabyCube 화면 **31종** + 화면 생성기 원본(템플릿 4종) + GNB 구성 `gnbSections.tsx`(여러 페이지 공유):
+  - **템플릿 4종**(루트, 이커머스) — `OrderListPage`(목록형) · `ProductFormPage`(폼형) · `OrderDetailPage`(상세형) · `DashboardPage`(통계형). 화면 생성기가 변형해 쓰는 원본. 경로 `/_template/*` — **GNB·화면 목록에는 없고 전달본에도 들어가지 않는다**
   - `src/pages/babycube/` **31종** — 실전 기획서(`pipeline/01-service-brief.json`)로 Stage 5 가 생성. **원본 route 그대로**(`/` · `/members` · …)
-  - `src/pages/classon/` **2종** — 두 번째 리허설 생성물. 경로 `/_classon/*` · 저장소 색인 `ScreenIndexPage`(`/screens`)가 전체 목록을 연다
+  - 저장소 색인 `ScreenIndexPage`(`/screens`)가 BabyCube 전체 목록을 연다
     모든 화면이 `{navOpen, onNavOpenChange, activeNav, onNavSelect}` props를 받는다. `src/App.tsx`는 **전역 Provider + 경로→화면 조회 맵만**(215줄). 화면마다 URL 이 있고, 라우터는 `src/lib/router.ts` 의 최소 구현이다 — **GNB 항목 id 가 곧 경로**라 별도 매핑표를 두지 않는다(한쪽만 고치면 조용히 어긋난다)
     **GNB 구성·로고 슬롯을 페이지 파일에 두지 말 것** — `App → 페이지 → App` 순환 참조가 되고, 한 페이지에만 넘기면 나머지 화면에서 로고가 사라진다. 반드시 `gnbSections.tsx`의 `GNB_SECTIONS`·`GNB_LOGO_SLOTS`를 가져다 쓴다
 - **페이지는 3파일** — `.tsx`(뼈대) + `.data.ts`(도메인) + `.test.tsx`. **stories는 만들지 않는다**(앱 화면이지 디자인 시스템 컴포넌트가 아니다). 페이지 테스트는 **동작**(필터·모달·전환·계산)을 검증할 것 — 렌더 여부만 보면 화면이 통째로 빠져도 통과한다
@@ -152,8 +153,8 @@ CSS 로딩 체인: `src/index.css` → `src/styles/tokens.css` → `src/tokens/_
 - `npm test` — Vitest (`npm test -- --run` 으로 단발 실행)
 - `npm run lint` — ESLint
 - `npm run format` — Prettier 전체 포맷 (저장 시 훅이 파일 단위로도 실행)
-- `npm run sync:public` — 현재 커밋 상태를 **공개 저장소**에 반영. ⚠️ 이 저장소의 히스토리에는 공개하면 안 되는 서드파티 사본이 남아 있어 **원격을 걸어 push 하면 안 된다** — 이 스크립트는 파일만 옮긴다
-- `npm run reset:project` — **새 프로젝트 시작**: 데모 화면 37종(babycube · classon · 차트온)과 BabyCube GNB·로고를 걷어내고 템플릿 4종만 남긴다. `--dry` 미리보기 · `--yes` 무확인 · 이미 리셋된 폴더에서는 **멈춰서** 사용자 화면을 덮지 않는다(강행은 `--force`). 갈아끼울 깨끗한 원본은 `scripts/reset-project/*.tpl`
+- `npm run export:publishing -- <폴더>` — **퍼블리싱 전달본 추출**. BabyCube 화면만 독립 Vite 프로젝트로(빈 폴더에만 · 커밋 기준). 전달 문서는 `scripts/export-publishing/files/`. 지금은 **화면 완성 전이라 전달 보류** 중
+- ~~`sync:public` · `reset:project`~~ — BabyCube 전환(2026-10-15)으로 **삭제**. 공개 키트 저장소를 이 폴더로 덮어쓰면 고객사 화면만 남게 되기 때문이다
 - `npm run typecheck` — tsc -b (project references 구성이라 `-b` 필요)
 
 ## 자동 실행 훅 (`.claude/settings.json`)

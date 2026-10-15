@@ -2,7 +2,35 @@
 
 > **이 문서의 용도**: 세션이 바뀌어도 즉시 이어서 작업할 수 있게 하는 "지금 어디까지 왔나" 요약.
 > 결정의 **역사**는 `docs/PROGRESS.md`, 규격은 `docs/DESIGN.md`, 상시 규칙은 `docs/design-core.md`.
-> 최종 갱신: **2026-09-21** — 7단계: 결제 내역 정정 · 셀러/입점 심사 상세 신설 (§0-S 참조)
+> 최종 갱신: **2026-10-15** — BabyCube 전용 전환 · 퍼블리싱 전달 체계 (§0-T 참조)
+
+---
+
+## 0-T. 2026-10-15 — 퍼블리싱 전달 체계 · **BabyCube 전용 전환**
+
+**전달처가 정해졌다.** 본사 어드민은 `metamonster-dev/babycube-admin-hq`(Next 16 · `/api/admin/*` 연동 · 68 표면 중 67 구현)의
+`publishing/` 에 **독립 Vite 프로젝트**로 들어간다 — 사용자 몰(`babycube-user` PR #1)과 같은 형태.
+hq 의 `CONTRIBUTING` §1 이 "UI 는 프로토타입과 동일 · 바꾸려면 OPEN-DECISIONS 판정"이라 전달물은 **제안 기준본**으로 쓴다.
+
+| 한 것                | 내용                                                                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 추출                 | `npm run export:publishing -- <폴더>` — 커밋 기준(`git archive`) · 빈 폴더에만 · 치환이 빗나가면 중단 · 전용 lockfile                                   |
+| 전달 문서            | `scripts/export-publishing/files/` — README(인수서 7절) · SCREENS(31화면 ↔ BO 코드 ↔ hq 경로) · INTEGRATION(화면별 hq `src/data`·API 대응, 식별자 차이) |
+| 결함 2 (qa-e2e 실측) | 깨진 인코딩 상세 주소 → 흰 화면(`lastPathSegment`) · `FormField` 가 `<span><Input/>%</span>` 를 감싸 라벨·에러 미연결(`suffix` 슬롯 신설)               |
+| 검증                 | 전달본 단독 npm ci → typecheck·lint·test·build · 브라우저 31경로 · hq 반영 전후 tsc·test·next build 동일                                                |
+| **GPT 교차 검토**    | Orca 의 Codex 터미널에 브리프를 보내 독립 검토. 전제 오류(hq main/develop 혼동)·CONTRIBUTING 충돌을 잡았다                                              |
+
+⛔ **전달(PR·배포)은 보류** — 사용자: 화면이 다 끝나지 않았다. hq 로컬 클론(`../babycube-admin-hq`, `feat/publishing`)에 미커밋 추출본이 주차돼 있다. 전달 시 지우고 다시 뽑는다.
+hq 커밋·PR 에는 **도구 표기 금지**(`check-commit` 이 막는다). hq `npm run check` 는 develop 에서부터 실패 중(과거 커밋 형식·정책 커버리지).
+
+**BabyCube 전용 전환** — 차트온 4 · 클래스온 2 삭제 · 템플릿 4종은 **화면 생성기 원본이라 파일·`/_template/*` 경로만 남기고** GNB·화면 목록에서 뺐다 ·
+`reset:project`·`sync:public` 삭제(공개 키트 저장소는 전환 직전 상태로 둔다) · 탭 제목·패키지명 `babycube-dashboard`.
+키트 원본 백업: 태그 `backup/2026-10-15-before-babycube` · 폴더 `../_backup/dashboard-design-kit-public_2026-10-15_f9a2008`.
+
+**기획 화면 자료** — 최신은 배포본 <https://rentique-admin-hq.vercel.app/>(v0.4). `Desktop/rentmall-master` 는 2026-07-06(v0.1)이라 낡았다.
+hq `reference/screens`(37) · **`reference/details`(상세·등록·수정 50장 렌더 DOM)** — 남은 상세 18종의 원본이다.
+
+**다음** — 기획 화면을 보고 우리 디자인 결로 화면을 다듬고(31종) 남은 상세 18종을 만든다. 끝나면 재추출 → 전달.
 
 ---
 

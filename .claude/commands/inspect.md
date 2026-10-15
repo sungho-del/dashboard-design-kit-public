@@ -4,7 +4,7 @@
 
 1. 개발 서버 확인 — 없으면 `npm run dev` 를 백그라운드로 띄우고 포트를 로그에서 읽는다.
 2. `@agent-ui-inspector` 에 인자($ARGUMENTS)를 전달한다
-   (예: `/inspect /_classon/students`). 경로가 없으면 `src/App.tsx` 의 `ROUTES` 로 후보를 제시한다.
+   (예: `/inspect /members`). 경로가 없으면 `src/App.tsx` 의 `ROUTES` 로 후보를 제시한다.
 3. 에이전트가 스크린샷 + DOM 좌표 측정으로 7종을 검사하고 **측정값과 함께** 보고한다.
 
 ## 무엇을 잡는가

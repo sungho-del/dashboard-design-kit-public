@@ -1,52 +1,6 @@
-# 디자인 시스템 하네스 (기획서 → 대시보드 화면 올인원 템플릿)
+0-1. 이 폴더는 **베이비큐브 본사 어드민 전용**이다(2026-10-15 전환). 다른 서비스를 새로 시작하려면 키트 원본 —
+공개 저장소 <https://github.com/sungho-del/dashboard-design-kit-public> 또는 이 폴더의 태그 `backup/2026-10-15-before-babycube` — 에서 시작한다
 
-> ### 🗺 폴더 전체 지도는 **[`GUIDE.md`](./GUIDE.md)** 에 있습니다 (무엇이 어디 있고 언제 무엇을 부르는가).
->
-> ### 🛠 화면을 넘겨받아 제품에 태우신다면 **[`DEVELOPERS.md`](./DEVELOPERS.md)** 를 보세요.
->
-> ### 👤 기획자라면 이 문서 말고 **[`START-HERE.md`](./START-HERE.md)** 를 보세요.
->
-> 설치부터 결과 확인까지 전문용어 없이 한 장에 정리돼 있습니다.
-> 아래는 **개발자용** 문서입니다.
-
-기획자가 만든 기획서를 입력으로 **서비스 분석 → 화면 생성 → 배포**까지 체크포인트 방식으로
-진행하는 **대시보드 제작 키트**다. 새 프로젝트는 이 폴더를 복사해 시작한다.
-
-## 결과 미리보기 — Before / After
-
-같은 서비스(BabyCube 본사 운영 어드민)의 **같은 대시보드 화면**이다.
-왼쪽이 입력한 것, 오른쪽이 이 키트가 만든 것 — **내용(지표·숫자·메뉴)은 그대로이고,
-달라진 것은 묶임과 순서다.**
-
-<table>
-<tr>
-<th width="50%">Before — 클로드 프로토타입 대시보드</th>
-<th width="50%">After — 이 키트가 만든 화면</th>
-</tr>
-<tr>
-<td><a href="./docs/images/before-prototype.jpg"><img src="./docs/images/before-prototype.jpg" alt="기획 프로토타입 대시보드 — 지표가 흰 카드에 흩어져 그룹이 보이지 않는다"></a></td>
-<td><a href="./docs/images/after-design-system.jpg"><img src="./docs/images/after-design-system.jpg" alt="디자인 시스템이 적용된 대시보드 — 지표가 그룹으로 묶이고 차트에 규격이 생겼다"></a></td>
-</tr>
-</table>
-
-|            | 무엇인가                            | 어디서 보나                                     |
-| ---------- | ----------------------------------- | ----------------------------------------------- |
-| **Before** | 클로드 프로토타입 대시보드          | <https://dev-babycube-admin.metamonster.co.kr/> |
-| **After**  | 이 키트가 만든 화면 (**바로 열림**) | <https://babycube-admin-preview.vercel.app>     |
-|            | 직접 띄워 보려면                    | `npm run dev` → <http://localhost:5173/>        |
-
-> After 링크가 **이 저장소를 그대로 배포한 결과다** — `npm run build` → `vercel deploy --prod`
-> 두 줄이면 누구나 같은 주소를 만든다(`START-HERE.md` §6). 로그인 없이 열린다.
-
-무엇이 들어갔나 — **그룹**(흰 카드 = 묶음 / 회색 상자 = 항목, 두 층) · **수치**(값과 단위 분리) ·
-**차트**(가로 격자만 · y축 폭 48 · 2계열이면 범례 필수) · **흐름**(`›` 로 이어진 단계) ·
-**셸**(GNB 224 · 헤더 72 · gutter 40). 항목별 설명은 [`GUIDE.md`](./GUIDE.md) §2 에 있다.
-
-## 빠른 시작
-
-0. `node -v` (18+) · `claude --version` 확인 → `npm install` — 상세: `SETUP.md` §0
-   0-1. **새 프로젝트라면 `npm run reset:project`** — 실증용 데모 화면 37종(BabyCube 31 · 차트온 4 · 클래스온 2)과
-   BabyCube GNB 를 걷어내고 템플릿 4종만 남긴다. 안 지우면 사이드바가 남의 메뉴로 채워진 채 시작한다
 1. 기획서를 **`_plan/`에 넣거나**, URL이면 대화에 주소를 준다 — 받는 형태: `_plan/README.md`
 2. Claude 대화에 **`프로젝트 작업 진행 시작`** 입력
 3. 파이프라인이 단계별로 진행 — **각 체크포인트에서 검토·승인**
