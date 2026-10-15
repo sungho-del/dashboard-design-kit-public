@@ -311,6 +311,42 @@ describe("FormField", () => {
     });
   });
 
+  describe("suffix (단위)", () => {
+    it("단위가 있어도 라벨·에러가 입력칸에 주입된다 — 감싼 span 으로 새지 않는다", () => {
+      render(
+        <FormField label="수수료율" suffix="%" error="수수료율을 입력해 주세요">
+          <Input />
+        </FormField>,
+      );
+
+      const input = screen.getByRole("textbox", { name: "수수료율" });
+      expect(input).toHaveAttribute("aria-invalid", "true");
+      expect(screen.getByText("%").tagName).toBe("SPAN");
+      expect(screen.getByText("%")).not.toHaveAttribute("aria-invalid");
+    });
+
+    it("단위는 설명으로 읽힌다 — 이름에는 섞이지 않는다", () => {
+      render(
+        <FormField label="수수료율" suffix="%">
+          <Input />
+        </FormField>,
+      );
+
+      const input = screen.getByRole("textbox", { name: "수수료율" });
+      expect(input).toHaveAccessibleDescription("%");
+    });
+
+    it("suffix 가 없으면 단위 줄을 만들지 않는다", () => {
+      const { container } = render(
+        <FormField label="상품명">
+          <Input />
+        </FormField>,
+      );
+
+      expect(container.querySelector('[id$="-suffix"]')).toBeNull();
+    });
+  });
+
   describe("labelAction", () => {
     it("액션이 있으면 라벨 행을 양끝 정렬한다", () => {
       const { container } = render(

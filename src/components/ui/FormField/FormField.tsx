@@ -39,6 +39,14 @@ export interface FormFieldProps extends Omit<
   description?: ReactNode;
   /** 에러 메시지. 있으면 **`description` 을 대체한다** (§29-5) */
   error?: ReactNode;
+  /**
+   * 컨트롤 오른쪽에 붙는 단위(`%`·`원`·`개월`). 입력칸 **바깥**에 그린다.
+   *
+   * 단위를 자식과 함께 `<span>` 으로 감싸면 id·에러 주입이 **그 span 으로 간다** —
+   * 라벨이 입력칸과 끊기고 에러 배경도 안 켜진다. 그래서 자식이 아니라 슬롯으로 받는다.
+   * 단위는 `aria-describedby` 에도 합류해 스크린리더가 "수수료율, %" 로 읽는다.
+   */
+  suffix?: ReactNode;
   /** 컨트롤의 id 를 직접 지정할 때. 생략하면 자동 생성해 자식에 주입한다 */
   htmlFor?: string;
   /**
@@ -63,6 +71,7 @@ export function FormField({
   orientation = "column",
   description,
   error,
+  suffix,
   htmlFor,
   group = false,
   children,
@@ -74,6 +83,8 @@ export function FormField({
   const messageId = `${fieldId}-message`;
   const labelId = `${fieldId}-label`;
   const labelDescriptionId = `${fieldId}-label-description`;
+  const suffixId = `${fieldId}-suffix`;
+  const hasSuffix = suffix !== undefined && suffix !== null && suffix !== false;
 
   // 에러가 도움말을 대체한다 — 둘을 동시에 띄우면 레이아웃이 밀리고 시선이 흩어진다
   const message = error ?? description;
@@ -92,6 +103,7 @@ export function FormField({
   const describedBy =
     [
       hasLabelDescription ? labelDescriptionId : null,
+      hasSuffix ? suffixId : null,
       hasMessage ? messageId : null,
     ]
       .filter(Boolean)
@@ -128,6 +140,18 @@ export function FormField({
         })(),
       )
     : children;
+
+  /* 단위는 컨트롤과 한 줄에 둔다 — gap 8 · 목록 셀의 수수료율(`Input` + `%`)과 같은 모양 */
+  const controlRow = hasSuffix ? (
+    <div className="flex items-center gap-2">
+      {control}
+      <span id={suffixId} className="body-small text-text-sub">
+        {suffix}
+      </span>
+    </div>
+  ) : (
+    control
+  );
 
   const labelBlock = (
     <>
@@ -203,7 +227,7 @@ export function FormField({
         {/* 라벨이 남는 폭을 점유한다 — 원본 `cardItemLabel { flex: 1 }` */}
         <div className="flex min-w-0 flex-1 flex-col gap-1">{labelBlock}</div>
         <div className="flex flex-col gap-1.5">
-          {control}
+          {controlRow}
           {messageBlock}
         </div>
       </div>
@@ -213,7 +237,7 @@ export function FormField({
   return (
     <div className={cn("flex flex-col gap-1.5", className)} {...props}>
       <div className="flex flex-col gap-1">{labelBlock}</div>
-      {control}
+      {controlRow}
       {messageBlock}
     </div>
   );

@@ -110,6 +110,19 @@ export const WithDescription: Story = {
 };
 
 /**
+ * `suffix` — 입력칸 **바깥** 오른쪽 단위(`%`·`원`·`개월`). gap 8.
+ * ❌ `<span><Input/> %</span>` 처럼 자식으로 감싸지 말 것 — id·에러 주입이 span 으로 가서 라벨이 끊긴다.
+ */
+export const WithSuffix: Story = {
+  args: {
+    label: "수수료율",
+    suffix: "%",
+    description: "승인 시 적용됩니다",
+    children: <Input className="w-24" inputMode="decimal" />,
+  },
+};
+
+/**
  * `error` — 메시지가 `text-critical` 로 바뀌고 `role="alert"` 로 즉시 읽힌다.
  * 자식에는 `invalid` 와 `aria-invalid` 가 함께 주입되어 컨트롤 배경도 critical 이 된다.
  */

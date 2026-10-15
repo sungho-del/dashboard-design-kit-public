@@ -1,5 +1,11 @@
 import { act, renderHook } from "@testing-library/react";
-import { navigate, useLocation, usePathname, useSearchParams } from "./router";
+import {
+  lastPathSegment,
+  navigate,
+  useLocation,
+  usePathname,
+  useSearchParams,
+} from "./router";
 
 /* -------------------------------------------------------------------------
  * 최소 라우터 (`src/lib/router.ts`)
@@ -108,5 +114,19 @@ describe("router", () => {
 
       expect(result.current.get("stat")).toBeNull();
     });
+  });
+});
+
+describe("lastPathSegment", () => {
+  it("마지막 구간을 디코딩한다 — 이메일 id 의 @ 가 돌아온다", () => {
+    expect(lastPathSegment("/members/sujin.park%40example.com")).toBe(
+      "sujin.park@example.com",
+    );
+  });
+
+  it("잘못 인코딩된 주소에서 던지지 않고 빈 문자열을 돌려준다", () => {
+    // 던지면 렌더 중 예외라 앱 전체가 흰 화면이 된다 (qa-e2e 발견)
+    expect(() => lastPathSegment("/members/%E0%A4%A")).not.toThrow();
+    expect(lastPathSegment("/members/%E0%A4%A")).toBe("");
   });
 });

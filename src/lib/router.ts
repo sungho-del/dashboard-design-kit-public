@@ -48,6 +48,22 @@ export function usePathname(): string {
   return location.split("?")[0];
 }
 
+/**
+ * 경로 마지막 구간을 디코딩해 돌려준다 — 상세 화면의 식별자(`/members/{id}`).
+ *
+ * 잘못 인코딩된 주소(`/members/%E0%A4%A`)면 `decodeURIComponent` 가 던진다.
+ * 렌더 중에 던지면 **앱 전체가 흰 화면**이 되므로 빈 문자열을 돌려,
+ * 화면이 없는 ID 와 똑같이 「찾을 수 없음」을 그리게 한다.
+ */
+export function lastPathSegment(pathname: string): string {
+  const raw = pathname.split("/").pop() ?? "";
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return "";
+  }
+}
+
 /** 현재 쿼리스트링을 읽는다. 없는 키는 `null` */
 export function useSearchParams(): URLSearchParams {
   const location = useLocation();

@@ -24,7 +24,11 @@ import {
   useToast,
 } from "../../components/ui";
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
-import { usePathname, useSearchParams } from "../../lib/router";
+import {
+  lastPathSegment,
+  usePathname,
+  useSearchParams,
+} from "../../lib/router";
 import {
   ACCOUNT_STATES,
   CHILD_GENDER_LABEL,
@@ -197,7 +201,7 @@ export function MemberDetailPage({
     경로의 마지막 구간이 회원 id(이메일)다. 이메일에는 `@` 와 `.` 이 들어가고
     주소창을 거치며 인코딩되므로 **반드시 디코딩해서** 찾는다.
   */
-  const memberId = decodeURIComponent(pathname.split("/").pop() ?? "");
+  const memberId = lastPathSegment(pathname);
   const member = findMember(memberId);
 
   /* 고치는 값은 상태 하나뿐이다 — 저장 전까지 화면 안에만 산다 */

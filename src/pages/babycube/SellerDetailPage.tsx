@@ -27,7 +27,11 @@ import {
   useToast,
 } from "../../components/ui";
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
-import { usePathname, useSearchParams } from "../../lib/router";
+import {
+  lastPathSegment,
+  usePathname,
+  useSearchParams,
+} from "../../lib/router";
 import {
   BIZ_TYPES,
   COMMISSION_HINT,
@@ -193,7 +197,7 @@ export function SellerDetailPage({
   const pathname = usePathname();
   const status = asStatus(useSearchParams().get("preview"));
 
-  const sellerId = decodeURIComponent(pathname.split("/").pop() ?? "");
+  const sellerId = lastPathSegment(pathname);
   const seller = findSeller(sellerId);
 
   /* 고치는 값 — 저장 전까지 화면 안에만 산다 */
@@ -367,17 +371,14 @@ export function SellerDetailPage({
                 label="수수료율"
                 description={COMMISSION_HINT}
                 error={touched ? (error ?? undefined) : undefined}
+                suffix="%"
               >
-                {/* 단위는 입력칸 밖에 둔다 — 목록의 수수료율 셀과 같은 모양이다 */}
-                <span className="flex items-center gap-2">
-                  <Input
-                    className="w-24"
-                    inputMode="decimal"
-                    value={commission}
-                    onChange={(event) => setCommission(event.target.value)}
-                  />
-                  <span className="body-small text-text-sub">%</span>
-                </span>
+                <Input
+                  className="w-24"
+                  inputMode="decimal"
+                  value={commission}
+                  onChange={(event) => setCommission(event.target.value)}
+                />
               </FormField>
             ) : (
               <InfoList>

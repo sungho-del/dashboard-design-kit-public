@@ -196,6 +196,11 @@ describe("SellerReviewDetailPage (S04-D 입점 심사 상세)", () => {
 
       expect(screen.getByText("수수료율을 입력해 주세요.")).toBeVisible();
       expect(screen.queryByText(/승인했습니다/)).toBeNull();
+      // 에러가 문구로만 뜨고 입력칸에는 안 닿던 결함 — 단위 `%` 를 span 으로 감싸 생겼다
+      expect(screen.getByRole("textbox", { name: "수수료율" })).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
     });
 
     it("0% 로는 승인할 수 없다", async () => {

@@ -26,7 +26,11 @@ import {
   useToast,
 } from "../../components/ui";
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
-import { usePathname, useSearchParams } from "../../lib/router";
+import {
+  lastPathSegment,
+  usePathname,
+  useSearchParams,
+} from "../../lib/router";
 import {
   approvedMessage,
   BIZ_TYPE_LABEL,
@@ -178,7 +182,7 @@ export function SellerReviewDetailPage({
   const pathname = usePathname();
   const status = asStatus(useSearchParams().get("preview"));
 
-  const applicationId = decodeURIComponent(pathname.split("/").pop() ?? "");
+  const applicationId = lastPathSegment(pathname);
   const application = findApplication(applicationId);
 
   /*
@@ -340,16 +344,14 @@ export function SellerReviewDetailPage({
                 label="수수료율"
                 description={COMMISSION_HINT}
                 error={touched ? (error ?? undefined) : undefined}
+                suffix="%"
               >
-                <span className="flex items-center gap-2">
-                  <Input
-                    className="w-24"
-                    inputMode="decimal"
-                    value={commission}
-                    onChange={(event) => setCommission(event.target.value)}
-                  />
-                  <span className="body-small text-text-sub">%</span>
-                </span>
+                <Input
+                  className="w-24"
+                  inputMode="decimal"
+                  value={commission}
+                  onChange={(event) => setCommission(event.target.value)}
+                />
               </FormField>
             ) : (
               <InfoList>
