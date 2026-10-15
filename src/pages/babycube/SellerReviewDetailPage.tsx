@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { ChevronDown, ChevronUp, ClipboardCheck, FileText } from "lucide-react";
+import { ChevronDown, ChevronUp, ClipboardCheck } from "lucide-react";
 import {
   AppShell,
   Button,
@@ -21,8 +21,6 @@ import {
   SegmentedControl,
   Skeleton,
   Tag,
-  Textarea,
-  TextButton,
   useToast,
 } from "../../components/ui";
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
@@ -32,58 +30,73 @@ import {
   useSearchParams,
 } from "../../lib/router";
 import {
-  approvedMessage,
-  BIZ_TYPE_LABEL,
   COMMISSION_HINT,
-  commissionError,
-  documentOpenText,
   findApplication,
   HYGIENE_HINT,
-  HYGIENE_OPTIONS,
-  hygieneValue,
   isReviewable,
   KIND_LABEL,
-  REJECT_NOTICE,
-  REJECT_PLACEHOLDER,
-  REJECT_REASON_REQUIRED,
-  rejectedMessage,
   SECTIONS,
-  stampText,
 } from "./SellerReviewDetailPage.data";
-import { STATUS_META, type ReviewDocument } from "./SellerReviewPage.data";
+import {
+  BIZ_TYPE_LABEL,
+  commissionError,
+  HYGIENE_OPTIONS,
+  hygieneValue,
+  rateDraft,
+  REVIEW_COPY,
+  STATUS_META,
+  ymd,
+  ymdhms,
+  type Application,
+} from "./SellerReviewPage.data";
+import { ReviewRejectModal } from "./SellerReviewPage";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
+import { DocumentModal, DocumentRow } from "./shared/DocumentParts";
+import {
+  DOCUMENT_COPY,
+  DOCUMENT_KEYS,
+  DOCUMENTS,
+  type DocumentKey,
+  type DocumentView,
+} from "./shared/documents";
 
 /* =========================================================================
  * S04-D 입점 심사 상세 (BabyCube 본사 운영 어드민) — 뼈대
  *
  * ## 화면 유형: 폼형 (읽기 + 심사 판정)
  *
- * ## ⚠️ 구성은 **원본 어드민 그대로**다 (BO-SEL-004)
+ * ## ⚠️ 구성은 **원본 어드민 그대로**다 (BO-SEL-004 · 기획 v0.4 `DETAIL.sellerReview`)
  *
  * ```
  * 신청 정보 (입점 전)     ← 셀러명 · 대표명 · 연락처 · 사업자 유형 ·
- *                           상품 취급 유형 · 서류 2종 · 신청일
- * 심사 결과 (입점 승인 후) ← 심사 상태 · 수수료율(%) · 위생인증
- * [목록]                                      [승인] [반려]   ← 하단 액션 바
+ *                           상품 취급 유형 · 서류 2종 · 신청일(초까지)
+ * 심사 결과 (입점 승인 후) ← 심사 상태 · 수수료율(%)* · [승인일] · [반려 사유 (반려일)] · 위생인증
+ * [목록]                                      [승인] [반려]   ← 하단 액션 바 (승인요청 건만)
  * ```
  *
  * ## 두 섹션이 갈라져 있는 이유 (원본 제목이 그것을 말한다)
  * 위는 **셀러가 낸 것**(입점 전), 아래는 **본사가 정하는 것**(승인 후)이다.
- * 그래서 위는 전부 읽기 전용이고, 아래만 입력칸이 열린다. 한 덩어리로 합치면
- * "누가 적은 값인지"가 사라져 운영자가 신청서를 고칠 수 있다고 착각한다.
  *
  * ## 원본 정책 — 화면이 강제하는 것
- * - **승인요청 상태만 심사할 수 있다.** 이미 승인·반려된 건은 읽기 전용이고
- *   하단 바에 판정 버튼이 뜨지 않는다(목록 화면의 `REVIEWABLE_STATUS` 와 같은 규칙)
- * - **수수료율 없이 승인할 수 없다.** 원본이 _"신청 접수 시 0%로 시작하며,
- *   최고관리자가 심사 시 직접 입력합니다"_ 라고 적는다 — 0% 로 승인하면
- *   플랫폼 수수료가 영영 0 인 셀러가 생긴다
- * - **반려에는 사유가 필수다.** 셀러가 무엇을 고쳐야 하는지 알아야 재신청이 성립한다
+ * - **승인요청 상태만 심사할 수 있다.** 처리된 건은 읽기 전용이고 하단 바에 [목록]만 남는다
+ * - **[승인] 은 확인 창을 거친다**(원본 `gateApprove` — 되돌릴 수 없는 처리라서)
+ * - **반려에는 사유가 필수다** — 목록 일괄과 **같은 창**(`ReviewRejectModal`)을 쓴다
+ * - 반려 건은 「반려 사유」 줄에 사유와 반려일, 승인 건은 「승인일」 줄만 낸다
+ *
+ * ## 퍼블 범위 (2026-10-15 사용자 결정)
+ * 승인·반려·서류 다운로드는 **토스트만** 띄운다. 상태·처리일을 화면에서 바꾸지 않는다.
+ *
+ * ## 신청이 바뀌면 화면을 통째로 새로 시작한다
+ * 주소만 바뀌면 같은 컴포넌트가 남아 A 의 수수료율·위생인증·열린 창이 B 에 묻어갔다.
+ * 본문을 `key={application.id}` 로 그려 신청마다 처음부터 시작한다(셀러 상세와 같다).
  *
  * ## 원본과 의도적으로 다르게 둔 곳 (근거를 남긴다)
- * 1. **읽기 전용 값을 비활성 입력칸이 아니라 `InfoList` 로 낸다**(회원·셀러 상세와 같다)
- * 2. **반려 사유를 모달로 받는다.** 원본은 하단 [반려] 를 바로 누르는데, 사유 없이
- *    반려되면 셀러가 재신청할 수 없다. 상품 관리의 반려 흐름과 같은 모양으로 맞췄다
+ * 1. **신청 정보를 `InfoList` 로 읽게 한다.** 원본은 입력칸이지만 이 화면에는 저장 통로가 없다
+ *    (원본 `noSave`) — 고칠 수 있을 것처럼 보이는 칸은 고친 값이 사라지는 오해를 낳는다
+ * 2. **처리된 건의 수수료율·위생인증은 읽기 전용이다.** 원본은 열어 두지만 저장할 곳이 없다.
+ *    처리 뒤 운영 값 수정은 셀러 관리 화면의 일이다
+ * 3. **승인에 수수료율이 필요하다**(0 초과 100 이하) — 원본은 검사하지 않지만, 목록 일괄 승인과
+ *    같은 규칙이어야 한다(2026-10-15 사용자 결정)
  *
  * ## 데이터 상태 (§D8 · `src/lib/dataStatus.ts`)
  * `/seller-review/{id}?preview=loading` · `refreshing` 으로 미리 본다.
@@ -154,77 +167,30 @@ function LoadingLines({ rows }: { rows: number }) {
   );
 }
 
-/** 제출 서류 한 줄 — 파일명 · 번호 · [보기] (셀러 상세와 같은 모양) */
-function DocumentRow({
-  document,
-  onOpen,
-}: {
-  document: ReviewDocument;
-  onOpen: () => void;
-}) {
-  return (
-    <span className="flex flex-wrap items-center gap-2">
-      <FileText size={16} strokeWidth={1.2} aria-hidden />
-      <span>{document.fileName}</span>
-      <span className="text-text-sub tabular-nums">{document.number}</span>
-      <TextButton onClick={onOpen}>보기</TextButton>
-    </span>
-  );
-}
-
-export function SellerReviewDetailPage({
-  navOpen,
-  onNavOpenChange,
-  activeNav,
-  onNavSelect,
-}: SellerReviewDetailPageProps) {
-  const { toast } = useToast();
+export function SellerReviewDetailPage(props: SellerReviewDetailPageProps) {
+  const { navOpen, onNavOpenChange, activeNav, onNavSelect } = props;
   const pathname = usePathname();
-  const status = asStatus(useSearchParams().get("preview"));
-
-  const applicationId = lastPathSegment(pathname);
-  const application = findApplication(applicationId);
-
-  /*
-    심사에서 정하는 값 — 판정 전까지 화면 안에만 산다.
-    수수료율은 **신청서 값으로 시작하되 0 이면 빈 칸**이다(원본과 같다) —
-    0 은 "제안하지 않았다"는 뜻이라 그대로 두면 승인 가능한 값처럼 보인다.
-  */
-  const [commission, setCommission] = useState(
-    application && application.commissionRate > 0
-      ? String(application.commissionRate)
-      : "",
-  );
-  const [hygiene, setHygiene] = useState(
-    hygieneValue(application?.hygieneCertified ?? false),
-  );
-  const [touched, setTouched] = useState(false);
-  const [rejectOpen, setRejectOpen] = useState(false);
-  const [reason, setReason] = useState("");
-  const [reasonTouched, setReasonTouched] = useState(false);
-
-  const nav = (
-    <Gnb
-      sections={GNB_SECTIONS}
-      activeId={activeNav}
-      onSelect={onNavSelect}
-      open={navOpen}
-      onOpenChange={onNavOpenChange}
-      logo={GNB_LOGO_SLOTS.logo}
-      collapsedLogo={GNB_LOGO_SLOTS.collapsed}
-    />
-  );
+  const application = findApplication(lastPathSegment(pathname));
 
   if (!application) {
     return (
-      <AppShell sidebar={nav} header={<PageHeader title="입점 심사 상세" />}>
+      <AppShell
+        sidebar={
+          <Gnb
+            sections={GNB_SECTIONS}
+            activeId={activeNav}
+            onSelect={onNavSelect}
+            open={navOpen}
+            onOpenChange={onNavOpenChange}
+            logo={GNB_LOGO_SLOTS.logo}
+            collapsedLogo={GNB_LOGO_SLOTS.collapsed}
+          />
+        }
+        header={<PageHeader title="입점 심사 상세" />}
+      >
         <Card variant="soft">
           <CardBody>
-            {/*
-              다른 화면의 빈 상태는 거의 `table`(표 안이 비었다)이지만 여기는 **표가 아니라
-              화면 전체가 없는 것**이다 — §16 의 `page`(콘텐츠 전역 400)가 그 자리다.
-              회원·셀러 상세의 "없는 레코드" 화면과 같은 규격이다.
-            */}
+            {/* 표가 아니라 **화면 전체가 없는 것**이다 — §16 의 `page` 가 그 자리다 */}
             <EmptyState
               size="page"
               icon={<ClipboardCheck strokeWidth={1.2} aria-hidden />}
@@ -244,6 +210,36 @@ export function SellerReviewDetailPage({
     );
   }
 
+  /* 신청마다 처음부터 — 위 「신청이 바뀌면 화면을 통째로 새로 시작한다」 */
+  return (
+    <SellerReviewDetailBody
+      key={application.id}
+      application={application}
+      {...props}
+    />
+  );
+}
+
+function SellerReviewDetailBody({
+  application,
+  navOpen,
+  onNavOpenChange,
+  activeNav,
+  onNavSelect,
+}: SellerReviewDetailPageProps & { application: Application }) {
+  const { toast } = useToast();
+  const status = asStatus(useSearchParams().get("preview"));
+
+  /* 심사에서 정하는 값 — 판정 전까지 화면 안에만 산다. 신청 단계의 0% 는 빈 칸으로 연다 */
+  const [commission, setCommission] = useState(() => rateDraft(application));
+  const [hygiene, setHygiene] = useState(() =>
+    hygieneValue(application.hygieneCertified),
+  );
+  const [touched, setTouched] = useState(false);
+  const [approveOpen, setApproveOpen] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [openDocument, setOpenDocument] = useState<DocumentKey | null>(null);
+
   const meta = STATUS_META[application.status];
   const busy = isBusy(status);
   const dim = dimWhile(status);
@@ -253,26 +249,53 @@ export function SellerReviewDetailPage({
   const reviewable = isReviewable(application);
   const error = commissionError(commission);
 
+  /** [승인] — 수수료율이 맞아야 확인 창이 열린다 */
   const approve = () => {
     setTouched(true);
     if (error) return;
-    toast(approvedMessage(application.name, commission));
+    setApproveOpen(true);
   };
 
-  const submitReject = () => {
-    setReasonTouched(true);
-    if (reason.trim() === "") return;
-    toast(rejectedMessage(application.name));
-    setRejectOpen(false);
-    setReason("");
-    setReasonTouched(false);
+  const confirmApprove = () => {
+    setApproveOpen(false);
+    toast(REVIEW_COPY.approved(1));
   };
+
+  /** 서류 뷰가 그리는 값 — 이 신청의 레코드에서 채운다 */
+  const documentView = (key: DocumentKey): DocumentView => ({
+    key,
+    number: application[key].number,
+    owner: application.name,
+    ceo: application.ceo,
+  });
+
+  const hygieneLabel =
+    HYGIENE_OPTIONS.find((item) => item.value === hygiene)?.label ?? "-";
 
   return (
     <AppShell
-      sidebar={nav}
+      sidebar={
+        <Gnb
+          sections={GNB_SECTIONS}
+          activeId={activeNav}
+          onSelect={onNavSelect}
+          open={navOpen}
+          onOpenChange={onNavOpenChange}
+          logo={GNB_LOGO_SLOTS.logo}
+          collapsedLogo={GNB_LOGO_SLOTS.collapsed}
+        />
+      }
       header={
-        <PageHeader title="입점 심사 상세" description={application.name} />
+        /* 배지는 **저장된** 심사 상태다(회원·셀러 상세와 같다) */
+        <PageHeader
+          title="입점 심사 상세"
+          description={application.name}
+          badges={
+            <Tag tone={meta.tone} dot>
+              {meta.label}
+            </Tag>
+          }
+        />
       }
     >
       <Section title={SECTIONS.apply} busy={busy} dim={dim}>
@@ -295,24 +318,22 @@ export function SellerReviewDetailPage({
             <InfoItem label="상품 취급 유형" labelWidth={APPLY_LABEL_WIDTH}>
               {KIND_LABEL[application.kind]}
             </InfoItem>
-            <InfoItem label="사업자등록증" labelWidth={APPLY_LABEL_WIDTH}>
-              <DocumentRow
-                document={application.bizLicense}
-                onOpen={() =>
-                  toast(documentOpenText(application.bizLicense.fileName))
-                }
-              />
-            </InfoItem>
-            <InfoItem label="통신판매업신고증" labelWidth={APPLY_LABEL_WIDTH}>
-              <DocumentRow
-                document={application.salesLicense}
-                onOpen={() =>
-                  toast(documentOpenText(application.salesLicense.fileName))
-                }
-              />
-            </InfoItem>
+            {DOCUMENT_KEYS.map((kind) => (
+              <InfoItem
+                key={kind}
+                label={DOCUMENTS[kind].label}
+                labelWidth={APPLY_LABEL_WIDTH}
+              >
+                <DocumentRow
+                  fileName={application[kind].fileName}
+                  view={documentView(kind)}
+                  onOpen={() => setOpenDocument(kind)}
+                />
+              </InfoItem>
+            ))}
+            {/* 원본 `2026.06.20 14:32:08` — 접수 순서가 곧 심사 순서라 초까지 */}
             <InfoItem label="신청일" labelWidth={APPLY_LABEL_WIDTH}>
-              {stampText(application.date)}
+              {ymdhms(application.date)}
             </InfoItem>
           </InfoList>
         )}
@@ -321,76 +342,82 @@ export function SellerReviewDetailPage({
       <Section title={SECTIONS.result} busy={busy} dim={dim}>
         {loading ? (
           <LoadingLines rows={4} />
-        ) : (
+        ) : reviewable ? (
           <>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1.5">
               <span className="label-medium-bold text-text">심사 상태</span>
-              <span className="flex flex-wrap items-center gap-2">
+              <span>
                 <Tag tone={meta.tone} dot>
                   {meta.label}
                 </Tag>
-                <span className="body-small text-text-sub">
-                  {meta.description}
-                </span>
               </span>
             </div>
-
             {/*
-              수수료율 — 승인의 전제다. 판정이 끝난 건은 값만 읽는다.
-              ⚠️ 신청서의 `0` 은 "제안하지 않음"이라 빈 칸으로 열린다.
+              수수료율 — 승인의 전제다(원본도 필수 표시). 신청 단계의 0% 는 빈 칸으로 열린다.
+              오류는 [승인] 을 한 번 누른 뒤부터 낸다 — 입력 도중에 빨갛게 하지 않는다.
             */}
-            {reviewable ? (
-              <FormField
-                label="수수료율"
-                description={COMMISSION_HINT}
-                error={touched ? (error ?? undefined) : undefined}
-                suffix="%"
-              >
-                <Input
-                  className="w-24"
-                  inputMode="decimal"
-                  value={commission}
-                  onChange={(event) => setCommission(event.target.value)}
-                />
-              </FormField>
-            ) : (
-              <InfoList>
-                <InfoItem label="수수료율">
-                  {application.commissionRate > 0
-                    ? `${application.commissionRate}%`
-                    : "-"}
-                </InfoItem>
-                <InfoItem label="승인일">
-                  {stampText(application.approvedAt)}
-                </InfoItem>
-                <InfoItem label="반려일">
-                  {stampText(application.rejectedAt)}
-                </InfoItem>
-              </InfoList>
-            )}
-
-            <div className="flex flex-col gap-2">
-              <span className="label-medium-bold text-text">위생인증</span>
+            <FormField
+              label="수수료율"
+              required
+              description={COMMISSION_HINT}
+              error={touched ? (error ?? undefined) : undefined}
+              suffix="%"
+            >
+              <Input
+                className="w-24"
+                inputMode="decimal"
+                placeholder="0"
+                value={commission}
+                onChange={(event) =>
+                  setCommission(event.target.value.replace(/[^0-9.]/g, ""))
+                }
+              />
+            </FormField>
+            {/* `self-start` — 세로 배치가 선택 버튼을 폭 가득 늘리지 않게(셀러 상세와 같다) */}
+            <FormField label="위생인증" group description={HYGIENE_HINT}>
               <SegmentedControl
-                aria-label="위생인증"
-                items={HYGIENE_OPTIONS.map((item) => ({
-                  ...item,
-                  disabled: !reviewable,
-                }))}
+                className="self-start"
+                items={HYGIENE_OPTIONS}
                 value={hygiene}
                 onValueChange={setHygiene}
               />
-              <p className="body-small text-text-sub">{HYGIENE_HINT}</p>
-            </div>
+            </FormField>
           </>
+        ) : (
+          /* 처리된 건 — 원본: 승인 건은 「승인일」, 반려 건은 「반려 사유 (반려일)」 만 */
+          <InfoList>
+            <InfoItem label="심사 상태">
+              <Tag tone={meta.tone} dot>
+                {meta.label}
+              </Tag>
+            </InfoItem>
+            <InfoItem label="수수료율">
+              {application.commissionRate > 0
+                ? `${application.commissionRate}%`
+                : "-"}
+            </InfoItem>
+            {application.status === "approved" ? (
+              <InfoItem label="승인일">{ymd(application.approvedAt)}</InfoItem>
+            ) : null}
+            {application.status === "rejected" ? (
+              <InfoItem label="반려 사유">
+                <span className="text-text-warning">
+                  {application.rejectReason ?? "-"}
+                </span>{" "}
+                <span className="text-text-sub tabular-nums">
+                  ({ymd(application.rejectedAt)})
+                </span>
+              </InfoItem>
+            ) : null}
+            <InfoItem label="위생인증">{hygieneLabel}</InfoItem>
+          </InfoList>
         )}
       </Section>
 
       {/*
-        하단 액션 바 (원본 `sellerReview.actions`) — `[목록] [승인] [반려]`.
-        판정이 끝난 건에는 [승인]·[반려] 를 내지 않는다. 누를 수 있게 두면
-        "이미 승인된 건을 또 승인"할 수 있다는 뜻이 된다.
-        회원·셀러 상세와 같이 **화면 아래에 붙는다**(원본 `nv-bar` · `bottom-6` = 본문 아래 여백).
+        하단 액션 바 (원본 `nv-bar` · `noSave`) — `[목록]  …  [승인] [반려]`.
+        판정이 끝난 건에는 [승인]·[반려] 를 내지 않는다(원본 — 종결 건은 [목록]만).
+        회원·셀러 상세와 같이 **화면 아래에 붙는다**(`bottom-6` = 본문 아래 여백).
       */}
       <Card variant="soft" className="sticky bottom-6 z-10">
         <div className="flex items-center justify-between gap-2">
@@ -399,45 +426,62 @@ export function SellerReviewDetailPage({
           </Button>
           {reviewable ? (
             <div className="flex items-center gap-2">
+              <Button onClick={approve}>승인</Button>
               <Button variant="critical" onClick={() => setRejectOpen(true)}>
                 반려
               </Button>
-              <Button onClick={approve}>승인</Button>
             </div>
           ) : null}
         </div>
       </Card>
 
-      {/* 반려 사유 — 비워 두고 반려하면 셀러가 무엇을 고쳐야 할지 알 수 없다 */}
-      <Modal open={rejectOpen} onClose={() => setRejectOpen(false)}>
-        <ModalHeader title={`${application.name} 반려`} />
+      {/* 승인 확인 — 원본 `gateApprove`. 되돌릴 수 없는 처리라 사유 없는 확인을 거친다 */}
+      <Modal
+        open={approveOpen}
+        onClose={() => setApproveOpen(false)}
+        size="small"
+      >
+        <ModalHeader
+          closeLabel="대화상자 닫기"
+          title={REVIEW_COPY.approveTitle(1)}
+        />
         <ModalBody>
-          <p className="body-small text-text-sub">{REJECT_NOTICE}</p>
-          <FormField
-            label="반려 사유"
-            error={
-              reasonTouched && reason.trim() === ""
-                ? REJECT_REASON_REQUIRED
-                : undefined
-            }
-          >
-            <Textarea
-              minRows={4}
-              placeholder={REJECT_PLACEHOLDER}
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-            />
-          </FormField>
+          <p className="body-medium text-text">{REVIEW_COPY.approveBody}</p>
+          <p className="body-small-bold text-text-critical">
+            {REVIEW_COPY.approveWarning}
+          </p>
         </ModalBody>
         <ModalFooter>
-          <Button variant="secondary" onClick={() => setRejectOpen(false)}>
+          <Button
+            variant="secondary"
+            size="large"
+            onClick={() => setApproveOpen(false)}
+          >
             취소
           </Button>
-          <Button variant="critical" onClick={submitReject}>
-            반려 처리
+          <Button size="large" onClick={confirmApprove}>
+            {REVIEW_COPY.approveConfirm}
           </Button>
         </ModalFooter>
       </Modal>
+
+      {/* 반려 사유 — 목록 일괄과 같은 창 */}
+      <ReviewRejectModal
+        count={1}
+        open={rejectOpen}
+        onClose={() => setRejectOpen(false)}
+        onConfirm={() => {
+          setRejectOpen(false);
+          toast({ message: REVIEW_COPY.rejected(1), tone: "critical" });
+        }}
+      />
+
+      {/* 서류 미리보기 — 원본 `docModalView`. [다운로드] 는 알림만(파일은 개발 영역) */}
+      <DocumentModal
+        view={openDocument ? documentView(openDocument) : null}
+        onClose={() => setOpenDocument(null)}
+        onDownload={(label) => toast(DOCUMENT_COPY.downloaded(label))}
+      />
     </AppShell>
   );
 }

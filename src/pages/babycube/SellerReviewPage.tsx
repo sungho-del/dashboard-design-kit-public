@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowDownToLine, Check, Search, X } from "lucide-react";
+import { Check, Search, X } from "lucide-react";
 import {
   AppShell,
   Button,
@@ -9,6 +9,7 @@ import {
   DataTableShell,
   DatePicker,
   EmptyState,
+  FilterBar,
   FormField,
   Gnb,
   Input,
@@ -43,19 +44,22 @@ import { PERIOD_PRESETS } from "../../lib/periodPresets";
 import { useSearchParams } from "../../lib/router";
 import {
   APPLICATIONS,
-  count,
+  BIZ_TYPE_LABEL,
+  commissionError,
   DATE_FIELDS,
   dealKinds,
   DEFAULT_FILTER,
   FILTERS,
+  filterSummary,
   HYGIENE_OPTIONS,
+  hygieneValue,
   KIND_META,
   PAGE_SIZE,
   PAGE_SIZES,
-  parseRate,
-  PROCESSED_AT,
-  REVIEWABLE_STATUS,
+  rateDraft,
   REVIEW_COPY,
+  REVIEW_UNIT,
+  REVIEWABLE_STATUS,
   SEARCH_FIELDS,
   STATUS_META,
   ymd,
@@ -74,79 +78,47 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *
  * ```
  * 상태 대시 (승인요청·승인·반려 건수 — **전체 카드 없음**)     ← 원본 StatDash
- * 검색조건 바 (기간 기준+기간 · 검색조건+검색어)             ← 원본 filter/search
- * [ 총 N건 · 엑셀 다운로드 | 표(선택 체크박스) | 페이지네이션 ]
- * 선택 일괄 심사 (승인 처리 / 반려 처리)                     ← 원본 toolsRight 의 "심사" 셀렉트
+ * 검색조건 (접힘 + 요약 · 기간 기준+기간 · 검색조건+검색어)   ← 원본 filter/search
+ * [ 목록 (총 N건) | 표(선택 체크박스) | 페이지네이션 ]          ← 원본 ListHead + table + foot
+ * 선택 일괄 심사 (승인 처리 / 반려 처리)                     ← 원본 목록 머리의 심사 버튼
  * ```
  *
  * ## 원본에 없어서 걷어낸 것들 (되살리지 말 것)
+ * - **증감 요약 카드** — 원본 상단 카드는 상태별 **건수**뿐이다
+ * - **엑셀 다운로드** — 원본 `EXPORT_SPEC` 에 입점 심사가 없다(2026-10-15 v0.4 대조로 제거)
+ * - **행별 심사 버튼** — 원본 v0.4 가 "심사는 상세에서 근거를 보고 내리는 판단"이라 지웠다.
+ *   목록의 심사 경로는 **선택 → 일괄 처리** 하나다
  *
- * - **증감 요약 카드 3장**(승인요청 대기/이번 달 승인/반려율 + ±% + 비교 기준).
- *   원본 상단 카드는 상태별 **건수**뿐이다
- * - **미리보기 모달의 단건 심사 버튼**(승인 처리·반려 처리). 원본 목록의 심사 경로는
- *   **선택 → 일괄 처리** 하나뿐이고, 단건은 상세 화면의 일이다 —
- *   원본 상태 안내도 "심사는 상세에서 서류를 보고 처리합니다"라고 말한다
- * - **상태 세그먼트**. 원본은 `chip.dash: true` 라 상태 축을 **건수 카드로만** 그린다
- * - **PageHeader 도움말 툴팁**. 상태 설명은 원본대로 **대시 카드의 툴팁**으로 내려갔다
- *
- * ## 원본 복원 (2026-09-21 · 원본 v0.4 프로토타입 대조)
- * - ✅ **[전체] 카드 제거 · 기본 [승인요청]** · **No 열** · **페이지당 개수 셀렉트**
- * - ✅ **정렬 헤더** — 원본이 ↕ 를 붙인 열은 **신청일 하나**다
- * - ✅ **기간 빠른 선택** 7종
- *
- * ## 원본 대조로 확인한 것 — 행별 심사는 **원본에도 없다**
- * 원본 주석은 "목록 행별 또는 체크 후 일괄로 승인·반려 처리"라고 적지만, 실제 화면의
- * 상태 칸은 버튼이 아니라 배지(`<span class="badge">`)이고 행에서 누를 수 있는 것은
- * 셀러명(상세 이동)뿐이다. 우리 구현(체크 후 일괄)이 원본과 같다.
- *
- * ## 원본에서 되살린 것 (이전에 빠져 있던 것)
- * - **연락처 열** — 원본 컬럼 배열에 있는데 우리 표에 없었다(검색은 되는데 확인할 곳이 없었다)
- * - **승인일·반려일의 조건부 노출** — 원본은 그 상태로 좁혔을 때만 열을 밀어 넣는다.
- *   늘 세워 두면 대부분의 행이 `-` 인 열이 둘이나 생긴다
- * - **유형 `전체` 를 두 배지로 펴기** — 렌트·판매를 함께 하겠다는 신청이다
- * - **기간 기준 셀렉트**(신청일/승인일/반려일)
- * - **승인 게이트** — 원본 승인 모달은 단순 확인이 아니라 **셀러별 수수료율·위생인증을
- *   확정하는 입력 화면**이다. 이전 구현은 확인 문구만 있었다
- *
- * ## 이 파일은 도메인을 모른다 — 도메인은 `./SellerReviewPage.data.ts` 에 있다
- *
- * | 갈아끼울 것            | 위치                                           |
- * | ---------------------- | ---------------------------------------------- |
- * | 데이터·타입·라벨·단위  | `SellerReviewPage.data.ts` **전체**            |
- * | 심사 안내 문구         | 같은 파일의 `REVIEW_COPY`                      |
- * | 심사 가능 상태         | 같은 파일의 `REVIEWABLE_STATUS`                |
- * | 수수료율 검증 규칙     | 같은 파일의 `parseRate`                        |
- * | 표 컬럼 구성           | 이 파일의 `<colgroup>` + `TableHead` + 본문 셀 |
- * | 필터 구성              | `toolbarEnd` 슬롯                              |
- *
- * ## 그대로 두는 것 (도메인 무관)
- * `DataTableShell` 셸 구조 · 조건부 열에 따라 갈리는 `colgroup` 3벌 ·
- * 페이지 범위 클램프 · `inPeriod` 날짜 필터 · 선택 → 일괄 작업 바 → 확인 모달 흐름 ·
- * 부분 선택(indeterminate) 처리 · 처리 후 선택 해제 ·
- * **흰 카드 = 그룹 / 연한 그레이 상자 = 항목** 두 층 · 상자 안 **라벨 좌상단 · 수치 우하단** ·
- * **분류 배지에 상태색을 쓰지 않는** 규칙
+ * ## 기획 v0.4 대조로 채운 것 (2026-10-15 — 회원·셀러 관리와 같은 틀)
+ * - ✅ **No 는 조회 결과의 역순 순번**(원본 `total - start - i`) — 레코드 번호가 아니다
+ * - ✅ **검색조건 접기**(`FilterBar` + 요약) · 「목록 (총 N건)」 머리
+ * - ✅ 사업자 열 = **법인/개인**(원본 `s.biz`) · 신청일 초까지 · 승인일·반려일 정렬
+ * - ✅ 상태 카드를 바꾸면 **정렬·선택·페이지**가 함께 풀린다(원본 `subnav`)
+ * - ✅ 승인 창 제목·본문·경고, 반려 창 제목·자리표시자·안내, 1건/여러 건 알림 — v0.4 문구
+ * - ✅ 처리는 **토스트만**(퍼블 범위) — 행의 상태·처리일·건수를 화면에서 바꾸지 않는다.
+ *   원본처럼 처리 뒤 선택을 풀고 제자리에 둔다(탭 이동 없음)
+ * - ✅ 페이지당 10·20·50·100 · 샘플 v0.4 14건
  *
  * ## 원본과 의도적으로 다르게 둔 곳 (근거를 남긴다)
- * 1. **일괄 심사를 `SelectionBar`(§25)로 낸다** — 원본은 툴바 우측의 `심사` 셀렉트
- *    (`승인 처리`/`반려 처리`)다. 액션 이름은 그대로 두고 자리만 옮겼다.
- *    셀렉트를 액션 메뉴로 쓰는 것은 우리 시스템에 없는 패턴이고, 선택이 있어야만
- *    의미가 있는 버튼이라 §25 가 정확히 이 자리를 위한 것이다.
- *    그래서 원본의 "선택된 항목이 없습니다." 는 **필요가 없어졌다** — 선택이 없으면 바가 없다
- * 2. ~~처음 열릴 때 `전체`~~ — **되돌렸다**(2026-09-21). 원본 `sellerReview.dash` 가
- *    "[전체] 카드 없음 — 목록은 항상 한 상태만 보여준다"고 정책으로 못 박는다.
- *    지금은 카드 3장에 기본 [승인요청] 이다
- * 3. **셀러명이 미리보기 모달을 연다** — 원본은 `/seller-review/{id}` 상세로 나가지만
- *    그 화면은 기획서 `gaps` 라 이 배치에 없다
+ * 1. **일괄 심사를 `SelectionBar`(§25)로 낸다** — 원본은 목록 머리의 버튼이다. 선택이 있어야만
+ *    의미가 있는 버튼이라 §25 가 이 자리다. 그래서 원본의 "선택된 항목이 없습니다." 는 필요가 없다
+ * 2. **승인요청 건만 고를 수 있다** — 원본은 모든 행에 체크가 되지만, 이미 처리된 건을
+ *    다시 승인·반려할 근거가 없다(`REVIEWABLE_STATUS`)
+ * 3. **승인 창에서 셀러별 수수료율·위생인증을 확정한다** — 원본 v0.4 는 문구만 있는 확인 창이지만,
+ *    개발 앱의 승인 계약이 셀러마다 두 값을 받고 상세 승인과 같은 규칙이어야 한다(2026-10-15 사용자 결정)
+ * 4. **빈 반려 사유는 입력칸 아래 오류로 알린다** — 원본은 토스트. 회원 사유 창과 같은 모양이다
+ * 5. **검색조건은 입력 즉시 적용**이다(원본은 [검색]) — 건수 카드와 목록이 같은 조건을 말해야 한다
+ *
+ * ## 이 파일은 도메인을 모른다 — 도메인은 `./SellerReviewPage.data.ts` 에 있다
  * ====================================================================== */
 
 /**
  * 기준 날짜가 선택한 기간 안에 드는지.
  *
- * `"YYYY-MM-DD HH:mm"` 형식인데 공백 구분자는 브라우저별 파싱이 갈린다.
- * `T` 로 바꿔 ISO 형태로 만든 뒤 넘긴다. 시작일은 00:00, 종료일은 23:59:59 까지 포함한다.
+ * `"YYYY-MM-DD HH:mm:ss"` 의 공백 구분자는 브라우저별 파싱이 갈려 `T` 로 바꾼다.
+ * 시작일은 00:00, 종료일은 23:59:59 까지 포함한다.
  *
- * ⚠️ 값이 **없는** 행(아직 승인되지 않은 건의 승인일)은 기간을 걸면 **빠진다.**
- * "승인일 8월"로 물었는데 아직 승인되지 않은 건이 함께 나오면 질문에 대한 답이 아니다.
+ * ⚠️ 값이 **없는** 행(승인되지 않은 건의 승인일)은 기간을 걸면 **빠진다.**
  */
 const inPeriod = (dateText: string | null, range?: DateRange) => {
   if (!range?.from) return true;
@@ -164,20 +136,61 @@ const inPeriod = (dateText: string | null, range?: DateRange) => {
   return at >= from && at <= to;
 };
 
-/** 심사 결과 — 처리한 건에만 덮어씌운다 */
-interface ReviewResult {
-  status: ApplicationStatus;
-  approvedAt: string | null;
-  rejectedAt: string | null;
-  commissionRate?: number;
-  hygieneCertified?: boolean;
+/* -------------------------------------------------------------------------
+ * 정렬 — 원본 헤더의 ↕ : 신청일 · [승인일] · [반려일] (그 탭에서만 열이 있다)
+ * ---------------------------------------------------------------------- */
+
+type SortKey = "date" | "approvedAt" | "rejectedAt";
+
+interface SortState {
+  key: SortKey;
+  direction: TableSortDirection;
 }
 
-/** 승인 게이트에서 운영자가 확정해 나가는 값. 입력 중이라 수수료율은 문자열이다 */
+const COMPARATORS: Record<SortKey, (a: Application, b: Application) => number> =
+  {
+    date: (a, b) => a.date.localeCompare(b.date),
+    approvedAt: (a, b) =>
+      (a.approvedAt ?? "").localeCompare(b.approvedAt ?? ""),
+    rejectedAt: (a, b) =>
+      (a.rejectedAt ?? "").localeCompare(b.rejectedAt ?? ""),
+  };
+
+/** 오름 → 내림 → 해제 3단 */
+const nextSort = (
+  current: SortState | null,
+  key: SortKey,
+): SortState | null => {
+  if (current?.key !== key) return { key, direction: "asc" };
+  if (current.direction === "asc") return { key, direction: "desc" };
+  return null;
+};
+
+/** 승인 창에서 운영자가 확정해 나가는 값. 입력 중이라 수수료율은 문자열이다 */
 interface GateDraft {
   rate: string;
   hygiene: string;
 }
+
+/**
+ * 열 폭 — **원본 어드민의 컬럼 정의(`minWidth`)** 를 4px 격자로 옮긴 값(§DESIGN.md §7-2).
+ * 승인일·반려일은 상호배타라 그 자리 하나만 끼어든다.
+ * ⚠️ 신청일만 넓은 것은 **이 화면에서 유일하게 초까지 찍기 때문**이다.
+ */
+const colgroup = (withProcessedAt: boolean) => (
+  <colgroup>
+    <col className="w-12" />
+    <col className="w-16" />
+    <col className="w-35" />
+    <col className="w-23" />
+    <col className="w-33" />
+    <col className="w-28" />
+    <col className="w-20" />
+    <col className="w-44" />
+    {withProcessedAt ? <col className="w-28" /> : null}
+    <col className="w-25" />
+  </colgroup>
+);
 
 /** 로딩 자리의 셀 폭 — 실제 값의 글자 수에 가깝게 둬야 도착했을 때 덜 튄다 */
 const SKELETON_WIDTHS = [
@@ -187,28 +200,15 @@ const SKELETON_WIDTHS = [
   "w-16",
   "w-24",
   "w-16",
-  "w-24",
-  "w-32",
+  "w-10",
+  "w-36",
   "w-14",
 ];
 
-/**
- * 로딩 뼈대 — 헤더는 실제 글자, 본문만 가린다(§D8-1).
- * 조건부 열이 빠진 기본 9열 배치를 쓴다 — 도착하면 그때 열이 정해진다.
- */
+/** 로딩 뼈대 — 헤더는 실제 글자, 본문만 가린다(§D8-1) */
 const loadingTable = (
   <Table>
-    <colgroup>
-      <col className="w-10" />
-      <col className="w-16" />
-      <col className="w-35" />
-      <col className="w-23" />
-      <col className="w-33" />
-      <col className="w-28" />
-      <col className="w-20" />
-      <col className="w-40" />
-      <col className="w-25" />
-    </colgroup>
+    {colgroup(false)}
     <TableHead sticky>
       <TableRow>
         <TableTh aria-label="선택" />
@@ -238,6 +238,79 @@ const loadingTable = (
   </Table>
 );
 
+/**
+ * 반려 사유 창 — 원본 `_MODAL_CFG.reject`. **목록 일괄과 상세가 같은 창을 쓴다.**
+ * 빈 사유(공백만 포함)는 처리하지 않고 이유를 낸다. 닫거나 처리하면 적던 사유를 비운다.
+ */
+export function ReviewRejectModal({
+  count,
+  open,
+  onClose,
+  onConfirm,
+}: {
+  count: number;
+  open: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [tried, setTried] = useState(false);
+
+  const clear = () => {
+    setReason("");
+    setTried(false);
+  };
+
+  const close = () => {
+    clear();
+    onClose();
+  };
+
+  const submit = () => {
+    if (reason.trim() === "") {
+      setTried(true);
+      return;
+    }
+    clear();
+    onConfirm();
+  };
+
+  return (
+    <Modal open={open} onClose={close} size="small">
+      <ModalHeader
+        /* 푸터에도 "취소"가 있어 헤더 X 의 기본 라벨과 겹친다 — 이름을 갈라 준다 */
+        closeLabel="대화상자 닫기"
+        title={REVIEW_COPY.rejectTitle(count)}
+      />
+      <ModalBody>
+        <FormField
+          label="반려 사유"
+          required
+          error={
+            tried && reason.trim() === "" ? REVIEW_COPY.rejectEmpty : undefined
+          }
+        >
+          <Textarea
+            minRows={4}
+            value={reason}
+            placeholder={REVIEW_COPY.rejectPlaceholder}
+            onChange={(event) => setReason(event.target.value)}
+          />
+        </FormField>
+        <p className="body-small text-text-sub">{REVIEW_COPY.rejectNote}</p>
+      </ModalBody>
+      <ModalFooter>
+        <Button variant="secondary" size="large" onClick={close}>
+          취소
+        </Button>
+        <Button variant="critical" size="large" onClick={submit}>
+          {REVIEW_COPY.rejectConfirm}
+        </Button>
+      </ModalFooter>
+    </Modal>
+  );
+}
+
 export interface SellerReviewPageProps {
   navOpen: boolean;
   onNavOpenChange: (open: boolean) => void;
@@ -255,8 +328,7 @@ export function SellerReviewPage({
 
   const [filter, setFilter] = useState(DEFAULT_FILTER);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
-  /** 원본 표에서 ↕ 가 붙은 열은 **신청일 하나**라 정렬 키가 필요 없다 */
-  const [sort, setSort] = useState<TableSortDirection | null>(null);
+  const [sort, setSort] = useState<SortState | null>(null);
 
   /* 실 API 를 붙이면 이 한 줄을 fetch 상태로 바꾼다 (`/seller-review?preview=loading`) */
   const status = asStatus(useSearchParams().get("preview"));
@@ -265,39 +337,27 @@ export function SellerReviewPage({
   const [keyword, setKeyword] = useState("");
   const [period, setPeriod] = useState<DateRange | undefined>();
   const [page, setPage] = useState(1);
+  /** 검색조건 펼침. **기본은 접힘**(원본) — 먼저 보여야 하는 것은 조건이 아니라 결과다 */
+  const [filterOpen, setFilterOpen] = useState(false);
 
+  /** 고른 행 — 신청번호로 든다(인덱스로 들면 정렬·필터가 바뀌는 순간 다른 건이 골라진다) */
   const [selected, setSelected] = useState<string[]>([]);
-  /**
-   * 입점 심사 상세로 이동 — 원본의 "셀러명 클릭 → `/seller-review/{id}`".
-   * 한때 이 자리에 미리보기 모달이 있었는데, **상세 화면이 생겨** 걷어냈다.
-   */
+
+  /** 입점 심사 상세로 이동 — 원본의 "셀러명 클릭 → `/seller-review/{id}`" */
   const openDetail = (application: Application) =>
     onNavSelect(`/seller-review/${encodeURIComponent(application.id)}`);
 
-  /* 심사 모달 — 어떤 처리인지와 대상이 무엇인지를 함께 들고 있는다 */
+  /* 심사 창 — 어떤 처리인지와 대상이 무엇인지를 함께 들고 있는다 */
   const [reviewMode, setReviewMode] = useState<"approve" | "reject" | null>(
     null,
   );
   const [pendingIds, setPendingIds] = useState<string[]>([]);
   const [drafts, setDrafts] = useState<Record<string, GateDraft>>({});
   const [rateError, setRateError] = useState(false);
-  const [reason, setReason] = useState("");
 
-  /*
-   * 처리 결과. 실서비스라면 목록을 다시 불러오지만, 여기서는 처리한 건만 덮어써
-   * **승인이 화면에서도 되돌아가지 않는다**는 사실을 그대로 보여준다.
-   */
-  const [results, setResults] = useState<Record<string, ReviewResult>>({});
-
-  const rows: Application[] = APPLICATIONS.map((item) => {
-    const result = results[item.id];
-    return result ? { ...item, ...result } : item;
-  });
-
-  /* 검색 조건이 "어느 값을 훑을지"를 정한다 — 뼈대는 필드 이름을 모른다 */
-  const pick =
-    SEARCH_FIELDS.find((field) => field.value === searchField)?.pick ??
-    SEARCH_FIELDS[0].pick;
+  const searchAxis =
+    SEARCH_FIELDS.find((field) => field.value === searchField) ??
+    SEARCH_FIELDS[0];
 
   /* 기간 기준도 같은 방식이다 — 뼈대는 "신청일"이라는 말을 모른다 */
   const dateAxis =
@@ -307,43 +367,51 @@ export function SellerReviewPage({
    * 상태를 **뺀** 나머지 조건으로 좁힌 집합. 상태별 건수를 여기서 센다.
    * 이미 상태로 좁힌 결과에서 세면 하나를 고르는 순간 나머지가 전부 0 이 된다.
    */
-  const scoped = rows.filter((item) => {
+  const scoped = APPLICATIONS.filter((item) => {
     const matchKeyword =
-      keyword.trim() === "" || pick(item).includes(keyword.trim());
+      keyword.trim() === "" || searchAxis.pick(item).includes(keyword.trim());
     return matchKeyword && inPeriod(dateAxis.pick(item), period);
   });
 
   const matched = scoped.filter((item) => item.status === filter);
 
-  /*
-    원본 표에서 ↕ 가 붙은 열은 **신청일 하나**다. 페이지를 나누기 전에 정렬하고,
-    `APPLICATIONS` 가 모듈 상수라 복사한 뒤 정렬한다.
-  */
+  /* 정렬은 페이지를 나누기 전에 — `APPLICATIONS` 가 모듈 상수라 복사한 뒤 정렬한다 */
   const filtered = sort
     ? [...matched].sort((a, b) => {
-        const order = a.date.localeCompare(b.date);
-        return sort === "asc" ? order : -order;
+        const order = COMPARATORS[sort.key](a, b);
+        return sort.direction === "asc" ? order : -order;
       })
     : matched;
+
+  const toggleSort = (key: SortKey) => {
+    setSort((current) => nextSort(current, key));
+    setPage(1);
+  };
+
+  const directionOf = (key: SortKey) =>
+    sort?.key === key ? sort.direction : undefined;
 
   /* 원본 상태 대시(`StatDash`) — 건수를 보여주면서 그 자체가 상태 필터다 */
   const dash = FILTERS.map((item) => ({
     value: item.value,
     label: item.label,
     count: scoped.filter((row) => row.status === item.value).length,
-    /* 원본은 상태 카드마다 `tip`(statusTips)을 달아 뜻을 설명한다 */
+    /* 원본 `STAT_TIP` — 설명과 다음 단계 */
     tip: STATUS_META[item.value as ApplicationStatus].description,
   }));
 
+  /**
+   * 상태 카드를 바꾸면 **정렬·선택·페이지가 함께 풀린다**(원본 `subnav`).
+   * 다른 탭에서 고른 건이 일괄 바에 남아 있으면 보이지 않는 건을 처리하게 된다.
+   */
   const selectStatus = (value: string) => {
     setFilter(value);
     setPage(1);
+    setSort(null);
+    setSelected([]);
   };
 
-  /*
-   * 승인일·반려일은 **그 상태로 좁혔을 때만** 열이 붙는다(원본과 같다).
-   * 늘 세워 두면 대부분의 행이 `-` 인 열이 둘이나 생긴다.
-   */
+  /* 승인일·반려일은 **그 상태로 좁혔을 때만** 열이 붙는다(원본과 같다) */
   const showApprovedAt = filter === "approved";
   const showRejectedAt = filter === "rejected";
 
@@ -364,6 +432,7 @@ export function SellerReviewPage({
     reviewable.length > 0 && selectedOnPage.length === reviewable.length;
   const someSelected = selectedOnPage.length > 0 && !allSelected;
 
+  /** 머리글 체크박스는 **이 페이지의 심사 가능한 행**만 고르고 푼다 */
   const toggleAll = () => {
     const ids = reviewable.map((item) => item.id);
     setSelected((current) =>
@@ -393,29 +462,38 @@ export function SellerReviewPage({
     setSort(null);
   };
 
-  /** 대상 행들 — 모달이 이름·초깃값을 여기서 읽는다 */
-  const pending = rows.filter((item) => pendingIds.includes(item.id));
+  /** 검색 조건이 바뀌면 1페이지로 — 보던 페이지가 새 결과에 없을 수 있다 */
+  const changed =
+    <T,>(set: (value: T) => void) =>
+    (value: T) => {
+      set(value);
+      setPage(1);
+    };
 
-  const openReview = (mode: "approve" | "reject", ids: string[]) => {
-    setPendingIds(ids);
-    setReason("");
+  /**
+   * 대상 행들 — 창을 열 때 **자격을 다시 거른다.** 고른 뒤 조건이 바뀌어도
+   * 승인요청이 아닌 건이 창에 들어가지 않는다.
+   */
+  const pending = APPLICATIONS.filter(
+    (item) => pendingIds.includes(item.id) && item.status === REVIEWABLE_STATUS,
+  );
+
+  const openReview = (mode: "approve" | "reject") => {
+    const targets = APPLICATIONS.filter(
+      (item) => selected.includes(item.id) && item.status === REVIEWABLE_STATUS,
+    );
+    setPendingIds(targets.map((item) => item.id));
     setRateError(false);
-    /*
-      승인 게이트의 초깃값은 **신청자가 적어 낸 값**이다(원본 `initial: W`).
-      제안하지 않았으면(`0`) 빈 칸으로 열어 입력을 요구한다 — 0% 를 채워 두면
-      "0% 로 합의됐다"로 읽힌다.
-    */
+    /* 승인 창의 첫 값 — 신청 단계의 0% 는 "아직 정하지 않음"이라 빈 칸으로 연다 */
     setDrafts(
       Object.fromEntries(
-        rows
-          .filter((item) => ids.includes(item.id))
-          .map((item) => [
-            item.id,
-            {
-              rate: item.commissionRate > 0 ? String(item.commissionRate) : "",
-              hygiene: item.hygieneCertified ? "certified" : "none",
-            },
-          ]),
+        targets.map((item) => [
+          item.id,
+          {
+            rate: rateDraft(item),
+            hygiene: hygieneValue(item.hygieneCertified),
+          },
+        ]),
       ),
     );
     setReviewMode(mode);
@@ -426,59 +504,24 @@ export function SellerReviewPage({
     setPendingIds([]);
     setDrafts({});
     setRateError(false);
-    setReason("");
   };
 
-  /**
-   * 승인 확정 — 원본과 같이 **전부 통과해야 전부 처리된다.**
-   * 하나라도 범위를 벗어나면 아무것도 처리하지 않고 오류만 낸다
-   * ("요청 전체가 함께 승인되거나 함께 취소됩니다").
-   */
+  /** 처리 뒤 — 알리고 선택을 푼다. **행은 바꾸지 않는다**(퍼블 범위 · 원본은 제자리) */
+  const finish = (message: string, tone?: "critical") => {
+    /* 반려는 비정상 종료라 알림도 critical 이다(이전과 같다) */
+    toast(tone ? { message, tone } : message);
+    setSelected((current) => current.filter((id) => !pendingIds.includes(id)));
+    closeReview();
+  };
+
+  /** 승인 — **모든 셀러의 수수료율이 통과해야** 처리한다(하나라도 틀리면 아무것도 하지 않는다) */
   const applyApprove = () => {
-    const next: Record<string, ReviewResult> = {};
-    for (const item of pending) {
-      const rate = parseRate(drafts[item.id]?.rate ?? "");
-      if (rate === null) {
-        setRateError(true);
-        return;
-      }
-      next[item.id] = {
-        status: "approved",
-        approvedAt: PROCESSED_AT,
-        rejectedAt: null,
-        commissionRate: rate,
-        hygieneCertified: drafts[item.id]?.hygiene === "certified",
-      };
+    if (pending.some((item) => commissionError(drafts[item.id]?.rate ?? ""))) {
+      setRateError(true);
+      return;
     }
-
-    setResults((current) => ({ ...current, ...next }));
-    setSelected((current) => current.filter((id) => !pendingIds.includes(id)));
-    toast(`${count(pendingIds.length)} 승인 처리되었습니다.`);
-    closeReview();
+    finish(REVIEW_COPY.approved(pending.length));
   };
-
-  const applyReject = () => {
-    const next: Record<string, ReviewResult> = {};
-    for (const id of pendingIds) {
-      next[id] = {
-        status: "rejected",
-        approvedAt: null,
-        rejectedAt: PROCESSED_AT,
-      };
-    }
-
-    setResults((current) => ({ ...current, ...next }));
-    setSelected((current) => current.filter((id) => !pendingIds.includes(id)));
-    toast({
-      message: `${count(pendingIds.length)} 반려 처리되었습니다.`,
-      tone: "critical",
-    });
-    closeReview();
-  };
-
-  /* 원본 모달 제목은 여러 건일 때만 건수를 붙인다 */
-  const countSuffix =
-    pendingIds.length > 1 ? ` (${count(pendingIds.length)})` : "";
 
   return (
     <AppShell
@@ -497,21 +540,16 @@ export function SellerReviewPage({
     >
       {/*
         상태 대시 — 원본 `StatDash`. 건수를 보여주면서 그 자체가 상태 필터다.
-        흰 카드(그룹) 안에 연한 그레이 상자(항목) 넷이 들어간다.
+        흰 카드(그룹) 안에 연한 그레이 상자(항목)들이 들어간다.
       */}
       <Card variant="soft" aria-busy={isBusy(status)}>
         <CardBody className={dimWhile(status)}>
-          {/*
-            건수 대시 = 필터. 상자의 시각 규격 · 선택/hover 축 분리 · 접근가능 이름
-            조립 · 툴팁 분기는 전부 `StatGrid` 가 맡는다 (docs/DESIGN-dashboard.md §D4).
-            여기서는 **무엇을 세는지**만 말한다.
-          */}
           <StatGrid
             items={dash.map((item) => ({
               value: item.value,
               label: item.label,
               count: item.count.toLocaleString("ko-KR"),
-              unit: "건",
+              unit: REVIEW_UNIT,
               tip: item.tip,
             }))}
             selected={filter}
@@ -521,6 +559,51 @@ export function SellerReviewPage({
           />
         </CardBody>
       </Card>
+
+      {/*
+        검색조건 — 원본 `filter` · `search`. **접힌 채로 열리고** 걸린 조건은 요약이 말한다.
+        입력 즉시 적용이다(회원·셀러 관리와 같다).
+      */}
+      <FilterBar
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        summary={filterSummary({
+          dateLabel: dateAxis.label,
+          from: period?.from,
+          to: period?.to,
+          fieldLabel: searchAxis.label,
+          keyword,
+        })}
+        onReset={resetFilters}
+      >
+        {/* 기간 기준은 **신청일 / 승인일 / 반려일 세 축**이다(원본 `date.fields`) */}
+        <Select
+          aria-label="기간 기준"
+          options={DATE_FIELDS}
+          value={dateField}
+          onValueChange={changed(setDateField)}
+        />
+        <DatePicker
+          mode="range"
+          presets={PERIOD_PRESETS}
+          value={period}
+          onChange={changed(setPeriod)}
+          startPlaceholder={`${dateAxis.label} 시작`}
+          endPlaceholder={`${dateAxis.label} 종료`}
+        />
+        <Select
+          aria-label="검색 조건"
+          options={SEARCH_FIELDS}
+          value={searchField}
+          onValueChange={changed(setSearchField)}
+        />
+        <Input
+          placeholder="검색어 입력"
+          value={keyword}
+          onChange={(event) => changed(setKeyword)(event.target.value)}
+          leftIcon={<Search size={16} strokeWidth={1.2} aria-hidden />}
+        />
+      </FilterBar>
 
       {/* 심사 목록 — DataTableShell 이 §7-1 셸 구조를 책임진다 */}
       <DataTableShell
@@ -532,62 +615,10 @@ export function SellerReviewPage({
         isLoading={status === "loading"}
         loading={loadingTable}
         toolbarStart={
-          /* 원본 `toolsLeft` 는 엑셀 다운로드 하나다 (`입점심사_N건.csv`) */
-          <Button
-            variant="secondary"
-            onClick={() =>
-              toast(`조회 결과 ${filtered.length}건을 내려받았습니다`)
-            }
-          >
-            <ArrowDownToLine size={16} strokeWidth={1.2} aria-hidden />
-            엑셀 다운로드
-          </Button>
-        }
-        toolbarEnd={
-          <>
-            {/* 기간 기준은 **신청일 / 승인일 / 반려일 세 축**이다(원본 `date.fields`) */}
-            <Select
-              aria-label="기간 기준"
-              options={DATE_FIELDS}
-              value={dateField}
-              onValueChange={(value) => {
-                setDateField(value);
-                setPage(1);
-              }}
-            />
-            <DatePicker
-              mode="range"
-              presets={PERIOD_PRESETS}
-              value={period}
-              onChange={(next) => {
-                setPeriod(next);
-                setPage(1);
-              }}
-              startPlaceholder={`${dateAxis.label} 시작`}
-              endPlaceholder={`${dateAxis.label} 종료`}
-            />
-            <Select
-              aria-label="검색 조건"
-              options={SEARCH_FIELDS}
-              value={searchField}
-              onValueChange={(value) => {
-                setSearchField(value);
-                setPage(1);
-              }}
-            />
-            <Input
-              placeholder="검색어 입력"
-              value={keyword}
-              onChange={(event) => {
-                setKeyword(event.target.value);
-                setPage(1);
-              }}
-              leftIcon={<Search size={16} strokeWidth={1.2} aria-hidden />}
-            />
-            <TextButton tone="secondary" onClick={resetFilters}>
-              초기화
-            </TextButton>
-          </>
+          /* 원본 `ListHead` 의 "목록 (총 N건)" — 회원·셀러 목록과 같은 자리·같은 글자 */
+          <h2 className="heading-medium-bold text-text">
+            목록 (총 {filtered.length}건)
+          </h2>
         }
         isEmpty={status === "empty" || filtered.length === 0}
         empty={
@@ -607,74 +638,24 @@ export function SellerReviewPage({
             page={currentPage}
             totalPages={totalPages}
             onPageChange={setPage}
-            start={
-              /* 원본 `ListHead` 의 "목록 (총 N건)" 과 같은 정보다 */
-              <span className="body-small text-text-sub">
-                총 {filtered.length}건
-              </span>
-            }
             end={
               /* 원본 표 하단의 페이지당 개수 셀렉트. 바꾸면 1페이지로 돌아간다 */
               <PaginationSizeSelect
                 sizes={PAGE_SIZES}
                 value={pageSize}
-                onSizeChange={(size) => {
-                  setPageSize(size);
-                  setPage(1);
-                }}
+                onSizeChange={changed(setPageSize)}
               />
             }
           />
         }
       >
         <Table>
-          {/*
-            table-fixed 라 폭 지정 필수. 한 컬럼만 auto 로 두면 여백을 독식한다.
-            승인일·반려일은 **상호배타**(`filter` 가 하나만 될 수 있다)라 `<col>` 묶음은
-            9열·8열 **두 벌**이다.
-
-            폭은 **원본 어드민의 컬럼 정의(`minWidth`)** 를 옮긴 값이다(§DESIGN.md §7-2) —
-            셀러명 140 · 대표명 90 · 연락처 130 · 유형 110 · 사업자 80 · 신청일 160 ·
-            승인/반려일 110 · 상태 100 을 4px 격자로 올렸다. 선택 열은 원본 정의에 없어
-            실측(40)을 쓴다.
-
-            ⚠️ 신청일만 넓은 것은 **이 화면에서 유일하게 시각까지 찍기 때문**이다
-            (원본 `ymdhms`). 다른 화면의 날짜 열은 전부 112 다.
-          */}
-          {showApprovedAt || showRejectedAt ? (
-            /* 10열 — 선택·No·셀러명·대표명·연락처·유형·사업자·신청일·[승인일|반려일]·상태 */
-            <colgroup>
-              <col className="w-10" />
-              <col className="w-16" />
-              <col className="w-35" />
-              <col className="w-23" />
-              <col className="w-33" />
-              <col className="w-28" />
-              <col className="w-20" />
-              <col className="w-40" />
-              <col className="w-28" />
-              <col className="w-25" />
-            </colgroup>
-          ) : (
-            /* 9열 — 조건부 열이 빠진 기본 구성 */
-            <colgroup>
-              <col className="w-10" />
-              <col className="w-16" />
-              <col className="w-35" />
-              <col className="w-23" />
-              <col className="w-33" />
-              <col className="w-28" />
-              <col className="w-20" />
-              <col className="w-40" />
-              <col className="w-25" />
-            </colgroup>
-          )}
+          {colgroup(showApprovedAt || showRejectedAt)}
           <TableHead sticky>
             <TableRow>
-              <TableTh>
+              <TableTh align="center">
                 {/*
                   전체 선택은 **현재 페이지의 심사 가능한 행**만 고른다.
-                  처리 완료 건까지 함께 골라 주면 곧바로 "선택했는데 처리할 수 없다"가 된다.
                   `Checkbox` 는 루트가 이미 `<label>` 이라 `FormField` 로 감싸지 않는다.
                 */}
                 <Checkbox
@@ -686,42 +667,51 @@ export function SellerReviewPage({
                   onChange={toggleAll}
                 />
               </TableTh>
-              {/* 원본 표의 No — 레코드 번호라 정렬·필터와 무관하다 */}
+              {/*
+                원본 표의 첫 열 — **조회 결과의 역순 순번**(`total - start - i`)이다.
+                레코드 번호가 아니라서 필터·정렬을 바꾸면 다시 센다.
+              */}
               <TableTh>No</TableTh>
               <TableTh>셀러명</TableTh>
               <TableTh>대표명</TableTh>
               <TableTh>연락처</TableTh>
               <TableTh align="center">유형</TableTh>
               <TableTh>사업자</TableTh>
-              {/* 원본 헤더에서 ↕ 가 붙은 유일한 열 */}
               <TableTh
                 sortable
-                sortDirection={sort ?? undefined}
-                onSort={() => {
-                  setSort((current) =>
-                    current === null
-                      ? "asc"
-                      : current === "asc"
-                        ? "desc"
-                        : null,
-                  );
-                  setPage(1);
-                }}
+                sortDirection={directionOf("date")}
+                onSort={() => toggleSort("date")}
               >
                 신청일
               </TableTh>
-              {showApprovedAt ? <TableTh>승인일</TableTh> : null}
-              {showRejectedAt ? <TableTh>반려일</TableTh> : null}
+              {showApprovedAt ? (
+                <TableTh
+                  sortable
+                  sortDirection={directionOf("approvedAt")}
+                  onSort={() => toggleSort("approvedAt")}
+                >
+                  승인일
+                </TableTh>
+              ) : null}
+              {showRejectedAt ? (
+                <TableTh
+                  sortable
+                  sortDirection={directionOf("rejectedAt")}
+                  onSort={() => toggleSort("rejectedAt")}
+                >
+                  반려일
+                </TableTh>
+              ) : null}
               <TableTh align="center">상태</TableTh>
             </TableRow>
           </TableHead>
           <TableBody>
-            {paged.map((item) => {
+            {paged.map((item, index) => {
               const status = STATUS_META[item.status];
               const selectable = item.status === REVIEWABLE_STATUS;
               return (
                 <TableRow key={item.id}>
-                  <TableTd>
+                  <TableTd align="center">
                     <Checkbox
                       size="small"
                       aria-label={`${item.name} 선택`}
@@ -730,11 +720,10 @@ export function SellerReviewPage({
                       onChange={() => toggleOne(item.id)}
                     />
                   </TableTd>
-                  <TableTd className="tabular-nums">{item.no}</TableTd>
-                  {/*
-                    원본에서 셀러명은 `/seller-review/{id}` 로 가는 링크다.
-                    행 전체를 누르게 만들지 않는다 — 원본에 없는 어포던스다.
-                  */}
+                  <TableTd className="tabular-nums">
+                    {filtered.length - (currentPage - 1) * pageSize - index}
+                  </TableTd>
+                  {/* 원본에서 셀러명은 `/seller-review/{id}` 로 가는 링크다 */}
                   <TableTd>
                     <TextButton
                       className="max-w-full"
@@ -758,8 +747,8 @@ export function SellerReviewPage({
                       ))}
                     </span>
                   </TableTd>
-                  <TableTd>{item.business}</TableTd>
-                  {/* 신청일만 시각까지 낸다 — 같은 날 접수 순서가 곧 심사 순서다 */}
+                  <TableTd>{BIZ_TYPE_LABEL[item.bizType]}</TableTd>
+                  {/* 신청일만 초까지 낸다 — 같은 날 접수 순서가 곧 심사 순서다 */}
                   <TableTd className="tabular-nums">
                     {ymdhms(item.date)}
                   </TableTd>
@@ -785,55 +774,54 @@ export function SellerReviewPage({
         </Table>
       </DataTableShell>
 
-      {/*
-        선택 일괄 심사 (§25) — 선택이 있을 때만 떠오른다.
-        원본은 툴바 우측의 `심사` 셀렉트(승인 처리 / 반려 처리)였고, 액션 이름은 그대로다.
-      */}
+      {/* 선택 일괄 심사 (§25) — 선택이 있을 때만 떠오른다 */}
       <SelectionBar
         open={selected.length > 0}
         count={selected.length}
-        countLabel={(value) => `${count(value)} 선택됨`}
+        countLabel={(value) => `${value}${REVIEW_UNIT} 선택됨`}
         label="선택한 신청 일괄 심사"
         onClear={() => setSelected([])}
       >
         <SelectionBarButton
           icon={<Check size={16} strokeWidth={1.2} aria-hidden />}
-          onClick={() => openReview("approve", selected)}
+          onClick={() => openReview("approve")}
         >
           승인 처리
         </SelectionBarButton>
         <SelectionBarButton
           icon={<X size={16} strokeWidth={1.2} aria-hidden />}
-          onClick={() => openReview("reject", selected)}
+          onClick={() => openReview("reject")}
         >
           반려 처리
         </SelectionBarButton>
       </SelectionBar>
 
       {/*
-        승인 게이트 — 원본 `SellerReviewBulkApproveGate`.
-        ⚠️ 단순 확인 모달이 아니다. **셀러별 수수료율과 위생인증을 여기서 확정한다.**
-        승인과 동시에 셀러가 생성되므로 이 두 값이 비어 있으면 셀러를 만들 수 없다.
+        승인 창 — 원본 `gateApprove` 의 제목·본문·경고 + **셀러별 수수료율·위생인증 확정**(우리 추가).
+        승인과 동시에 셀러가 입점으로 바뀌므로 두 값이 정해져 있어야 한다.
       */}
       <Modal open={reviewMode === "approve"} onClose={closeReview} size="large">
         <ModalHeader
           closeLabel="대화상자 닫기"
-          title={`입점 심사 일괄 승인 (${count(pendingIds.length)})`}
+          title={REVIEW_COPY.approveTitle(pending.length)}
         />
         <ModalBody>
-          <p className="body-medium text-text-sub">
-            {REVIEW_COPY.approveIntro}
-          </p>
+          <p className="body-medium text-text">{REVIEW_COPY.approveBody}</p>
+          <p className="body-small text-text-sub">{REVIEW_COPY.approveRates}</p>
           <ul className="flex flex-col gap-3">
             {pending.map((item) => (
               <li key={item.id} className="flex items-center gap-3">
-                <span className="min-w-0 flex-1 truncate label-medium-bold text-text">
+                <span className="label-medium-bold min-w-0 flex-1 truncate text-text">
                   {item.name}
                 </span>
                 <Input
                   inputMode="decimal"
+                  placeholder="0"
                   aria-label={`${item.name} 수수료율`}
                   value={drafts[item.id]?.rate ?? ""}
+                  invalid={
+                    rateError && !!commissionError(drafts[item.id]?.rate ?? "")
+                  }
                   onChange={(event) => {
                     /* 원본과 같이 숫자와 소수점만 남긴다 */
                     const next = event.target.value.replace(/[^0-9.]/g, "");
@@ -844,16 +832,12 @@ export function SellerReviewPage({
                         hygiene: current[item.id]?.hygiene ?? "none",
                       },
                     }));
-                    setRateError(false);
                   }}
                   rightIcon={
                     <span className="body-medium text-text-sub">%</span>
                   }
                 />
-                {/*
-                  `SegmentedControl` 은 `role="radiogroup"` 이라 이름이 필요하다.
-                  모달 안에서 같은 컨트롤이 여러 벌이라 셀러명을 붙여 구별한다.
-                */}
+                {/* 같은 컨트롤이 여러 벌이라 셀러명을 붙여 구별한다 */}
                 <SegmentedControl
                   className="shrink-0"
                   aria-label={`${item.name} 위생인증`}
@@ -886,45 +870,19 @@ export function SellerReviewPage({
             취소
           </Button>
           <Button size="large" onClick={applyApprove}>
-            승인 처리
+            {REVIEW_COPY.approveConfirm}
           </Button>
         </ModalFooter>
       </Modal>
 
-      {/* 반려 사유 입력 — 사유 없이는 반려할 수 없다 (원본도 빈 사유면 버튼이 잠긴다) */}
-      <Modal open={reviewMode === "reject"} onClose={closeReview} size="small">
-        <ModalHeader
-          closeLabel="대화상자 닫기"
-          title={`입점 심사 반려 사유${countSuffix}`}
-        />
-        <ModalBody>
-          {/* `FormField` 는 Input·Textarea·Select 전용이다 — Textarea 라 그대로 쓴다 */}
-          <FormField label="반려 사유" required>
-            <Textarea
-              minRows={4}
-              value={reason}
-              placeholder={REVIEW_COPY.rejectPrompt}
-              onChange={(event) => setReason(event.target.value)}
-            />
-          </FormField>
-          <p className="body-small text-text-sub">
-            {REVIEW_COPY.rejectWarning}
-          </p>
-        </ModalBody>
-        <ModalFooter>
-          <Button variant="secondary" size="large" onClick={closeReview}>
-            취소
-          </Button>
-          <Button
-            variant="critical"
-            size="large"
-            disabled={reason.trim() === ""}
-            onClick={applyReject}
-          >
-            반려 처리
-          </Button>
-        </ModalFooter>
-      </Modal>
+      <ReviewRejectModal
+        count={pending.length}
+        open={reviewMode === "reject"}
+        onClose={closeReview}
+        onConfirm={() =>
+          finish(REVIEW_COPY.rejected(pending.length), "critical")
+        }
+      />
     </AppShell>
   );
 }

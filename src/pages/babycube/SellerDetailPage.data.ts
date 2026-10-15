@@ -31,7 +31,6 @@ import {
  * | `DEAL_SCOPES`        | 상품 취급 유형 택1 (전체/렌트/판매)               |
  * | `SELLER_STATES`      | 상태 택1 (입점/퇴점 처리중/퇴점)                  |
  * | `HYGIENE_OPTIONS`    | 위생인증 택1                                      |
- * | `DOCUMENTS`          | 제출 서류 2종의 이름·번호 라벨·발급기관           |
  * | `SALE_STATUS_META`   | 등록 상품 표의 판매 상태 배지                     |
  * | `EXIT_COPY`          | 퇴점 확인 창 문구                                 |
  *
@@ -122,34 +121,6 @@ export const HYGIENE_OPTIONS = [
 
 export const hygieneValue = (certified: boolean) =>
   certified ? "certified" : "none";
-
-/**
- * 제출 서류 2종 — 원본 `_DOC_META`. 번호 앞에 붙는 말(`등록번호`/`신고번호`)과
- * 미리보기에 찍히는 발급기관이 서류마다 다르다.
- */
-export const DOCUMENTS = {
-  bizLicense: {
-    label: "사업자등록증",
-    numberLabel: "등록번호",
-    issuer: "국세청",
-  },
-  salesLicense: {
-    label: "통신판매업신고증",
-    numberLabel: "신고번호",
-    issuer: "관할 시·군·구청",
-  },
-} as const;
-
-export type DocumentKey = keyof typeof DOCUMENTS;
-
-/** 서류 미리보기 창 — 원본 `docModalView` 문구. 실제 파일이 아니라는 사실을 함께 밝힌다 */
-export const DOCUMENT_COPY = {
-  title: (label: string, sellerName: string) => `${label} — ${sellerName}`,
-  note: "첨부된 서류 이미지입니다. 아래 다운로드로 원본을 내려받을 수 있습니다.",
-  /* 퍼블 기준본이라 실제 서류가 연결돼 있지 않다 — 예시를 실물로 오해하지 않게 */
-  mock: "예시 미리보기 · 실제 서류 미연동",
-  downloaded: (label: string) => `${label} 다운로드`,
-};
 
 /** 등록 상품 표의 `유형` 열 — 둘 다 취급하는 상품은 배지 둘(원본 `modeTags`) */
 export const DEAL_KIND_LABEL: Record<DealKind, string> = {

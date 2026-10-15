@@ -12,27 +12,32 @@ import type { TagTone } from "../../components/ui";
  * | `Application`     | 표 한 행의 타입                             |
  * | `STATUS_META`     | 상태값 → 라벨·Tag tone·설명(툴팁)           |
  * | `KIND_META`·`dealKinds` | 거래 유형(렌트/판매) 배지             |
- * | `APPLICATIONS`    | 샘플 데이터                                 |
+ * | `BIZ_TYPE_LABEL`  | 사업자 열(법인/개인)                        |
+ * | `APPLICATIONS`    | 샘플 데이터 (v0.4 `SELLER_REVIEW` 14건)     |
  * | `FILTERS`         | 상태 대시 = 상태 필터                       |
  * | `DATE_FIELDS`     | 기간 기준 셀렉트 (신청일/승인일/반려일)     |
  * | `SEARCH_FIELDS`   | 검색 조건 셀렉트                            |
- * | `REVIEW_COPY`     | 심사 모달의 안내 문구 (도메인 카피)         |
- * | `HYGIENE_OPTIONS`·`parseRate` | 승인 게이트의 입력 규칙         |
- * | `PROCESSED_AT`    | 처리 일시 (실서비스에서는 서버가 돌려준다)  |
- * | `count`·`ymd`·`ymdhms` | 건수·날짜 포맷                        |
+ * | `REVIEW_COPY`     | 승인·반려 창과 알림 문구 (목록·상세 공용)   |
+ * | `HYGIENE_OPTIONS`·`commissionError` | 승인의 입력 규칙 (목록·상세 공용) |
+ * | `filterSummary`   | 접힌 검색조건 줄의 요약                     |
+ * | `ymd`·`ymdhms`    | 날짜 포맷                                   |
  * | `PAGE_SIZE`       | 페이지당 행 수                              |
  *
  * ## 뼈대가 이 파일에 기대하는 계약
- * - 행 타입은 `id`(고유키) · `date`(`YYYY-MM-DD HH:mm`, 기간 필터가 파싱)를 반드시 갖는다.
- *   여기서 `date` 는 **신청일**이다
- * - `approvedAt` · `rejectedAt` 은 아직 처리되지 않았으면 `null` → `ymd` 가 `-` 로 낸다
+ * - 행 타입은 `id`(고유키) · `date`(`YYYY-MM-DD HH:mm:ss`, 기간 필터가 파싱)를 반드시 갖는다.
+ *   여기서 `date` 는 **신청일**이다. 표의 No 는 레코드 값이 아니라 조회 결과의 역순 순번이다
+ * - `approvedAt` · `rejectedAt` 은 그 상태가 아니면 `null` → `ymd` 가 `-` 로 낸다
  * - `DATE_FIELDS[].pick` 이 기간 필터가 훑을 값을 고른다 — `null` 이면 그 행은 기간에서 빠진다
  * - `STATUS_META` 의 키는 `Application["status"]` 유니온과 정확히 일치한다
  * - **`REVIEWABLE_STATUS` 만 심사 대상이다.** 뼈대는 이 값으로 행 선택 가능 여부를 정한다 —
- *   원본의 "승인요청 상태인 신청만 심사할 수 있습니다"가 이 한 줄에 걸려 있다
- * - `commissionRate`·`hygieneCertified` 는 **신청자가 제안한 값**이다. 승인 게이트가
- *   이 값을 초깃값으로 받아 운영자가 확정한다(원본 `initial: W` 와 같다)
- * - `FILTERS[0].value` 는 `"all"` · `SEARCH_FIELDS[].pick` 이 검색 대상 값을 정한다
+ *   이미 처리된 건을 다시 처리하지 못하게 한다(원본은 모든 행을 고를 수 있지만 재처리를 허용할 근거가 없다)
+ * - **승인하려면 셀러별 수수료율이 있어야 한다** — `commissionError` 하나로 목록 일괄·상세 승인이
+ *   같은 규칙(0 초과 100 이하)을 쓴다(2026-10-15 사용자 결정. 원본 v0.4 는 승인 시 수수료율을
+ *   검사하지 않지만, 개발 앱의 승인 계약이 셀러마다 수수료율·위생인증을 받는다)
+ *
+ * ## 상태 어휘 — **`승인요청`** 이다 (원본 v0.4 화면은 `승인신청`)
+ * 개발 저장소의 도메인 모델(#15)과 API 계약이 `승인요청` 을 쓴다. 규범 서열상 도메인 모델이
+ * 프로토타입 화면보다 앞서므로 표시 어휘도 그것을 따른다.
  *
  * ## 상태 색 배정 근거 (§3-1 "상태 색 배정")
  * **원본 배지 클래스는 참고하지 않았다**(원본은 승인요청=`b-prog` · 승인=`b-done` · 반려=`b-exc`).
@@ -42,31 +47,17 @@ import type { TagTone } from "../../components/ui";
  * | 승인     | `default`  | 제대로 끝난 일(정상 종료). 더 볼 것이 없어 눈에 띌 이유가 없다        |
  * | 반려     | `critical` | **비정상 종료**. 목록을 훑을 때 반려 건이 몇인지 라벨 없이 보여야 한다 |
  *
- * `success` 는 쓰지 않는다 — 이 화면에 "진행 중이고 정상인" 상태가 없다.
- * 승인은 진행 중이 아니라 종결이라 `default` 다(§3-1 규칙 3).
- *
  * ## ⚠️ 유형(렌트/판매)은 분류지 상태가 아니다
  * 원본은 렌트를 초록(`b-green`), 판매를 파랑(`b-blue`)으로 칠했다. **그 색 체계는 버렸다.**
  * 우리 `Tag` 의 초록/노랑/빨강은 "지금 주의를 요하는가"를 뜻하므로 분류에 쓰면
- * 목록이 거짓 신호를 낸다. 둘 다 `default` 로 두고 구별은 글자가 한다 —
- * 렌트와 판매는 **대등한 두 값**이라 한쪽만 칠하면 없는 신호가 생긴다.
+ * 목록이 거짓 신호를 낸다. 둘 다 `default` 로 두고 구별은 글자가 한다.
  *
- * ## 원본 저장본(`_plan/babycube-admin/chunks/27i1gkm-7zus7.js`)과 대조한 결과
- * - **그대로 가져온 것**
- *   - 컬럼 이름과 **순서**: 셀러명 · 대표명 · 연락처 · 유형 · 사업자 · 신청일 ·
- *     [승인일] · [반려일] · 상태 — 승인일/반려일은 **그 상태로 좁혔을 때만** 붙는다
- *   - 유형이 `전체` 인 신청은 **렌트·판매 두 배지**로 편다(원본 `dealType === "전체"`)
- *   - 신청일은 `ymdhms`(초까지) · 승인일·반려일은 `ymd`(날짜만)
- *   - 필터 축 3개: 기간(신청일/승인일/반려일) · 상태(대시) · 검색 조건(셀러명/대표명/연락처)
- *   - 상태 어휘 3종과 상태별 안내 문구(원본 `statusTips`)
- *   - **승인 게이트의 구조 전체** — 셀러별 수수료율 입력 + 위생인증 인증/인증안됨 토글,
- *     6~16% 검증과 그 오류 문구, 되돌릴 수 없다는 경고
- *   - 반려 모달의 사유 자리표시자·안내 문구·버튼 라벨, 처리 결과 토스트 문구
- * - **값 출처가 불명해 그대로 둔 것**
- *   - 표 데이터는 원본에서 API(`sellerApplicationsApi`) 응답이라 청크에 없다
- *   - **`사업자` 열**: 원본 필드명이 `businessType`(유형)이고 `minWidth: 80` 이라
- *     `개인`/`법인` 같은 **짧은 유형 값**일 가능성이 크지만, 값 목록이 청크에 없다.
- *     우리 샘플은 사업자등록번호를 그대로 둔다 — 모르는 어휘를 지어내지 않는다
+ * ## 원본 v0.4(`SCREENS.sellerReview`)와 대조한 결과 (2026-10-15)
+ * - 컬럼 이름과 **순서**: No · 셀러명 · 대표명 · 연락처 · 유형 · 사업자(법인/개인) · 신청일 ·
+ *   [승인일] · [반려일] · 상태 — 승인일/반려일은 **그 상태로 좁혔을 때만** 붙고 정렬된다
+ * - 신청일은 초까지 · 승인일·반려일은 날짜만
+ * - 승인 창 제목·본문·경고, 반려 창 제목·자리표시자·안내, 처리 알림(1건/여러 건) 문구
+ * - **엑셀 없음** — 원본 `EXPORT_SPEC` 에 입점 심사가 없다
  * ---------------------------------------------------------------------- */
 
 export type ApplicationStatus = "requested" | "approved" | "rejected";
@@ -74,10 +65,10 @@ export type ApplicationStatus = "requested" | "approved" | "rejected";
 /** 실제 거래 유형 두 가지. 배지 하나에 대응한다 */
 export type DealKind = "rent" | "sale";
 
-/** 신청서가 고르는 값. `both` 는 원본의 `dealType: "전체"` 다 */
+/** 신청서가 고르는 값. `both` 는 원본의 `type: "전체"` 다 */
 export type ApplicationKind = DealKind | "both";
 
-/** 사업자 유형 — 원본 `sec.sellerReview_apply` 의 `[법인][개인]` 택1 */
+/** 사업자 유형 — 원본 `biz: 법인 / 개인` */
 export type ReviewBizType = "corporate" | "individual";
 
 /**
@@ -90,12 +81,6 @@ export interface ReviewDocument {
 }
 
 export interface Application {
-  /**
-   * 원본 표의 **No** 열. 화면이 세는 순번이 아니라 **레코드에 붙은 번호**다 —
-   * 정렬·필터가 바뀌어도 같은 신청 건은 같은 번호를 유지한다.
-   */
-  no: number;
-
   /** 신청번호 — 고유키 */
   id: string;
   /** 셀러명 */
@@ -104,40 +89,38 @@ export interface Application {
   ceo: string;
   phone: string;
   kind: ApplicationKind;
-  /**
-   * 사업자 — 원본 필드명은 `businessType` 이다.
-   * ⚠️ 원본 값 목록이 청크에 없어(API 응답) 우리 샘플은 사업자등록번호를 쓴다.
-   */
-  business: string;
-  /** 신청일 `YYYY-MM-DD HH:mm` — 뼈대의 기간 필터가 이 형식을 파싱한다 */
+  /** 사업자 — 표의 `사업자` 열이 이것이다(원본 `s.biz`) */
+  bizType: ReviewBizType;
+  /** 신청일 `YYYY-MM-DD HH:mm:ss` — 원본이 초까지 적는다 */
   date: string;
-  /** 승인일. 아직 승인되지 않았으면 `null` */
+  /** 승인일. 승인 건만 */
   approvedAt: string | null;
-  /** 반려일. 아직 반려되지 않았으면 `null` */
+  /** 반려일. 반려 건만 */
   rejectedAt: string | null;
+  /** 반려 사유. 반려 건만 — 상세의 「반려 사유」 줄 */
+  rejectReason?: string;
   /**
-   * 신청자가 제안한 수수료율(%). **`0` 이면 제안하지 않은 것**이라
-   * 승인 게이트가 빈 칸으로 연다(원본 `commissionRate > 0 ? String(...) : ""`).
+   * 수수료율(%). 신청 단계에서는 0 이고(원본 "신청 접수 시 0%로 시작"),
+   * 승인할 때 운영자가 입력한다. 승인 건은 확정된 값을 든다.
    */
   commissionRate: number;
-  /** 신청서에 적힌 위생인증 여부. 승인 게이트의 초깃값이 된다 */
+  /** 위생인증 — 기본 `인증안됨`, 승인 셀러에 한해 부여(원본 안내) */
   hygieneCertified: boolean;
   status: ApplicationStatus;
-
-  /* ── 여기부터는 **입점 심사 상세(BO-SEL-004)** 가 쓰는 값이다 ──
-     목록 표에는 나오지 않지만 같은 레코드에 속한다. */
-
-  bizType: ReviewBizType;
   bizLicense: ReviewDocument;
   salesLicense: ReviewDocument;
 }
 
 /**
  * **심사할 수 있는 상태.** 뼈대가 이 값으로 행 선택 가능 여부를 정한다.
- * 원본의 "승인요청 상태인 신청만 심사할 수 있습니다"가 이 상수 하나에 걸려 있다.
  */
 export const REVIEWABLE_STATUS: ApplicationStatus = "requested";
 
+/**
+ * 상태값 → 라벨 · tone · 설명. 설명은 v0.4 `STAT_TIP` 의 두 문장(설명 + 다음 단계)이다.
+ * ⚠️ 반려만은 원본 `STAT_TIP["반려"]` 가 **상품** 문장("판매를 내린 상태… 재심사 요청")이라
+ * 같은 형식으로 입점 심사용 문장을 썼다 — 재신청 정책은 근거가 없어 적지 않는다.
+ */
 export const STATUS_META: Record<
   ApplicationStatus,
   { label: string; tone: TagTone; description: string }
@@ -146,17 +129,18 @@ export const STATUS_META: Record<
     label: "승인요청",
     tone: "warning",
     description:
-      "입점 신청이 접수돼 심사를 기다리는 건입니다. 심사는 상세에서 서류를 보고 처리합니다.",
+      "입점을 신청해 심사를 기다리는 상태입니다. 심사 결과에 따라 [승인] 또는 [반려]가 됩니다.",
   },
   approved: {
     label: "승인",
     tone: "default",
-    description: "심사를 통과해 셀러로 등록된 신청입니다.",
+    description: "본사 심사를 통과한 건입니다. 더 진행할 단계가 없습니다.",
   },
   rejected: {
     label: "반려",
     tone: "critical",
-    description: "심사에서 반려된 신청입니다. 반려 사유가 함께 기록됩니다.",
+    description:
+      "본사 심사에서 반려된 신청입니다. 반려 사유를 확인할 수 있습니다.",
   },
 };
 
@@ -171,215 +155,314 @@ export const KIND_META: Record<DealKind, { label: string; tone: TagTone }> = {
 
 /**
  * 유형 하나를 배지 목록으로 편다.
- * 원본은 `dealType === "전체"` 일 때 `["렌트", "판매"]` 두 배지를 나란히 그린다 —
- * "전체"라고 한 단어로 적으면 무엇과 무엇인지가 사라진다.
+ * 원본은 `type === "전체"` 일 때 `["렌트", "판매"]` 두 배지를 나란히 그린다.
  */
 export const dealKinds = (kind: ApplicationKind): DealKind[] =>
   kind === "both" ? ["rent", "sale"] : [kind];
 
-/** 값이 없는 셀(아직 처리되지 않은 승인일·반려일)에 채우는 글자 */
+export const BIZ_TYPE_LABEL: Record<ReviewBizType, string> = {
+  corporate: "법인",
+  individual: "개인",
+};
+
+/** 값이 없는 셀에 채우는 글자 */
 const EMPTY_CELL = "-";
 
-/**
- * 심사를 마친 시각. 실서비스에서는 **서버가 처리 결과와 함께 돌려주는 값**이라
- * 화면이 만들지 않는다. 샘플에서는 고정값을 써서 처리 결과가 표에 어떻게
- * 반영되는지 그대로 보여준다.
- */
-export const PROCESSED_AT = "2026-08-24 09:00";
+/* -------------------------------------------------------------------------
+ * 샘플 — 원본 v0.4 `SELLER_REVIEW` 14건 그대로 (승인요청 8 · 승인 3 · 반려 3)
+ *
+ * 원본에 없는 값은 둘뿐이다: **승인 건의 수수료율**(원본 샘플은 전부 0 — 승인 건은 확정 요율이
+ * 있어야 상세가 의미 있게 읽힌다)과 위생인증(원본 샘플에 없어 기본값 `인증안됨`, 승인 건 하나만 인증).
+ * ---------------------------------------------------------------------- */
 
-export const APPLICATIONS: Application[] = [
-  {
-    id: "A-2026-0141",
-    no: 7,
-    name: "포근한잠",
-    ceo: "윤서아",
-    phone: "010-4471-2280",
-    kind: "rent",
-    business: "128-81-55021",
-    date: "2026-08-22 10:14",
-    approvedAt: null,
-    rejectedAt: null,
-    commissionRate: 12,
-    hygieneCertified: true,
-    status: "requested",
-    bizType: "corporate",
-    bizLicense: { fileName: "사업자등록증.pdf", number: "128-81-55021" },
-    salesLicense: {
-      fileName: "통신판매업 신고증.pdf",
-      number: "2026-서울강남-55021",
-    },
-  },
-  {
-    /* 수수료율을 제안하지 않은 신청 — 승인 게이트가 빈 칸으로 열려 입력을 요구한다 */
-    id: "A-2026-0139",
-    no: 6,
-    name: "하루베베",
-    ceo: "강도윤",
-    phone: "010-3320-7714",
-    kind: "sale",
-    business: "214-86-33907",
-    date: "2026-08-21 16:38",
-    approvedAt: null,
-    rejectedAt: null,
-    commissionRate: 0,
-    hygieneCertified: false,
-    status: "requested",
-    bizType: "individual",
-    bizLicense: { fileName: "사업자등록증.pdf", number: "214-86-33907" },
-    salesLicense: {
-      fileName: "통신판매업 신고증.pdf",
-      number: "2026-서울강남-33907",
-    },
-  },
-  {
-    /* 렌트와 판매를 함께 하겠다는 신청 — 배지가 둘 뜬다(원본 `dealType: "전체"`) */
-    id: "A-2026-0136",
-    no: 5,
-    name: "리틀그린",
-    ceo: "오지안",
-    phone: "010-8852-1163",
-    kind: "both",
-    business: "305-82-71144",
-    date: "2026-08-20 09:52",
-    approvedAt: null,
-    rejectedAt: null,
-    commissionRate: 9.5,
-    hygieneCertified: true,
-    status: "requested",
-    bizType: "corporate",
-    bizLicense: { fileName: "사업자등록증.pdf", number: "305-82-71144" },
-    salesLicense: {
-      fileName: "통신판매업 신고증.pdf",
-      number: "2026-서울강남-71144",
-    },
-  },
-  {
-    id: "A-2026-0128",
-    no: 4,
-    name: "소복이",
-    ceo: "신하람",
-    phone: "010-2214-9908",
-    kind: "sale",
-    business: "412-88-20376",
-    date: "2026-08-14 13:20",
-    approvedAt: "2026-08-16 11:02",
-    rejectedAt: null,
-    commissionRate: 14,
-    hygieneCertified: false,
-    status: "approved",
-    bizType: "individual",
-    bizLicense: { fileName: "사업자등록증.pdf", number: "412-88-20376" },
-    salesLicense: {
-      fileName: "통신판매업 신고증.pdf",
-      number: "2026-서울강남-20376",
-    },
-  },
-  {
-    id: "A-2026-0122",
-    no: 3,
-    name: "맘스케어",
-    ceo: "배준서",
-    phone: "010-7093-5541",
-    kind: "rent",
-    business: "138-81-64822",
-    date: "2026-08-11 15:07",
-    approvedAt: null,
-    rejectedAt: "2026-08-13 09:45",
-    commissionRate: 0,
-    hygieneCertified: false,
-    status: "rejected",
-    bizType: "corporate",
-    bizLicense: { fileName: "사업자등록증.pdf", number: "138-81-64822" },
-    salesLicense: {
-      fileName: "통신판매업 신고증.pdf",
-      number: "2026-서울강남-64822",
-    },
-  },
-  {
-    id: "A-2026-0117",
-    no: 2,
-    name: "아이랑숲",
-    ceo: "임채원",
-    phone: "010-6628-3390",
-    kind: "sale",
-    business: "220-85-49013",
-    date: "2026-08-08 11:44",
-    approvedAt: "2026-08-09 14:26",
-    rejectedAt: null,
-    commissionRate: 11,
-    hygieneCertified: true,
-    status: "approved",
-    bizType: "individual",
-    bizLicense: { fileName: "사업자등록증.pdf", number: "220-85-49013" },
-    salesLicense: {
-      fileName: "통신판매업 신고증.pdf",
-      number: "2026-서울강남-49013",
-    },
-  },
-  {
-    id: "A-2026-0110",
-    no: 1,
-    name: "밤톨상회",
-    ceo: "노시우",
-    phone: "010-5517-8842",
-    kind: "rent",
-    business: "507-83-11290",
-    date: "2026-08-05 17:31",
-    approvedAt: null,
-    rejectedAt: "2026-08-07 10:18",
-    commissionRate: 0,
-    hygieneCertified: false,
-    status: "rejected",
-    bizType: "corporate",
-    bizLicense: { fileName: "사업자등록증.pdf", number: "507-83-11290" },
-    salesLicense: {
-      fileName: "통신판매업 신고증.pdf",
-      number: "2026-서울강남-11290",
-    },
+type Row = [
+  id: string,
+  name: string,
+  ceo: string,
+  phone: string,
+  bizType: ReviewBizType,
+  kind: ApplicationKind,
+  bizNo: string,
+  salesNo: string,
+  date: string,
+  status: ApplicationStatus,
+  extra?: {
+    approvedAt?: string;
+    rejectedAt?: string;
+    rejectReason?: string;
+    commissionRate?: number;
+    hygieneCertified?: boolean;
   },
 ];
 
+const ROWS: Row[] = [
+  [
+    "SR-318",
+    "코지베이비",
+    "문지호",
+    "010-3318-1900",
+    "corporate",
+    "both",
+    "318-81-10021",
+    "2026-서울강남-10021",
+    "2026-06-20 14:32:08",
+    "requested",
+  ],
+  [
+    "SR-317",
+    "그린키즈",
+    "배수정",
+    "010-3317-1700",
+    "individual",
+    "rent",
+    "317-22-30144",
+    "2026-경기성남-30144",
+    "2026-06-18 09:15:44",
+    "requested",
+  ],
+  [
+    "SR-316",
+    "맘스토이",
+    "서동현",
+    "010-3316-1600",
+    "corporate",
+    "sale",
+    "316-81-52277",
+    "2026-서울마포-52277",
+    "2026-06-12 16:48:21",
+    "approved",
+    { approvedAt: "2026-06-14", commissionRate: 12, hygieneCertified: true },
+  ],
+  [
+    "SR-315",
+    "베베리움",
+    "노아라",
+    "010-3315-1500",
+    "individual",
+    "both",
+    "315-14-61190",
+    "2026-인천남동-61190",
+    "2026-06-10 11:07:53",
+    "rejected",
+    { rejectedAt: "2026-06-11", rejectReason: "KC 미인증 품목 포함" },
+  ],
+  [
+    "SR-314",
+    "도담도담",
+    "이하람",
+    "010-3314-1400",
+    "corporate",
+    "both",
+    "314-81-70338",
+    "2026-서울송파-70338",
+    "2026-06-09 10:22:41",
+    "requested",
+  ],
+  [
+    "SR-313",
+    "꼬망세",
+    "유가은",
+    "010-3313-1300",
+    "individual",
+    "rent",
+    "313-27-45012",
+    "2026-대구수성-45012",
+    "2026-06-08 15:47:19",
+    "requested",
+  ],
+  [
+    "SR-312",
+    "베이비플로우",
+    "정우빈",
+    "010-3312-1200",
+    "corporate",
+    "sale",
+    "312-81-28806",
+    "2026-서울영등포-28806",
+    "2026-06-06 09:03:55",
+    "requested",
+  ],
+  [
+    "SR-311",
+    "오구오구",
+    "김서율",
+    "010-3311-1100",
+    "individual",
+    "both",
+    "311-19-63340",
+    "2026-경기용인-63340",
+    "2026-06-04 13:29:07",
+    "approved",
+    { approvedAt: "2026-06-05", commissionRate: 10 },
+  ],
+  [
+    "SR-310",
+    "라라키즈",
+    "박시현",
+    "010-3310-1000",
+    "corporate",
+    "rent",
+    "310-81-11947",
+    "2026-서울서초-11947",
+    "2026-06-02 16:58:33",
+    "rejected",
+    { rejectedAt: "2026-06-03", rejectReason: "사업자등록증 업종 불일치" },
+  ],
+  [
+    "SR-309",
+    "몽실베베",
+    "최윤슬",
+    "010-3309-0900",
+    "individual",
+    "sale",
+    "309-31-50221",
+    "2026-부산해운대-50221",
+    "2026-05-30 11:41:12",
+    "requested",
+  ],
+  [
+    "SR-308",
+    "토실토실",
+    "한지후",
+    "010-3308-0800",
+    "corporate",
+    "both",
+    "308-81-84409",
+    "2026-서울종로-84409",
+    "2026-05-28 09:18:44",
+    "requested",
+  ],
+  [
+    "SR-307",
+    "우리아기첫날",
+    "강라윤",
+    "010-3307-0700",
+    "individual",
+    "rent",
+    "307-16-37725",
+    "2026-경기부천-37725",
+    "2026-05-25 14:05:29",
+    "approved",
+    { approvedAt: "2026-05-26", commissionRate: 11 },
+  ],
+  [
+    "SR-306",
+    "자란다",
+    "임도경",
+    "010-3306-0600",
+    "corporate",
+    "sale",
+    "306-81-59013",
+    "2026-서울관악-59013",
+    "2026-05-22 10:37:58",
+    "rejected",
+    { rejectedAt: "2026-05-23", rejectReason: "통신판매업 신고증 미제출" },
+  ],
+  [
+    "SR-305",
+    "폴짝상점",
+    "오시안",
+    "010-3305-0500",
+    "individual",
+    "both",
+    "305-24-42660",
+    "2026-인천연수-42660",
+    "2026-05-20 16:22:03",
+    "requested",
+  ],
+];
+
+export const APPLICATIONS: Application[] = ROWS.map(
+  ([
+    id,
+    name,
+    ceo,
+    phone,
+    bizType,
+    kind,
+    bizNo,
+    salesNo,
+    date,
+    status,
+    extra = {},
+  ]) => ({
+    id,
+    name,
+    ceo,
+    phone,
+    kind,
+    bizType,
+    date,
+    approvedAt: extra.approvedAt ?? null,
+    rejectedAt: extra.rejectedAt ?? null,
+    rejectReason: extra.rejectReason,
+    commissionRate: extra.commissionRate ?? 0,
+    hygieneCertified: extra.hygieneCertified ?? false,
+    status,
+    bizLicense: { fileName: "사업자등록증.pdf", number: bizNo },
+    salesLicense: { fileName: "통신판매업 신고증.pdf", number: salesNo },
+  }),
+);
+
 /**
- * 심사 모달의 안내 문구. **원본 어드민의 카피를 그대로 옮긴 것**이라 도메인이다 —
- * 되돌릴 수 없다는 경고, 알림톡 전달 고지, 종결 처리 고지는 운영자가 판단을
- * 확정하기 전에 반드시 읽어야 하는 내용이라 뼈대에 박지 않는다.
+ * 승인·반려 창과 알림 문구 — 원본 v0.4(`gateApprove` · `_MODAL_CFG.reject` · `confirmReject` ·
+ * `gateApproveGo`) 그대로다. **목록 일괄과 상세가 같은 문구를 쓴다.**
+ * 승인 창의 셀러별 수수료율·위생인증 입력은 원본에 없는 우리 추가다(위 계약 참고).
  */
 export const REVIEW_COPY = {
-  approveIntro:
-    "승인할 셀러별 수수료율과 위생인증 여부를 확정해 주세요. 요청 전체가 함께 승인되거나 함께 취소됩니다.",
-  approveWarning:
-    "승인하면 셀러·계정이 생성되며 이 심사 화면에서 되돌릴 수 없습니다.",
-  rateError: "모든 셀러의 수수료율을 6~16% 사이로 입력해 주세요.",
-  rejectPrompt: "반려 사유를 입력해 주세요. 신청자에게 알림톡으로 전달됩니다.",
-  rejectWarning:
-    "반려는 종결 처리이며, 사유는 심사 이력과 결과 알림에 그대로 남습니다.",
-  reviewableOnly: "승인요청 상태인 신청만 심사할 수 있습니다.",
+  approveTitle: (count: number) =>
+    `입점 심사 승인${count > 1 ? ` (${count}건)` : ""}`,
+  approveBody:
+    "승인하면 입점 상태로 전환되어 셀러가 상품을 등록·판매할 수 있게 됩니다.",
+  approveWarning: "승인 후에는 이 화면에서 되돌릴 수 없습니다.",
+  /* 일괄 승인 창에만 — 셀러별로 정할 값이 있다는 것을 먼저 말한다 */
+  approveRates: "셀러별 수수료율과 위생인증을 확정해 주세요.",
+  rateError: "모든 셀러의 수수료율을 0보다 크고 100 이하로 입력해 주세요.",
+  approveConfirm: "승인 처리",
+  approved: (count: number) =>
+    count > 1 ? `${count}건 승인 처리되었습니다.` : "승인 처리되었습니다.",
+  rejectTitle: (count: number) =>
+    `입점 반려 사유 입력${count > 1 ? ` (${count}건)` : ""}`,
+  rejectPlaceholder:
+    "반려 사유를 입력하세요 (예: 사업자등록증 미비, KC 미인증, 취급 품목 부적합 등)",
+  rejectNote: "입력한 사유는 입점 심사 상세에 기록됩니다.",
+  rejectEmpty: "반려 사유를 입력해주세요.",
+  rejectConfirm: "반려 처리",
+  rejected: (count: number) =>
+    count > 1 ? `${count}건을 반려 처리했습니다.` : "반려 처리되었습니다.",
 };
 
-/** 승인 게이트의 위생인증 토글. 어휘는 원본(`인증` / `인증안됨`) 그대로다 */
+/** 승인 창·상세의 위생인증 택1. 어휘는 원본(`인증` / `인증안됨`) 그대로다 */
 export const HYGIENE_OPTIONS = [
   { value: "certified", label: "인증" },
   { value: "none", label: "인증안됨" },
 ];
 
-/** 수수료율 허용 범위 — 원본 검증식과 같다 */
-const RATE_MIN = 6;
-const RATE_MAX = 16;
+export const hygieneValue = (certified: boolean) =>
+  certified ? "certified" : "none";
+
+export const COMMISSION_MIN = 0;
+export const COMMISSION_MAX = 100;
 
 /**
- * 수수료율 입력 파서 — 원본 `parseCommissionRateInput` 을 그대로 옮겼다.
- * 소수 둘째 자리까지만 허용하고, 범위를 벗어나면 `null` 이다.
- * `null` 하나가 곧 "승인 처리 버튼을 눌러도 넘어가지 않는다"는 뜻이다.
+ * 수수료율 검증 — **목록 일괄 승인과 상세 승인이 같은 규칙**을 쓴다(0 초과 100 이하).
+ * 빈 칸과 0 을 모두 막는다 — 신청 단계의 0% 그대로 승인하면 수수료를 정하지 않은 채 입점시킨다.
  */
-export const parseRate = (text: string): number | null => {
-  if (!/^\d+(?:\.\d{1,2})?$/.test(text.trim())) return null;
-  const value = Number(text);
-  return Number.isFinite(value) && value >= RATE_MIN && value <= RATE_MAX
-    ? value
-    : null;
+export const commissionError = (value: string) => {
+  if (value.trim() === "") return "수수료율을 입력해 주세요.";
+  const parsed = Number(value);
+  if (Number.isNaN(parsed)) return "숫자만 입력할 수 있습니다.";
+  if (parsed <= COMMISSION_MIN || parsed > COMMISSION_MAX) {
+    return `${COMMISSION_MIN}보다 크고 ${COMMISSION_MAX} 이하로 입력해 주세요.`;
+  }
+  return null;
 };
 
-/** 상태 대시 = 상태 필터. 첫 항목은 반드시 `"all"`(필터 해제) — 어휘는 원본 `chip` 그대로다 */
+/** 승인 창의 수수료율 첫 값 — 신청 단계의 0 은 "아직 정하지 않음"이라 빈 칸으로 연다 */
+export const rateDraft = (application: Application) =>
+  application.commissionRate > 0 ? String(application.commissionRate) : "";
+
+/** 상태 대시 = 상태 필터. 어휘·순서는 원본 `chip` 그대로다(표시 어휘는 위 「상태 어휘」 참고) */
 export const FILTERS = [
   { value: "requested", label: "승인요청" },
   { value: "approved", label: "승인" },
@@ -387,18 +470,16 @@ export const FILTERS = [
 ];
 
 /**
- * 화면을 열었을 때 고를 상태. 원본 `sellerReview.dash` — _"기본 : 화면 진입 시
- * [승인신청] 선택"_ (우리 어휘로는 `승인요청`).
+ * 화면을 열었을 때 고를 상태. 원본 `sellerReview.dash` — _"기본 : 화면 진입 시 [승인신청] 선택"_.
  *
  * ## ⚠️ **[전체] 카드는 없다** (2026-09-21, 원본 v0.4 대조)
- * 원본 주석이 정책으로 못 박는다 — _"[전체] 카드 없음 — 목록은 항상 한 상태만
- * 보여준다"_. 한때 우리는 [전체]를 넣고 기본값으로 뒀는데 원본은 그 반대를 **의도**했다.
+ * 원본 주석이 정책으로 못 박는다 — _"[전체] 카드 없음 — 목록은 항상 한 상태만 보여준다"_.
  */
 export const DEFAULT_FILTER = "requested";
 
 /**
  * 기간 기준 — 원본 `date.fields: [신청일, 승인일, 반려일]`.
- * `pick` 이 `null` 을 내면 그 행은 기간 조건에서 빠진다(아직 처리되지 않은 건).
+ * `pick` 이 `null` 을 내면 그 행은 기간 조건에서 빠진다(그 처리가 없는 건).
  */
 export const DATE_FIELDS = [
   { value: "apply", label: "신청일", pick: (item: Application) => item.date },
@@ -421,33 +502,55 @@ export const SEARCH_FIELDS = [
   { value: "phone", label: "연락처", pick: (item: Application) => item.phone },
 ];
 
-/** 건수 포맷. 단위가 곧 도메인이라 여기 둔다 */
-export const count = (value: number) => `${value.toLocaleString("ko-KR")}건`;
+/** 상태 카드의 단위 */
+export const REVIEW_UNIT = "건";
 
-/** 승인일·반려일 표기 — 원본 `ymd`. 값이 없으면 `-` 다 */
+/** 승인일·반려일 표기 — 원본 `ymd`(날짜만). 값이 없으면 `-` 다 */
 export const ymd = (dateText: string | null) =>
   dateText ? dateText.slice(0, 10).replace(/-/g, ".") : EMPTY_CELL;
 
 /**
- * 신청일 표기 — 원본 `ymdhms`.
- * 신청일만 **시각까지** 낸다. 같은 날 여러 건이 들어오면 접수 순서가 곧 심사 순서라
- * 날짜만으로는 무엇이 먼저인지 알 수 없다.
+ * 신청일 표기 — 원본 `2026.06.20 14:32:08`(초까지).
+ * 같은 날 여러 건이 들어오면 접수 순서가 곧 심사 순서라 날짜만으로는 무엇이 먼저인지 알 수 없다.
  */
 export const ymdhms = (dateText: string | null) =>
-  dateText
-    ? dateText.slice(0, 19).replace(/-/g, ".").replace("T", " ")
-    : EMPTY_CELL;
+  dateText ? dateText.slice(0, 19).replace(/-/g, ".") : EMPTY_CELL;
 
-/**
- * 한 페이지에 보여줄 행 수.
- * 실서비스는 10·20·50·100(기본 10)이지만 **샘플이 7건뿐이라 페이징이 보이도록** 작게 잡았다.
- * 1페이지에 심사 대상(승인요청) 3건과 처리 완료 1건이 섞이도록 배치했다 —
- * "선택할 수 있는 행"과 "없는 행"이 한 화면에 같이 있어야 전체 선택이 무엇을 고르는지 보인다.
- */
-export const PAGE_SIZE = 4;
+/** 페이지당 행 수 기본값 — 원본 `pager` 기본 10 */
+export const PAGE_SIZE = 10;
 
-/**
- * 페이지당 개수 후보 — 원본 표 하단의 셀렉트(기본 10개).
- * 맨 앞 4는 **샘플 전용**이다(7건뿐이라 10이면 페이지네이션이 한 장으로 접힌다).
- */
-export const PAGE_SIZES = [4, 10, 20, 50];
+/** 페이지당 개수 후보 — 원본 표 하단 셀렉트 그대로 */
+export const PAGE_SIZES = [10, 20, 50, 100];
+
+/* -------------------------------------------------------------------------
+ * 검색조건 요약 — 접힌 `FilterBar` 한 줄 (회원·셀러 관리와 같은 규칙)
+ * 조건이 없으면 원본 문구 `조건 없음 (전체)`. **상태는 넣지 않는다** — 건수 카드가 이미 말한다.
+ * ---------------------------------------------------------------------- */
+
+export const NO_FILTER_TEXT = "조건 없음 (전체)";
+
+const dotDate = (value: Date) =>
+  `${value.getFullYear()}.${String(value.getMonth() + 1).padStart(2, "0")}.${String(
+    value.getDate(),
+  ).padStart(2, "0")}`;
+
+export const filterSummary = ({
+  dateLabel,
+  from,
+  to,
+  fieldLabel,
+  keyword,
+}: {
+  dateLabel: string;
+  from?: Date;
+  to?: Date;
+  fieldLabel: string;
+  keyword: string;
+}): string => {
+  const parts: string[] = [];
+  /* 하루만 고르면 `to` 가 없다 — 그때는 범위가 아니라 그 하루다 */
+  if (from)
+    parts.push(`${dateLabel} ${dotDate(from)}${to ? `~${dotDate(to)}` : ""}`);
+  if (keyword.trim() !== "") parts.push(`${fieldLabel} «${keyword.trim()}»`);
+  return parts.length > 0 ? parts.join(" · ") : NO_FILTER_TEXT;
+};

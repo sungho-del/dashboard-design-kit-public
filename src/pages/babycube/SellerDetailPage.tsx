@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { ChevronDown, ChevronUp, FileText, Store } from "lucide-react";
+import { ChevronDown, ChevronUp, Store } from "lucide-react";
 import {
   AppShell,
   Button,
@@ -30,7 +30,6 @@ import {
   TableTh,
   Tag,
   Textarea,
-  TextButton,
   useToast,
 } from "../../components/ui";
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
@@ -46,8 +45,6 @@ import {
   countText,
   DEAL_KIND_LABEL,
   DEAL_SCOPES,
-  DOCUMENT_COPY,
-  DOCUMENTS,
   EXIT_COPY,
   exitRows,
   FIELD_COPY,
@@ -69,7 +66,6 @@ import {
   SHOWN_META,
   stampText,
   ymd,
-  type DocumentKey,
   type TextFieldKey,
 } from "./SellerDetailPage.data";
 import {
@@ -81,6 +77,14 @@ import {
   type SellerStatus,
 } from "./SellerListPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
+import { DocumentModal, DocumentRow } from "./shared/DocumentParts";
+import {
+  DOCUMENT_COPY,
+  DOCUMENT_KEYS,
+  DOCUMENTS,
+  type DocumentKey,
+  type DocumentView,
+} from "./shared/documents";
 
 /* =========================================================================
  * S03-D 셀러 상세 (BabyCube 본사 운영 어드민) — 뼈대
@@ -208,65 +212,6 @@ function ReadField({
       <span className="label-medium-bold text-text">{label}</span>
       {children}
     </div>
-  );
-}
-
-/**
- * 제출 서류 한 줄 — 원본 `docChip`: `📄 사업자등록증.pdf · 등록번호 000-… · 보기 ▸`.
- * 서류는 **보기만** 한다(교체 없음) — 그래서 필수 표시를 달지 않는다.
- */
-function DocumentRow({
-  fileName,
-  numberLabel,
-  number,
-  onOpen,
-}: {
-  fileName: string;
-  numberLabel: string;
-  number: string;
-  onOpen: () => void;
-}) {
-  return (
-    <span className="body-medium flex flex-wrap items-center gap-2 text-text">
-      <FileText size={16} strokeWidth={1.2} aria-hidden />
-      <span>{fileName}</span>
-      <span className="text-text-sub tabular-nums">
-        {numberLabel} {number}
-      </span>
-      <TextButton onClick={onOpen}>보기</TextButton>
-    </span>
-  );
-}
-
-/**
- * 서류 미리보기 — 원본 `_docSvg` 의 자리. 실제 파일이 없어 **서류 모양의 예시**를 그린다:
- * 서류명 머리 · 번호 · 상호 · 대표자 · 발급기관 · 직인 자리. 예시라는 사실을 아래에 적는다.
- */
-function DocumentPreview({
-  seller,
-  kind,
-}: {
-  seller: Seller;
-  kind: DocumentKey;
-}) {
-  const meta = DOCUMENTS[kind];
-  return (
-    <figure className="flex flex-col overflow-hidden rounded-medium bg-surface outline-1 -outline-offset-1 outline-border">
-      <figcaption className="label-medium-bold bg-surface-inverse p-3 text-center text-text-inverse">
-        {meta.label}
-      </figcaption>
-      <dl className="body-medium grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 p-6">
-        <dt className="text-text-sub">{meta.numberLabel}</dt>
-        <dd className="tabular-nums text-text">{seller[kind].number}</dd>
-        <dt className="text-text-sub">상호(법인)명</dt>
-        <dd className="text-text">{seller.name}</dd>
-        <dt className="text-text-sub">대표자</dt>
-        <dd className="text-text">{seller.ceo}</dd>
-        <dt className="text-text-sub">발급기관</dt>
-        <dd className="text-text">{meta.issuer}</dd>
-      </dl>
-      <p className="body-small px-6 pb-4 text-text-sub">{DOCUMENT_COPY.mock}</p>
-    </figure>
   );
 }
 
@@ -442,6 +387,14 @@ function SellerDetailBody({
     </FormField>
   );
 
+  /** 서류 뷰가 그리는 값 — 이 셀러의 레코드에서 채운다 */
+  const documentView = (key: DocumentKey): DocumentView => ({
+    key,
+    number: seller[key].number,
+    owner: seller.name,
+    ceo: seller.ceo,
+  });
+
   const exitWork = exitRows(seller);
   const hasOpenWork = exitWork.slice(0, 3).some((row) => row.count > 0);
 
@@ -510,12 +463,11 @@ function SellerDetailBody({
                 onValueChange={(value) => set("dealScope")(value as DealScope)}
               />
             </FormField>
-            {(Object.keys(DOCUMENTS) as DocumentKey[]).map((kind) => (
+            {DOCUMENT_KEYS.map((kind) => (
               <ReadField key={kind} label={DOCUMENTS[kind].label}>
                 <DocumentRow
                   fileName={seller[kind].fileName}
-                  numberLabel={DOCUMENTS[kind].numberLabel}
-                  number={seller[kind].number}
+                  view={documentView(kind)}
                   onOpen={() => setOpenDocument(kind)}
                 />
               </ReadField>
@@ -789,44 +741,11 @@ function SellerDetailBody({
       </Modal>
 
       {/* 서류 미리보기 — 원본 `docModalView`. [다운로드] 는 알림만(파일은 개발 영역) */}
-      <Modal
-        open={openDocument !== null}
+      <DocumentModal
+        view={openDocument ? documentView(openDocument) : null}
         onClose={() => setOpenDocument(null)}
-        size="medium"
-      >
-        {openDocument ? (
-          <>
-            <ModalHeader
-              closeLabel="대화상자 닫기"
-              title={DOCUMENT_COPY.title(
-                DOCUMENTS[openDocument].label,
-                seller.name,
-              )}
-            />
-            <ModalBody>
-              <DocumentPreview seller={seller} kind={openDocument} />
-              <p className="body-small text-text-sub">{DOCUMENT_COPY.note}</p>
-            </ModalBody>
-            <ModalFooter>
-              <Button
-                variant="secondary"
-                size="large"
-                onClick={() => setOpenDocument(null)}
-              >
-                닫기
-              </Button>
-              <Button
-                size="large"
-                onClick={() =>
-                  toast(DOCUMENT_COPY.downloaded(DOCUMENTS[openDocument].label))
-                }
-              >
-                다운로드
-              </Button>
-            </ModalFooter>
-          </>
-        ) : null}
-      </Modal>
+        onDownload={(label) => toast(DOCUMENT_COPY.downloaded(label))}
+      />
     </AppShell>
   );
 }
