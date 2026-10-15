@@ -1,5 +1,4 @@
 import {
-  MEMBERS,
   type Member,
   type MemberChild,
   type MemberPayment,
@@ -36,13 +35,14 @@ import {
  * ---------------------------------------------------------------------- */
 
 /**
- * 경로의 id(이메일)로 회원을 찾는다.
+ * 경로의 id(이메일)로 회원을 찾는다. 목록은 데모 저장소(`useMembers`)의 것을 넘긴다 —
+ * 목록에서 바꾼 상태가 상세에도 보여야 한다.
  *
  * 주소창에 손으로 친 id·지워진 회원이 있을 수 있으므로 **없을 수 있다는 사실을
  * 타입으로 남긴다** — 뼈대가 "없는 회원" 화면을 그리게 하는 것이 이 `undefined` 다.
  */
-export const findMember = (id: string): Member | undefined =>
-  MEMBERS.find((member) => member.id === id);
+export const findMember = (members: Member[], id: string): Member | undefined =>
+  members.find((member) => member.id === id);
 
 /** 원본 `members.form` 의 섹션 구성 순서 — 기본 정보가 최상단이다 */
 export const SECTIONS = {
@@ -88,7 +88,7 @@ export const ACCOUNT_STATES = [
 export const dormantBlockedText = (activeRents: number) =>
   `진행 중인 렌트 ${activeRents}건이 있어 휴면으로 전환할 수 없습니다 — 반납이 끝나면 전환할 수 있습니다.`;
 
-/** 저장 성공 알림 — 원본 하단 액션 바의 [저장하기] 결과 */
+/** 저장 성공 알림 — 원본 하단 액션 바의 [저장하기] 결과 (휴면·정지는 사유 모달을 거친 뒤) */
 export const SAVED_TEXT = "변경 내용을 저장했습니다";
 
 /**
@@ -150,17 +150,35 @@ export const PAYMENT_STATUS_META: Record<
   canceled: { label: "결제취소", tone: "default" },
 };
 
-/** 탭으로 거른 결제 내역. `"all"` 이면 그대로 낸다 */
+/** 주문의 구분 — 렌트·판매가 섞이면 둘 다다(원본 `modeOf` 의 both) */
+export const paymentKinds = (payment: MemberPayment): PaymentKind[] =>
+  (["rent", "sale"] as const).filter((kind) =>
+    payment.items.some((item) => item.kind === kind),
+  );
+
+/** 상품명 칸 — 원본 `prodOf`: 첫 상품 + ` 외 N건` */
+export const productText = (payment: MemberPayment) =>
+  payment.items.length > 1
+    ? `${payment.items[0].product} 외 ${payment.items.length - 1}건`
+    : (payment.items[0]?.product ?? "-");
+
+/**
+ * 탭으로 거른 결제 내역. `"all"` 이면 그대로 낸다.
+ * 섞인 주문은 **[렌트]·[판매] 양쪽에** 나온다 — 원본도 `kindsOf(o).includes(탭)` 으로 거른다.
+ */
 export const filterPayments = (
   payments: MemberPayment[],
   tab: "all" | PaymentKind,
-) => (tab === "all" ? payments : payments.filter((p) => p.kind === tab));
+) =>
+  tab === "all"
+    ? payments
+    : payments.filter((payment) => paymentKinds(payment).includes(tab));
 
 /**
- * 결제 일시 표기 — 원본 `2026.06.29 13:15`.
+ * 일시 표기 — 원본 `2026.06.29 13:15`. 결제 일시와 휴면·정지 처리 일시가 쓴다.
  * **날짜만 내는 `ymd` 와 다르다** — 같은 날 여러 건을 결제할 수 있어 시각이 필요하다.
  */
-export const paidAtText = (value: string) =>
+export const dateTimeText = (value: string) =>
   `${value.slice(0, 10).replace(/-/g, ".")} ${value.slice(11, 16)}`;
 
 /** 결제 내역이 하나도 없을 때 */

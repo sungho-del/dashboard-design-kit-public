@@ -10,8 +10,13 @@ import {
   DatePicker,
   EmptyState,
   FilterBar,
+  FormField,
   Gnb,
   Input,
+  Modal,
+  ModalBody,
+  ModalFooter,
+  ModalHeader,
   PageHeader,
   Pagination,
   PaginationSizeSelect,
@@ -27,30 +32,38 @@ import {
   TableTd,
   TableTh,
   Tag,
+  Textarea,
   TextButton,
   useToast,
   type DateRange,
   type TableSortDirection,
 } from "../../components/ui";
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
+import { downloadCsv } from "../../lib/downloadCsv";
 import { PERIOD_PRESETS } from "../../lib/periodPresets";
 import { useSearchParams } from "../../lib/router";
 import {
   BULK_TARGETS,
   bulkStatusMessage,
   canChangeStatus,
+  changeMemberStatus,
   DEFAULT_FILTER,
+  EXPORT_HEAD,
+  EXPORT_NAME,
+  exportRow,
   FILTERS,
   filterSummary,
-  MEMBERS,
   MEMBER_UNIT,
+  needsReason,
   num,
   PAGE_SIZE,
   PAGE_SIZES,
   people,
+  REASON_COPY,
   SEARCH_FIELDS,
   STATUS_META,
   usageText,
+  useMembers,
   ymd,
   type Member,
   type MemberStatus,
@@ -68,8 +81,8 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * ```
  * 상태 대시 (정상·정지·휴면·탈퇴 건수, 누르면 필터)        ← 원본 StatDash
  * 검색조건 바 (기간 · 검색 조건 + 검색어 · 초기화)          ← 원본 filter
- * [ 총 N건 · 엑셀 다운로드 | 표 | 페이지네이션 ]            ← 원본 ListHead + table + foot
- * 체크 후 일괄 상태 변경 바                                 ← 원본 목록 툴바
+ * [ 목록 (총 N건) · 엑셀 다운로드 | 표 | 페이지네이션 ]    ← 원본 ListHead + table + foot
+ * 체크 후 일괄 상태 변경 바 → 휴면·정지면 사유 모달         ← 원본 목록 툴바 + memstat
  * ```
  *
  * 원본 목록 셸(`20013`)의 섹션 순서가 `note → dash → filter → card[head→table→foot]` 이고
@@ -118,6 +131,16 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *   오름 → 내림 → **해제** 3단이고 `aria-sort` 로 스크린리더에 전달된다
  * - ✅ **기간 빠른 선택**(오늘/1주일/1개월/3개월/6개월/1년/전체) — `DatePicker presets` 신설.
  *   어휘·계산은 도메인이라 `PERIOD_PRESETS`(데이터 층)가 들고 온다
+ *
+ * ## 기획 v0.4 대조로 채운 것 (2026-10-15)
+ * - ✅ **휴면·정지 사유 모달**(원본 C-3 ⓐ) — 일괄 변경이 휴면·정지면 사유를 받고, 빈 사유는 막는다.
+ *   회원 상세의 [저장하기] 도 **같은 모달**(`MemberReasonModal`)을 지난다
+ * - ✅ **일괄 변경이 실제로 상태를 바꾼다**(데모 저장소 `useMembers`) — 사유를 받은 처리는
+ *   전환된 상태 카드로 옮겨 결과를 보여 준다(원본). [정상] 복귀는 제자리에서 선택만 푼다
+ * - ✅ **No 는 조회 결과의 역순 순번**(원본 `all.length - start - i`) — 레코드 번호가 아니다
+ * - ✅ 페이지당 10·20·50·100(기본 10) · 샘플 30명
+ * - ✅ **엑셀 다운로드가 실제 CSV 를 만든다**(원본 `exportCsv`) — 고른 행이 있으면 그것만,
+ *   없으면 조회 결과 전체(정렬 반영 · 페이지로 자르기 전)
  *
  * ## 아직 표현하지 못한 것 (미해결)
  * - **고정열**(원본 `frozen`: 이름) — 이 표는 열 폭 합이 988(체크박스 열 48 포함)이라
@@ -292,6 +315,93 @@ const loadingTable = (
   </Table>
 );
 
+/**
+ * 휴면·정지 사유 입력 — 원본 C-3 ⓐ. **목록 일괄과 회원 상세 저장이 같은 이 모달**을 쓴다.
+ *
+ * 빈 사유는 막고, 그 사실을 **필드 옆에서** 말한다(안심케어 반려 모달과 같은 규칙 —
+ * 고쳐야 할 자리가 곧 메시지가 뜨는 자리다).
+ */
+export function MemberReasonModal({
+  target,
+  count,
+  onClose,
+  onConfirm,
+}: {
+  /** 바꿀 상태. `null` 이면 닫혀 있다 */
+  target: MemberStatus | null;
+  /** 대상 인원 — 2명 이상이면 제목에 붙는다(원본) */
+  count: number;
+  onClose: () => void;
+  onConfirm: (reason: string) => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [tried, setTried] = useState(false);
+
+  /* 닫을 때 비운다 — 다음 대상에게 앞사람의 사유가 남지 않게 */
+  const clear = () => {
+    setReason("");
+    setTried(false);
+  };
+
+  if (target === null) return null;
+
+  const close = () => {
+    clear();
+    onClose();
+  };
+
+  const submit = () => {
+    if (reason.trim() === "") {
+      setTried(true);
+      return;
+    }
+    onConfirm(reason.trim());
+    clear();
+  };
+
+  return (
+    <Modal open onClose={close} size="small">
+      <ModalHeader
+        /* 푸터에도 "취소"가 있어 헤더 X 의 기본 라벨과 겹친다 — 이름을 갈라 준다 */
+        closeLabel="대화상자 닫기"
+        title={REASON_COPY.title(target, count)}
+      />
+      <ModalBody>
+        <FormField
+          label={REASON_COPY.label(target)}
+          required
+          error={
+            tried && reason.trim() === ""
+              ? REASON_COPY.error(target)
+              : undefined
+          }
+        >
+          <Textarea
+            value={reason}
+            minRows={3}
+            placeholder={REASON_COPY.placeholder(target)}
+            onChange={(event) => setReason(event.target.value)}
+          />
+        </FormField>
+        <p className="body-small text-text-sub">{REASON_COPY.note(target)}</p>
+      </ModalBody>
+      <ModalFooter>
+        <Button variant="secondary" size="large" onClick={close}>
+          취소
+        </Button>
+        <Button
+          /* 정지는 회원의 이용을 막는 처분이라 critical. 휴면은 되살릴 수 있는 보관이다 */
+          variant={target === "suspended" ? "critical" : "primary"}
+          size="large"
+          onClick={submit}
+        >
+          {REASON_COPY.confirm(target)}
+        </Button>
+      </ModalFooter>
+    </Modal>
+  );
+}
+
 export function MemberListPage({
   navOpen,
   onNavOpenChange,
@@ -299,6 +409,8 @@ export function MemberListPage({
   onNavSelect,
 }: MemberListPageProps) {
   const { toast } = useToast();
+  /* 데모 저장소 — 일괄 변경과 회원 상세의 저장이 여기에 반영된다 */
+  const members = useMembers();
 
   const [filter, setFilter] = useState(DEFAULT_FILTER);
   const [searchField, setSearchField] = useState(SEARCH_FIELDS[0].value);
@@ -313,6 +425,12 @@ export function MemberListPage({
    * 조건이 아니라 결과다. 걸린 조건은 접힌 줄의 요약이 대신 말한다.
    */
   const [filterOpen, setFilterOpen] = useState(false);
+  /** 사유를 기다리는 일괄 변경 — 휴면·정지는 사유를 받아야 처리된다 */
+  const [pending, setPending] = useState<{
+    target: MemberStatus;
+    ids: string[];
+    skipped: number;
+  } | null>(null);
 
   /**
    * 회원 상세로 이동 — 원본의 "이름 또는 [상세] 클릭 → 회원 상세로 이동".
@@ -345,7 +463,7 @@ export function MemberListPage({
    * 이미 상태로 좁힌 결과에서 세면 "정상"을 고르는 순간 나머지가 전부 0 이 되어
    * 대시가 비교할 것을 잃는다 — 건수를 보여주는 이유가 통째로 사라진다.
    */
-  const scoped = MEMBERS.filter((member) => {
+  const scoped = members.filter((member) => {
     const matchKeyword =
       keyword.trim() === "" || pick(member).includes(keyword.trim());
     return matchKeyword && inPeriod(member.date, period);
@@ -357,7 +475,7 @@ export function MemberListPage({
     정렬은 **페이지를 나누기 전에** 한다. 페이지 안에서만 정렬하면 "이름 오름차순"이
     페이지마다 따로 걸려, 2페이지의 첫 이름이 1페이지의 마지막보다 앞서는 일이 생긴다.
 
-    ⚠️ **복사한 뒤 정렬한다.** `sort` 는 제자리 정렬이라 `MEMBERS`(모듈 상수)의 순서를
+    ⚠️ **복사한 뒤 정렬한다.** `sort` 는 제자리 정렬이라 저장소 배열의 순서를
     영구히 바꿔 "정렬 해제"가 원래 순서로 돌아가지 못한다. `toSorted` 는 이 저장소의
     TS 타깃(ES2020)에 없다.
   */
@@ -446,7 +564,7 @@ export function MemberListPage({
         : [...new Set([...current, ...pageIds])],
     );
 
-  const selectedMembers = MEMBERS.filter((member) =>
+  const selectedMembers = members.filter((member) =>
     selected.includes(member.id),
   );
 
@@ -459,12 +577,62 @@ export function MemberListPage({
     selectedMembers.some((member) => canChangeStatus(member, target.value)),
   );
 
-  const applyBulk = (target: (typeof BULK_TARGETS)[number]) => {
-    const done = selectedMembers.filter((member) =>
-      canChangeStatus(member, target.value),
-    ).length;
-    toast(bulkStatusMessage(target.value, done, selectedMembers.length - done));
+  const applyBulk = (target: MemberStatus) => {
+    const ids = selectedMembers
+      .filter((member) => canChangeStatus(member, target))
+      .map((member) => member.id);
+    const skipped = selectedMembers.length - ids.length;
+
+    /* 휴면·정지는 사유를 받은 뒤에 처리한다 — 회원 상세 저장과 같은 게이트다 */
+    if (needsReason(target)) {
+      setPending({ target, ids, skipped });
+      return;
+    }
+
+    changeMemberStatus(ids, target);
+    toast(bulkStatusMessage(target, ids.length, skipped));
     setSelected([]);
+  };
+
+  const confirmReason = (reason: string) => {
+    if (!pending) return;
+    changeMemberStatus(pending.ids, pending.target, reason);
+    toast(
+      bulkStatusMessage(pending.target, pending.ids.length, pending.skipped),
+    );
+    setSelected([]);
+    /*
+      원본: 일괄 처리분은 **전환된 상태 카드로 옮겨** 결과를 보여 준다. 제자리에 두면
+      처리한 행이 목록에서 사라져 무엇이 됐는지 확인할 길이 없다.
+    */
+    setFilter(pending.target);
+    setPage(1);
+    setPending(null);
+  };
+
+  /*
+    엑셀 다운로드 — 원본 `exportCsv`. **고른 행이 있으면 그것만, 없으면 조회 결과 전체**다.
+    페이지로 자르기 전(`filtered`)에서 뽑는다 — 원본이 "1페이지만 받는 사고"를 막으려 정한 자리다.
+    No 는 화면과 같은 순번을 쓴다.
+  */
+  const exportCsv = () => {
+    const picked = filtered.filter((member) => selected.includes(member.id));
+    const rows = picked.length > 0 ? picked : filtered;
+    if (rows.length === 0) {
+      toast("다운로드할 데이터가 없습니다");
+      return;
+    }
+    downloadCsv(`${EXPORT_NAME}_${rows.length}건.csv`, [
+      EXPORT_HEAD,
+      ...rows.map((member) =>
+        exportRow(member, filtered.length - filtered.indexOf(member)),
+      ),
+    ]);
+    toast(
+      picked.length > 0
+        ? `선택한 ${rows.length}건을 내려받았습니다`
+        : `조회 결과 ${rows.length}건을 내려받았습니다`,
+    );
   };
 
   return (
@@ -504,7 +672,8 @@ export function MemberListPage({
             selected={filter}
             onSelect={selectStatus}
             ariaLabel="회원 상태"
-            columns={5}
+            /* 상태가 넷이라 4칸 — 5칸에 넣으면 오른쪽 한 칸이 비어 균형이 깨진다 */
+            columns={4}
           />
         </CardBody>
       </Card>
@@ -578,18 +747,13 @@ export function MemberListPage({
         isLoading={status === "loading"}
         loading={loadingTable}
         toolbarStart={
-          /* 원본 `toolsLeft` 는 엑셀 다운로드 하나다 — 툴바 좌측이 그 자리다 */
-          <Button
-            variant="secondary"
-            /*
-              내보내기 대상은 화면 전체가 아니라 **지금 조건으로 조회된 결과**다
-              (원본도 `회원관리_N건.csv` 로 저장한다).
-              건수를 밝히지 않으면 필터를 걸어 둔 줄 모르고 받아 간다.
-            */
-            onClick={() =>
-              toast(`조회 결과 ${filtered.length}건을 내려받았습니다`)
-            }
-          >
+          /* 원본 `ListHead` 의 "목록 (총 N건)" — 주문·정산 목록과 같은 자리·같은 글자 */
+          <h2 className="heading-medium-bold text-text">
+            목록 (총 {filtered.length}건)
+          </h2>
+        }
+        toolbarEnd={
+          <Button variant="secondary" onClick={exportCsv}>
             <ArrowDownToLine size={16} strokeWidth={1.2} aria-hidden />
             엑셀 다운로드
           </Button>
@@ -612,12 +776,6 @@ export function MemberListPage({
             page={currentPage}
             totalPages={totalPages}
             onPageChange={setPage}
-            start={
-              /* 원본 `ListHead` 의 "목록 (총 N건)" 과 같은 정보다 */
-              <span className="body-small text-text-sub">
-                총 {filtered.length}건
-              </span>
-            }
             end={
               /* 원본 표 하단의 페이지당 개수 셀렉트. 바꾸면 1페이지로 돌아간다 */
               <PaginationSizeSelect
@@ -654,7 +812,10 @@ export function MemberListPage({
                   onChange={togglePage}
                 />
               </TableTh>
-              {/* 원본 표의 첫 열. 레코드 번호라 정렬·필터와 무관하다 */}
+              {/*
+                원본 표의 첫 열 — **조회 결과의 역순 순번**(`all.length - start - i`)이다.
+                레코드 번호가 아니라서 필터·정렬을 바꾸면 다시 센다(건너뛰는 번호가 없다).
+              */}
               <TableTh>No</TableTh>
               <TableTh>이름</TableTh>
               <TableTh>아이디(이메일)</TableTh>
@@ -684,7 +845,7 @@ export function MemberListPage({
             </TableRow>
           </TableHead>
           <TableBody>
-            {paged.map((member) => {
+            {paged.map((member, index) => {
               const status = STATUS_META[member.status];
               return (
                 <TableRow key={member.id}>
@@ -697,7 +858,9 @@ export function MemberListPage({
                       onChange={() => toggleOne(member.id)}
                     />
                   </TableTd>
-                  <TableTd className="tabular-nums">{member.no}</TableTd>
+                  <TableTd className="tabular-nums">
+                    {filtered.length - (currentPage - 1) * pageSize - index}
+                  </TableTd>
                   {/*
                     원본에서 이름은 `/members/{id}` 로 가는 링크다(`className: "linkish"`).
                     행 전체를 누르게 만들지 않는다 — 원본에 없는 어포던스다.
@@ -773,12 +936,19 @@ export function MemberListPage({
         {bulkTargets.map((target) => (
           <SelectionBarButton
             key={target.value}
-            onClick={() => applyBulk(target)}
+            onClick={() => applyBulk(target.value)}
           >
             {target.label}
           </SelectionBarButton>
         ))}
       </SelectionBar>
+
+      <MemberReasonModal
+        target={pending?.target ?? null}
+        count={pending?.ids.length ?? 0}
+        onClose={() => setPending(null)}
+        onConfirm={confirmReason}
+      />
     </AppShell>
   );
 }

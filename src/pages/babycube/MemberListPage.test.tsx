@@ -1,7 +1,13 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
+import { downloadCsv } from "../../lib/downloadCsv";
 import { MemberListPage } from "./MemberListPage";
+import { resetMembers } from "./MemberListPage.data";
+
+/* jsdom 에는 `URL.createObjectURL` 이 없다 — 파일 생성은 `downloadCsv.test` 가 본다.
+   여기서는 **무엇을 넘겼는지**(파일명·행)만 검증한다 */
+vi.mock("../../lib/downloadCsv", () => ({ downloadCsv: vi.fn() }));
 
 /* -------------------------------------------------------------------------
  * S02 회원 관리 — 목록형
@@ -35,6 +41,12 @@ beforeAll(() => {
 
 afterAll(() => {
   vi.unstubAllGlobals();
+});
+
+/* 일괄 변경이 데모 저장소의 상태를 실제로 바꾼다 — 테스트마다 처음으로 되돌린다 */
+afterEach(() => {
+  resetMembers();
+  vi.mocked(downloadCsv).mockClear();
 });
 
 /** 클래스 검사는 반드시 배열로 — 문자열 `toContain` 은 부분 일치로 버그를 놓친다 */
@@ -184,38 +196,60 @@ describe("MemberListPage (S02 회원 관리)", () => {
     it("상태 4종만 카드로 세운다 — 전체 카드는 없다", () => {
       renderPage();
 
-      expect(statusBox("정상 5명")).toBeVisible();
-      expect(statusBox("정지 1명")).toBeVisible();
-      expect(statusBox("휴면 1명")).toBeVisible();
-      expect(statusBox("탈퇴 1명")).toBeVisible();
+      expect(statusBox("정상 20명")).toBeVisible();
+      expect(statusBox("정지 3명")).toBeVisible();
+      expect(statusBox("휴면 4명")).toBeVisible();
+      expect(statusBox("탈퇴 3명")).toBeVisible();
       expect(screen.queryByRole("button", { name: /^전체 / })).toBeNull();
     });
 
     it("화면은 [정상] 이 선택된 채로 열린다 (원본 기본값)", () => {
       renderPage();
 
-      expect(statusBox("정상 5명")).toHaveAttribute("aria-pressed", "true");
-      expect(visibleNames()).toEqual(["박수진", "김도현", "최유나", "송예린"]);
+      expect(statusBox("정상 20명")).toHaveAttribute("aria-pressed", "true");
+      expect(visibleNames()).toEqual([
+        "박수진",
+        "김도현",
+        "최유나",
+        "송예린",
+        "류태호",
+        "오세린",
+        "문지호",
+        "배하은",
+        "임채원",
+        "황보라",
+      ]);
     });
 
     it("대시 상자가 곧 상태 필터다 — 누르면 목록이 그 상태로 좁혀진다", async () => {
       const { user } = renderPage();
 
-      await user.click(statusBox("정상 5명"));
+      await user.click(statusBox("정상 20명"));
 
-      /* 정상 5건 — PAGE_SIZE 4 라 1페이지엔 4건 */
-      expect(visibleNames()).toEqual(["박수진", "김도현", "최유나", "송예린"]);
-      expect(screen.getByText("총 5건")).toBeVisible();
-      expect(statusBox("정상 5명")).toHaveAttribute("aria-pressed", "true");
-      expect(statusBox("휴면 1명")).toHaveAttribute("aria-pressed", "false");
+      /* 정상 20건 — PAGE_SIZE 10 이라 1페이지엔 10건 */
+      expect(visibleNames()).toEqual([
+        "박수진",
+        "김도현",
+        "최유나",
+        "송예린",
+        "류태호",
+        "오세린",
+        "문지호",
+        "배하은",
+        "임채원",
+        "황보라",
+      ]);
+      expect(screen.getByText("목록 (총 20건)")).toBeVisible();
+      expect(statusBox("정상 20명")).toHaveAttribute("aria-pressed", "true");
+      expect(statusBox("휴면 4명")).toHaveAttribute("aria-pressed", "false");
     });
 
     it("휴면을 고르면 휴면 회원만 남는다", async () => {
       const { user } = renderPage();
 
-      await user.click(statusBox("휴면 1명"));
+      await user.click(statusBox("휴면 4명"));
 
-      expect(visibleNames()).toEqual(["이하늘"]);
+      expect(visibleNames()).toEqual(["이하늘", "구민재", "고은찬", "윤서아"]);
     });
 
     /**
@@ -229,10 +263,10 @@ describe("MemberListPage (S02 회원 관리)", () => {
     it("고른 카드는 배경이 아니라 테두리로 표시한다 — hover 와 신호가 겹치지 않게", async () => {
       const { user } = renderPage();
 
-      await user.click(statusBox("정상 5명"));
+      await user.click(statusBox("정상 20명"));
 
-      const picked = statusBox("정상 5명").className.split(/\s+/);
-      const other = statusBox("휴면 1명").className.split(/\s+/);
+      const picked = statusBox("정상 20명").className.split(/\s+/);
+      const other = statusBox("휴면 4명").className.split(/\s+/);
 
       /* 고른 카드: 테두리만 바뀐다 */
       expect(picked).toContain("outline-action-primary");
@@ -255,10 +289,10 @@ describe("MemberListPage (S02 회원 관리)", () => {
     it("상태를 골라도 다른 상태의 건수는 그대로 남는다", async () => {
       const { user } = renderPage();
 
-      await user.click(statusBox("정상 5명"));
+      await user.click(statusBox("정상 20명"));
 
-      expect(statusBox("정지 1명")).toBeVisible();
-      expect(statusBox("탈퇴 1명")).toBeVisible();
+      expect(statusBox("정지 3명")).toBeVisible();
+      expect(statusBox("탈퇴 3명")).toBeVisible();
     });
 
     it("검색으로 좁히면 상태별 건수도 함께 줄어든다", async () => {
@@ -277,7 +311,7 @@ describe("MemberListPage (S02 회원 관리)", () => {
     it("상태 상자에 hover 하면 원본의 상태 안내 문구가 뜬다", async () => {
       const { user } = renderPage();
 
-      await user.hover(statusBox("정지 1명"));
+      await user.hover(statusBox("정지 3명"));
 
       expect(
         await screen.findByText(
@@ -301,14 +335,42 @@ describe("MemberListPage (S02 회원 관리)", () => {
   });
 
   describe("목록과 페이징", () => {
-    it("기본 상태([정상]) 5건을 PAGE_SIZE 만큼 나눠 보여준다", async () => {
+    it("기본 상태([정상]) 20건을 PAGE_SIZE(10) 만큼 나눠 보여준다", async () => {
       const { user } = renderPage();
 
-      expect(bodyRows()).toHaveLength(4);
-      expect(screen.getByText("총 5건")).toBeVisible();
+      expect(bodyRows()).toHaveLength(10);
+      expect(screen.getByText("목록 (총 20건)")).toBeVisible();
 
       await user.click(screen.getByRole("button", { name: "2" }));
-      expect(bodyRows()).toHaveLength(1);
+      expect(bodyRows()).toHaveLength(10);
+    });
+
+    /**
+     * 원본 `all.length - start - i` — No 는 **조회 결과의 역순 순번**이다.
+     * 레코드 번호로 두면 필터를 걸었을 때 8, 7, 4, 3 처럼 번호가 건너뛴다.
+     */
+    it("No 는 조회 결과의 역순 순번이다 — 페이지를 넘겨도 이어지고, 필터를 바꾸면 다시 센다", async () => {
+      const { user } = renderPage();
+      const numbers = () => bodyRows().map((row) => cellText(row, "No"));
+
+      expect(numbers()).toEqual([
+        "20",
+        "19",
+        "18",
+        "17",
+        "16",
+        "15",
+        "14",
+        "13",
+        "12",
+        "11",
+      ]);
+      await user.click(screen.getByRole("button", { name: "2" }));
+      expect(numbers()[0]).toBe("10");
+      expect(numbers()[numbers().length - 1]).toBe("1");
+
+      await showStatus(user, "휴면 4명");
+      expect(numbers()).toEqual(["4", "3", "2", "1"]);
     });
 
     /** 원본 컬럼 정의(`MEMBER_COLUMNS`)의 이름과 **순서**가 정본이다 */
@@ -393,7 +455,7 @@ describe("MemberListPage (S02 회원 관리)", () => {
         ).not.toBeInTheDocument();
 
         /* 이하늘은 휴면이라 기본 화면에 없다 — 그 상태로 옮겨 본다 */
-        await showStatus(user, "휴면 1명");
+        await showStatus(user, "휴면 4명");
         expect(within(rowOf("이하늘")).getByText("렌트 2")).toBeVisible();
         expect(
           within(rowOf("이하늘")).queryByText(/구매/),
@@ -404,7 +466,7 @@ describe("MemberListPage (S02 회원 관리)", () => {
         const { user } = renderPage();
 
         /* 한지우는 탈퇴 회원이다 */
-        await showStatus(user, "탈퇴 1명");
+        await showStatus(user, "탈퇴 3명");
         expect(within(rowOf("한지우")).getByText("-")).toBeVisible();
       });
     });
@@ -426,7 +488,7 @@ describe("MemberListPage (S02 회원 관리)", () => {
     it("조건을 연락처로 바꾸면 같은 검색어의 결과가 달라진다", async () => {
       const { user } = renderPage();
       /* 정민서는 정지 상태라 기본 화면에 없다 */
-      await showStatus(user, "정지 1명");
+      await showStatus(user, "정지 3명");
 
       // 이름 조건에서 연락처 조각을 넣으면 아무것도 안 나온다
       await user.type(await searchBox(user), "010-8814");
@@ -441,7 +503,7 @@ describe("MemberListPage (S02 회원 관리)", () => {
     it("아이디(이메일) 조건으로도 찾을 수 있다", async () => {
       const { user } = renderPage();
 
-      await showStatus(user, "휴면 1명");
+      await showStatus(user, "휴면 4명");
       await chooseSearchField(user, "아이디(이메일)");
       await user.type(await searchBox(user), "haneul");
 
@@ -454,21 +516,64 @@ describe("MemberListPage (S02 회원 관리)", () => {
    * **내보내기 대상은 화면 전체가 아니라 현재 조회 결과**다.
    */
   describe("엑셀 다운로드", () => {
-    it("지금 조건으로 조회된 건수를 밝힌다", async () => {
+    /** 넘긴 [파일명, 행] — 행의 첫 줄은 머리글이다 */
+    const exported = () => vi.mocked(downloadCsv).mock.calls[0];
+
+    it("지금 조건으로 조회된 결과 전체를 파일로 만든다 — 1페이지만이 아니다", async () => {
       const { user } = renderPage();
 
       await user.click(screen.getByRole("button", { name: "엑셀 다운로드" }));
-      /* 화면 전체가 아니라 **지금 조건**(기본 상태 [정상] 3건)의 결과다 */
-      expect(screen.getByText("조회 결과 5건을 내려받았습니다")).toBeVisible();
+
+      /* 화면 전체가 아니라 **지금 조건**([정상] 20건)이고, 페이지(10)로 자르지 않는다 */
+      const [filename, rows] = exported();
+      expect(filename).toBe("회원관리_20건.csv");
+      expect(rows[0]).toEqual([
+        "No",
+        "이름",
+        "아이디(이메일)",
+        "연락처",
+        "가입일",
+        "자녀",
+        "상태",
+        "이용",
+      ]);
+      expect(rows).toHaveLength(21);
+      expect(rows[1]).toEqual([
+        20,
+        "박수진",
+        "sujin.park@example.com",
+        "010-2841-7702",
+        "2026.08.12",
+        "2명",
+        "정상",
+        "렌트 3 · 구매 1",
+      ]);
+      expect(screen.getByText("조회 결과 20건을 내려받았습니다")).toBeVisible();
     });
 
     it("필터를 걸면 내려받는 건수도 함께 줄어든다", async () => {
       const { user } = renderPage();
 
-      await user.click(statusBox("휴면 1명"));
+      await user.click(statusBox("휴면 4명"));
       await user.click(screen.getByRole("button", { name: "엑셀 다운로드" }));
 
-      expect(screen.getByText("조회 결과 1건을 내려받았습니다")).toBeVisible();
+      expect(exported()[0]).toBe("회원관리_4건.csv");
+      expect(screen.getByText("조회 결과 4건을 내려받았습니다")).toBeVisible();
+    });
+
+    it("고른 행이 있으면 그 행만 내려받는다 — 이용이 없는 '-' 는 빈 칸이다", async () => {
+      const { user } = renderPage();
+
+      await user.click(screen.getByRole("checkbox", { name: "배하은 선택" }));
+      await user.click(screen.getByRole("button", { name: "엑셀 다운로드" }));
+
+      const [filename, rows] = exported();
+      expect(filename).toBe("회원관리_1건.csv");
+      expect(rows).toHaveLength(2);
+      /* No 는 화면과 같은 순번이다([정상] 20명 중 8번째 → 13) */
+      expect(rows[1][0]).toBe(13);
+      expect(rows[1][rows[1].length - 1]).toBe("");
+      expect(screen.getByText("선택한 1건을 내려받았습니다")).toBeVisible();
     });
   });
 
@@ -476,17 +581,17 @@ describe("MemberListPage (S02 회원 관리)", () => {
     it("빈 상태에서 '필터를 초기화'를 누르면 상태·검색어·검색 조건이 함께 되돌아간다", async () => {
       const { user } = renderPage();
 
-      await showStatus(user, "휴면 1명");
+      await showStatus(user, "휴면 4명");
       await chooseSearchField(user, "연락처");
       await user.type(await searchBox(user), "없는번호");
       expect(bodyRows()).toHaveLength(0);
 
       await user.click(screen.getByRole("button", { name: "필터를 초기화" }));
 
-      /* 상태도 기본값([정상] 5건)으로 돌아온다 — 1페이지는 4행 */
-      expect(bodyRows()).toHaveLength(4);
-      expect(screen.getByText("총 5건")).toBeVisible();
-      expect(statusBox("정상 5명")).toHaveAttribute("aria-pressed", "true");
+      /* 상태도 기본값([정상] 20건)으로 돌아온다 — 1페이지는 10행 */
+      expect(bodyRows()).toHaveLength(10);
+      expect(screen.getByText("목록 (총 20건)")).toBeVisible();
+      expect(statusBox("정상 20명")).toHaveAttribute("aria-pressed", "true");
       expect(await searchBox(user)).toHaveValue("");
       // 검색 조건도 첫 항목으로 되돌아간다 — 한쪽만 되돌리면 다시 비어 보인다
       expect(
@@ -504,11 +609,11 @@ describe("MemberListPage (S02 회원 관리)", () => {
     it("정지는 critical, 휴면은 warning 으로 나간다", async () => {
       const { user } = renderPage();
 
-      await showStatus(user, "정지 1명");
+      await showStatus(user, "정지 3명");
       const suspended = within(rowOf("정민서")).getByText("정지");
       expect(classList(suspended)).toContain("text-text-critical");
 
-      await showStatus(user, "휴면 1명");
+      await showStatus(user, "휴면 4명");
       const dormant = within(rowOf("이하늘")).getByText("휴면");
       expect(classList(dormant)).toContain("text-text-warning");
       expect(classList(dormant)).not.toContain("text-text-critical");
@@ -524,7 +629,7 @@ describe("MemberListPage (S02 회원 관리)", () => {
     it("탈퇴는 default — 정상 종료라 주의를 끌지 않는다", async () => {
       const { user } = renderPage();
 
-      await showStatus(user, "탈퇴 1명");
+      await showStatus(user, "탈퇴 3명");
 
       const withdrawn = within(rowOf("한지우")).getByText("탈퇴");
       expect(classList(withdrawn)).not.toContain("text-text-critical");
@@ -816,12 +921,29 @@ describe("체크 후 일괄 상태 변경", () => {
    * 상세는 진행 중 렌트가 있으면 휴면을 막는다. 목록에서 여럿을 한꺼번에 재울 때
    * 그 가드가 빠지면 같은 정책이 화면마다 다르게 적용된다.
    */
+  /** 사유 모달에 적고 처리한다 */
+  const giveReason = async (
+    user: ReturnType<typeof userEvent.setup>,
+    reason: string,
+    confirm: string,
+  ) => {
+    const dialog = screen.getByRole("dialog");
+    await user.type(within(dialog).getByRole("textbox"), reason);
+    await user.click(within(dialog).getByRole("button", { name: confirm }));
+  };
+
   it("진행 중 렌트가 있는 회원은 휴면에서 빠지고, 몇 명이 빠졌는지 알린다", async () => {
     const { user } = renderPage();
 
     await check(user, "박수진"); // 진행 중 렌트 1건
     await check(user, "김도현"); // 0건
     await user.click(screen.getByRole("button", { name: "휴면으로 변경" }));
+
+    /* 사유는 **처리될 사람 수**로 받는다 — 빠진 박수진은 세지 않는다 */
+    expect(
+      screen.getByRole("dialog", { name: "회원 휴면 사유 입력" }),
+    ).toBeVisible();
+    await giveReason(user, "고객 요청", "휴면 처리");
 
     expect(
       await screen.findByText(
@@ -830,7 +952,43 @@ describe("체크 후 일괄 상태 변경", () => {
     ).toBeVisible();
   });
 
-  it("정지에는 그 가드가 걸리지 않는다 — 막는 것은 휴면뿐이다", async () => {
+  /**
+   * 원본 C-3 ⓐ — 휴면·정지는 **사유를 받아야** 처리된다. 상세 저장도 같은 모달이다.
+   * 휴면은 자동 전환이 원칙이라 수동 전환이 예외임을 문면으로 알린다.
+   */
+  it("휴면·정지는 사유 모달을 거친다 — 빈 사유는 막고, 문면이 상태마다 다르다", async () => {
+    const { user } = renderPage();
+
+    await check(user, "김도현");
+    await user.click(screen.getByRole("button", { name: "휴면으로 변경" }));
+    let dialog = screen.getByRole("dialog", { name: "회원 휴면 사유 입력" });
+    expect(
+      within(dialog).getByText(/12개월 미접속 시 자동 전환이 원칙/),
+    ).toBeVisible();
+
+    /* 비운 채 누르면 필드 옆에서 막는다 — 아무것도 바뀌지 않는다 */
+    await user.click(within(dialog).getByRole("button", { name: "휴면 처리" }));
+    expect(within(dialog).getByText("휴면 사유를 입력해주세요.")).toBeVisible();
+    expect(statusBox("휴면 4명")).toBeVisible();
+
+    /* 공백만 적어도 빈 사유다 */
+    await user.type(within(dialog).getByRole("textbox"), "   ");
+    await user.click(within(dialog).getByRole("button", { name: "휴면 처리" }));
+    expect(statusBox("휴면 4명")).toBeVisible();
+
+    /* 취소하면 아무것도 바뀌지 않고 선택도 남는다 */
+    await user.click(within(dialog).getByRole("button", { name: "취소" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByText("1명 선택됨")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "정지로 변경" }));
+    dialog = screen.getByRole("dialog", { name: "회원 정지 사유 입력" });
+    /* 앞에서 적다 만 글자가 남지 않는다 */
+    expect(within(dialog).getByRole("textbox")).toHaveValue("");
+    expect(within(dialog).getByText(/회원 상세에 기록/)).toBeVisible();
+  });
+
+  it("2명 이상이면 제목에 인원이 붙는다", async () => {
     const { user } = renderPage();
 
     await check(user, "박수진");
@@ -838,24 +996,50 @@ describe("체크 후 일괄 상태 변경", () => {
     await user.click(screen.getByRole("button", { name: "정지로 변경" }));
 
     expect(
-      await screen.findByText("2명을 «정지»으로 바꿨습니다"),
+      screen.getByRole("dialog", { name: "회원 정지 사유 입력 (2명)" }),
     ).toBeVisible();
   });
 
-  it("처리하면 선택이 풀린다 — 같은 대상을 두 번 처리하지 않게", async () => {
+  it("사유를 적고 처리하면 상태가 실제로 바뀌고, 그 상태 카드로 옮겨 결과를 보여준다", async () => {
     const { user } = renderPage();
 
+    await check(user, "박수진");
     await check(user, "김도현");
     await user.click(screen.getByRole("button", { name: "정지로 변경" }));
+    await giveReason(user, "분쟁 다발", "정지 처리");
 
+    /* 정지에는 렌트 가드가 걸리지 않는다 — 막는 것은 휴면뿐이다 */
+    expect(
+      await screen.findByText("2명을 «정지»으로 바꿨습니다"),
+    ).toBeVisible();
+    expect(statusBox("정지 5명")).toHaveAttribute("aria-pressed", "true");
+    expect(statusBox("정상 18명")).toBeVisible();
+    expect(visibleNames()).toContain("박수진");
+    expect(visibleNames()).toContain("김도현");
+    /* 같은 대상을 두 번 처리하지 않게 선택이 풀린다 */
     expect(screen.queryByText(/명 선택됨/)).toBeNull();
+  });
+
+  it("[정상] 으로 되돌리는 것은 사유를 받지 않고 제자리에서 바로 바뀐다", async () => {
+    const { user } = renderPage();
+
+    await showStatus(user, "정지 3명");
+    await check(user, "정민서");
+    await user.click(screen.getByRole("button", { name: "정상으로 변경" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(
+      await screen.findByText("1명을 «정상»으로 바꿨습니다"),
+    ).toBeVisible();
+    expect(statusBox("정지 2명")).toHaveAttribute("aria-pressed", "true");
+    expect(visibleNames()).not.toContain("정민서");
   });
 
   /** 원본 정책: 탈퇴 회원은 상태를 바꿀 수 없다 — 바를 띄울 이유가 없다 */
   it("탈퇴 회원만 고르면 일괄 처리 바가 열리지 않는다", async () => {
     const { user } = renderPage();
 
-    await user.click(statusBox("탈퇴 1명"));
+    await user.click(statusBox("탈퇴 3명"));
     await check(user, "한지우");
 
     expect(screen.queryByText(/명 선택됨/)).toBeNull();

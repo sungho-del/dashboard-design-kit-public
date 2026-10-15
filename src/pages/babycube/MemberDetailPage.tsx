@@ -7,6 +7,7 @@ import {
   CardBody,
   CardHeader,
   EmptyState,
+  FormField,
   Gnb,
   IconButton,
   InfoItem,
@@ -32,13 +33,15 @@ import {
 import {
   ACCOUNT_STATES,
   CHILD_GENDER_LABEL,
+  dateTimeText,
   filterPayments,
-  paidAtText,
   PAYMENT_EMPTY_DESCRIPTION,
   PAYMENT_EMPTY_TITLE,
   PAYMENT_KIND_LABEL,
   PAYMENT_STATUS_META,
   PAYMENT_TABS,
+  paymentKinds,
+  productText,
   dormantBlockedText,
   findMember,
   GENDER_LABEL,
@@ -51,10 +54,15 @@ import {
 } from "./MemberDetailPage.data";
 import {
   canSleep,
+  changeMemberStatus,
+  needsReason,
   STATUS_META,
   people,
+  useMembers,
+  type MemberStatus,
   type PaymentKind,
 } from "./MemberListPage.data";
+import { MemberReasonModal } from "./MemberListPage";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
 /* =========================================================================
@@ -70,17 +78,20 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * 자녀 정보   ← 자녀 수 + 표(이름/태명 · 생년월일·개월수 · 성별)
  * 결제 내역 (N) ← [전체][렌트][판매] 탭 + 표
  *                (No · 주문번호 · 결제 일시 · 구분 · 상품명 · 결제금액 · 상태)
- * [목록]                                   [저장하기] [취소]   ← 하단 액션 바
+ * [목록]                                   [취소] [저장하기]   ← 하단 액션 바 (화면 아래 고정)
  * ```
  * 섹션은 접을 수 있다(원본도 섹션마다 접기 버튼이 있다).
+ * 헤더에는 이름과 **저장된** 상태 태그가 붙는다 — 표에서 넘어온 뒤 누구의 어떤 상태인지 남긴다.
  *
  * ## 원본 정책 — 화면이 강제하는 것
  * - **진행 중인 렌트가 있으면 휴면으로 바꿀 수 없다.** 버튼을 잠그고 이유를 문장으로 낸다
  *   (원본 문구 그대로). 빌려 간 물건이 남아 있는데 계정을 재우면 반납 안내가 닿지 않는다
  * - **탈퇴 회원은 상태를 바꿀 수 없다** — 원본은 "드롭다운 없이 배지로만 표시"다.
  *   그래서 이 화면도 탈퇴면 택1 버튼 대신 배지를 낸다
- * - 정지 사유·정지일 기록은 **아직 없다** — 원본도 "상세에 기록"이라고만 적고
- *   입력 자리를 그리지 않는다. 사유 입력이 생기면 그때 이 자리에 붙인다
+ * - **휴면·정지로 저장하면 사유를 받는다**(원본 C-3 ⓐ) — 목록 일괄 변경과 **같은 모달**
+ *   (`MemberReasonModal`)이다. 한때 이 자리에 "원본도 입력 자리를 그리지 않는다"고 적혀
+ *   있었는데 기획 v0.4 와 어긋난 판단이었다(2026-10-15 대조).
+ *   기록된 사유는 계정 상태에 `정지 사유  … (처리 일시)` 로 나온다
  *
  * ## ⚠️ 네 번째 섹션은 "이용 이력"이 아니라 **"결제 내역"** 이다 (2026-09-21 정정)
  * 원본 주석(`sec.members_hist`)은 "이용 이력 / 번호·주문번호·셀러·상품·유형·금액·상태"라고
@@ -94,8 +105,8 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *    값을 담아 두는데, 비활성 입력칸은 **"고칠 수 있을 것 같은데 안 되는 것"** 으로 읽힌다.
  *    이 화면에서 실제로 고치는 값은 상태 하나뿐이라, 나머지는 읽는 값임을 형태로 밝힌다
  * 2. **하단 액션 바를 쓴다.** 이 저장소의 폼 템플릿(`ProductFormPage`)은 저장 버튼을
- *    `PageHeader` 에 두지만, 원본이 하단 바라서 원본을 따랐다 — 섹션이 길어 스크롤 끝에서
- *    바로 저장하게 된다
+ *    `PageHeader` 에 두지만, 원본이 하단 바라서 원본을 따랐다. 원본처럼 **화면 아래에
+ *    붙는다**(`sticky`) — 섹션이 길어도 끝까지 내리지 않고 저장한다
  *
  * ## 이 파일은 도메인을 모른다 — 도메인은 `./MemberDetailPage.data.ts` 에 있다
  *
@@ -202,10 +213,20 @@ export function MemberDetailPage({
     주소창을 거치며 인코딩되므로 **반드시 디코딩해서** 찾는다.
   */
   const memberId = lastPathSegment(pathname);
-  const member = findMember(memberId);
+  /* 데모 저장소에서 읽는다 — 목록에서 바꾼 상태가 여기에도 보여야 한다 */
+  const member = findMember(useMembers(), memberId);
 
-  /* 고치는 값은 상태 하나뿐이다 — 저장 전까지 화면 안에만 산다 */
-  const [draftStatus, setDraftStatus] = useState(member?.status ?? "active");
+  /*
+    고치는 값은 상태 하나뿐이다 — 저장 전까지 화면 안에만 산다.
+    **회원 id 와 묶어 둔다.** 주소만 바뀌어 다른 회원으로 가면 컴포넌트가 그대로 남아,
+    앞 회원의 고친 값이 다음 회원에게 묻어간다.
+  */
+  const [draft, setDraft] = useState<{
+    id: string;
+    status: MemberStatus;
+  } | null>(null);
+  /** 사유를 기다리는 저장 — 휴면·정지로 바꿀 때 */
+  const [reasonOpen, setReasonOpen] = useState(false);
   /** 결제 내역 탭. 조회용이라 저장 대상이 아니다 */
   const [paymentTab, setPaymentTab] = useState<"all" | PaymentKind>("all");
 
@@ -266,7 +287,29 @@ export function MemberDetailPage({
   const dormantBlocked = !canSleep(member);
   /** 탈퇴는 되돌릴 수 없는 종결 상태라 이 화면에서 바꾸지 않는다 */
   const editable = member.status !== "withdrawn";
+  const draftStatus = draft?.id === member.id ? draft.status : member.status;
   const changed = draftStatus !== member.status;
+
+  /** 저장 — 휴면·정지는 사유를 받은 뒤(`confirmReason`), 정상은 바로 */
+  const save = () => {
+    if (needsReason(draftStatus)) {
+      setReasonOpen(true);
+      return;
+    }
+    changeMemberStatus([member.id], draftStatus);
+    setDraft(null);
+    toast(SAVED_TEXT);
+  };
+
+  const confirmReason = (reason: string) => {
+    changeMemberStatus([member.id], draftStatus, reason);
+    setReasonOpen(false);
+    setDraft(null);
+    toast(SAVED_TEXT);
+  };
+
+  /** 기록된 사유 — 휴면·정지 회원이고 사유가 있을 때만(자동 휴면에는 사유가 없다) */
+  const showReason = needsReason(member.status) && !!member.statusReason;
 
   /** 탭으로 거른 결제 내역. 제목의 건수는 **거르기 전** 전체 건수다 */
   const visiblePayments = filterPayments(member.payments, paymentTab);
@@ -275,8 +318,19 @@ export function MemberDetailPage({
     <AppShell
       sidebar={nav}
       header={
-        /* 제목 옆에 누구의 상세인지 — 표에서 넘어온 뒤 "누구였더라"가 되지 않게 */
-        <PageHeader title="회원 상세" description={member.name} />
+        /*
+          제목 옆에 누구의 상세인지 — 표에서 넘어온 뒤 "누구였더라"가 되지 않게.
+          태그는 **저장된** 상태다(고르는 중인 값이 아니다) — 고르기만 하고 떠나면 바뀌지 않는다.
+        */
+        <PageHeader
+          title="회원 상세"
+          description={member.name}
+          badges={
+            <Tag tone={meta.tone} dot>
+              {meta.label}
+            </Tag>
+          }
+        />
       }
     >
       <Section title={SECTIONS.basic} busy={busy} dim={dim}>
@@ -311,32 +365,41 @@ export function MemberDetailPage({
           <LoadingLines rows={5} />
         ) : (
           <>
-            <div className="flex flex-col gap-2">
-              <span className="label-medium-bold text-text">상태</span>
-              {editable ? (
-                <>
-                  <SegmentedControl
-                    /*
-                      잠금은 **항목 단위**다 — 휴면만 막고 나머지는 그대로 고를 수 있다.
-                      컨트롤 전체를 비활성으로 만들면 정지 처리까지 막혀 버린다.
-                    */
-                    items={ACCOUNT_STATES.map((state) => ({
-                      ...state,
-                      disabled: state.value === "dormant" && dormantBlocked,
-                    }))}
-                    value={draftStatus}
-                    onValueChange={(value) =>
-                      setDraftStatus(value as typeof draftStatus)
-                    }
-                  />
-                  {dormantBlocked ? (
-                    <p className="body-small text-text-sub">
-                      {dormantBlockedText(member.activeRents)}
-                    </p>
-                  ) : null}
-                </>
-              ) : (
-                /* 탈퇴 — 원본과 같이 배지로만 표시한다 */
+            {editable ? (
+              /*
+                원본은 상태를 **필수**(`req`)로 표시한다. 세그먼트는 `<label for>` 가 닿지 않는
+                그룹이라 `group` 으로 이름을 잇는다(§29-6b). 휴면 가드 문구는 설명으로 붙어
+                스크린리더도 휴면이 왜 잠겼는지 함께 읽는다.
+              */
+              <FormField
+                label="상태"
+                required
+                group
+                description={
+                  dormantBlocked
+                    ? dormantBlockedText(member.activeRents)
+                    : undefined
+                }
+              >
+                <SegmentedControl
+                  /*
+                    잠금은 **항목 단위**다 — 휴면만 막고 나머지는 그대로 고를 수 있다.
+                    컨트롤 전체를 비활성으로 만들면 정지 처리까지 막혀 버린다.
+                  */
+                  items={ACCOUNT_STATES.map((state) => ({
+                    ...state,
+                    disabled: state.value === "dormant" && dormantBlocked,
+                  }))}
+                  value={draftStatus}
+                  onValueChange={(value) =>
+                    setDraft({ id: member.id, status: value as MemberStatus })
+                  }
+                />
+              </FormField>
+            ) : (
+              /* 탈퇴 — 원본과 같이 배지로만 표시한다 */
+              <div className="flex flex-col gap-2">
+                <span className="label-medium-bold text-text">상태</span>
                 <span className="flex items-center gap-2">
                   <Tag tone={meta.tone} dot>
                     {meta.label}
@@ -345,8 +408,8 @@ export function MemberDetailPage({
                     {meta.description}
                   </span>
                 </span>
-              )}
-            </div>
+              </div>
+            )}
 
             <InfoList>
               <InfoItem label="가입일">{ymd(member.date)}</InfoItem>
@@ -355,6 +418,15 @@ export function MemberDetailPage({
               <InfoItem label="마케팅 수신">
                 {marketingLabel(member.marketingOptIn)}
               </InfoItem>
+              {/* 원본: `정지 사유  <사유> (처리 일시)` — 상태에 따라 라벨만 갈린다 */}
+              {showReason ? (
+                <InfoItem label={`${meta.label} 사유`}>
+                  {member.statusReason}{" "}
+                  <span className="text-text-sub tabular-nums">
+                    ({member.statusAt ? dateTimeText(member.statusAt) : "-"})
+                  </span>
+                </InfoItem>
+              ) : null}
             </InfoList>
           </>
         )}
@@ -368,32 +440,39 @@ export function MemberDetailPage({
             <InfoList>
               <InfoItem label="자녀 수">{people(member.kids)}</InfoItem>
             </InfoList>
-            <Table>
-              <colgroup>
-                <col className="w-40" />
-                <col className="w-50" />
-                <col className="w-25" />
-              </colgroup>
-              <TableHead>
-                <TableRow>
-                  <TableTh>이름</TableTh>
-                  {/* 원본 표기: `2020.02.23 · 75개월` — 날짜와 개월 수가 한 칸에 있다 */}
-                  <TableTh>생년월일 · 개월수</TableTh>
-                  <TableTh>성별</TableTh>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {member.children.map((child) => (
-                  <TableRow key={`${child.name}-${child.birth}`}>
-                    <TableTd>{child.name}</TableTd>
-                    <TableTd className="tabular-nums">
-                      {`${ymd(child.birth)} · ${monthsSince(child.birth)}개월`}
-                    </TableTd>
-                    <TableTd>{CHILD_GENDER_LABEL[child.gender]}</TableTd>
+            {/*
+              열이 셋뿐이라 섹션 전폭(1600 화면에서 약 1350)으로 늘면 열 사이가 600 넘게
+              벌어져 한 아이의 값을 가로로 잇기 어렵다. **이 표만** 폭을 묶는다 —
+              공용 `Table` 의 `min-w-full` 은 다른 표들이 기대는 계약이라 건드리지 않는다.
+            */}
+            <div className="max-w-160">
+              <Table>
+                <colgroup>
+                  <col className="w-40" />
+                  <col className="w-50" />
+                  <col className="w-25" />
+                </colgroup>
+                <TableHead>
+                  <TableRow>
+                    <TableTh>이름</TableTh>
+                    {/* 원본 표기: `2020.02.23 · 75개월` — 날짜와 개월 수가 한 칸에 있다 */}
+                    <TableTh>생년월일 · 개월수</TableTh>
+                    <TableTh>성별</TableTh>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHead>
+                <TableBody>
+                  {member.children.map((child) => (
+                    <TableRow key={`${child.name}-${child.birth}`}>
+                      <TableTd>{child.name}</TableTd>
+                      <TableTd className="tabular-nums">
+                        {`${ymd(child.birth)} · ${monthsSince(child.birth)}개월`}
+                      </TableTd>
+                      <TableTd>{CHILD_GENDER_LABEL[child.gender]}</TableTd>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </>
         )}
       </Section>
@@ -451,22 +530,35 @@ export function MemberDetailPage({
                 </TableRow>
               </TableHead>
               <TableBody>
-                {visiblePayments.map((payment) => {
+                {visiblePayments.map((payment, index) => {
                   const meta = PAYMENT_STATUS_META[payment.status];
                   return (
                     <TableRow key={payment.orderNo}>
-                      <TableTd className="tabular-nums">{payment.no}</TableTd>
+                      {/* 원본 `view.length - i` — **지금 탭에 보이는 것의** 역순 순번 */}
+                      <TableTd className="tabular-nums">
+                        {visiblePayments.length - index}
+                      </TableTd>
                       {/* 주문번호·일시·금액은 **등폭**이다(§D6-2) — 자릿수가 세로로 맞아야 한다 */}
                       <TableTd className="tabular-nums">
                         {payment.orderNo}
                       </TableTd>
                       <TableTd className="tabular-nums">
-                        {paidAtText(payment.paidAt)}
+                        {dateTimeText(payment.paidAt)}
                       </TableTd>
+                      {/*
+                        구분은 다른 목록(주문·상품)과 같은 **중립 태그**다 — 분류지 상태가 아니다.
+                        렌트와 판매가 섞인 주문은 둘 다 낸다(원본 `modeTags(both)`).
+                      */}
                       <TableTd align="center">
-                        {PAYMENT_KIND_LABEL[payment.kind]}
+                        <span className="inline-flex gap-1">
+                          {paymentKinds(payment).map((kind) => (
+                            <Tag key={kind} tone="default" size="small">
+                              {PAYMENT_KIND_LABEL[kind]}
+                            </Tag>
+                          ))}
+                        </span>
                       </TableTd>
-                      <TableTd ellipsis>{payment.product}</TableTd>
+                      <TableTd ellipsis>{productText(payment)}</TableTd>
                       <TableTd className="tabular-nums">
                         {won(payment.amount)}
                       </TableTd>
@@ -491,31 +583,33 @@ export function MemberDetailPage({
       </Section>
 
       {/*
-        하단 액션 바 (원본). 좌측은 되돌아가는 길, 우측은 이 화면에서 하는 일이다.
-        [취소] 는 **고친 것을 되돌릴 뿐** 화면을 떠나지 않는다 — 떠나는 것은 [목록] 이다.
+        하단 액션 바 (원본 `nv-bar`). 좌측은 되돌아가는 길, 우측은 이 화면에서 하는 일이다.
+        원본처럼 **화면 아래에 붙는다** — 섹션이 길어도 끝까지 내리지 않고 저장한다.
+        `bottom-6` 은 본문 아래 여백(py-6)과 같아, 끝까지 내렸을 때 붙은 자리와 제자리가 같다.
+        [취소] 는 원본대로 **저장하지 않고 목록으로** 간다(`nav(listScr)`).
       */}
-      <Card variant="soft">
+      <Card variant="soft" className="sticky bottom-6 z-10">
         <div className="flex items-center justify-between gap-2">
           <Button variant="secondary" onClick={() => onNavSelect(LIST_PATH)}>
             목록
           </Button>
           <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              disabled={!changed}
-              onClick={() => setDraftStatus(member.status)}
-            >
+            <Button variant="secondary" onClick={() => onNavSelect(LIST_PATH)}>
               취소
             </Button>
-            <Button
-              disabled={!editable || !changed}
-              onClick={() => toast(SAVED_TEXT)}
-            >
+            <Button disabled={!editable || !changed} onClick={save}>
               저장하기
             </Button>
           </div>
         </div>
       </Card>
+
+      <MemberReasonModal
+        target={reasonOpen ? draftStatus : null}
+        count={1}
+        onClose={() => setReasonOpen(false)}
+        onConfirm={confirmReason}
+      />
     </AppShell>
   );
 }

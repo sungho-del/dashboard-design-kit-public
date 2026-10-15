@@ -390,8 +390,9 @@ export function SellerReviewDetailPage({
         하단 액션 바 (원본 `sellerReview.actions`) — `[목록] [승인] [반려]`.
         판정이 끝난 건에는 [승인]·[반려] 를 내지 않는다. 누를 수 있게 두면
         "이미 승인된 건을 또 승인"할 수 있다는 뜻이 된다.
+        회원·셀러 상세와 같이 **화면 아래에 붙는다**(원본 `nv-bar` · `bottom-6` = 본문 아래 여백).
       */}
-      <Card variant="soft">
+      <Card variant="soft" className="sticky bottom-6 z-10">
         <div className="flex items-center justify-between gap-2">
           <Button variant="secondary" onClick={() => onNavSelect(LIST_PATH)}>
             목록

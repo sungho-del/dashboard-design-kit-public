@@ -219,11 +219,10 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       expect(onNavSelect).toHaveBeenCalledWith("/sellers");
     });
 
-    it("고치기 전에는 저장·취소가 잠겨 있다", () => {
+    it("고치기 전에는 저장이 잠겨 있다", () => {
       renderAt(NORMAL);
 
       expect(screen.getByRole("button", { name: "저장하기" })).toBeDisabled();
-      expect(screen.getByRole("button", { name: "취소" })).toBeDisabled();
     });
 
     it("수수료율을 고치면 저장할 수 있고, 저장하면 알린다", async () => {
@@ -250,18 +249,17 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       expect(screen.queryByText("변경 내용을 저장했습니다")).toBeNull();
     });
 
-    it("[취소] 는 고친 값을 되돌리고 화면에 머문다", async () => {
+    /** 원본 `nav(listScr)` — 회원 상세와 같이 [취소] 는 저장하지 않고 목록으로 간다 */
+    it("[취소] 는 저장하지 않고 목록으로 간다", async () => {
       const { user, onNavSelect } = renderAt(NORMAL);
       const input = within(section("운영 정보")).getByRole("textbox");
 
       await user.clear(input);
       await user.type(input, "9");
-      expect(input).toHaveValue("9");
-
       await user.click(screen.getByRole("button", { name: "취소" }));
 
-      expect(input).toHaveValue("12");
-      expect(onNavSelect).not.toHaveBeenCalled();
+      expect(onNavSelect).toHaveBeenCalledWith("/sellers");
+      expect(screen.queryByText("변경 내용을 저장했습니다")).toBeNull();
     });
 
     /** 본사 계정은 고칠 것이 없으므로 저장도 열리지 않는다 */

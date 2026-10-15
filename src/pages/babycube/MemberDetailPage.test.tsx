@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { MemberDetailPage } from "./MemberDetailPage";
+import { resetMembers } from "./MemberListPage.data";
 
 /* -------------------------------------------------------------------------
  * S02-D 회원 상세 — 폼형
@@ -33,7 +34,17 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-afterEach(() => window.history.replaceState(null, "", "/"));
+afterEach(() => {
+  window.history.replaceState(null, "", "/");
+  /* 저장이 데모 저장소의 상태를 실제로 바꾼다 — 테스트마다 처음으로 */
+  resetMembers();
+});
+
+/** 페이지 헤더 — 이름과 **저장된** 상태 태그가 있다 */
+const header = () =>
+  screen
+    .getByRole("heading", { name: "회원 상세" })
+    .closest("header") as HTMLElement;
 
 /** 목록에서 넘어올 때와 같은 방식으로 주소를 만든다 — 이메일이라 인코딩된다 */
 function renderAt(memberId: string, query = "") {
@@ -317,6 +328,43 @@ describe("MemberDetailPage (S02-D 회원 상세)", () => {
       expect(screen.queryByText("결제 내역이 없습니다")).toBeNull();
     });
 
+    /** 원본 `view.length - i` — 탭으로 거르면 다시 센다 */
+    it("No 는 지금 보이는 목록의 역순 순번이다", async () => {
+      const { user } = renderAt("sujin.park@example.com");
+      const numbers = () =>
+        within(paymentSection())
+          .getAllByRole("row")
+          .slice(1)
+          .map((row) => within(row).getAllByRole("cell")[0].textContent);
+
+      expect(numbers()).toEqual(["5", "4", "3", "2", "1"]);
+      await user.click(screen.getByRole("radio", { name: "판매" }));
+      expect(numbers()).toEqual(["2", "1"]);
+    });
+
+    /**
+     * 원본 `modeOf`·`prodOf` — 한 주문에 렌트와 판매가 섞이면 구분이 **둘**이고
+     * [렌트]·[판매] 탭 양쪽에 나온다. 상품이 여럿이면 `첫 상품 외 N건` 이다.
+     */
+    it("렌트·판매가 섞인 주문은 구분 태그가 둘이고 양쪽 탭에 나온다", async () => {
+      const { user } = renderAt("yuna.choi@example.com");
+      const mixedRow = () =>
+        within(paymentSection())
+          .getByText("20260731662240")
+          .closest("tr") as HTMLElement;
+
+      expect(within(mixedRow()).getByText("렌트")).toBeVisible();
+      expect(within(mixedRow()).getByText("판매")).toBeVisible();
+      expect(
+        within(mixedRow()).getByText("잘레토 전동 바운서 4세대 외 1건"),
+      ).toBeVisible();
+
+      await user.click(screen.getByRole("radio", { name: "렌트" }));
+      expect(mixedRow()).toBeVisible();
+      await user.click(screen.getByRole("radio", { name: "판매" }));
+      expect(mixedRow()).toBeVisible();
+    });
+
     it("결제한 적이 없으면 표 대신 빈 상태를 낸다", () => {
       renderAt("jiwoo.han@example.com");
 
@@ -338,33 +386,120 @@ describe("MemberDetailPage (S02-D 회원 상세)", () => {
     });
 
     /** 고친 것이 없으면 저장할 것도 없다 — 누를 수 있게 두면 "저장됐나?"가 된다 */
-    it("고치기 전에는 저장·취소가 잠겨 있다", () => {
+    it("고치기 전에는 저장이 잠겨 있다", () => {
       renderAt("dohyun.kim@example.com");
 
       expect(screen.getByRole("button", { name: "저장하기" })).toBeDisabled();
-      expect(screen.getByRole("button", { name: "취소" })).toBeDisabled();
     });
 
-    it("상태를 바꾸면 저장할 수 있고, 저장하면 알린다", async () => {
+    /** 원본 `nv-bar` 처럼 화면 아래에 붙는다 — 섹션이 길어도 끝까지 내리지 않고 저장한다 */
+    it("하단 바는 화면 아래에 붙는다", () => {
+      renderAt("dohyun.kim@example.com");
+
+      const bar = screen
+        .getByRole("button", { name: "저장하기" })
+        .closest("[data-variant]") as HTMLElement;
+      expect(bar.className.split(/\s+/)).toEqual(
+        expect.arrayContaining(["sticky", "bottom-6"]),
+      );
+    });
+
+    it("[정상] 으로 되돌리는 저장은 사유 없이 바로 반영된다", async () => {
+      const { user } = renderAt("minseo.jung@example.com");
+
+      await user.click(stateButton("정상"));
+      await user.click(screen.getByRole("button", { name: "저장하기" }));
+
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(await screen.findByText("변경 내용을 저장했습니다")).toBeVisible();
+      /* 헤더의 태그는 **저장된** 상태다 */
+      expect(within(header()).getByText("정상")).toBeVisible();
+      expect(screen.queryByText("정지 사유")).toBeNull();
+    });
+
+    /**
+     * 원본 C-3 ⓐ — 상세 저장도 목록 일괄과 **같은 사유 게이트**를 지난다.
+     * 한때 상세만 무사유로 통과해, 같은 정지 처분이 통로에 따라 기록이 갈렸다.
+     */
+    it("정지로 저장하면 사유를 받고, 저장 뒤 사유와 처리 일시가 계정 상태에 남는다", async () => {
       const { user } = renderAt("dohyun.kim@example.com");
 
       await user.click(stateButton("정지"));
       await user.click(screen.getByRole("button", { name: "저장하기" }));
 
+      const dialog = screen.getByRole("dialog", {
+        name: "회원 정지 사유 입력",
+      });
+      /* 빈 사유는 막는다 — 저장되지 않는다 */
+      await user.click(
+        within(dialog).getByRole("button", { name: "정지 처리" }),
+      );
+      expect(
+        within(dialog).getByText("정지 사유를 입력해주세요."),
+      ).toBeVisible();
+      expect(within(header()).getByText("정상")).toBeVisible();
+
+      await user.type(within(dialog).getByRole("textbox"), "이용약관 위반");
+      await user.click(
+        within(dialog).getByRole("button", { name: "정지 처리" }),
+      );
+
       expect(await screen.findByText("변경 내용을 저장했습니다")).toBeVisible();
+      expect(within(header()).getByText("정지")).toBeVisible();
+      const account = section("계정 상태");
+      expect(within(account).getByText("정지 사유")).toBeVisible();
+      expect(within(account).getByText(/이용약관 위반/)).toBeVisible();
+      expect(
+        within(account).getByText(/^\(\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}\)$/),
+      ).toBeVisible();
+      /* 저장했으니 더 저장할 것이 없다 */
+      expect(screen.getByRole("button", { name: "저장하기" })).toBeDisabled();
     });
 
-    /** [취소] 는 고친 것을 되돌릴 뿐 **화면을 떠나지 않는다** — 떠나는 것은 [목록] 이다 */
-    it("[취소] 는 고친 상태를 되돌리고 화면에 머문다", async () => {
+    it("사유 모달을 취소하면 저장하지 않고, 고른 값은 화면에 남는다", async () => {
+      const { user } = renderAt("dohyun.kim@example.com");
+
+      await user.click(stateButton("휴면"));
+      await user.click(screen.getByRole("button", { name: "저장하기" }));
+      const dialog = screen.getByRole("dialog", {
+        name: "회원 휴면 사유 입력",
+      });
+      await user.click(within(dialog).getByRole("button", { name: "취소" }));
+
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(within(header()).getByText("정상")).toBeVisible();
+      expect(stateButton("휴면")).toBeChecked();
+    });
+
+    /** 원본 `nav(listScr)` — [취소] 는 저장하지 않고 목록으로 간다 */
+    it("[취소] 는 저장하지 않고 목록으로 간다", async () => {
       const { user, onNavSelect } = renderAt("dohyun.kim@example.com");
 
       await user.click(stateButton("정지"));
-      expect(stateButton("정지")).toBeChecked();
-
       await user.click(screen.getByRole("button", { name: "취소" }));
 
-      expect(stateButton("정상")).toBeChecked();
-      expect(onNavSelect).not.toHaveBeenCalled();
+      expect(onNavSelect).toHaveBeenCalledWith("/members");
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+  });
+
+  describe("기록된 사유", () => {
+    it("수동으로 정지된 회원은 사유와 처리 일시를 보여준다", () => {
+      renderAt("minseo.jung@example.com");
+      const account = section("계정 상태");
+
+      expect(within(account).getByText("정지 사유")).toBeVisible();
+      expect(
+        within(account).getByText(/반납 지연 반복 · 분쟁 3건 접수/),
+      ).toBeVisible();
+      expect(within(account).getByText("(2026.08.30 15:20)")).toBeVisible();
+    });
+
+    /** 12개월 미접속 **자동** 휴면에는 사유가 없다 — 빈 줄을 만들지 않는다 */
+    it("사유가 없는 휴면(자동 전환)에는 사유 줄이 없다", () => {
+      renderAt("haneul.lee@example.com");
+
+      expect(screen.queryByText("휴면 사유")).toBeNull();
     });
   });
 

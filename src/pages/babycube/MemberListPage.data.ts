@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 import type { TagTone } from "../../components/ui";
 
 /* -------------------------------------------------------------------------
@@ -18,6 +19,8 @@ import type { TagTone } from "../../components/ui";
  * | `PAGE_SIZE`          | 페이지당 행 수                           |
  * | `BULK_TARGETS`       | 일괄 변경으로 갈 수 있는 상태            |
  * | `canSleep`·`canChangeStatus` | 상태 변경 자격 (목록·상세 공용)  |
+ * | `REASON_COPY`·`needsReason` | 휴면·정지 사유 모달 (목록·상세 공용) |
+ * | `useMembers`·`changeMemberStatus` | 데모 저장소 — API 가 들어올 자리 |
  *
  * ## 뼈대가 이 파일에 기대하는 계약
  * - 행 타입은 `id`(고유키) · `date`(`YYYY-MM-DD HH:mm`, 기간 필터가 파싱)를 반드시 갖는다
@@ -50,7 +53,7 @@ import type { TagTone } from "../../components/ui";
  *   - 상태 어휘 4종(정상·정지·휴면·탈퇴)과 상태별 안내 문구(원본 `statusTips`)
  *   - 검색 조건 3종과 그 **순서**(이름 → 연락처 → 아이디(이메일)) · 자리표시자 "검색어 입력"
  * - **값 출처가 불명해 그대로 둔 것**: 표 데이터·건수는 원본에서 API(`membersApi`) 응답이라
- *   청크에 없다. 샘플 6건은 우리가 만든 값이다
+ *   청크에 없다. 샘플 30명은 우리가 만든 값이다(원본 샘플 규모)
  * ---------------------------------------------------------------------- */
 
 export type MemberStatus = "active" | "suspended" | "dormant" | "withdrawn";
@@ -64,17 +67,22 @@ export interface MemberChild {
   gender: "male" | "female";
 }
 
-/** 결제 한 건 — 회원 상세의 "결제 내역" 표가 쓴다 (원본 `sec.members_hist`) */
+/**
+ * 결제 한 건 — 회원 상세의 "결제 내역" 표가 쓴다 (원본 `sec.members_hist`)
+ *
+ * 원본 표의 **No** 는 레코드 값이 아니라 **지금 보이는 목록의 역순 순번**이다
+ * (`view.length - i`). 그래서 여기 두지 않고 화면이 센다.
+ */
 export interface MemberPayment {
-  /** 원본 표의 **No** 열. 그 회원 안에서만 유효한 번호로, 최근 건이 큰 수다 */
-  no: number;
   /** 주문번호 `YYYYMMDD` + 6자리 (원본 `20260629330571`) */
   orderNo: string;
   /** 결제 일시 `YYYY-MM-DD HH:mm` — 표에는 `2026.06.29 13:15` 로 낸다 */
   paidAt: string;
-  /** 원본 `구분` 열 — 이 서비스의 두 갈래다 */
-  kind: PaymentKind;
-  product: string;
+  /**
+   * 주문에 담긴 상품. 원본은 처리단위(`unitsOf`)에서 `구분`·`상품명` 을 도출한다 —
+   * **한 주문에 렌트와 판매가 섞일 수 있고**(구분 태그 둘), 상품이 여럿이면 `첫 상품 외 N건` 이다.
+   */
+  items: { kind: PaymentKind; product: string }[];
   /** 결제금액(원) */
   amount: number;
   status: PaymentStatus;
@@ -91,11 +99,6 @@ export type PaymentStatus = "paid" | "canceled";
 export interface Member {
   /** 아이디(이메일) — 고유키이자 화면에 그대로 보이는 값이다 */
   id: string;
-  /**
-   * 원본 표의 **No** 열. 화면이 세는 순번이 아니라 **레코드에 붙은 번호**다 —
-   * 정렬·필터가 바뀌어도 같은 회원은 같은 번호를 유지한다.
-   */
-  no: number;
   name: string;
   phone: string;
   /**
@@ -135,6 +138,13 @@ export interface Member {
    * 빌려 간 물건이 남아 있는데 계정을 재워 두면 반납 안내가 닿지 않는다.
    */
   activeRents: number;
+  /**
+   * 휴면·정지 사유와 처리 일시(`YYYY-MM-DD HH:mm`). 원본 C-3 ⓐ — 운영자가 휴면·정지로
+   * 바꿀 때는 **통로(목록 일괄·상세 저장)와 무관하게 사유를 받는다.**
+   * 12개월 미접속 **자동** 휴면에는 사유가 없다 — 그래서 선택값이다.
+   */
+  statusReason?: string;
+  statusAt?: string;
 }
 
 /**
@@ -173,10 +183,302 @@ export const STATUS_META: Record<
   },
 };
 
+/* -------------------------------------------------------------------------
+ * 간이 회원 22명 — 원본 샘플(약 30명) 규모에 맞춰 **페이지 넘김이 보이게** 더한 것이다.
+ * 아래 `MEMBERS` 의 앞 8명이 화면의 경계 사례(혼합 주문·휴면 가드·결제 없음…)를 맡고,
+ * 이들은 머릿수만 채운다 — 상세를 열면 단순한 값이 나온다.
+ * ---------------------------------------------------------------------- */
+
+interface BriefRow {
+  name: string;
+  /** 이메일 앞부분 — 뒤에 `@example.com` 이 붙는다 */
+  local: string;
+  phone: string;
+  date: string;
+  status: MemberStatus;
+  /** 결제 1건씩. 비우면 이용 `-` */
+  uses: PaymentKind[];
+  kids: number;
+  lastVisit: string;
+  reason?: [text: string, at: string];
+}
+
+const BRIEF_PRODUCTS: Record<PaymentKind, string> = {
+  rent: "디럭스 유모차 스톨라 프로",
+  sale: "실리콘 이유식 식기 세트",
+};
+
+const BRIEF_ROWS: BriefRow[] = [
+  {
+    name: "오세린",
+    local: "serin.oh",
+    phone: "010-3150-2287",
+    date: "2026-05-19 10:02",
+    status: "active",
+    uses: ["rent"],
+    kids: 1,
+    lastVisit: "2026-09-15",
+  },
+  {
+    name: "문지호",
+    local: "jiho.moon",
+    phone: "010-7742-1093",
+    date: "2026-05-17 18:40",
+    status: "active",
+    uses: ["sale", "sale"],
+    kids: 2,
+    lastVisit: "2026-09-11",
+  },
+  {
+    name: "배하은",
+    local: "haeun.bae",
+    phone: "010-2209-6631",
+    date: "2026-05-11 09:27",
+    status: "active",
+    uses: [],
+    kids: 1,
+    lastVisit: "2026-08-29",
+  },
+  {
+    name: "신우진",
+    local: "woojin.shin",
+    phone: "010-9031-4478",
+    date: "2026-05-06 21:15",
+    status: "suspended",
+    uses: ["rent"],
+    kids: 1,
+    lastVisit: "2026-08-02",
+    reason: ["부정 결제 의심 — 카드사 확인 요청", "2026-08-03 11:05"],
+  },
+  {
+    name: "임채원",
+    local: "chaewon.lim",
+    phone: "010-5528-7710",
+    date: "2026-04-28 14:51",
+    status: "active",
+    uses: ["rent", "sale"],
+    kids: 2,
+    lastVisit: "2026-09-17",
+  },
+  {
+    name: "구민재",
+    local: "minjae.koo",
+    phone: "010-6617-3305",
+    date: "2026-04-22 08:36",
+    status: "dormant",
+    uses: ["sale"],
+    kids: 1,
+    lastVisit: "2025-04-20",
+  },
+  {
+    name: "황보라",
+    local: "bora.hwang",
+    phone: "010-4486-2251",
+    date: "2026-04-15 16:09",
+    status: "active",
+    uses: ["rent", "rent"],
+    kids: 1,
+    lastVisit: "2026-09-08",
+  },
+  {
+    name: "안지성",
+    local: "jisung.ahn",
+    phone: "010-3364-9182",
+    date: "2026-04-09 12:44",
+    status: "active",
+    uses: ["sale"],
+    kids: 3,
+    lastVisit: "2026-09-02",
+  },
+  {
+    name: "전소율",
+    local: "soyul.jeon",
+    phone: "010-8873-5546",
+    date: "2026-04-02 19:20",
+    status: "withdrawn",
+    uses: [],
+    kids: 1,
+    lastVisit: "2026-06-30",
+  },
+  {
+    name: "홍다인",
+    local: "dain.hong",
+    phone: "010-2795-6604",
+    date: "2026-03-27 10:58",
+    status: "active",
+    uses: ["rent"],
+    kids: 2,
+    lastVisit: "2026-09-14",
+  },
+  {
+    name: "고은찬",
+    local: "eunchan.ko",
+    phone: "010-7150-8829",
+    date: "2026-03-21 15:33",
+    status: "dormant",
+    uses: [],
+    kids: 1,
+    lastVisit: "2026-05-30",
+    reason: ["고객 요청 — 육아휴직 중 계정 보관", "2026-06-01 09:40"],
+  },
+  {
+    name: "남궁윤",
+    local: "yoon.namgung",
+    phone: "010-4021-3367",
+    date: "2026-03-14 11:07",
+    status: "active",
+    uses: ["sale", "rent"],
+    kids: 1,
+    lastVisit: "2026-09-16",
+  },
+  {
+    name: "서하준",
+    local: "hajun.seo",
+    phone: "010-6638-2149",
+    date: "2026-03-08 20:26",
+    status: "active",
+    uses: [],
+    kids: 2,
+    lastVisit: "2026-07-21",
+  },
+  {
+    name: "유가은",
+    local: "gaeun.yoo",
+    phone: "010-9254-7713",
+    date: "2026-02-27 13:12",
+    status: "active",
+    uses: ["rent"],
+    kids: 1,
+    lastVisit: "2026-09-10",
+  },
+  {
+    name: "조은우",
+    local: "eunwoo.cho",
+    phone: "010-3307-5590",
+    date: "2026-02-19 09:49",
+    status: "suspended",
+    uses: ["sale"],
+    kids: 2,
+    lastVisit: "2026-06-12",
+    reason: ["이용약관 위반 — 리뷰 어뷰징", "2026-06-13 17:22"],
+  },
+  {
+    name: "권나연",
+    local: "nayeon.kwon",
+    phone: "010-5591-0436",
+    date: "2026-02-11 17:38",
+    status: "active",
+    uses: ["sale"],
+    kids: 1,
+    lastVisit: "2026-09-05",
+  },
+  {
+    name: "장시우",
+    local: "siwoo.jang",
+    phone: "010-8127-6652",
+    date: "2026-02-03 08:15",
+    status: "active",
+    uses: ["rent", "rent", "sale"],
+    kids: 2,
+    lastVisit: "2026-09-18",
+  },
+  {
+    name: "윤서아",
+    local: "seoa.yoon",
+    phone: "010-2473-9918",
+    date: "2026-01-26 22:01",
+    status: "dormant",
+    uses: ["rent"],
+    kids: 1,
+    lastVisit: "2025-01-18",
+  },
+  {
+    name: "백도윤",
+    local: "doyoon.baek",
+    phone: "010-6962-3374",
+    date: "2026-01-18 10:30",
+    status: "active",
+    uses: [],
+    kids: 1,
+    lastVisit: "2026-08-24",
+  },
+  {
+    name: "차예준",
+    local: "yejun.cha",
+    phone: "010-4719-8805",
+    date: "2026-01-12 14:17",
+    status: "withdrawn",
+    uses: ["sale"],
+    kids: 2,
+    lastVisit: "2026-04-03",
+  },
+  {
+    name: "노하린",
+    local: "harin.noh",
+    phone: "010-3586-1127",
+    date: "2026-01-07 16:55",
+    status: "active",
+    uses: ["rent"],
+    kids: 1,
+    lastVisit: "2026-09-13",
+  },
+  {
+    name: "마준서",
+    local: "junseo.ma",
+    phone: "010-7804-4463",
+    date: "2026-01-03 09:08",
+    status: "active",
+    uses: ["sale"],
+    kids: 1,
+    lastVisit: "2026-09-07",
+  },
+];
+
+/** 간이 행 → 회원 레코드. 결제는 가입 다음 달 1일부터 한 달 간격으로 놓는다 */
+const toMember = (row: BriefRow, index: number): Member => {
+  const [year, month] = row.date.split("-").map(Number);
+  return {
+    id: `${row.local}@example.com`,
+    name: row.name,
+    phone: row.phone,
+    date: row.date,
+    kids: row.kids,
+    status: row.status,
+    gender: index % 3 === 0 ? "male" : "female",
+    birth: `199${index % 10}-0${(index % 9) + 1}-15`,
+    address: "서울 강남구 테헤란로 152",
+    lastVisit: row.lastVisit,
+    points: (index % 5) * 3000,
+    marketingOptIn: index % 2 === 0,
+    activeRents: 0,
+    statusReason: row.reason?.[0],
+    statusAt: row.reason?.[1],
+    payments: row.uses
+      .map((kind, i) => {
+        const at = new Date(year, month + i, 1);
+        const day = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-01`;
+        return {
+          orderNo: `${day.replace(/-/g, "")}${String(100000 + index * 10 + i)}`,
+          paidAt: `${day} 10:00`,
+          items: [{ kind, product: BRIEF_PRODUCTS[kind] }],
+          amount: kind === "rent" ? 148000 : 28000,
+          status: "paid" as const,
+        };
+      })
+      .reverse(),
+    children: Array.from({ length: row.kids }, (_, i) => ({
+      name: ["첫째", "둘째", "셋째"][i],
+      birth: `202${i + 1}-0${i + 3}-10`,
+      gender: i % 2 === 0 ? ("female" as const) : ("male" as const),
+    })),
+  };
+};
+
+const BRIEF_MEMBERS = BRIEF_ROWS.map(toMember);
+
 export const MEMBERS: Member[] = [
   {
     id: "sujin.park@example.com",
-    no: 8,
     name: "박수진",
     phone: "010-2841-7702",
     date: "2026-08-12 14:32",
@@ -193,47 +495,37 @@ export const MEMBERS: Member[] = [
     /* 원본 회원 상세의 결제 내역 5건을 그대로 옮겼다 (취소 1건 포함) */
     payments: [
       {
-        no: 5,
         orderNo: "20260629330571",
         paidAt: "2026-06-29 13:15",
-        kind: "rent",
-        product: "잘레토 전동 바운서 4세대",
+        items: [{ kind: "rent", product: "잘레토 전동 바운서 4세대" }],
         amount: 135000,
         status: "paid",
       },
       {
-        no: 4,
         orderNo: "20260627543127",
         paidAt: "2026-06-27 16:20",
-        kind: "sale",
-        product: "비접촉 체온계",
+        items: [{ kind: "sale", product: "비접촉 체온계" }],
         amount: 61000,
         status: "canceled",
       },
       {
-        no: 3,
         orderNo: "20260624231881",
         paidAt: "2026-06-24 10:10",
-        kind: "sale",
-        product: "비접촉 체온계",
+        items: [{ kind: "sale", product: "비접촉 체온계" }],
         amount: 32000,
         status: "paid",
       },
       {
-        no: 2,
         orderNo: "20260623493905",
         paidAt: "2026-06-23 13:10",
-        kind: "rent",
-        product: "잘레토 전동 바운서 4세대",
+        items: [{ kind: "rent", product: "잘레토 전동 바운서 4세대" }],
         amount: 135000,
         status: "paid",
       },
       {
-        no: 1,
         orderNo: "20260514104534",
         paidAt: "2026-05-14 14:18",
-        kind: "rent",
-        product: "원목 범퍼 아기침대",
+        items: [{ kind: "rent", product: "원목 범퍼 아기침대" }],
         amount: 84000,
         status: "paid",
       },
@@ -245,7 +537,6 @@ export const MEMBERS: Member[] = [
   },
   {
     id: "dohyun.kim@example.com",
-    no: 7,
     name: "김도현",
     phone: "010-5520-3318",
     date: "2026-08-10 09:18",
@@ -261,29 +552,23 @@ export const MEMBERS: Member[] = [
     /* 사서만 쓰는 회원 — 렌트 0 이라 목록 `이용` 열이 "구매 3" 만 낸다 */
     payments: [
       {
-        no: 3,
         orderNo: "20260902118430",
         paidAt: "2026-09-02 09:41",
-        kind: "sale",
-        product: "실리콘 이유식 식기 세트",
+        items: [{ kind: "sale", product: "실리콘 이유식 식기 세트" }],
         amount: 28000,
         status: "paid",
       },
       {
-        no: 2,
         orderNo: "20260818552017",
         paidAt: "2026-08-18 20:05",
-        kind: "sale",
-        product: "휴대용 젖병 소독기",
+        items: [{ kind: "sale", product: "휴대용 젖병 소독기" }],
         amount: 74000,
         status: "paid",
       },
       {
-        no: 1,
         orderNo: "20260811900264",
         paidAt: "2026-08-11 11:32",
-        kind: "sale",
-        product: "비접촉 체온계",
+        items: [{ kind: "sale", product: "비접촉 체온계" }],
         amount: 32000,
         status: "paid",
       },
@@ -292,7 +577,6 @@ export const MEMBERS: Member[] = [
   },
   {
     id: "haneul.lee@example.com",
-    no: 6,
     name: "이하늘",
     phone: "010-3377-9041",
     date: "2026-07-28 20:44",
@@ -309,20 +593,16 @@ export const MEMBERS: Member[] = [
     /* 빌려만 쓰는 회원 — 구매 0 이라 "렌트 2" 만 낸다 */
     payments: [
       {
-        no: 2,
         orderNo: "20260420773106",
         paidAt: "2026-04-20 15:47",
-        kind: "rent",
-        product: "원목 범퍼 아기침대",
+        items: [{ kind: "rent", product: "원목 범퍼 아기침대" }],
         amount: 84000,
         status: "paid",
       },
       {
-        no: 1,
         orderNo: "20260315204918",
         paidAt: "2026-03-15 10:22",
-        kind: "rent",
-        product: "접이식 아기 욕조",
+        items: [{ kind: "rent", product: "접이식 아기 욕조" }],
         amount: 39000,
         status: "paid",
       },
@@ -331,7 +611,6 @@ export const MEMBERS: Member[] = [
   },
   {
     id: "minseo.jung@example.com",
-    no: 5,
     name: "정민서",
     phone: "010-8814-2260",
     date: "2026-07-15 11:05",
@@ -344,40 +623,35 @@ export const MEMBERS: Member[] = [
     points: 0,
     marketingOptIn: false,
     activeRents: 2,
+    /* 운영자가 수동으로 정지한 회원 — 상세의 계정 상태에 «정지 사유» 줄이 나온다 */
+    statusReason: "반납 지연 반복 · 분쟁 3건 접수",
+    statusAt: "2026-08-30 15:20",
     payments: [
       {
-        no: 4,
         orderNo: "20260726611052",
         paidAt: "2026-07-26 18:03",
-        kind: "rent",
-        product: "3in1 유아 카시트",
+        items: [{ kind: "rent", product: "3in1 유아 카시트" }],
         amount: 162000,
         status: "paid",
       },
       {
-        no: 3,
         orderNo: "20260719338741",
         paidAt: "2026-07-19 12:55",
-        kind: "rent",
-        product: "디럭스 유모차 스톨라 프로",
+        items: [{ kind: "rent", product: "디럭스 유모차 스톨라 프로" }],
         amount: 148000,
         status: "paid",
       },
       {
-        no: 2,
         orderNo: "20260705129864",
         paidAt: "2026-07-05 09:12",
-        kind: "sale",
-        product: "실리콘 이유식 식기 세트",
+        items: [{ kind: "sale", product: "실리콘 이유식 식기 세트" }],
         amount: 28000,
         status: "canceled",
       },
       {
-        no: 1,
         orderNo: "20260628470335",
         paidAt: "2026-06-28 21:40",
-        kind: "rent",
-        product: "베드사이드 아기침대 슬립온",
+        items: [{ kind: "rent", product: "베드사이드 아기침대 슬립온" }],
         amount: 96000,
         status: "paid",
       },
@@ -390,7 +664,6 @@ export const MEMBERS: Member[] = [
   },
   {
     id: "yuna.choi@example.com",
-    no: 4,
     name: "최유나",
     phone: "010-6693-5518",
     date: "2026-06-30 16:27",
@@ -405,29 +678,31 @@ export const MEMBERS: Member[] = [
     activeRents: 0,
     payments: [
       {
-        no: 3,
         orderNo: "20260822905613",
         paidAt: "2026-08-22 14:08",
-        kind: "sale",
-        product: "휴대용 젖병 소독기",
-        amount: 74000,
+        /* 상품이 둘 — 상품명 칸이 «휴대용 젖병 소독기 외 1건» 이 된다 */
+        items: [
+          { kind: "sale", product: "휴대용 젖병 소독기" },
+          { kind: "sale", product: "실리콘 이유식 식기 세트" },
+        ],
+        amount: 102000,
         status: "paid",
       },
       {
-        no: 2,
         orderNo: "20260731662240",
         paidAt: "2026-07-31 17:26",
-        kind: "rent",
-        product: "잘레토 전동 바운서 4세대",
-        amount: 135000,
+        /* 렌트와 판매가 **한 주문에** 섞였다 — 구분 태그가 둘이고 [렌트]·[판매] 탭 양쪽에 나온다 */
+        items: [
+          { kind: "rent", product: "잘레토 전동 바운서 4세대" },
+          { kind: "sale", product: "비접촉 체온계" },
+        ],
+        amount: 167000,
         status: "paid",
       },
       {
-        no: 1,
         orderNo: "20260708341779",
         paidAt: "2026-07-08 10:50",
-        kind: "rent",
-        product: "접이식 아기 욕조",
+        items: [{ kind: "rent", product: "접이식 아기 욕조" }],
         amount: 39000,
         status: "paid",
       },
@@ -439,7 +714,6 @@ export const MEMBERS: Member[] = [
   },
   {
     id: "yerin.song@example.com",
-    no: 3,
     name: "송예린",
     phone: "010-2277-4416",
     date: "2026-08-05 13:40",
@@ -454,20 +728,16 @@ export const MEMBERS: Member[] = [
     activeRents: 1,
     payments: [
       {
-        no: 2,
         orderNo: "20260905228104",
         paidAt: "2026-09-05 19:14",
-        kind: "rent",
-        product: "3in1 유아 카시트",
+        items: [{ kind: "rent", product: "3in1 유아 카시트" }],
         amount: 162000,
         status: "paid",
       },
       {
-        no: 1,
         orderNo: "20260827715339",
         paidAt: "2026-08-27 13:02",
-        kind: "rent",
-        product: "원목 범퍼 아기침대",
+        items: [{ kind: "rent", product: "원목 범퍼 아기침대" }],
         amount: 84000,
         status: "paid",
       },
@@ -479,7 +749,6 @@ export const MEMBERS: Member[] = [
   },
   {
     id: "taeho.ryu@example.com",
-    no: 2,
     name: "류태호",
     phone: "010-6104-2285",
     date: "2026-07-31 10:12",
@@ -494,11 +763,9 @@ export const MEMBERS: Member[] = [
     activeRents: 0,
     payments: [
       {
-        no: 1,
         orderNo: "20260913087452",
         paidAt: "2026-09-13 08:36",
-        kind: "sale",
-        product: "비접촉 체온계",
+        items: [{ kind: "sale", product: "비접촉 체온계" }],
         amount: 32000,
         status: "paid",
       },
@@ -507,7 +774,6 @@ export const MEMBERS: Member[] = [
   },
   {
     id: "jiwoo.han@example.com",
-    no: 1,
     name: "한지우",
     phone: "010-4402-8873",
     date: "2026-05-22 08:51",
@@ -524,6 +790,7 @@ export const MEMBERS: Member[] = [
     payments: [],
     children: [{ name: "별이", birth: "2024-02-14", gender: "female" }],
   },
+  ...BRIEF_MEMBERS,
 ];
 
 /**
@@ -665,20 +932,104 @@ export const usageText = (member: Member) => {
  */
 export const countPayments = (member: Member, kind: PaymentKind) =>
   member.payments.filter(
-    (payment) => payment.kind === kind && payment.status === "paid",
+    (payment) =>
+      payment.status === "paid" &&
+      payment.items.some((item) => item.kind === kind),
   ).length;
 
-/**
- * 한 페이지에 보여줄 행 수.
- * 실서비스는 10·20·50·100(기본 10)이지만 **샘플이 6건뿐이라 페이징이 보이도록** 작게 잡았다.
- */
-export const PAGE_SIZE = 4;
+/** 한 페이지에 보여줄 행 수 — 원본 기본값 10 */
+export const PAGE_SIZE = 10;
+
+/** 페이지당 개수 후보 — 원본 표 하단의 셀렉트 */
+export const PAGE_SIZES = [10, 20, 50, 100];
+
+/* -------------------------------------------------------------------------
+ * 휴면·정지 사유 — 원본 C-3 ⓐ (2026-08-06 전이주체 판정)
+ *
+ * 목록 일괄과 상세 저장 **두 통로가 같은 게이트**를 지난다. 원본은 한때 목록만 사유를 받고
+ * 상세 [저장하기] 는 무사유로 통과했는데, 같은 처분이 통로에 따라 기록이 갈렸다.
+ * [정상] 으로 되돌리는 것은 사유를 받지 않는다.
+ * ---------------------------------------------------------------------- */
+
+export const needsReason = (next: MemberStatus) =>
+  next === "dormant" || next === "suspended";
+
+/** 사유 입력 모달 문구 — 원본 `modalView` 의 memstat 분기 그대로 */
+export const REASON_COPY = {
+  title: (next: MemberStatus, count: number) =>
+    `회원 ${STATUS_META[next].label} 사유 입력${count > 1 ? ` (${count}명)` : ""}`,
+  label: (next: MemberStatus) => `${STATUS_META[next].label} 사유`,
+  placeholder: (next: MemberStatus) =>
+    next === "dormant"
+      ? "휴면 전환 사유를 입력하세요 (예: 고객 요청, 장기 미접속 확인, 계정 보호 조치 등)"
+      : "정지 사유를 입력하세요 (예: 이용약관 위반, 부정 결제, 분쟁 다발 등)",
+  /* 휴면은 자동 전환이 원칙이라 수동 전환이 **예외**임을 문면으로 알린다(원본 #14) */
+  note: (next: MemberStatus) =>
+    next === "dormant"
+      ? "휴면은 12개월 미접속 시 자동 전환이 원칙이며, 어드민 수동 전환은 예외라 사유를 기록합니다. 회원이 다시 로그인하면 [정상]으로 돌아갑니다."
+      : "입력한 사유는 회원 상세에 기록되며, 확인 시 정지 회원이 됩니다.",
+  error: (next: MemberStatus) =>
+    `${STATUS_META[next].label} 사유를 입력해주세요.`,
+  confirm: (next: MemberStatus) => `${STATUS_META[next].label} 처리`,
+};
+
+/* -------------------------------------------------------------------------
+ * 데모 저장소 — 목록과 상세가 **같은 회원 상태**를 본다
+ *
+ * 실 API 를 붙이면 이 블록이 조회·변경 호출로 바뀐다. 지금은 메모리에만 있어
+ * 화면을 오가도 남고 **새로고침하면 처음으로 돌아간다.**
+ * `MEMBERS` 는 고치지 않는다 — 바뀐 회원만 새 객체로 갈아 끼운다.
+ * ---------------------------------------------------------------------- */
+
+let current = MEMBERS;
+const listeners = new Set<() => void>();
+
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+};
+
+const publish = (next: Member[]) => {
+  current = next;
+  listeners.forEach((listener) => listener());
+};
+
+/** 지금의 회원 목록 — 상태가 바뀌면 다시 그린다 */
+export const useMembers = () => useSyncExternalStore(subscribe, () => current);
+
+/** `YYYY-MM-DD HH:mm` — 처리 일시 */
+const stamp = (at: Date) => {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(at.getHours())}:${pad(at.getMinutes())}`;
+};
 
 /**
- * 페이지당 개수 후보 — 원본 표 하단의 셀렉트(기본 10개).
- * 맨 앞 4는 **샘플 전용**이다(6건뿐이라 10이면 페이지네이션이 한 장으로 접힌다).
+ * 상태를 바꾼다. 휴면·정지면 사유와 처리 일시를 함께 남기고, 정상이면 지운다.
+ * **자격 판정은 하지 않는다** — 부르는 쪽이 `canChangeStatus`·`canSleep` 으로 거른 뒤 넘긴다.
  */
-export const PAGE_SIZES = [4, 10, 20, 50];
+export const changeMemberStatus = (
+  ids: string[],
+  next: MemberStatus,
+  reason?: string,
+  at = new Date(),
+) =>
+  publish(
+    current.map((member) =>
+      ids.includes(member.id)
+        ? {
+            ...member,
+            status: next,
+            statusReason: reason,
+            statusAt: reason ? stamp(at) : undefined,
+          }
+        : member,
+    ),
+  );
+
+/** 테스트용 — 처음 상태로 */
+export const resetMembers = () => publish(MEMBERS);
 
 /* -------------------------------------------------------------------------
  * 검색조건 요약 — 접힌 `FilterBar` 한 줄에 들어가는 글자
@@ -724,4 +1075,38 @@ export const filterSummary = ({
   if (keyword.trim() !== "") parts.push(`${fieldLabel} «${keyword.trim()}»`);
 
   return parts.length > 0 ? parts.join(" · ") : NO_FILTER_TEXT;
+};
+
+/* -------------------------------------------------------------------------
+ * 엑셀 다운로드 — 원본 `exportCsv` (`회원관리_N건.csv`)
+ *
+ * 열은 표와 같다(체크박스·관리 빼고). 원본 규칙대로 화면에서 "없음"을 뜻하는 `-` 는
+ * **빈 칸**으로 낸다 — 엑셀에서는 대시가 값처럼 보인다.
+ * ---------------------------------------------------------------------- */
+
+export const EXPORT_NAME = "회원관리";
+
+export const EXPORT_HEAD = [
+  "No",
+  "이름",
+  "아이디(이메일)",
+  "연락처",
+  "가입일",
+  "자녀",
+  "상태",
+  "이용",
+];
+
+export const exportRow = (member: Member, no: number) => {
+  const usage = usageText(member);
+  return [
+    no,
+    member.name,
+    member.id,
+    member.phone,
+    ymd(member.date),
+    people(member.kids),
+    STATUS_META[member.status].label,
+    usage === "-" ? "" : usage,
+  ];
 };

@@ -70,7 +70,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * 운영 정보   ← 수수료율(%) · 위생인증 · 입점일 · 등록 상품수 · 평점
  * 등록 상품 (N) ← 표(No · 유형 · 판매 상태 · 상품코드 · 상품명 · 카테고리 ·
  *                     상품등록일 · 최종수정일 · 전시상태)
- * [목록]                                   [저장하기] [취소]   ← 하단 액션 바
+ * [목록]                                   [취소] [저장하기]   ← 하단 액션 바 (화면 아래 고정)
  * ```
  * 섹션은 접을 수 있다(원본도 섹션마다 접기 버튼이 있다).
  *
@@ -265,13 +265,6 @@ export function SellerDetailPage({
     (commission !== String(seller.commission ?? "") ||
       hygiene !== hygieneValue(seller.hygiene) ||
       scope !== seller.dealScope);
-
-  const reset = () => {
-    setCommission(seller.commission === null ? "" : String(seller.commission));
-    setHygiene(hygieneValue(seller.hygiene));
-    setScope(seller.dealScope);
-    setTouched(false);
-  };
 
   const save = () => {
     setTouched(true);
@@ -490,16 +483,17 @@ export function SellerDetailPage({
       </Section>
 
       {/*
-        하단 액션 바 (원본). 좌측은 되돌아가는 길, 우측은 이 화면에서 하는 일이다.
-        [취소] 는 **고친 것을 되돌릴 뿐** 화면을 떠나지 않는다 — 떠나는 것은 [목록] 이다.
+        하단 액션 바 (원본 `nv-bar`). 좌측은 되돌아가는 길, 우측은 이 화면에서 하는 일이다.
+        원본처럼 **화면 아래에 붙는다**(회원 상세와 같다 — `bottom-6` = 본문 아래 여백).
+        [취소] 는 원본대로 **저장하지 않고 목록으로** 간다(`nav(listScr)`).
       */}
-      <Card variant="soft">
+      <Card variant="soft" className="sticky bottom-6 z-10">
         <div className="flex items-center justify-between gap-2">
           <Button variant="secondary" onClick={() => onNavSelect(LIST_PATH)}>
             목록
           </Button>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" disabled={!changed} onClick={reset}>
+            <Button variant="secondary" onClick={() => onNavSelect(LIST_PATH)}>
               취소
             </Button>
             <Button disabled={!changed} onClick={save}>
