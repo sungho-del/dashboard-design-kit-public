@@ -93,6 +93,7 @@ const INCLUDE = [
   "eslint.config.js",
   "style-dictionary.config.mjs",
   "vercel.json",
+  "LICENSE",
   "tokens",
   "public/fonts",
   "src/main.tsx",
@@ -146,7 +147,14 @@ const TRANSFORMS = {
     ['  ...storybook.configs["flat/recommended"],\n', ""],
     [/\{ ignores: \[[^\]]*\] \}/g, '{ ignores: ["dist"] }'],
   ],
-  "src/styles/tokens.css": [[/^@source "\.\.\/\.\.\/\.storybook";.*\n/gm, ""]],
+  /* 전달본에 없는 문서(CLAUDE.md)를 근거로 가리키는 주석은 README §3 으로 돌린다 */
+  "src/styles/tokens.css": [
+    [/^@source "\.\.\/\.\.\/\.storybook";.*\n/gm, ""],
+    ['CLAUDE.md "토큰 사용"', "README §3"],
+  ],
+  "src/pages/babycube/DashboardPage.tsx": [
+    ["(CLAUDE.md · Clay 아이콘 규격)", "(Clay 아이콘 규격 · README §3)"],
+  ],
   "src/App.tsx": [
     [
       /^import \{[^}]*\} from "\.\/pages\/(ClinicStatusPage|DashboardPage|OrderDetailPage|OrderListPage|PatientFormPage|ProductFormPage|ReservationDetailPage|ReservationListPage|routes|classon\/\w+)";\n/gm,
