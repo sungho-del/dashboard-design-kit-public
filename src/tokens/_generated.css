@@ -169,6 +169,7 @@
   --z-modal: 10000;
   --z-toast: 11000;
   --shadow-none: 0px 0px 0px 0px rgba(75, 81, 91, 0);
+  --shadow-xsmall: 0px 1px 2px 0px rgba(75, 81, 91, 0.06); /** 대시보드 soft 카드(Card variant=soft) 전용. shadcn shadow-xs 수준 — 면을 띄우지 않고 경계만 부드럽게 한다. 그림자 색은 다른 토큰과 같은 slate(75,81,91) */
   --shadow-popover: 0px 2px 10px 0px rgba(75, 81, 91, 0.1), 0px 0px 2px 0px rgba(75, 81, 91, 0.2);
   --shadow-page-side: 0px 0px 24px 0px rgba(75, 81, 91, 0.04), -1px 0px 0px 0px rgba(75, 81, 91, 0.04), 0px 0px 12px 0px rgba(75, 81, 91, 0.04);
   --shadow-card: 10px 20px 30px 0px rgba(75, 81, 91, 0.12);

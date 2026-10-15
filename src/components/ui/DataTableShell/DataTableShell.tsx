@@ -85,9 +85,31 @@ export interface DataTableShellProps extends HTMLAttributes<HTMLElement> {
    * 좌측과 같은 오해가 오른쪽에서도 생긴다. `scrollLeadWidth` 와 함께 쓴다.
    */
   scrollTrailWidth?: number;
+  /**
+   * 표면. 기본 `flat` — radius 8 + 보더 (지금까지의 셸).
+   * `soft` 는 `Card variant="soft"` 와 같은 층이다 — radius 12 + `shadow-xsmall`.
+   * **한 화면에서 Card 와 셸의 variant 를 섞지 말 것** — 면이 두 종류로 읽힌다.
+   */
+  variant?: DataTableShellVariant;
+  /**
+   * 남는 세로 공간을 표가 흡수한다. 셸이 세로 flex 가 되고 **표 래퍼만** 늘어나
+   * 푸터(페이지네이션)가 항상 맨 아래에 붙는다.
+   *
+   * ⚠️ 부모가 세로 flex 이고 높이가 정해져 있어야 한다(`AppShell` 본문에서 `flex-1`).
+   * 행이 많으면 표 래퍼 안에서 세로 스크롤이 생기므로 `TableHead stickyHead` 와 함께 쓴다.
+   */
+  fill?: boolean;
   /** 스크롤 위치 제어·측정용. React 19는 ref를 일반 prop으로 받는다 */
   ref?: Ref<HTMLElement>;
 }
+
+export type DataTableShellVariant = "flat" | "soft";
+
+/** radius·그림자를 분기마다 한 번씩만 방출한다 (cn() 은 병합하지 않는다) */
+const surfaceClasses: Record<DataTableShellVariant, string> = {
+  flat: "rounded-medium after:rounded-medium",
+  soft: "rounded-large shadow-xsmall after:rounded-large",
+};
 
 /**
  * 목록 화면의 표준 골격. (DESIGN.md §7-1 테이블 셸)
@@ -124,6 +146,8 @@ export function DataTableShell({
   footer,
   loadMore,
   bodyClassName = "",
+  variant = "flat",
+  fill = false,
   scrollLeadWidth,
   scrollTrailWidth = 0,
   className = "",
@@ -203,11 +227,25 @@ export function DataTableShell({
     <section
       ref={ref}
       data-table-shell
+      data-variant={variant === "flat" ? undefined : variant}
       className={cn(
-        "relative overflow-hidden rounded-medium bg-surface",
+        "relative overflow-hidden bg-surface",
+        /*
+          radius 와 그림자는 **분기마다 한 번씩만** 방출한다 — `cn()` 은 병합하지
+          않으므로 `rounded-medium` 과 `rounded-large` 가 함께 나가면 승자를
+          스타일시트 순서가 정한다. 경계선 오버레이의 radius 도 같이 따라가야
+          모서리에서 선이 어긋나지 않는다.
+        */
+        surfaceClasses[variant],
+        /*
+          `fill` — 남는 세로 공간을 표가 흡수한다(큰 화면에서 페이지 아래가 비지 않게).
+          셸을 세로 flex 로 만들고 **표 래퍼만** 늘린다. 그래야 툴바·푸터는 제 높이를
+          지키고 페이지네이션이 항상 카드 맨 아래에 붙는다.
+        */
+        fill && "flex flex-col",
         // 경계선 오버레이. sticky thead(z-2)보다 위여야 헤더 구간도 이어진다.
         "after:pointer-events-none after:absolute after:inset-0 after:z-3 after:content-['']",
-        "after:rounded-medium after:outline-1 after:-outline-offset-1 after:outline-border",
+        "after:outline-1 after:-outline-offset-1 after:outline-border",
         className,
       )}
       {...props}
@@ -252,6 +290,12 @@ export function DataTableShell({
         aria-busy={isLoading || undefined}
         className={cn(
           "w-full overflow-auto",
+          /*
+            `fill` 일 때만 늘어난다. `min-h-0` 이 필수다 — flex 자식의 기본
+            `min-height:auto` 는 **내용보다 작아지지 않아서**, 행이 많으면 셸이
+            화면 밖으로 넘치고 푸터가 따라 내려간다(스크롤이 여기서 안 생긴다).
+          */
+          fill && "min-h-0 flex-1",
           /* 프록시 바를 쓸 때는 표 자신의 가로 스크롤바를 감춘다 — 바가 둘이면 안 된다.
              세로 스크롤(sticky 헤더 화면)은 그대로 남는다 */
           proxyOn && "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",

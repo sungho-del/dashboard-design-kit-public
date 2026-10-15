@@ -7,7 +7,22 @@ import type {
 } from "react";
 import { cn } from "../../../lib/cn";
 
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+export type InputSize = "medium" | "small";
+
+export interface InputProps extends Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  "size"
+> {
+  /**
+   * 컨트롤 높이. 기본 `medium`(40) — 폼의 기본값이다.
+   *
+   * `small`(32)은 **표 셀 안**처럼 행 높이(48) 안에 들어가야 하는 자리에만 쓴다
+   * (예: 셀러 관리의 수수료율 인라인 수정). 최소 폭도 함께 풀린다 —
+   * `medium` 의 `min-width: 240` 은 셀을 밀어내 표 레이아웃을 깨뜨린다.
+   *
+   * ⚠️ 네이티브 `size` 속성(글자 수 기준 폭)은 **가린다.** 폭은 `className` 으로 준다.
+   */
+  size?: InputSize;
   /** 필드 앞(좌측)에 붙는 아이콘 슬롯. 아이콘 라이브러리에 의존하지 않는다 */
   leftIcon?: ReactNode;
   /** 필드 뒤(우측)에 붙는 아이콘 슬롯 */
@@ -36,11 +51,21 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
  */
 const fieldBaseClasses = cn(
   "flex items-center",
-  // 필드: height 40 · min-width 240 · padding 0 12 · gap 8
-  "h-(--size-control-medium) min-w-60 gap-2 px-3",
-  "rounded-medium",
+  "gap-2 rounded-medium",
   "transition-[background-color] duration-100 ease-out",
 );
+
+/**
+ * 높이·최소폭·좌우 패딩은 **크기 분기에서 한 번씩만** 방출한다 —
+ * `cn()` 은 병합하지 않으므로 base 에서 내보내고 분기에서 덮으면
+ * 승자를 스타일시트 순서가 정한다.
+ */
+const fieldSizeClasses: Record<InputSize, string> = {
+  // 필드: height 40 · min-width 240 · padding 0 12 (§5)
+  medium: "h-(--size-control-medium) min-w-60 px-3",
+  // 표 셀용: height 32 · 최소폭 없음 · padding 0 8
+  small: "h-(--size-control-small) min-w-0 px-2",
+};
 
 /** 포커스: 2px / offset -2 / focus 색. hover 상태에서도 유지된다 */
 const fieldFocusClasses = cn(
@@ -51,6 +76,7 @@ const fieldFocusClasses = cn(
 export function Input({
   leftIcon,
   rightIcon,
+  size = "medium",
   invalid = false,
   disabled = false,
   className = "",
@@ -64,6 +90,7 @@ export function Input({
       data-invalid={invalid || undefined}
       className={cn(
         fieldBaseClasses,
+        fieldSizeClasses[size],
         // 배경·경계선은 상태별로 **한 번씩만** 방출한다.
         // cn() 은 클래스를 병합하지 않으므로 base 에서 bg/outline 을 먼저 내보내고
         // disabled 에서 덮으려 하면 명시도가 같아(둘 다 (0,1,0)) 스타일시트 순서가

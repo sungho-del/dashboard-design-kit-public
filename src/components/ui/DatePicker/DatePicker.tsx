@@ -368,6 +368,18 @@ export interface DatePickerSingleProps extends DatePickerBaseProps {
   placeholder?: string;
 }
 
+/**
+ * 기간 빠른 선택 한 항목 (원본 어드민의 "오늘 · 1주일 · 1개월 … 전체").
+ *
+ * **어휘도 계산도 도메인이라 사용처가 들고 온다** — 부품은 "오늘"이 며칠부터인지,
+ * 이 서비스가 오늘을 포함하는지 모른다. `getRange()` 가 `undefined` 를 돌려주면
+ * 기간을 **해제**한다("전체").
+ */
+export interface DatePickerPreset {
+  label: string;
+  getRange: () => DateRange | undefined;
+}
+
 export interface DatePickerRangeProps extends DatePickerBaseProps {
   mode: "range";
   /** 선택된 기간 (제어형) */
@@ -377,6 +389,13 @@ export interface DatePickerRangeProps extends DatePickerBaseProps {
   startPlaceholder?: string;
   /** 종료일이 없을 때의 문구 */
   endPlaceholder?: string;
+  /**
+   * 달력 왼쪽에 붙는 빠른 선택 목록. **기간 모드 전용**이다.
+   *
+   * 누르면 기간이 정해지므로 **패널을 닫는다** — 날짜를 두 번 고르는 흐름과 달리
+   * 한 번으로 끝나고, 열어 둘 이유가 없다.
+   */
+  presets?: DatePickerPreset[];
 }
 
 export type DatePickerProps = DatePickerSingleProps | DatePickerRangeProps;
@@ -469,6 +488,7 @@ export function DatePicker(props: DatePickerProps) {
   const isRange = props.mode === "range";
   const rangeValue = props.mode === "range" ? props.value : undefined;
   const onRangeChange = props.mode === "range" ? props.onChange : undefined;
+  const presets = props.mode === "range" ? props.presets : undefined;
   const singleValue = props.mode === "range" ? undefined : props.value;
   const onSingleChange = props.mode === "range" ? undefined : props.onChange;
   const startPlaceholder =
@@ -522,6 +542,53 @@ export function DatePicker(props: DatePickerProps) {
     />
   );
 
+  /*
+    빠른 선택 목록 — 달력 **왼쪽 열**이다.
+
+    위에 가로로 늘어놓으면 7항목이 달력(1개월 기준 약 300)보다 넓어져 패널이
+    가로로 벌어지고, 달력과 목록이 같은 축에서 경쟁한다. 왼쪽 열로 두면
+    "좁히는 수단(빠른 선택) → 고르는 수단(달력)" 순으로 읽힌다.
+    항목 높이는 컨트롤 최소 단(28)에 맞춘다 — 7개가 달력 높이 안에 들어간다.
+  */
+  const presetList =
+    isRange && presets && presets.length > 0 ? (
+      <ul
+        aria-label="기간 빠른 선택"
+        /*
+          좌측 패딩 20 은 **패널이 주지 않는다** — `panelBaseClasses` 는 세로 패딩만
+          갖고 좌우는 달력이 스스로 `px-5` 로 낸다(`monthsBaseClasses`). 목록에도
+          같은 20 을 줘야 패널 가장자리에 글자가 붙지 않는다.
+          오른쪽은 구분선까지 16 — 구분선과 달력 사이는 달력의 `px-5` 가 맡는다.
+        */
+        className="flex w-25 shrink-0 flex-col gap-1 border-r border-divide pr-4 pl-5"
+      >
+        {presets.map((preset) => (
+          <li key={preset.label}>
+            <button
+              type="button"
+              onClick={() => {
+                onRangeChange?.(preset.getRange());
+                setOpen(false);
+              }}
+              className="flex h-7 w-full cursor-pointer items-center rounded-small px-2 body-small text-text-sub transition-colors duration-100 ease-out hover:bg-surface-sub hover:text-text focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+            >
+              {preset.label}
+            </button>
+          </li>
+        ))}
+      </ul>
+    ) : null;
+
+  /** 달력 본체 — 빠른 선택이 있으면 왼쪽 열과 나란히 놓는다 */
+  const panelContent = presetList ? (
+    <div className="flex">
+      {presetList}
+      {calendar}
+    </div>
+  ) : (
+    calendar
+  );
+
   /* ── 인라인형 — 트리거도 부유도 없다 (radius 0 · 그림자 없음) ── */
   if (inline) {
     return (
@@ -531,7 +598,7 @@ export function DatePicker(props: DatePickerProps) {
         data-slot="panel"
         className={cn(panelBaseClasses, "rounded-none", className)}
       >
-        {calendar}
+        {panelContent}
       </div>
     );
   }
@@ -634,7 +701,7 @@ export function DatePicker(props: DatePickerProps) {
                 "z-(--z-modal) rounded-large shadow-layer",
               )}
             >
-              {calendar}
+              {panelContent}
             </div>
           </FloatingFocusManager>
         </FloatingPortal>

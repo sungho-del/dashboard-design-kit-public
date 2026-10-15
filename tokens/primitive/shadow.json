@@ -4,6 +4,11 @@
       "value": "0px 0px 0px 0px rgba(75, 81, 91, 0)",
       "type": "boxShadow"
     },
+    "xsmall": {
+      "value": "0px 1px 2px 0px rgba(75, 81, 91, 0.06)",
+      "type": "boxShadow",
+      "comment": "대시보드 soft 카드(Card variant=soft) 전용. shadcn shadow-xs 수준 — 면을 띄우지 않고 경계만 부드럽게 한다. 그림자 색은 다른 토큰과 같은 slate(75,81,91)"
+    },
     "popover": {
       "value": "0px 2px 10px 0px rgba(75, 81, 91, 0.1), 0px 0px 2px 0px rgba(75, 81, 91, 0.2)",
       "type": "boxShadow"

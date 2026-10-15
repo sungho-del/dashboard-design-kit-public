@@ -88,6 +88,44 @@ export const Range: Story = {
   render: () => <ControlledRange />,
 };
 
+/**
+ * `presets` — 기간 빠른 선택. 달력 **왼쪽 열**에 붙는다(shadcn date picker 패턴).
+ *
+ * 어휘와 계산은 **사용처가 들고 온다** — 부품은 "1개월"이 며칠부터인지 모른다.
+ * `getRange()` 가 `undefined` 를 돌려주면 기간을 해제한다(아래 "전체").
+ * 한 번 누르면 기간이 정해지므로 패널이 닫힌다.
+ */
+export const RangeWithPresets: Story = {
+  render: function RangeWithPresetsStory() {
+    const [value, setValue] = useState<DateRange | undefined>(undefined);
+
+    /** 오늘을 포함해 N일 전까지 — 포함 범위라 N-1 을 뺀다 */
+    const lastDays = (days: number) => {
+      const to = new Date();
+      const from = new Date();
+      from.setDate(from.getDate() - (days - 1));
+      return { from, to };
+    };
+
+    return (
+      <DatePicker
+        mode="range"
+        value={value}
+        onChange={setValue}
+        startPlaceholder="가입일 시작"
+        endPlaceholder="가입일 종료"
+        presets={[
+          { label: "오늘", getRange: () => lastDays(1) },
+          { label: "1주일", getRange: () => lastDays(7) },
+          { label: "1개월", getRange: () => lastDays(30) },
+          { label: "3개월", getRange: () => lastDays(90) },
+          { label: "전체", getRange: () => undefined },
+        ]}
+      />
+    );
+  },
+};
+
 /** 두 달을 나란히. 월 간격이 24 → 32 로 넓어진다 (DESIGN.md §17) */
 export const TwoMonths: Story = {
   render: () => <ControlledRange numberOfMonths={2} />,

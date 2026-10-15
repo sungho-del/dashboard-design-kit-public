@@ -8,6 +8,7 @@ import {
   type TdHTMLAttributes,
   type ThHTMLAttributes,
 } from "react";
+import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 import { cn } from "../../../lib/cn";
 
 export type TableAlign = "left" | "center" | "right";
@@ -279,22 +280,54 @@ export function TableRow({
   );
 }
 
+/** 정렬 방향. 정렬 중이 아닌 열은 `undefined` 다 */
+export type TableSortDirection = "asc" | "desc";
+
 export interface TableThProps extends ThHTMLAttributes<HTMLTableCellElement> {
   align?: TableAlign;
   /** 세로 구분선을 이 셀에서만 켜고 끈다. 기본은 Table의 `dividers` */
   divider?: boolean;
+  /**
+   * 정렬 가능한 열. 헤더 글자가 **버튼**이 되고 방향 아이콘이 붙는다.
+   *
+   * ⚠️ **정렬은 컴포넌트가 하지 않는다.** 방향을 받아 그리고 클릭을 알릴 뿐이라,
+   * 다음 방향·정렬 규칙(한글 로케일·빈 값 처리)은 호출부가 정한다. 표가 자체 상태를
+   * 가지면 서버 정렬·페이지네이션과 어긋난다.
+   */
+  sortable?: boolean;
+  /** 이 열의 현재 방향. 없으면 "정렬되지 않음"(`aria-sort="none"`) */
+  sortDirection?: TableSortDirection;
+  /** 헤더를 눌렀을 때. 다음 방향은 호출부가 계산한다 */
+  onSort?: () => void;
   children?: ReactNode;
   ref?: Ref<HTMLTableCellElement>;
 }
+
+const ariaSortFor = (direction?: TableSortDirection) =>
+  direction === "asc"
+    ? "ascending"
+    : direction === "desc"
+      ? "descending"
+      : "none";
 
 /**
  * 헤더 셀. 타이포는 레거시 13/500에 가장 가까운 `body-small-bold`를 쓴다.
  * `bg-surface`를 th에도 주는 이유는 sticky 헤더에서 thead 배경만으로는
  * 본문이 비쳐 보이는 브라우저가 있기 때문이다.
+ *
+ * ## 정렬 (`sortable`)
+ * 정렬 상태는 **두 채널**로 전달한다 — 아이콘(방향)과 `aria-sort`(스크린리더).
+ * 정렬 중이 아닌 열에도 `ChevronsUpDown` 을 옅게 남겨 **"이 열은 누를 수 있다"** 를
+ * 눌러보지 않고도 알린다(shadcn data-table 헤더와 같은 어포던스).
+ * 클릭 대상은 `th` 전체가 아니라 **버튼**이다 — 셀 여백을 누른 것까지 정렬로 받으면
+ * 표를 훑다가 의도치 않게 순서가 바뀐다.
  */
 export function TableTh({
   align = "left",
   divider: dividerProp,
+  sortable = false,
+  sortDirection,
+  onSort,
   className = "",
   children,
   scope = "col",
@@ -304,10 +337,18 @@ export function TableTh({
   const { dividers, stickyHead } = useContext(TableContext);
   const divider = dividerProp ?? dividers;
 
+  const SortIcon =
+    sortDirection === "asc"
+      ? ArrowUp
+      : sortDirection === "desc"
+        ? ArrowDown
+        : ChevronsUpDown;
+
   return (
     <th
       ref={ref}
       scope={scope}
+      aria-sort={sortable ? ariaSortFor(sortDirection) : undefined}
       className={cn(
         cellBaseClasses,
         "bg-surface whitespace-nowrap body-small-bold text-text-sub",
@@ -317,7 +358,30 @@ export function TableTh({
       )}
       {...props}
     >
-      {children}
+      {sortable ? (
+        <button
+          type="button"
+          onClick={onSort}
+          className="group inline-flex cursor-pointer items-center gap-1 rounded-small transition-colors duration-100 ease-out hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        >
+          {children}
+          {/*
+            방향 아이콘. 정렬 중인 열만 진하게 — 나머지는 `icon-minimal` 로 눌러
+            "누를 수 있다"만 알린다. 아이콘은 `aria-hidden` 이고 뜻은 `aria-sort` 가 든다.
+          */}
+          <SortIcon
+            size={16}
+            strokeWidth={1.2}
+            aria-hidden
+            className={cn(
+              "shrink-0 transition-colors duration-100",
+              sortDirection ? "text-icon" : "text-icon-minimal",
+            )}
+          />
+        </button>
+      ) : (
+        children
+      )}
     </th>
   );
 }

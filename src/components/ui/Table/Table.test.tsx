@@ -364,3 +364,105 @@ describe("Table", () => {
     });
   });
 });
+
+/* -------------------------------------------------------------------------
+ * TableTh — 정렬 (원본 어드민의 `sortable` 열)
+ * ---------------------------------------------------------------------- */
+
+describe("TableTh 정렬", () => {
+  const renderHead = (props: Parameters<typeof TableTh>[0] = {}) =>
+    render(
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableTh {...props}>가입일</TableTh>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          <TableRow>
+            <TableTd>2026.08.12</TableTd>
+          </TableRow>
+        </TableBody>
+      </Table>,
+    );
+
+  it("기본 헤더는 버튼도 aria-sort 도 만들지 않는다", () => {
+    renderHead();
+
+    const th = screen.getByRole("columnheader", { name: "가입일" });
+    expect(th).not.toHaveAttribute("aria-sort");
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("sortable 이면 글자가 버튼이 되고 aria-sort=none 으로 시작한다", () => {
+    renderHead({ sortable: true });
+
+    expect(
+      screen.getByRole("columnheader", { name: "가입일" }),
+    ).toHaveAttribute("aria-sort", "none");
+    expect(screen.getByRole("button", { name: "가입일" })).toBeInTheDocument();
+  });
+
+  /** 상태는 아이콘(시각)과 aria-sort(스크린리더) 두 채널로 간다 */
+  it("방향을 주면 aria-sort 와 아이콘이 함께 바뀐다", () => {
+    const { rerender } = renderHead({ sortable: true, sortDirection: "asc" });
+
+    const th = () => screen.getByRole("columnheader", { name: "가입일" });
+    expect(th()).toHaveAttribute("aria-sort", "ascending");
+    expect(th().querySelector(".lucide-arrow-up")).not.toBeNull();
+
+    rerender(
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableTh sortable sortDirection="desc">
+              가입일
+            </TableTh>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          <TableRow>
+            <TableTd>2026.08.12</TableTd>
+          </TableRow>
+        </TableBody>
+      </Table>,
+    );
+
+    expect(th()).toHaveAttribute("aria-sort", "descending");
+    expect(th().querySelector(".lucide-arrow-down")).not.toBeNull();
+    expect(th().querySelector(".lucide-arrow-up")).toBeNull();
+  });
+
+  it("정렬 중이 아닌 열에도 눌릴 수 있다는 표식을 남긴다", () => {
+    renderHead({ sortable: true });
+
+    const idle = screen
+      .getByRole("columnheader", { name: "가입일" })
+      .querySelector(".lucide-chevrons-up-down");
+    expect(idle).not.toBeNull();
+    // 정렬 중인 열보다 눌러 둔다 — 어포던스일 뿐 상태가 아니다
+    expect(idle?.getAttribute("class")).toContain("text-icon-minimal");
+  });
+
+  it("헤더를 누르면 onSort 를 부른다 — 다음 방향은 호출부가 정한다", async () => {
+    const onSort = vi.fn();
+    const user = userEvent.setup();
+    renderHead({ sortable: true, onSort });
+
+    await user.click(screen.getByRole("button", { name: "가입일" }));
+    expect(onSort).toHaveBeenCalledTimes(1);
+  });
+
+  /*
+   * 셀 여백까지 클릭 대상이면 표를 훑다가 순서가 바뀐다.
+   * 그래서 th 자체에는 핸들러를 달지 않는다.
+   */
+  it("클릭 대상은 th 전체가 아니라 버튼이다", async () => {
+    const onSort = vi.fn();
+    const user = userEvent.setup();
+    renderHead({ sortable: true, onSort });
+
+    await user.click(screen.getByRole("columnheader", { name: "가입일" }));
+    expect(onSort).not.toHaveBeenCalled();
+  });
+});

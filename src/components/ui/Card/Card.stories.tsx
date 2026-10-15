@@ -13,6 +13,7 @@ const meta = {
   tags: ["autodocs"],
   argTypes: {
     elevated: { control: "boolean" },
+    variant: { control: "inline-radio", options: ["flat", "soft"] },
   },
   parameters: {
     docs: {
@@ -78,7 +79,7 @@ export const Elevated: Story = {
   ),
 };
 
-/** 기본 vs elevated 비교 */
+/** 기본 vs elevated 비교 (soft 는 위 `Soft` 스토리) */
 export const Elevation: Story = {
   render: () => (
     <div className="flex flex-col gap-8 bg-bg p-6">
@@ -96,6 +97,38 @@ export const Elevation: Story = {
           <p className="body-medium text-text-sub">
             떠 있는 패널·강조 배너에만 씁니다.
           </p>
+        </CardBody>
+      </Card>
+    </div>
+  ),
+};
+
+/**
+ * `variant="soft"` — **대시보드 전용.** shadcn 대시보드(SectionCards)의 표면을 Clay 토큰으로 옮겼다:
+ * 흰 면 + `shadow-xsmall` + radius 12.
+ *
+ * ⚠️ 원본의 세로 그라디언트(`from-primary/5`)는 **뺐다.** 바닥이 안쪽 회색 항목 상자보다 짙어져
+ * 카드 중간에서 항목 경계가 사라졌다 — shadcn 카드에는 회색 상자가 없어서 성립하던 장식이다.
+ */
+export const Soft: Story = {
+  args: { variant: "soft" },
+  render: (args) => (
+    <div className="bg-bg p-6">
+      <Card {...args} className="w-120">
+        <CardHeader title="매출 지표" />
+        <CardBody>
+          <div className="flex flex-col gap-2">
+            {["입점사 거래액(정가)", "지급 예정 총액", "본사 수수료 수익"].map(
+              (label) => (
+                <div
+                  key={label}
+                  className="rounded-medium bg-surface-sub px-4 py-3 body-medium text-text-sub"
+                >
+                  {label}
+                </div>
+              ),
+            )}
+          </div>
         </CardBody>
       </Card>
     </div>

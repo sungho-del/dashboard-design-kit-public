@@ -11,6 +11,7 @@ export type {
   TableHeadProps,
   TableBodyProps,
   TableRowProps,
+  TableSortDirection,
   TableThProps,
   TableTdProps,
   TableAlign,

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DatePicker, type DateRange } from "./DatePicker";
 
@@ -284,5 +284,108 @@ describe("DatePicker", () => {
     await userEvent.click(screen.getByRole("button", { name: /다음 달/ }));
 
     expect(screen.getByText("2020년 2월")).toBeInTheDocument();
+  });
+});
+
+/* -------------------------------------------------------------------------
+ * 기간 빠른 선택 (원본 어드민의 "오늘 · 1주일 · 1개월 … 전체")
+ * ---------------------------------------------------------------------- */
+
+describe("DatePicker 기간 빠른 선택", () => {
+  const JAN_10 = new Date(2026, 0, 10);
+  const JAN_1 = new Date(2026, 0, 1);
+
+  const ymdLocal = (date: Date) =>
+    [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, "0"),
+      String(date.getDate()).padStart(2, "0"),
+    ].join("-");
+
+  /** 어휘도 계산도 도메인이라 사용처가 들고 온다 */
+  const PRESETS = [
+    { label: "오늘", getRange: () => ({ from: JAN_10, to: JAN_10 }) },
+    { label: "1개월", getRange: () => ({ from: JAN_1, to: JAN_10 }) },
+    { label: "전체", getRange: () => undefined },
+  ];
+
+  function Harness({ presets = PRESETS }: { presets?: typeof PRESETS }) {
+    const [range, setRange] = useState<DateRange | undefined>();
+    return (
+      <>
+        <DatePicker
+          mode="range"
+          value={range}
+          onChange={setRange}
+          presets={presets}
+        />
+        {/*
+          ⚠️ `toISOString()` 을 쓰지 않는다 — UTC 로 바꾸면서 KST(+9) 기준 날짜가
+          **하루 앞으로 밀린다**(2026-01-01 → 2025-12-31). 로컬 그대로 조립한다.
+        */}
+        <output>
+          {range?.from ? ymdLocal(range.from) : "없음"}
+          {range?.to ? `~${ymdLocal(range.to)}` : ""}
+        </output>
+      </>
+    );
+  }
+
+  const openPanel = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getAllByRole("button")[0]);
+    return screen.getByRole("dialog");
+  };
+
+  it("기간 모드에서 빠른 선택 목록을 패널 안에 낸다", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    const panel = await openPanel(user);
+    const list = within(panel).getByRole("list", { name: "기간 빠른 선택" });
+    expect(
+      within(list)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["오늘", "1개월", "전체"]);
+  });
+
+  it("누르면 그 기간이 적용되고 패널이 닫힌다 — 한 번으로 끝나는 선택이다", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    const panel = await openPanel(user);
+    await user.click(within(panel).getByRole("button", { name: "1개월" }));
+
+    expect(screen.getByRole("status").textContent).toBe(
+      "2026-01-01~2026-01-10",
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("undefined 를 돌려주는 항목은 기간을 해제한다 (원본 '전체')", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    // 먼저 기간을 넣고
+    let panel = await openPanel(user);
+    await user.click(within(panel).getByRole("button", { name: "오늘" }));
+    expect(screen.getByRole("status").textContent).not.toBe("없음");
+
+    // "전체" 로 되돌린다
+    panel = await openPanel(user);
+    await user.click(within(panel).getByRole("button", { name: "전체" }));
+    expect(screen.getByRole("status").textContent).toBe("없음");
+  });
+
+  it("presets 를 주지 않으면 목록 자체를 만들지 않는다", async () => {
+    const user = userEvent.setup();
+    render(
+      <DatePicker mode="range" startPlaceholder="시작" endPlaceholder="종료" />,
+    );
+
+    const panel = await openPanel(user);
+    expect(
+      within(panel).queryByRole("list", { name: "기간 빠른 선택" }),
+    ).not.toBeInTheDocument();
   });
 });

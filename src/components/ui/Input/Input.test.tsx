@@ -190,3 +190,44 @@ describe("Input", () => {
     });
   });
 });
+
+/* -------------------------------------------------------------------------
+ * 크기 — 표 셀 안에 들어가는 small (셀러 관리 수수료율 인라인 수정)
+ * ---------------------------------------------------------------------- */
+
+describe("size", () => {
+  const fieldOf = (container: HTMLElement) =>
+    (container.firstChild as HTMLElement).className.split(/\s+/);
+
+  it("기본은 medium — 높이 40 · 최소폭 240", () => {
+    const { container } = render(<Input aria-label="검색어" />);
+    const classes = fieldOf(container);
+
+    expect(classes).toContain("h-(--size-control-medium)");
+    expect(classes).toContain("min-w-60");
+    expect(classes).toContain("px-3");
+  });
+
+  /*
+   * 표 행 높이는 48이라 medium(40)은 셀을 꽉 채워 답답하고, min-width 240은
+   * 셀을 밀어내 표 레이아웃을 깨뜨린다.
+   */
+  it("small 은 높이 32 · 최소폭 해제 · padding 8", () => {
+    const { container } = render(<Input size="small" aria-label="수수료율" />);
+    const classes = fieldOf(container);
+
+    expect(classes).toContain("h-(--size-control-small)");
+    expect(classes).toContain("min-w-0");
+    expect(classes).toContain("px-2");
+  });
+
+  it("높이·최소폭·패딩을 한 번씩만 방출한다 — cn() 은 병합하지 않는다", () => {
+    const { container } = render(<Input size="small" aria-label="수수료율" />);
+    const classes = fieldOf(container);
+
+    expect(classes.filter((c) => c.startsWith("h-("))).toHaveLength(1);
+    expect(classes.filter((c) => c.startsWith("min-w-"))).toHaveLength(1);
+    expect(classes.filter((c) => c.startsWith("px-"))).toHaveLength(1);
+    expect(classes).not.toContain("min-w-60");
+  });
+});

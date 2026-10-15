@@ -25,6 +25,14 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /** 기본 — height 40 · min-width 240 · outline 1px border */
+/**
+ * `size="small"` — **표 셀 안** 전용(행 높이 48에 들어간다). 최소폭이 풀리므로
+ * 폭은 `className` 으로 준다. 폼에서는 기본 `medium` 을 쓴다.
+ */
+export const Small: Story = {
+  args: { size: "small", placeholder: "0", className: "w-16" },
+};
+
 export const Default: Story = {};
 
 /** placeholder는 `text-minimal`로 값 텍스트보다 한 단계 흐리게 */

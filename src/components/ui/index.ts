@@ -19,6 +19,7 @@ export type { ButtonProps, ButtonVariant, ButtonSize } from "./Button";
 export { Card, CardHeader, CardBody, CardFooter } from "./Card";
 export type {
   CardProps,
+  CardVariant,
   CardHeaderProps,
   CardBodyProps,
   CardFooterProps,
@@ -33,11 +34,13 @@ export {
   LineChart,
   CHART_SERIES_COLORS,
   CHART_FILL_COLORS,
+  CHART_ORDINAL_COLORS,
 } from "./Chart";
 export type {
   BarChartProps,
   ChartDatum,
   ChartFrameProps,
+  ChartHeight,
   ChartLegendProps,
   ChartSeries,
   DonutChartProps,
@@ -54,6 +57,7 @@ export { DatePicker } from "./DatePicker";
 export type {
   DatePickerProps,
   DatePickerSingleProps,
+  DatePickerPreset,
   DatePickerRangeProps,
   DatePickerMode,
   DateRange,
@@ -83,6 +87,8 @@ export type {
 export { EmptyState } from "./EmptyState";
 export type { EmptyStateProps, EmptyStateSize } from "./EmptyState";
 
+export { FilterBar } from "./FilterBar";
+export type { FilterBarProps } from "./FilterBar";
 export { FormField } from "./FormField";
 export type { FormFieldProps, FormFieldOrientation } from "./FormField";
 
@@ -105,6 +111,7 @@ export type {
 export { Input, InputGroup, InputAttachedButton } from "./Input";
 export type {
   InputProps,
+  InputSize,
   InputGroupProps,
   InputAttachedButtonProps,
 } from "./Input";
@@ -218,6 +225,7 @@ export type {
   TableHeadProps,
   TableBodyProps,
   TableRowProps,
+  TableSortDirection,
   TableThProps,
   TableTdProps,
   TableAlign,

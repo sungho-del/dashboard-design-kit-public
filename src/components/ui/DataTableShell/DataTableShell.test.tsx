@@ -449,3 +449,76 @@ describe("DataTableShell", () => {
     expect(screen.getByRole("region", { name: "주문 목록" })).toBeVisible();
   });
 });
+
+/* -------------------------------------------------------------------------
+ * 표면(variant) · 높이 흡수(fill)
+ * ---------------------------------------------------------------------- */
+
+describe("표면과 높이", () => {
+  const shellOf = (name: string) =>
+    screen.getByRole("region", { name }) as HTMLElement;
+  const classesOf = (el: HTMLElement) => el.className.split(/\s+/);
+
+  it("기본은 radius 8 · 그림자 없음 (지금까지의 셸)", () => {
+    render(<DataTableShell aria-label="회원 목록" />);
+    const classes = classesOf(shellOf("회원 목록"));
+
+    expect(classes).toContain("rounded-medium");
+    expect(classes).toContain("after:rounded-medium");
+    expect(classes.some((c) => c.startsWith("shadow-"))).toBe(false);
+    expect(shellOf("회원 목록")).not.toHaveAttribute("data-variant");
+  });
+
+  /** 경계선 오버레이(::after)의 radius 도 같이 따라가야 모서리에서 선이 어긋나지 않는다 */
+  it("soft 는 radius 12 + shadow-xsmall 이고 오버레이 radius 도 함께 바뀐다", () => {
+    render(<DataTableShell variant="soft" aria-label="회원 목록" />);
+    const classes = classesOf(shellOf("회원 목록"));
+
+    expect(classes).toEqual(
+      expect.arrayContaining([
+        "rounded-large",
+        "after:rounded-large",
+        "shadow-xsmall",
+      ]),
+    );
+    // radius 는 한 번씩만 — cn() 은 병합하지 않는다
+    expect(classes).not.toContain("rounded-medium");
+    expect(classes).not.toContain("after:rounded-medium");
+    expect(shellOf("회원 목록")).toHaveAttribute("data-variant", "soft");
+  });
+
+  it("fill 이면 셸이 세로 flex 가 되고 표 래퍼만 늘어난다", () => {
+    const { container } = render(
+      <DataTableShell fill aria-label="회원 목록" footer={<span>푸터</span>}>
+        <table />
+      </DataTableShell>,
+    );
+
+    expect(classesOf(shellOf("회원 목록"))).toEqual(
+      expect.arrayContaining(["flex", "flex-col"]),
+    );
+
+    const body = container.querySelector<HTMLElement>(
+      "[data-table-shell-body]",
+    );
+    // min-h-0 이 없으면 행이 많을 때 셸이 화면 밖으로 넘치고 푸터가 따라 내려간다
+    expect(classesOf(body!)).toEqual(
+      expect.arrayContaining(["flex-1", "min-h-0"]),
+    );
+  });
+
+  it("fill 이 아니면 flex 로 만들지 않는다 (이 셸을 쓰는 기존 화면 27종이 그대로다)", () => {
+    const { container } = render(
+      <DataTableShell aria-label="회원 목록">
+        <table />
+      </DataTableShell>,
+    );
+
+    expect(classesOf(shellOf("회원 목록"))).not.toContain("flex");
+    expect(
+      classesOf(
+        container.querySelector<HTMLElement>("[data-table-shell-body]")!,
+      ),
+    ).not.toContain("flex-1");
+  });
+});
