@@ -1,13 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
-import { downloadCsv } from "../../lib/downloadCsv";
 import { MemberListPage } from "./MemberListPage";
-import { resetMembers } from "./MemberListPage.data";
-
-/* jsdom 에는 `URL.createObjectURL` 이 없다 — 파일 생성은 `downloadCsv.test` 가 본다.
-   여기서는 **무엇을 넘겼는지**(파일명·행)만 검증한다 */
-vi.mock("../../lib/downloadCsv", () => ({ downloadCsv: vi.fn() }));
 
 /* -------------------------------------------------------------------------
  * S02 회원 관리 — 목록형
@@ -41,12 +35,6 @@ beforeAll(() => {
 
 afterAll(() => {
   vi.unstubAllGlobals();
-});
-
-/* 일괄 변경이 데모 저장소의 상태를 실제로 바꾼다 — 테스트마다 처음으로 되돌린다 */
-afterEach(() => {
-  resetMembers();
-  vi.mocked(downloadCsv).mockClear();
 });
 
 /** 클래스 검사는 반드시 배열로 — 문자열 `toContain` 은 부분 일치로 버그를 놓친다 */
@@ -512,67 +500,35 @@ describe("MemberListPage (S02 회원 관리)", () => {
   });
 
   /**
-   * 원본은 툴바 좌측(`toolsLeft`)에 엑셀 다운로드 하나만 두고 `회원관리_N건.csv` 로 저장한다 —
-   * **내보내기 대상은 화면 전체가 아니라 현재 조회 결과**다.
+   * 원본 `exportCsv` — **내보내기 대상은 화면 전체가 아니라 현재 조회 결과**고,
+   * 고른 행이 있으면 그 행만이다. 퍼블은 파일을 만들지 않고 대상 건수만 알린다
+   * (실제 내보내기는 개발 저장소 `src/lib/export.ts` 몫).
    */
   describe("엑셀 다운로드", () => {
-    /** 넘긴 [파일명, 행] — 행의 첫 줄은 머리글이다 */
-    const exported = () => vi.mocked(downloadCsv).mock.calls[0];
-
-    it("지금 조건으로 조회된 결과 전체를 파일로 만든다 — 1페이지만이 아니다", async () => {
+    it("지금 조건으로 조회된 결과 전체가 대상이다 — 1페이지만이 아니다", async () => {
       const { user } = renderPage();
 
       await user.click(screen.getByRole("button", { name: "엑셀 다운로드" }));
 
       /* 화면 전체가 아니라 **지금 조건**([정상] 20건)이고, 페이지(10)로 자르지 않는다 */
-      const [filename, rows] = exported();
-      expect(filename).toBe("회원관리_20건.csv");
-      expect(rows[0]).toEqual([
-        "No",
-        "이름",
-        "아이디(이메일)",
-        "연락처",
-        "가입일",
-        "자녀",
-        "상태",
-        "이용",
-      ]);
-      expect(rows).toHaveLength(21);
-      expect(rows[1]).toEqual([
-        20,
-        "박수진",
-        "sujin.park@example.com",
-        "010-2841-7702",
-        "2026.08.12",
-        "2명",
-        "정상",
-        "렌트 3 · 구매 1",
-      ]);
       expect(screen.getByText("조회 결과 20건을 내려받았습니다")).toBeVisible();
     });
 
-    it("필터를 걸면 내려받는 건수도 함께 줄어든다", async () => {
+    it("필터를 걸면 대상 건수도 함께 줄어든다", async () => {
       const { user } = renderPage();
 
       await user.click(statusBox("휴면 4명"));
       await user.click(screen.getByRole("button", { name: "엑셀 다운로드" }));
 
-      expect(exported()[0]).toBe("회원관리_4건.csv");
       expect(screen.getByText("조회 결과 4건을 내려받았습니다")).toBeVisible();
     });
 
-    it("고른 행이 있으면 그 행만 내려받는다 — 이용이 없는 '-' 는 빈 칸이다", async () => {
+    it("고른 행이 있으면 그 행만 대상이다", async () => {
       const { user } = renderPage();
 
       await user.click(screen.getByRole("checkbox", { name: "배하은 선택" }));
       await user.click(screen.getByRole("button", { name: "엑셀 다운로드" }));
 
-      const [filename, rows] = exported();
-      expect(filename).toBe("회원관리_1건.csv");
-      expect(rows).toHaveLength(2);
-      /* No 는 화면과 같은 순번이다([정상] 20명 중 8번째 → 13) */
-      expect(rows[1][0]).toBe(13);
-      expect(rows[1][rows[1].length - 1]).toBe("");
       expect(screen.getByText("선택한 1건을 내려받았습니다")).toBeVisible();
     });
   });
@@ -1000,7 +956,8 @@ describe("체크 후 일괄 상태 변경", () => {
     ).toBeVisible();
   });
 
-  it("사유를 적고 처리하면 상태가 실제로 바뀌고, 그 상태 카드로 옮겨 결과를 보여준다", async () => {
+  /* 퍼블은 저장하지 않는다(토스트만) — 건수는 그대로고, 화면 동작(카드 이동·선택 해제)만 본다 */
+  it("사유를 적고 처리하면 알리고, 그 상태 카드로 옮겨 간다", async () => {
     const { user } = renderPage();
 
     await check(user, "박수진");
@@ -1012,15 +969,12 @@ describe("체크 후 일괄 상태 변경", () => {
     expect(
       await screen.findByText("2명을 «정지»으로 바꿨습니다"),
     ).toBeVisible();
-    expect(statusBox("정지 5명")).toHaveAttribute("aria-pressed", "true");
-    expect(statusBox("정상 18명")).toBeVisible();
-    expect(visibleNames()).toContain("박수진");
-    expect(visibleNames()).toContain("김도현");
+    expect(statusBox("정지 3명")).toHaveAttribute("aria-pressed", "true");
     /* 같은 대상을 두 번 처리하지 않게 선택이 풀린다 */
     expect(screen.queryByText(/명 선택됨/)).toBeNull();
   });
 
-  it("[정상] 으로 되돌리는 것은 사유를 받지 않고 제자리에서 바로 바뀐다", async () => {
+  it("[정상] 으로 되돌리는 것은 사유를 받지 않고 제자리에서 처리한다", async () => {
     const { user } = renderPage();
 
     await showStatus(user, "정지 3명");
@@ -1031,8 +985,8 @@ describe("체크 후 일괄 상태 변경", () => {
     expect(
       await screen.findByText("1명을 «정상»으로 바꿨습니다"),
     ).toBeVisible();
-    expect(statusBox("정지 2명")).toHaveAttribute("aria-pressed", "true");
-    expect(visibleNames()).not.toContain("정민서");
+    expect(statusBox("정지 3명")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByText(/명 선택됨/)).toBeNull();
   });
 
   /** 원본 정책: 탈퇴 회원은 상태를 바꿀 수 없다 — 바를 띄울 이유가 없다 */

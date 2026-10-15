@@ -39,21 +39,17 @@ import {
   type TableSortDirection,
 } from "../../components/ui";
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
-import { downloadCsv } from "../../lib/downloadCsv";
 import { PERIOD_PRESETS } from "../../lib/periodPresets";
 import { useSearchParams } from "../../lib/router";
 import {
   BULK_TARGETS,
   bulkStatusMessage,
   canChangeStatus,
-  changeMemberStatus,
   DEFAULT_FILTER,
-  EXPORT_HEAD,
-  EXPORT_NAME,
-  exportRow,
   FILTERS,
   filterSummary,
   MEMBER_UNIT,
+  MEMBERS,
   needsReason,
   num,
   PAGE_SIZE,
@@ -63,7 +59,6 @@ import {
   SEARCH_FIELDS,
   STATUS_META,
   usageText,
-  useMembers,
   ymd,
   type Member,
   type MemberStatus,
@@ -135,12 +130,12 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * ## 기획 v0.4 대조로 채운 것 (2026-10-15)
  * - ✅ **휴면·정지 사유 모달**(원본 C-3 ⓐ) — 일괄 변경이 휴면·정지면 사유를 받고, 빈 사유는 막는다.
  *   회원 상세의 [저장하기] 도 **같은 모달**(`MemberReasonModal`)을 지난다
- * - ✅ **일괄 변경이 실제로 상태를 바꾼다**(데모 저장소 `useMembers`) — 사유를 받은 처리는
- *   전환된 상태 카드로 옮겨 결과를 보여 준다(원본). [정상] 복귀는 제자리에서 선택만 푼다
+ * - ✅ 사유를 받은 일괄 처리는 **전환된 상태 카드로 옮겨 간다**(원본). [정상] 복귀는 제자리에서 선택만 푼다.
+ *   ⚠️ 퍼블은 **저장하지 않는다**(토스트만) — 옮겨 간 카드에 처리한 회원이 없는 것은 그래서다
  * - ✅ **No 는 조회 결과의 역순 순번**(원본 `all.length - start - i`) — 레코드 번호가 아니다
  * - ✅ 페이지당 10·20·50·100(기본 10) · 샘플 30명
- * - ✅ **엑셀 다운로드가 실제 CSV 를 만든다**(원본 `exportCsv`) — 고른 행이 있으면 그것만,
- *   없으면 조회 결과 전체(정렬 반영 · 페이지로 자르기 전)
+ * - ✅ **엑셀 다운로드 대상 알림**(원본 `exportCsv`) — 고른 행이 있으면 그것만, 없으면 조회 결과 전체.
+ *   파일은 만들지 않는다 — 실제 내보내기는 개발 저장소의 `src/lib/export.ts` 몫이다(No 열 제외 규칙 등)
  *
  * ## 아직 표현하지 못한 것 (미해결)
  * - **고정열**(원본 `frozen`: 이름) — 이 표는 열 폭 합이 988(체크박스 열 48 포함)이라
@@ -409,8 +404,6 @@ export function MemberListPage({
   onNavSelect,
 }: MemberListPageProps) {
   const { toast } = useToast();
-  /* 데모 저장소 — 일괄 변경과 회원 상세의 저장이 여기에 반영된다 */
-  const members = useMembers();
 
   const [filter, setFilter] = useState(DEFAULT_FILTER);
   const [searchField, setSearchField] = useState(SEARCH_FIELDS[0].value);
@@ -463,7 +456,7 @@ export function MemberListPage({
    * 이미 상태로 좁힌 결과에서 세면 "정상"을 고르는 순간 나머지가 전부 0 이 되어
    * 대시가 비교할 것을 잃는다 — 건수를 보여주는 이유가 통째로 사라진다.
    */
-  const scoped = members.filter((member) => {
+  const scoped = MEMBERS.filter((member) => {
     const matchKeyword =
       keyword.trim() === "" || pick(member).includes(keyword.trim());
     return matchKeyword && inPeriod(member.date, period);
@@ -564,7 +557,7 @@ export function MemberListPage({
         : [...new Set([...current, ...pageIds])],
     );
 
-  const selectedMembers = members.filter((member) =>
+  const selectedMembers = MEMBERS.filter((member) =>
     selected.includes(member.id),
   );
 
@@ -589,14 +582,12 @@ export function MemberListPage({
       return;
     }
 
-    changeMemberStatus(ids, target);
     toast(bulkStatusMessage(target, ids.length, skipped));
     setSelected([]);
   };
 
-  const confirmReason = (reason: string) => {
+  const confirmReason = () => {
     if (!pending) return;
-    changeMemberStatus(pending.ids, pending.target, reason);
     toast(
       bulkStatusMessage(pending.target, pending.ids.length, pending.skipped),
     );
@@ -612,8 +603,8 @@ export function MemberListPage({
 
   /*
     엑셀 다운로드 — 원본 `exportCsv`. **고른 행이 있으면 그것만, 없으면 조회 결과 전체**다.
-    페이지로 자르기 전(`filtered`)에서 뽑는다 — 원본이 "1페이지만 받는 사고"를 막으려 정한 자리다.
-    No 는 화면과 같은 순번을 쓴다.
+    페이지로 자르기 전(`filtered`)에서 센다 — 원본이 "1페이지만 받는 사고"를 막으려 정한 자리다.
+    퍼블은 대상 건수만 알린다. 파일 생성은 개발 영역이다.
   */
   const exportCsv = () => {
     const picked = filtered.filter((member) => selected.includes(member.id));
@@ -622,12 +613,6 @@ export function MemberListPage({
       toast("다운로드할 데이터가 없습니다");
       return;
     }
-    downloadCsv(`${EXPORT_NAME}_${rows.length}건.csv`, [
-      EXPORT_HEAD,
-      ...rows.map((member) =>
-        exportRow(member, filtered.length - filtered.indexOf(member)),
-      ),
-    ]);
     toast(
       picked.length > 0
         ? `선택한 ${rows.length}건을 내려받았습니다`

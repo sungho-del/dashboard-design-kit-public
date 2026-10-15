@@ -54,11 +54,9 @@ import {
 } from "./MemberDetailPage.data";
 import {
   canSleep,
-  changeMemberStatus,
   needsReason,
   STATUS_META,
   people,
-  useMembers,
   type MemberStatus,
   type PaymentKind,
 } from "./MemberListPage.data";
@@ -213,8 +211,7 @@ export function MemberDetailPage({
     주소창을 거치며 인코딩되므로 **반드시 디코딩해서** 찾는다.
   */
   const memberId = lastPathSegment(pathname);
-  /* 데모 저장소에서 읽는다 — 목록에서 바꾼 상태가 여기에도 보여야 한다 */
-  const member = findMember(useMembers(), memberId);
+  const member = findMember(memberId);
 
   /*
     고치는 값은 상태 하나뿐이다 — 저장 전까지 화면 안에만 산다.
@@ -290,21 +287,20 @@ export function MemberDetailPage({
   const draftStatus = draft?.id === member.id ? draft.status : member.status;
   const changed = draftStatus !== member.status;
 
-  /** 저장 — 휴면·정지는 사유를 받은 뒤(`confirmReason`), 정상은 바로 */
+  /*
+    저장 — 휴면·정지는 사유를 받은 뒤(`confirmReason`), 정상은 바로.
+    퍼블은 **저장하지 않는다**(토스트만) — 실제 반영은 개발 영역이다.
+  */
   const save = () => {
     if (needsReason(draftStatus)) {
       setReasonOpen(true);
       return;
     }
-    changeMemberStatus([member.id], draftStatus);
-    setDraft(null);
     toast(SAVED_TEXT);
   };
 
-  const confirmReason = (reason: string) => {
-    changeMemberStatus([member.id], draftStatus, reason);
+  const confirmReason = () => {
     setReasonOpen(false);
-    setDraft(null);
     toast(SAVED_TEXT);
   };
 

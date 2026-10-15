@@ -2,7 +2,6 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { MemberDetailPage } from "./MemberDetailPage";
-import { resetMembers } from "./MemberListPage.data";
 
 /* -------------------------------------------------------------------------
  * S02-D 회원 상세 — 폼형
@@ -34,11 +33,7 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-afterEach(() => {
-  window.history.replaceState(null, "", "/");
-  /* 저장이 데모 저장소의 상태를 실제로 바꾼다 — 테스트마다 처음으로 */
-  resetMembers();
-});
+afterEach(() => window.history.replaceState(null, "", "/"));
 
 /** 페이지 헤더 — 이름과 **저장된** 상태 태그가 있다 */
 const header = () =>
@@ -404,7 +399,7 @@ describe("MemberDetailPage (S02-D 회원 상세)", () => {
       );
     });
 
-    it("[정상] 으로 되돌리는 저장은 사유 없이 바로 반영된다", async () => {
+    it("[정상] 으로 되돌리는 저장은 사유를 받지 않는다", async () => {
       const { user } = renderAt("minseo.jung@example.com");
 
       await user.click(stateButton("정상"));
@@ -412,16 +407,14 @@ describe("MemberDetailPage (S02-D 회원 상세)", () => {
 
       expect(screen.queryByRole("dialog")).toBeNull();
       expect(await screen.findByText("변경 내용을 저장했습니다")).toBeVisible();
-      /* 헤더의 태그는 **저장된** 상태다 */
-      expect(within(header()).getByText("정상")).toBeVisible();
-      expect(screen.queryByText("정지 사유")).toBeNull();
     });
 
     /**
      * 원본 C-3 ⓐ — 상세 저장도 목록 일괄과 **같은 사유 게이트**를 지난다.
      * 한때 상세만 무사유로 통과해, 같은 정지 처분이 통로에 따라 기록이 갈렸다.
      */
-    it("정지로 저장하면 사유를 받고, 저장 뒤 사유와 처리 일시가 계정 상태에 남는다", async () => {
+    /* 퍼블은 저장하지 않는다(토스트만) — 저장 뒤 사유 줄의 모습은 아래 「기록된 사유」가 예시 회원으로 본다 */
+    it("정지로 저장하면 사유를 받는다 — 빈 사유는 막는다", async () => {
       const { user } = renderAt("dohyun.kim@example.com");
 
       await user.click(stateButton("정지"));
@@ -445,15 +438,7 @@ describe("MemberDetailPage (S02-D 회원 상세)", () => {
       );
 
       expect(await screen.findByText("변경 내용을 저장했습니다")).toBeVisible();
-      expect(within(header()).getByText("정지")).toBeVisible();
-      const account = section("계정 상태");
-      expect(within(account).getByText("정지 사유")).toBeVisible();
-      expect(within(account).getByText(/이용약관 위반/)).toBeVisible();
-      expect(
-        within(account).getByText(/^\(\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}\)$/),
-      ).toBeVisible();
-      /* 저장했으니 더 저장할 것이 없다 */
-      expect(screen.getByRole("button", { name: "저장하기" })).toBeDisabled();
+      expect(screen.queryByRole("dialog")).toBeNull();
     });
 
     it("사유 모달을 취소하면 저장하지 않고, 고른 값은 화면에 남는다", async () => {

@@ -1,4 +1,3 @@
-import { useSyncExternalStore } from "react";
 import type { TagTone } from "../../components/ui";
 
 /* -------------------------------------------------------------------------
@@ -20,7 +19,6 @@ import type { TagTone } from "../../components/ui";
  * | `BULK_TARGETS`       | 일괄 변경으로 갈 수 있는 상태            |
  * | `canSleep`·`canChangeStatus` | 상태 변경 자격 (목록·상세 공용)  |
  * | `REASON_COPY`·`needsReason` | 휴면·정지 사유 모달 (목록·상세 공용) |
- * | `useMembers`·`changeMemberStatus` | 데모 저장소 — API 가 들어올 자리 |
  *
  * ## 뼈대가 이 파일에 기대하는 계약
  * - 행 타입은 `id`(고유키) · `date`(`YYYY-MM-DD HH:mm`, 기간 필터가 파싱)를 반드시 갖는다
@@ -974,64 +972,6 @@ export const REASON_COPY = {
 };
 
 /* -------------------------------------------------------------------------
- * 데모 저장소 — 목록과 상세가 **같은 회원 상태**를 본다
- *
- * 실 API 를 붙이면 이 블록이 조회·변경 호출로 바뀐다. 지금은 메모리에만 있어
- * 화면을 오가도 남고 **새로고침하면 처음으로 돌아간다.**
- * `MEMBERS` 는 고치지 않는다 — 바뀐 회원만 새 객체로 갈아 끼운다.
- * ---------------------------------------------------------------------- */
-
-let current = MEMBERS;
-const listeners = new Set<() => void>();
-
-const subscribe = (listener: () => void) => {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-};
-
-const publish = (next: Member[]) => {
-  current = next;
-  listeners.forEach((listener) => listener());
-};
-
-/** 지금의 회원 목록 — 상태가 바뀌면 다시 그린다 */
-export const useMembers = () => useSyncExternalStore(subscribe, () => current);
-
-/** `YYYY-MM-DD HH:mm` — 처리 일시 */
-const stamp = (at: Date) => {
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(at.getHours())}:${pad(at.getMinutes())}`;
-};
-
-/**
- * 상태를 바꾼다. 휴면·정지면 사유와 처리 일시를 함께 남기고, 정상이면 지운다.
- * **자격 판정은 하지 않는다** — 부르는 쪽이 `canChangeStatus`·`canSleep` 으로 거른 뒤 넘긴다.
- */
-export const changeMemberStatus = (
-  ids: string[],
-  next: MemberStatus,
-  reason?: string,
-  at = new Date(),
-) =>
-  publish(
-    current.map((member) =>
-      ids.includes(member.id)
-        ? {
-            ...member,
-            status: next,
-            statusReason: reason,
-            statusAt: reason ? stamp(at) : undefined,
-          }
-        : member,
-    ),
-  );
-
-/** 테스트용 — 처음 상태로 */
-export const resetMembers = () => publish(MEMBERS);
-
-/* -------------------------------------------------------------------------
  * 검색조건 요약 — 접힌 `FilterBar` 한 줄에 들어가는 글자
  *
  * 원본은 조건이 없을 때 `조건 없음 (전체)` 라고 적는다. **비워 두지 않는다** —
@@ -1075,38 +1015,4 @@ export const filterSummary = ({
   if (keyword.trim() !== "") parts.push(`${fieldLabel} «${keyword.trim()}»`);
 
   return parts.length > 0 ? parts.join(" · ") : NO_FILTER_TEXT;
-};
-
-/* -------------------------------------------------------------------------
- * 엑셀 다운로드 — 원본 `exportCsv` (`회원관리_N건.csv`)
- *
- * 열은 표와 같다(체크박스·관리 빼고). 원본 규칙대로 화면에서 "없음"을 뜻하는 `-` 는
- * **빈 칸**으로 낸다 — 엑셀에서는 대시가 값처럼 보인다.
- * ---------------------------------------------------------------------- */
-
-export const EXPORT_NAME = "회원관리";
-
-export const EXPORT_HEAD = [
-  "No",
-  "이름",
-  "아이디(이메일)",
-  "연락처",
-  "가입일",
-  "자녀",
-  "상태",
-  "이용",
-];
-
-export const exportRow = (member: Member, no: number) => {
-  const usage = usageText(member);
-  return [
-    no,
-    member.name,
-    member.id,
-    member.phone,
-    ymd(member.date),
-    people(member.kids),
-    STATUS_META[member.status].label,
-    usage === "-" ? "" : usage,
-  ];
 };

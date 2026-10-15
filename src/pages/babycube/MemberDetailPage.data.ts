@@ -1,4 +1,5 @@
 import {
+  MEMBERS,
   type Member,
   type MemberChild,
   type MemberPayment,
@@ -35,14 +36,13 @@ import {
  * ---------------------------------------------------------------------- */
 
 /**
- * 경로의 id(이메일)로 회원을 찾는다. 목록은 데모 저장소(`useMembers`)의 것을 넘긴다 —
- * 목록에서 바꾼 상태가 상세에도 보여야 한다.
+ * 경로의 id(이메일)로 회원을 찾는다.
  *
  * 주소창에 손으로 친 id·지워진 회원이 있을 수 있으므로 **없을 수 있다는 사실을
  * 타입으로 남긴다** — 뼈대가 "없는 회원" 화면을 그리게 하는 것이 이 `undefined` 다.
  */
-export const findMember = (members: Member[], id: string): Member | undefined =>
-  members.find((member) => member.id === id);
+export const findMember = (id: string): Member | undefined =>
+  MEMBERS.find((member) => member.id === id);
 
 /** 원본 `members.form` 의 섹션 구성 순서 — 기본 정보가 최상단이다 */
 export const SECTIONS = {
