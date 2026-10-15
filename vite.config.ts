@@ -1,5 +1,5 @@
-/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
+import { configDefaults } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
@@ -15,5 +15,7 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: "./src/test/setup.ts",
+    /* scripts/export-publishing/files/ 는 전달본에 들어갈 사본이라 여기서는 돌지 않는다 */
+    exclude: [...configDefaults.exclude, "scripts/**"],
   },
 });
