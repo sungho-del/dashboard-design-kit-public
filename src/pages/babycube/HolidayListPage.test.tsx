@@ -16,6 +16,9 @@ import { HolidayListPage } from "./HolidayListPage";
  *
  * 달력은 오늘이 속한 달로 열리므로, 날짜 라벨을 **실행 시점 기준으로 계산**한다.
  * 12일·15일은 어느 달에도 있어 달이 바뀌어도 흔들리지 않는다.
+ *
+ * ⚠️ 단, 오늘이 12일·15일이면 그 칸의 이름이 `오늘, 2026년 10월 15일` 이 되어
+ * 찾지 못한다. 그래서 시계를 **이번 달 20일**로 고정한다 (Date 만 — 타이머는 실제).
  */
 class ObserverStub {
   observe() {}
@@ -33,7 +36,12 @@ beforeAll(() => {
 
 afterAll(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
+
+const NOW = new Date();
+vi.useFakeTimers({ toFake: ["Date"] });
+vi.setSystemTime(new Date(NOW.getFullYear(), NOW.getMonth(), 20));
 
 const TODAY = new Date();
 const YEAR = TODAY.getFullYear();
