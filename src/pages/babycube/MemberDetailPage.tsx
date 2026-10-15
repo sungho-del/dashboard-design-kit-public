@@ -224,6 +224,16 @@ export function MemberDetailPage({
   } | null>(null);
   /** 사유를 기다리는 저장 — 휴면·정지로 바꿀 때 */
   const [reasonOpen, setReasonOpen] = useState(false);
+  /*
+    다른 회원으로 넘어가면 고치던 값·열린 창을 **버린다.** id 로 묶기만 하면
+    A 에서 고치다 B 를 보고 A 로 돌아왔을 때 A 의 고친 값이 되살아난다.
+  */
+  const [shownId, setShownId] = useState(memberId);
+  if (shownId !== memberId) {
+    setShownId(memberId);
+    setDraft(null);
+    setReasonOpen(false);
+  }
   /** 결제 내역 탭. 조회용이라 저장 대상이 아니다 */
   const [paymentTab, setPaymentTab] = useState<"all" | PaymentKind>("all");
 
@@ -378,6 +388,8 @@ export function MemberDetailPage({
                 }
               >
                 <SegmentedControl
+                  /* 제 폭으로 — FormField 세로 배치가 폭 가득 늘리지 않게(셀러 상세와 같다) */
+                  className="self-start"
                   /*
                     잠금은 **항목 단위**다 — 휴면만 막고 나머지는 그대로 고를 수 있다.
                     컨트롤 전체를 비활성으로 만들면 정지 처리까지 막혀 버린다.

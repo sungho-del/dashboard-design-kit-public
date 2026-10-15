@@ -8,11 +8,11 @@ import { SellerListPage } from "./SellerListPage";
  *
  * ## 무엇을 검증하는가
  * 렌더 여부가 아니라 **동작과 의미**다 — 상태 대시가 곧 상태 필터라는 것 ·
- * 필터 축 3개(기간 기준 · 위생인증 · 검색 조건) · 조건부 퇴점일 열 ·
- * 값 없는 셀의 표기 · 미리보기 · **상태 색과 분류 배지 색이 갈라져 있는지**.
+ * 필터 축 3개(기간 기준 · 위생인증 · 검색 조건)와 접힌 요약 · 조건부 퇴점일 열 ·
+ * No 순번 · 선택분 엑셀 · **상태 색과 분류 배지 색이 갈라져 있는지**.
  *
  * ## 원본에 없는 것이 되살아나지 않는지도 함께 본다
- * 증감(±%) 요약 카드 · 미리보기 모달의 액션 버튼 · 퇴점 처리 모달은
+ * 증감(±%) 요약 카드 · 행 액션(퇴점 처리 등)은
  * **원본 어드민에 없어서 걷어냈다.** 없다는 것을 검사로 못 박는다.
  *
  * jsdom 에는 레이아웃도 `ResizeObserver`/`IntersectionObserver` 도 없다.
@@ -68,25 +68,39 @@ function bodyRows(): HTMLElement[] {
 
 /*
  * 열 순서(원본 컬럼 배열 그대로):
- *   0 셀러명 · 1 위생인증 · 2 대표명 · 3 연락처 · 4 상태 ·
- *   5 수수료율 · 6 입점일 · [7 퇴점일] · 상품수 · 평점
+ *   0 체크박스 · 1 No · 2 셀러명 · 3 위생인증 · 4 대표명 · 5 연락처 · 6 상태 ·
+ *   7 수수료율 · 8 입점일 · [9 퇴점일] · 상품수 · 평점
  * 퇴점 필터에서만 퇴점일이 끼어들어 뒤 두 열이 밀린다.
  */
+const cellsOf = (row: HTMLElement) => within(row).getAllByRole("cell");
+
+/** 셀러명 칸의 **이름 버튼** 글자 — 본사 배지는 버튼 밖이라 섞이지 않는다 */
 function visibleNames(): string[] {
   return bodyRows().map(
-    /* 첫 칸은 원본 표의 No 열이라 이름은 둘째 칸이다 */
-    (row) => within(row).getAllByRole("cell")[1].textContent ?? "",
+    (row) => within(cellsOf(row)[2]).getByRole("button").textContent ?? "",
   );
 }
 
+const visibleNos = () => bodyRows().map((row) => cellsOf(row)[1].textContent);
+
 function rowOf(name: string): HTMLElement {
-  return screen.getAllByText(name)[0].closest("tr") as HTMLElement;
+  return screen.getByRole("button", { name }).closest("tr") as HTMLElement;
 }
 
+/**
+ * 검색조건을 펼친다.
+ *
+ * ⚠️ 조건 영역(`FilterBar`)은 **접힌 채로 열린다**(원본). 닫혀 있는 동안은 안의 컨트롤이
+ * **DOM 에 아예 없으므로** 기간·위생인증·검색을 건드리는 테스트는 반드시 먼저 이것을 부른다.
+ */
+const openFilters = async (user: ReturnType<typeof userEvent.setup>) => {
+  const toggle = screen.queryByRole("button", { name: /검색 열기/ });
+  if (toggle) await user.click(toggle);
+};
+
 /*
- * ⚠️ combobox 가 셋이다 — 기간 기준 · 위생인증 · 검색 조건.
- * 이름으로 좁히지 않으면 질의가 모호해진다
- * (`Select` 트리거의 role 은 `button` 이 아니라 `combobox` 다).
+ * ⚠️ combobox 가 넷이다 — 기간 기준 · 위생인증 · 검색 조건 · 페이지당 개수.
+ * 이름으로 좁히지 않으면 질의가 모호해진다.
  */
 const selectOf = (name: string) => screen.getByRole("combobox", { name });
 
@@ -95,6 +109,7 @@ async function chooseOption(
   selectName: string,
   optionLabel: string,
 ) {
+  await openFilters(user);
   await user.click(selectOf(selectName));
   await user.click(
     within(screen.getByRole("listbox")).getByRole("option", {
@@ -104,17 +119,17 @@ async function chooseOption(
 }
 
 /**
- * 검색어 입력.
- *
- * ⚠️ "이 화면의 유일한 textbox" 가 **아니다** — 수수료율 인라인 수정칸(행마다 하나)이
- * 같은 role 을 쓴다. 자리표시자로 못 박는다.
+ * 검색어 입력. 펼친 조건 영역 안에 있으므로 **먼저 펼친다.**
+ * ⚠️ 수수료율 입력칸(행마다 하나)도 textbox 라 자리표시자로 찾는다.
  */
-const searchBox = () => screen.getByPlaceholderText("검색어 입력");
+const searchBox = async (user: ReturnType<typeof userEvent.setup>) => {
+  await openFilters(user);
+  return screen.getByPlaceholderText("검색어 입력");
+};
 
 /**
  * `<colgroup>` 의 `<col>` 개수와 표 컬럼 수.
- * 퇴점일 열이 붙고 빠지는데 한쪽만 고치면 **폭 배분이 통째로 한 칸씩 밀린다** —
- * 렌더도 되고 타입도 통과하므로 눈으로 보기 전에는 드러나지 않는다.
+ * 퇴점일 열이 붙고 빠지는데 한쪽만 고치면 **폭 배분이 통째로 한 칸씩 밀린다**.
  */
 const colCount = () => screen.getByRole("table").querySelectorAll("col").length;
 const headerCount = () =>
@@ -126,72 +141,65 @@ const headerCount = () =>
  */
 const statusBox = (name: string) => screen.getByRole("button", { name });
 
+/** 샘플: 입점 26 · 퇴점 처리중 3 · 퇴점 3 (상세까지 갖춘 7곳 + 원본 v0.4 간이 25곳) */
+const ACTIVE = "입점 26건";
+const EXITING = "퇴점 처리중 3건";
+const CLOSED = "퇴점 3건";
+
 describe("SellerListPage (S03 셀러 관리)", () => {
   describe("상태 대시 — 원본 StatDash", () => {
     /*
      * ⚠️ 원본에는 **[전체] 카드가 없다** — `sellers.dash` 주석이
      * "목록은 항상 한 상태만 보여준다"로 못 박는다. 되살리려는 변경을 이 블록이 막는다.
      */
-    it("상태 3종만 카드로 세운다 — 전체 카드는 없다", () => {
+    it("상태 3종만 카드로 세운다 — 전체 카드는 없다 · 단위는 원본대로 「건」", () => {
       renderPage();
 
-      expect(statusBox("입점 5개사")).toBeVisible();
-      expect(statusBox("퇴점 처리중 1개사")).toBeVisible();
-      expect(statusBox("퇴점 1개사")).toBeVisible();
+      expect(statusBox(ACTIVE)).toBeVisible();
+      expect(statusBox(EXITING)).toBeVisible();
+      expect(statusBox(CLOSED)).toBeVisible();
       expect(screen.queryByRole("button", { name: /^전체 / })).toBeNull();
     });
 
     it("화면은 [입점] 이 선택된 채로 열린다 (원본 기본값)", () => {
       renderPage();
 
-      expect(statusBox("입점 5개사")).toHaveAttribute("aria-pressed", "true");
+      expect(statusBox(ACTIVE)).toHaveAttribute("aria-pressed", "true");
       expect(visibleNames()).not.toContain("하늘담요");
     });
 
-    it("대시 상자가 곧 상태 필터다 — 입점을 고르면 영업 중인 셀러만 남는다", async () => {
+    it("대시 상자가 곧 상태 필터다 — 퇴점 처리중을 고르면 정리 중인 셀러만 남는다", async () => {
       const { user } = renderPage();
 
-      await user.click(statusBox("입점 5개사"));
+      await user.click(statusBox(EXITING));
 
-      // 본사(베이비큐브)도 영업 중이라 5건 — PAGE_SIZE 4 라 1페이지엔 4건
       expect(visibleNames()).toEqual([
-        // 본사는 셀러명 뒤에 " (본사)" 가 붙는다 — 입점사와 한 표에 섞이므로 출처를 밝힌다
-        "베이비큐브 (본사)",
-        "아기별상사",
-        "베이비무브",
-        "포근하루",
+        "튼튼주니어",
+        "장난감아저씨",
+        "두리하우스",
       ]);
-      expect(screen.getByText("총 5건")).toBeVisible();
-      expect(statusBox("입점 5개사")).toHaveAttribute("aria-pressed", "true");
-    });
-
-    it("퇴점 처리중을 고르면 정리 중인 셀러만 남는다", async () => {
-      const { user } = renderPage();
-
-      await user.click(statusBox("퇴점 처리중 1개사"));
-
-      expect(visibleNames()).toEqual(["튼튼주니어"]);
+      expect(statusBox(EXITING)).toHaveAttribute("aria-pressed", "true");
     });
 
     /** 건수는 **상태를 뺀** 나머지 조건에서 센다 — 하나를 골라도 나머지가 0 이 되지 않는다 */
     it("상태를 골라도 다른 상태의 건수는 그대로 남는다", async () => {
       const { user } = renderPage();
 
-      await user.click(statusBox("퇴점 1개사"));
+      await user.click(statusBox(CLOSED));
 
-      expect(statusBox("입점 5개사")).toBeVisible();
-      expect(statusBox("퇴점 처리중 1개사")).toBeVisible();
+      expect(statusBox(ACTIVE)).toBeVisible();
+      expect(statusBox(EXITING)).toBeVisible();
     });
 
-    /** 원본은 상태 카드에 `statusTips` 를 툴팁으로 단다. "전체"에는 없다 */
+    /** 원본 v0.4 `STAT_TIP` — 설명과 다음 단계 두 문장 */
     it("상태 상자에 hover 하면 원본의 상태 안내 문구가 뜬다", async () => {
       const { user } = renderPage();
 
-      await user.hover(statusBox("퇴점 1개사"));
+      await user.hover(statusBox(CLOSED));
 
       expect(
         await screen.findByText(
-          "퇴점이 완료된 셀러입니다. 종결 상태라 되돌아가지 않습니다.",
+          "퇴점이 끝나 거래가 종결된 셀러입니다. 더 진행할 단계가 없습니다.",
         ),
       ).toBeVisible();
     });
@@ -209,17 +217,73 @@ describe("SellerListPage (S03 셀러 관리)", () => {
       expect(document.querySelector(".lucide-trending-up")).toBeNull();
       expect(document.querySelector(".lucide-trending-down")).toBeNull();
     });
+
+    /** 원본 `subnav` — 상태를 바꾸면 정렬·선택·페이지가 함께 풀린다 */
+    it("상태를 바꾸면 정렬·선택·페이지가 풀린다", async () => {
+      const { user } = renderPage();
+
+      /* 정렬하면 아기별상사가 1페이지 밖으로 나가므로 먼저 고른다 */
+      await user.click(
+        screen.getByRole("checkbox", { name: "아기별상사 선택" }),
+      );
+      await user.click(
+        within(screen.getByRole("columnheader", { name: "상품수" })).getByRole(
+          "button",
+        ),
+      );
+      await user.click(screen.getByRole("button", { name: "2" }));
+
+      await user.click(statusBox(EXITING));
+      await user.click(statusBox(ACTIVE));
+
+      expect(
+        screen.getByRole("columnheader", { name: "상품수" }),
+      ).toHaveAttribute("aria-sort", "none");
+      expect(visibleNos()[0]).toBe("26");
+      expect(
+        screen.getByRole("checkbox", { name: "아기별상사 선택" }),
+      ).not.toBeChecked();
+    });
   });
 
   describe("목록", () => {
-    it("기본 상태(입점) 5건을 PAGE_SIZE 만큼 나눠 보여준다", async () => {
+    it("기본 상태(입점) 26건을 10건씩 나눠 보여준다", async () => {
       const { user } = renderPage();
 
-      expect(bodyRows()).toHaveLength(4);
-      expect(screen.getByText("총 5건")).toBeVisible();
+      expect(bodyRows()).toHaveLength(10);
+      expect(
+        screen.getByRole("heading", { name: "목록 (총 26건)" }),
+      ).toBeVisible();
+
+      await user.click(screen.getByRole("button", { name: "3" }));
+      expect(bodyRows()).toHaveLength(6);
+    });
+
+    /**
+     * 원본 표의 No 는 **조회 결과의 역순 순번**(`total - start - i`)이다 — 레코드 번호가 아니다.
+     * 페이지를 넘겨도 이어지고, 필터를 바꾸면 다시 센다.
+     */
+    it("No 는 조회 결과의 역순 순번이다", async () => {
+      const { user } = renderPage();
+
+      expect(visibleNos()).toEqual([
+        "26",
+        "25",
+        "24",
+        "23",
+        "22",
+        "21",
+        "20",
+        "19",
+        "18",
+        "17",
+      ]);
 
       await user.click(screen.getByRole("button", { name: "2" }));
-      expect(bodyRows()).toHaveLength(1);
+      expect(visibleNos()[0]).toBe("16");
+
+      await user.click(statusBox(CLOSED));
+      expect(visibleNos()).toEqual(["3", "2", "1"]);
     });
 
     /** 원본 컬럼 배열의 이름과 **순서**가 정본이다 (관리 열은 없다) */
@@ -231,6 +295,7 @@ describe("SellerListPage (S03 셀러 관리)", () => {
         .map((th) => th.textContent);
 
       expect(headers).toEqual([
+        "",
         "No",
         "셀러명",
         "위생인증",
@@ -245,15 +310,15 @@ describe("SellerListPage (S03 셀러 관리)", () => {
     });
 
     /**
-     * 원본 수치 표기 그대로다 — 상품수는 단위 없이 천 단위만 끊고, 평점은 소수 두 자리.
+     * 원본 v0.4 표기 — 상품수 `184개` · 평점 `★ 4.8`.
      * 수수료율은 **셀 안 입력칸**이다(원본 `feecell`) — 글자가 아니라 값으로 확인한다.
      */
     it("상품수·평점을 원본 표기대로 내고, 수수료율은 셀 입력칸에 담는다", () => {
       renderPage();
 
       const row = rowOf("아기별상사");
-      expect(within(row).getByText("184")).toBeVisible();
-      expect(within(row).getByText("4.82")).toBeVisible();
+      expect(within(row).getByText("184개")).toBeVisible();
+      expect(within(row).getByText("★ 4.8")).toBeVisible();
       expect(within(row).getByLabelText("아기별상사 수수료율")).toHaveValue(
         "12",
       );
@@ -274,22 +339,23 @@ describe("SellerListPage (S03 셀러 관리)", () => {
       ).not.toBeInTheDocument();
     });
 
-    /** 본사는 자기 자신에게 수수료를 매기지 않는다 — 0% 로 적으면 "면제"로 읽힌다 */
-    it("본사 직영은 수수료율 자리를 '-' 로 둔다", () => {
+    /** 본사는 수수료율 0% 확정 — 입력칸을 만들지 않는다. 셀러명 옆에는 「본사」 배지(원본 b-blue) */
+    it("본사 직영은 「본사」 배지를 달고 수수료율은 0% 로 고정이다", () => {
       renderPage();
 
-      const row = rowOf("베이비큐브 (본사)");
-      /* No 열이 앞에 붙어 수수료율은 일곱째 칸이다 */
-      expect(within(row).getAllByRole("cell")[6].textContent).toBe("-");
-      // 정할 수 없는 값이라 입력칸 자체를 만들지 않는다
+      const row = rowOf("베이비큐브");
+      const badge = within(cellsOf(row)[2]).getByText("본사");
+      expect(
+        (badge as HTMLElement).style.getPropertyValue("--tag-bg-color"),
+      ).toBe("var(--color-surface-highlight-secondary)");
+      expect(cellsOf(row)[7].textContent).toBe("0%");
       expect(
         within(row).queryByLabelText("베이비큐브 수수료율"),
       ).not.toBeInTheDocument();
     });
 
     /**
-     * 퇴점일은 **퇴점 필터에서만 나오는 조건부 열**이다(원본 `"퇴점" === stat` 과 같다) —
-     * 영업 중인 셀러가 대부분인 기본 화면에서 늘 비어 있는 열을 세우지 않는다.
+     * 퇴점일은 **퇴점 필터에서만 나오는 조건부 열**이다(원본 `"퇴점" === stat` 과 같다).
      */
     it("퇴점일 열은 퇴점 필터를 걸어야 나온다", async () => {
       const { user } = renderPage();
@@ -298,16 +364,12 @@ describe("SellerListPage (S03 셀러 관리)", () => {
         screen.queryByRole("columnheader", { name: "퇴점일" }),
       ).not.toBeInTheDocument();
 
-      await user.click(statusBox("퇴점 1개사"));
+      await user.click(statusBox(CLOSED));
 
       expect(
         screen.getByRole("columnheader", { name: "퇴점일" }),
       ).toBeInTheDocument();
-      // 열 순서에 퇴점일이 끼어든다 (No 가 앞에 붙어 여덟째 칸)
-      const closed = rowOf("하늘담요");
-      expect(within(closed).getAllByRole("cell")[8].textContent).toBe(
-        "2026.07.30",
-      );
+      expect(cellsOf(rowOf("하늘담요"))[9].textContent).toBe("2026.07.30");
     });
 
     it("퇴점일 열이 붙고 빠져도 colgroup 이 컬럼 수와 맞는다", async () => {
@@ -315,7 +377,7 @@ describe("SellerListPage (S03 셀러 관리)", () => {
 
       expect(colCount()).toBe(headerCount());
 
-      await user.click(statusBox("퇴점 1개사"));
+      await user.click(statusBox(CLOSED));
       expect(colCount()).toBe(headerCount());
     });
   });
@@ -323,11 +385,21 @@ describe("SellerListPage (S03 셀러 관리)", () => {
   /**
    * 원본 필터는 축이 셋이다 —
    * 기간(기준 셀렉트 + 범위) · 위생인증(칩) · 검색 조건(셀렉트 + 검색어).
+   * 접힌 검색조건 줄은 걸린 조건을 요약한다.
    */
-  describe("필터 축", () => {
+  describe("검색조건", () => {
+    it("접힌 채로 열리고, 조건이 없으면 「조건 없음 (전체)」 다", () => {
+      renderPage();
+
+      expect(screen.getByRole("button", { name: /검색 열기/ })).toBeVisible();
+      expect(screen.queryByPlaceholderText("검색어 입력")).toBeNull();
+      expect(screen.getByText("조건 없음 (전체)")).toBeVisible();
+    });
+
     it("기간 기준을 퇴점일로 바꾸면 날짜 입력이 그 축을 밝힌다", async () => {
       const { user } = renderPage();
 
+      await openFilters(user);
       expect(screen.getByText("입점일 시작")).toBeVisible();
 
       await chooseOption(user, "기간 기준", "퇴점일");
@@ -336,23 +408,24 @@ describe("SellerListPage (S03 셀러 관리)", () => {
       expect(screen.getByText("퇴점일 종료")).toBeVisible();
     });
 
-    it("위생인증은 상태와 다른 축이라 따로 건다", async () => {
+    it("위생인증은 상태와 다른 축이라 따로 걸고, 요약이 그것을 말한다", async () => {
       const { user } = renderPage();
 
       await chooseOption(user, "위생인증", "인증안됨");
 
-      /* 기본 상태가 [입점] 이라 인증안됨 ∩ 입점 = 포근하루 하나다 */
-      expect(visibleNames()).toEqual(["포근하루"]);
+      expect(visibleNames()).toContain("포근하루");
+      expect(visibleNames()).not.toContain("아기별상사");
       // 상태 대시의 건수는 상태를 뺀 나머지 축(위생인증)을 반영해 함께 줄어든다
-      expect(statusBox("입점 1개사")).toBeVisible();
-      expect(statusBox("퇴점 처리중 1개사")).toBeVisible();
-      expect(statusBox("퇴점 1개사")).toBeVisible();
+      expect(statusBox("입점 11건")).toBeVisible();
+      expect(statusBox("퇴점 처리중 3건")).toBeVisible();
+      expect(statusBox("퇴점 2건")).toBeVisible();
+      expect(screen.getByText("위생인증 인증안됨")).toBeVisible();
     });
 
     it("기본 검색 조건은 셀러명이라 대표명으로는 찾히지 않는다", async () => {
       const { user } = renderPage();
 
-      await user.type(searchBox(), "정다인");
+      await user.type(await searchBox(user), "정다인");
 
       expect(bodyRows()).toHaveLength(0);
       expect(screen.getByText("해당 조건의 셀러가 없습니다")).toBeVisible();
@@ -362,27 +435,28 @@ describe("SellerListPage (S03 셀러 관리)", () => {
     it("다른 상태의 셀러는 검색으로 끌어오지 않는다", async () => {
       const { user } = renderPage();
 
-      await user.type(searchBox(), "하늘담요");
+      await user.type(await searchBox(user), "하늘담요");
 
       expect(bodyRows()).toHaveLength(0);
-      await user.click(statusBox("퇴점 1개사"));
+      await user.click(statusBox("퇴점 1건"));
       expect(visibleNames()).toEqual(["하늘담요"]);
     });
 
     it("조건을 대표명으로 바꾸면 같은 검색어로 찾힌다", async () => {
       const { user } = renderPage();
 
-      await user.type(searchBox(), "정다인");
+      await user.type(await searchBox(user), "정다인");
       await chooseOption(user, "검색 조건", "대표명");
 
       expect(visibleNames()).toEqual(["초록숲키즈"]);
+      expect(screen.getByText("대표명 «정다인»")).toBeVisible();
     });
 
     it("연락처로도 검색할 수 있다", async () => {
       const { user } = renderPage();
 
       await chooseOption(user, "검색 조건", "연락처");
-      await user.type(searchBox(), "010-9903");
+      await user.type(await searchBox(user), "010-9903");
 
       expect(visibleNames()).toEqual(["초록숲키즈"]);
     });
@@ -393,15 +467,16 @@ describe("SellerListPage (S03 셀러 관리)", () => {
       await chooseOption(user, "검색 조건", "대표명");
       await chooseOption(user, "기간 기준", "퇴점일");
       await chooseOption(user, "위생인증", "인증");
-      await user.type(searchBox(), "없는대표");
+      await user.type(await searchBox(user), "없는대표");
       expect(bodyRows()).toHaveLength(0);
 
       await user.click(screen.getByRole("button", { name: "필터를 초기화" }));
 
-      /* 상태도 기본값([입점] 5건)으로 돌아온다 — 1페이지는 4행 */
-      expect(bodyRows()).toHaveLength(4);
-      expect(statusBox("입점 5개사")).toHaveAttribute("aria-pressed", "true");
-      expect(searchBox()).toHaveValue("");
+      expect(bodyRows()).toHaveLength(10);
+      expect(statusBox(ACTIVE)).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByText("조건 없음 (전체)")).toBeVisible();
+      await openFilters(user);
+      expect(screen.getByPlaceholderText("검색어 입력")).toHaveValue("");
       expect(selectOf("검색 조건")).toHaveTextContent("셀러명");
       expect(selectOf("기간 기준")).toHaveTextContent("입점일");
       expect(selectOf("위생인증")).toHaveTextContent("위생인증 전체");
@@ -409,22 +484,58 @@ describe("SellerListPage (S03 셀러 관리)", () => {
   });
 
   /**
-   * 원본은 툴바 좌측(`toolsLeft`)에 엑셀 다운로드 하나만 두고 `셀러관리_N건.csv` 로 저장한다.
+   * 원본 `exportCsv` — **지금 조회 결과 안에서 고른 행**이 있으면 그것만, 없으면 조회 결과 전체.
+   * 퍼블은 파일을 만들지 않고 대상 건수만 알린다.
    */
   describe("엑셀 다운로드", () => {
-    it("지금 조건으로 조회된 건수를 밝힌다", async () => {
+    it("고른 행이 없으면 조회 결과 전체가 대상이다 — 1페이지만이 아니다", async () => {
       const { user } = renderPage();
 
       await user.click(screen.getByRole("button", { name: "엑셀 다운로드" }));
-      /* 화면 전체가 아니라 **지금 조건**(기본 상태 [입점] 5건)의 결과다 */
-      expect(screen.getByText("조회 결과 5건을 내려받았습니다")).toBeVisible();
+      expect(screen.getByText("조회 결과 26건을 내려받았습니다")).toBeVisible();
+    });
+
+    it("고른 행이 있으면 그 행만 대상이다", async () => {
+      const { user } = renderPage();
+
+      await user.click(
+        screen.getByRole("checkbox", { name: "아기별상사 선택" }),
+      );
+      await user.click(screen.getByRole("checkbox", { name: "포근하루 선택" }));
+      await user.click(screen.getByRole("button", { name: "엑셀 다운로드" }));
+
+      expect(screen.getByText("선택한 2건을 내려받았습니다")).toBeVisible();
+    });
+
+    /** 조건을 바꿔 결과 밖으로 나간 선택은 세지 않는다 — 보이지 않는 행이 담기면 안 된다 */
+    it("조회 결과 밖으로 나간 선택은 세지 않는다", async () => {
+      const { user } = renderPage();
+
+      await user.click(
+        screen.getByRole("checkbox", { name: "아기별상사 선택" }),
+      );
+      await user.type(await searchBox(user), "포근");
+      await user.click(screen.getByRole("button", { name: "엑셀 다운로드" }));
+
+      /* 포근하루 · 포근하우스 · 포근솜사탕 — 아기별상사는 결과에 없다 */
+      expect(screen.getByText("조회 결과 3건을 내려받았습니다")).toBeVisible();
+    });
+
+    it("머리글 체크박스는 이 페이지의 행만 고른다", async () => {
+      const { user } = renderPage();
+
+      await user.click(
+        screen.getByRole("checkbox", { name: "이 페이지 전체 선택" }),
+      );
+      await user.click(screen.getByRole("button", { name: "엑셀 다운로드" }));
+
+      expect(screen.getByText("선택한 10건을 내려받았습니다")).toBeVisible();
     });
   });
 
   /**
    * ⚠️ 색 어휘를 두 갈래로 나눠 쓴다.
    * 초록/노랑/빨강 = **상태**(지금 주의를 요하는가) · 파랑(highlight) = **분류·자격**.
-   * 위생인증을 success 로 칠하면 목록을 훑을 때 상태 신호와 섞여 읽힌다.
    */
   describe("색 어휘", () => {
     it("입점은 success 로 나간다", () => {
@@ -437,7 +548,7 @@ describe("SellerListPage (S03 셀러 관리)", () => {
     it("퇴점 처리중은 warning — 사람이 정리해야 끝난다", async () => {
       const { user } = renderPage();
 
-      await user.click(statusBox("퇴점 처리중 1개사"));
+      await user.click(statusBox(EXITING));
 
       const exiting = within(rowOf("튼튼주니어")).getByText("퇴점 처리중");
       expect(classList(exiting)).toContain("text-text-warning");
@@ -447,7 +558,7 @@ describe("SellerListPage (S03 셀러 관리)", () => {
     it("종결 상태인 퇴점은 default 라 눈에 띄지 않는다", async () => {
       const { user } = renderPage();
 
-      await user.click(statusBox("퇴점 1개사"));
+      await user.click(statusBox(CLOSED));
 
       const closed = within(rowOf("하늘담요")).getAllByText("퇴점")[0];
       expect(classList(closed)).toContain("text-text-sub");
@@ -472,10 +583,7 @@ describe("SellerListPage (S03 셀러 관리)", () => {
       ).toBe("var(--color-text-highlight)");
     });
 
-    /**
-     * 위생인증은 **"있음"만 배지가 뜨는 플래그**다 — 인증받은 셀러에만 붙는다.
-     * (`docs/screen-templates.md` §3-1 "분류 배지" — 플래그는 비대칭이 의도다)
-     */
+    /** 위생인증은 **"있음"만 배지가 뜨는 플래그**다 — 인증받은 셀러에만 붙는다 */
     it("위생인증은 있는 셀러에만 배지가 뜬다", () => {
       renderPage();
 
@@ -488,18 +596,11 @@ describe("SellerListPage (S03 셀러 관리)", () => {
     });
   });
 
-  /**
-   * 원본에서 셀러명은 `/sellers/{id}` 링크다. 그 상세 화면이 아직 없어 미리보기로 받는다.
-   */
-  describe("상세 진입과 미리보기 모달", () => {
-    /*
-     * 한때 셀러명이 4항목짜리 **미리보기 모달**을 열었다. 원본은 `/sellers/{id}` 상세로
-     * 나가는 링크이고, 이제 그 화면이 실제로 있으므로 모달을 걷어내고 이동으로 바꿨다.
-     */
+  describe("상세 진입", () => {
     it("셀러명을 누르면 셀러 상세로 이동한다", async () => {
       const { user, onNavSelect } = renderPage();
 
-      await user.click(statusBox("퇴점 처리중 1개사"));
+      await user.click(statusBox(EXITING));
       await user.click(screen.getByRole("button", { name: "튼튼주니어" }));
 
       expect(onNavSelect).toHaveBeenCalledWith("/sellers/S-1155");
@@ -507,53 +608,40 @@ describe("SellerListPage (S03 셀러 관리)", () => {
 
     /**
      * ⚠️ 원본에 없어서 걷어낸 것 — 되살리지 말 것.
-     * 원본 셀러 목록에는 행 액션이 하나도 없다. 조치는 셀러 상세 화면의 일이다.
+     * 원본 행의 컨트롤은 **체크박스 · 셀러명 링크 · 수수료율 [수정]** 뿐이다.
      */
-    /** 원본 셀러 목록에는 행 액션이 없다 — 조치는 전부 상세 화면의 일이다 */
-    it("목록에 퇴점 처리·수수료율 조정 같은 행 액션을 두지 않는다", async () => {
-      const { user } = renderPage();
+    it("행 컨트롤은 체크박스·셀러명·수수료율 수정뿐이다", () => {
+      renderPage();
 
-      await user.click(screen.getByRole("button", { name: "아기별상사" }));
-
+      const row = rowOf("아기별상사");
+      expect(
+        within(row)
+          .getAllByRole("button")
+          .map((button) => button.textContent),
+      ).toEqual(["아기별상사", "수정"]);
+      expect(within(row).getAllByRole("checkbox")).toHaveLength(1);
       expect(
         screen.queryByRole("button", { name: "퇴점 처리" }),
       ).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("dialog", { name: "퇴점 처리를 시작할까요?" }),
-      ).not.toBeInTheDocument();
-    });
-
-    /** 한 행이 갖는 컨트롤은 원본과 같이 **셀러명 링크 하나**뿐이다 (관리 열이 없다) */
-    /*
-     * 원본 행의 컨트롤은 **셀러명 링크와 수수료율 [수정]** 둘뿐이다.
-     * 퇴점 처리·상세 버튼 같은 것을 새로 만들지 않는다.
-     */
-    it("행 컨트롤은 셀러명과 수수료율 수정뿐이다", () => {
-      renderPage();
-
-      const controls = within(rowOf("아기별상사"))
-        .getAllByRole("button")
-        .map((button) => button.textContent);
-      expect(controls).toEqual(["아기별상사", "수정"]);
     });
   });
 });
 
 /* -------------------------------------------------------------------------
- * 정렬 — 원본 헤더에 ↕ 가 붙은 세 열 (입점일 · 상품수 · 평점)
+ * 정렬 — 원본 헤더에 ↕ 가 붙은 열 (입점일 · [퇴점일] · 상품수 · 평점)
  * ---------------------------------------------------------------------- */
 
 describe("정렬", () => {
   const header = (name: string) => screen.getByRole("columnheader", { name });
   const sortButton = (name: string) => within(header(name)).getByRole("button");
 
-  it("원본이 ↕ 를 붙인 세 열만 누를 수 있다", () => {
+  it("원본이 ↕ 를 붙인 열만 누를 수 있다", () => {
     renderPage();
 
     for (const name of ["입점일", "상품수", "평점"]) {
       expect(header(name)).toHaveAttribute("aria-sort", "none");
     }
-    /* 셀러명·수수료율에는 원본에 ↕ 가 없다 — 우리 옛 주석의 기록이 틀렸다 */
+    /* 셀러명·수수료율에는 원본에 ↕ 가 없다 */
     for (const name of ["셀러명", "수수료율", "No"]) {
       expect(header(name)).not.toHaveAttribute("aria-sort");
       expect(within(header(name)).queryByRole("button")).toBeNull();
@@ -584,34 +672,41 @@ describe("정렬", () => {
     await user.click(sortButton("평점"));
 
     const ratings = bodyRows().map((row) =>
-      Number(within(row).getAllByRole("cell")[9].textContent),
+      Number(cellsOf(row)[10].textContent?.replace("★ ", "")),
     );
     expect(ratings).toEqual([...ratings].sort((a, b) => a - b));
   });
 
-  /** No 는 레코드 번호라 정렬·필터와 무관하게 그 셀러에 붙어 있다 */
-  it("정렬해도 No 는 행 번호로 다시 매겨지지 않는다", async () => {
+  /** 원본 `sortHead(scr, "퇴점일", "quitAt")` — [퇴점] 탭의 퇴점일도 정렬한다 */
+  it("[퇴점] 탭에서는 퇴점일로도 정렬한다", async () => {
     const { user } = renderPage();
 
-    const noOf = (name: string) =>
-      within(rowOf(name)).getAllByRole("cell")[0].textContent;
-    const before = noOf("아기별상사");
+    await user.click(statusBox(CLOSED));
+    await user.click(sortButton("퇴점일"));
+
+    expect(visibleNames()).toEqual(["방긋상회", "봄날유아", "하늘담요"]);
+  });
+
+  /** No 는 순번이라 정렬해도 위에서부터 다시 센다 — 건너뛰는 번호가 없다 */
+  it("정렬해도 No 는 위에서부터 역순 순번이다", async () => {
+    const { user } = renderPage();
 
     await user.click(sortButton("상품수"));
 
-    expect(noOf("아기별상사")).toBe(before);
+    expect(visibleNos()[0]).toBe("26");
+    expect(visibleNos()[9]).toBe("17");
   });
 });
 
 /* -------------------------------------------------------------------------
- * 수수료율 인라인 수정 (원본 `feecell`)
+ * 수수료율 인라인 수정 (원본 `feecell`) — 퍼블은 검증 + 알림만
  * ---------------------------------------------------------------------- */
 
 describe("수수료율 인라인 수정", () => {
   const feeOf = (name: string) =>
     within(rowOf(name)).getByLabelText(`${name} 수수료율`);
 
-  it("셀에서 고치고 [수정] 을 누르면 반영되고 알린다", async () => {
+  it("셀에서 고치고 [수정] 을 누르면 알린다", async () => {
     const { user } = renderPage();
 
     await user.clear(feeOf("아기별상사"));
@@ -653,20 +748,16 @@ describe("수수료율 인라인 수정", () => {
     ).toBeVisible();
   });
 
-  it("초기화는 입력하다 만 값만 되돌리고, 확정한 값은 남긴다", async () => {
+  /** 저장하지 않으므로(퍼블 범위) 초기화하면 고친 값이 모두 처음 값으로 돌아간다 */
+  it("초기화하면 고친 수수료율이 처음 값으로 돌아간다", async () => {
     const { user } = renderPage();
 
-    // 확정
     await user.clear(feeOf("아기별상사"));
     await user.type(feeOf("아기별상사"), "15{Enter}");
-    // 입력만 하고 확정하지 않음
-    await user.clear(feeOf("베이비무브"));
-    await user.type(feeOf("베이비무브"), "3");
 
     await user.click(screen.getByRole("button", { name: "초기화" }));
 
-    expect(feeOf("아기별상사")).toHaveValue("15");
-    expect(feeOf("베이비무브")).toHaveValue("9.5");
+    expect(feeOf("아기별상사")).toHaveValue("12");
   });
 });
 
@@ -675,15 +766,17 @@ describe("수수료율 인라인 수정", () => {
  * ---------------------------------------------------------------------- */
 
 describe("페이지당 개수", () => {
-  it("개수를 늘리면 한 페이지에 더 담고 1페이지로 돌아간다", async () => {
+  it("원본처럼 10·20·50·100 이고, 늘리면 한 페이지에 더 담고 1페이지로 돌아간다", async () => {
     const { user } = renderPage();
 
     await user.click(screen.getByRole("button", { name: "2" }));
     await user.click(screen.getByRole("combobox", { name: "페이지당 개수" }));
-    await user.click(screen.getByRole("option", { name: "10개씩 보기" }));
+    expect(
+      screen.getAllByRole("option").map((option) => option.textContent),
+    ).toEqual(["10개씩 보기", "20개씩 보기", "50개씩 보기", "100개씩 보기"]);
+    await user.click(screen.getByRole("option", { name: "50개씩 보기" }));
 
-    // 기본 상태(입점) 5건이 한 페이지에 다 들어간다
-    expect(bodyRows()).toHaveLength(5);
+    expect(bodyRows()).toHaveLength(26);
     expect(screen.queryByRole("button", { name: "2" })).toBeNull();
   });
 });

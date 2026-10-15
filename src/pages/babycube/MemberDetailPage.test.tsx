@@ -1,6 +1,7 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
+import { navigate } from "../../lib/router";
 import { MemberDetailPage } from "./MemberDetailPage";
 
 /* -------------------------------------------------------------------------
@@ -465,6 +466,22 @@ describe("MemberDetailPage (S02-D 회원 상세)", () => {
 
       expect(onNavSelect).toHaveBeenCalledWith("/members");
       expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    /**
+     * 주소만 바뀌어 다른 회원으로 가면 고치던 값을 버린다 —
+     * A 에서 고치다 B 를 보고 A 로 돌아왔을 때 A 의 고친 값이 되살아나면 안 된다.
+     */
+    it("다른 회원으로 갔다 와도 고치던 값이 되살아나지 않는다", async () => {
+      const { user } = renderAt("dohyun.kim@example.com");
+
+      await user.click(stateButton("정지"));
+      act(() => navigate("/members/sujin.park%40example.com"));
+      expect(stateButton("정상")).toBeChecked();
+
+      act(() => navigate("/members/dohyun.kim%40example.com"));
+      expect(stateButton("정상")).toBeChecked();
+      expect(screen.getByRole("button", { name: "저장하기" })).toBeDisabled();
     });
   });
 

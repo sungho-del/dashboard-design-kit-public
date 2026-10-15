@@ -17,16 +17,20 @@ import type { TagCustomStyle, TagTone } from "../../components/ui";
  * | `SELLERS`         | 샘플 데이터                                |
  * | `FILTERS`         | 상태 대시 = 상태 필터                      |
  * | `SEARCH_FIELDS`   | 검색 조건 셀렉트 (검색 필드 선택형)        |
- * | `rate`·`num`·`score`·`ymd` | 표의 수치 포맷 (% · 수 · 평점 · 날짜) |
+ * | `rate`·`num`·`score`·`ymd`·`productCount` | 표의 수치 포맷 (% · 수 · 평점 · 날짜 · 개) |
  * | `PAGE_SIZE`       | 페이지당 행 수                             |
+ * | `HQ_BADGE`        | 본사 계정 셀러명 옆 배지                   |
+ * | `filterSummary`   | 접힌 검색조건 줄의 요약                    |
  *
  * ## 뼈대가 이 파일에 기대하는 계약
  * - 행 타입은 `id`(고유키) · `date`(`YYYY-MM-DD HH:mm`, 기간 필터가 파싱)를 갖는다.
  *   여기서 `date` 는 **입점일**이다
- * - `exitDate` 는 **퇴점이 완료된 셀러만** 갖는다. 나머지는 `null` 이고,
- *   뼈대는 퇴점일 열 자체를 상태 필터가 `"closed"` 일 때만 붙인다(원본과 같다)
+ * - `exitDate` 는 **퇴점 셀러는 퇴점일, 퇴점 처리중 셀러는 퇴점 예정일**이다(원본 `quitAt` 하나에 둘 다 담는다).
+ *   입점 셀러는 `null`. 뼈대는 퇴점일 **열**을 상태 필터가 `"closed"` 일 때만 붙인다(원본과 같다) —
+ *   예정일은 열로 보이지 않고 퇴점일 기준 기간 필터에만 걸린다
  * - `DATE_FIELDS[].pick` 이 기간 필터가 훑을 값을 고른다 — `null` 이면 그 행은 기간에서 빠진다
- * - `commission` 은 **본사 직영에서 `null`** 이다 — 자기 자신에게 수수료를 매기지 않는다
+ * - **본사 직영(`isHeadquarters`)은 수수료율 0% 확정**이다 — 목록·상세 모두 입력칸을 열지 않는다
+ *   (2026-10-15 사용자 결정: 본사는 상태·수수료만 잠그고 나머지는 일반 셀러처럼 고친다)
  * - `STATUS_META` 의 키는 `Seller["status"]` 유니온과 정확히 일치한다
  * - `FILTERS[0].value` 는 `"all"`(뼈대가 필터 해제로 취급)이고,
  *   나머지 `value` 는 **`SellerStatus` 와 같은 값**이다 — 뼈대가 상태별 건수를 셀 때 쓴다
@@ -58,15 +62,15 @@ import type { TagCustomStyle, TagTone } from "../../components/ui";
  * - **그대로 가져온 것**
  *   - 컬럼 이름과 **순서**: 셀러명 → 위생인증 → 대표명 → 연락처 → 상태 →
  *     수수료율 → 입점일 → [퇴점일] → 상품수 → 평점 (관리 열은 **없다**)
- *   - 숫자 열 3종(수수료율·상품수·평점)의 우측 정렬 · **퇴점일 열의 조건부 노출**
- *   - 본사 표시 `(본사)` · 위생인증 배지 문구 `위생인증셀러`
- *   - 수치 표기: 수수료율 `${n}%`(자릿수 패딩 없음) · 상품수 `toLocaleString`(**단위 없음**) ·
- *     평점 `toFixed(2)` · 날짜 `ymd`(**날짜만**)
+ *   - **퇴점일 열의 조건부 노출**과 그 열의 정렬
+ *   - 본사 배지 `본사` · 위생인증 배지 문구 `위생인증셀러`
+ *   - 수치 표기(v0.4 `SCREENS.sellers`): 수수료율 `${n}%`(자릿수 패딩 없음) · 상품수 `${n}개` ·
+ *     평점 `★ ${n}` · 날짜 `ymd`(**날짜만**)
  *   - 필터 축 3개: 기간(입점일/퇴점일 **두 기준**) · 위생인증(인증/인증안됨) ·
  *     검색 조건(셀러명/대표명/연락처)
- *   - 상태 어휘 3종과 상태별 안내 문구(원본 `statusTips`)
- * - **값 출처가 불명해 그대로 둔 것**: 표 데이터·건수는 원본에서 API(`sellersApi`) 응답이라
- *   청크에 없다. 샘플 7건은 우리가 만든 값이다
+ *   - 상태 어휘 3종과 상태별 안내 문구(v0.4 `STAT_TIP` 의 설명 + 다음 단계)
+ * - **샘플**: 상세까지 갖춘 7곳(우리가 만든 값) + v0.4 `SELLERS` 의 25곳을 간이로(`BRIEF_ROWS`) —
+ *   한 상태 탭에 2페이지가 생기도록 32곳이다
  * - **우리 규칙을 우선한 곳**: 값이 없는 셀을 원본은 **빈칸**으로 두지만 우리는 `-`(`EMPTY_CELL`)로
  *   채운다 — 빈 셀은 "값이 없음"인지 "못 불러왔음"인지 구별되지 않는다
  * ---------------------------------------------------------------------- */
@@ -91,13 +95,16 @@ export interface SellerDocument {
   number: string;
 }
 
-/** 셀러가 등록한 상품 한 건 — 상세의 "등록 상품" 표가 쓴다 (원본 `sec.sellers_prod`) */
+/**
+ * 셀러가 등록한 상품 한 건 — 상세의 "등록 상품" 표가 쓴다 (원본 `sec.sellers_prod`).
+ * No 는 들고 있지 않다 — 표가 페이지 안 순번(`start + i + 1`)으로 센다.
+ * ⚠️ **임시저장 초안은 담지 않는다**(원본 — 본사 화면 어디에도 내지 않는다).
+ */
 export interface SellerProduct {
-  no: number;
-  /** 렌트 / 판매 */
-  kind: DealKind;
-  /** 판매 상태 — 원본 배지 어휘 그대로 */
-  saleStatus: "onSale" | "soldout" | "stopped";
+  /** 렌트 / 판매. 둘 다 취급하는 상품은 둘 다 든다(원본 `mode: "both"`) */
+  kinds: DealKind[];
+  /** 판매 상태 — 상품 관리와 같은 어휘 */
+  saleStatus: "onSale" | "soldout" | "stopped" | "rejected" | "rereview";
   code: string;
   name: string;
   category: string;
@@ -112,33 +119,27 @@ export interface SellerProduct {
 export type DealKind = "rent" | "sale";
 
 export interface Seller {
-  /** 셀러 코드 — 고유키 */
+  /** 셀러 코드 — 고유키. 표의 No 는 이것이 아니라 조회 결과의 역순 순번이다 */
   id: string;
-  /**
-   * 원본 표의 **No** 열. 화면이 세는 순번이 아니라 **레코드에 붙은 번호**다 —
-   * 정렬을 바꾸거나 필터를 걸어도 같은 셀러는 같은 번호를 유지한다.
-   * (행 인덱스로 그리면 "3번 셀러"라고 말했을 때 서로 다른 행을 보게 된다.)
-   */
-  no: number;
   name: string;
   /**
    * 본사 직영 계정인지. 본사도 셀러로 등록돼 자기 상품을 판다
    * (쿠폰 발행 주체가 본사/셀러로 갈리는 것과 같은 사실이다 — `CouponListPage.data.ts`).
-   * 참이면 셀러명 뒤에 `(본사)` 가 붙는다 — 원본과 같다.
+   * 참이면 셀러명 옆에 `본사` 배지가 붙는다 — 원본과 같다.
    */
   isHeadquarters: boolean;
   /** 대표명 */
   ceo: string;
   phone: string;
-  /** 수수료율(%) — 6~16 범위. **본사 직영은 수수료가 없어 `null`** */
-  commission: number | null;
+  /** 수수료율(%) — 6~16 범위. **본사 직영은 0 확정** */
+  commission: number;
   /** 입점일 `YYYY-MM-DD HH:mm` — 뼈대의 기간 필터가 이 형식을 파싱한다 */
   date: string;
-  /** 퇴점일. **퇴점이 완료된 셀러만** 값이 있다(처리중이면 아직 확정되지 않았다) */
+  /** 퇴점일 — 퇴점 셀러는 퇴점한 날, 퇴점 처리중 셀러는 **예정일**. 입점 셀러는 `null` */
   exitDate: string | null;
   /** 등록 상품수 */
   products: number;
-  /** 평점 (5점 만점) */
+  /** 평점 (5점 만점, 소수 한 자리) */
   rating: number;
   /** 위생인증 셀러 여부 */
   hygiene: boolean;
@@ -157,12 +158,17 @@ export interface Seller {
   intro: string;
   /** 등록 상품 — 상세의 표가 그대로 쓴다. `products` 수와 다를 수 있다(샘플은 일부만 든다) */
   catalog: SellerProduct[];
+  /**
+   * 퇴점 확인 창이 세는 **남은 일** — 원본 `sellerExitCount` 의 셋(판매 중 상품은 `catalog` 에서 센다).
+   * 실 API 에서는 렌트·정산·클레임 조회 결과다. 샘플은 정적 값이고, 없으면 모두 0 이다.
+   */
+  openWork?: { rents: number; settlements: number; claims: number };
 }
 
 /**
  * 상태값 → 표시 라벨 · Tag tone · 설명.
  *
- * `description` 은 원본 어드민의 `statusTips` 를 그대로 옮긴 것이다.
+ * `description` 은 원본 v0.4 `STAT_TIP` 의 두 줄(설명 + 다음 단계)을 한 문단으로 이은 것이다.
  * 원본은 이 문구를 **상태 대시 카드의 툴팁**으로 띄우므로 우리도 같은 자리에 붙이고,
  * 미리보기 모달에서도 한 번 더 낸다 — **되돌릴 수 있는 상태인지**가 판단의 근거라서다.
  */
@@ -173,18 +179,20 @@ export const STATUS_META: Record<
   active: {
     label: "입점",
     tone: "success",
-    description: "심사를 통과해 영업 중인 셀러입니다.",
+    description:
+      "입점 심사를 통과해 정상 영업 중인 셀러입니다. 퇴점을 신청하면 [퇴점 처리중]으로 넘어갑니다.",
   },
   exiting: {
     label: "퇴점 처리중",
     tone: "warning",
     description:
-      "퇴점을 신청해 잔여 주문·정산을 정리하는 중입니다. 정리가 끝나면 [퇴점]이 됩니다.",
+      "퇴점 절차가 진행 중인 셀러입니다. 잔여 주문·정산을 마무리하는 단계입니다. 정산까지 끝나면 [퇴점]으로 종결됩니다.",
   },
   closed: {
     label: "퇴점",
     tone: "default",
-    description: "퇴점이 완료된 셀러입니다. 종결 상태라 되돌아가지 않습니다.",
+    description:
+      "퇴점이 끝나 거래가 종결된 셀러입니다. 더 진행할 단계가 없습니다.",
   },
 };
 
@@ -209,7 +217,8 @@ export const HYGIENE_BADGE = {
 
 /**
  * 위생인증 필터 — 원본 `chips: [{ key: "hygiene", label: "위생인증", values: ["인증","인증안됨"] }]`.
- * 상태와 **다른 축**이라 상태 대시에 섞지 않고 별도 셀렉트로 둔다.
+ * 상태와 **다른 축**이라 상태 대시에 섞지 않고 검색조건 안의 별도 셀렉트로 둔다.
+ * 원본은 복수 선택 칩이지만 값이 둘뿐이라 [전체]/[인증]/[인증안됨] 택1 과 결과가 같다.
  * 첫 항목만 라벨에 축 이름을 붙인다 — 셀렉트 트리거에 보이는 글자가 곧 현재 값이라,
  * `전체` 만 적으면 무엇의 전체인지 알 수 없다.
  */
@@ -229,26 +238,532 @@ export const DATE_FIELDS = [
   { value: "exit", label: "퇴점일", pick: (seller: Seller) => seller.exitDate },
 ];
 
-/** 값이 없는 셀(퇴점 전 셀러의 퇴점일 · 본사의 수수료율 등)에 채우는 글자 */
+/** 값이 없는 셀(입점 셀러의 퇴점일 · 위생인증 없음)에 채우는 글자 */
 export const EMPTY_CELL = "-";
 
-/** 본사 직영 계정의 셀러명 뒤에 붙는 표시 — 원본과 같다 */
-export const HQ_SUFFIX = " (본사)";
+/**
+ * 본사 직영 계정 배지 — 원본 `<span class="badge b-blue">본사</span>`.
+ * 상태가 아니라 **분류**라 위생인증 배지와 같은 highlight 계열을 쓴다.
+ */
+export const HQ_BADGE = {
+  label: "본사",
+  tone: "custom" as TagTone,
+  style: CLASSIFICATION_STYLE,
+};
+
+/* -------------------------------------------------------------------------
+ * 간이 샘플 — 원본 v0.4 `SELLERS` 의 25곳 (S-201 ~ S-225)
+ *
+ * 목록을 2페이지 이상으로 채우려고 원본 값을 그대로 옮겼다(이름·대표·연락처·상태·입점일·
+ * 상품수·평점·수수료율·사업자/취급 유형·위생인증·서류번호·소개·퇴점일). 등록 상품 표는 비어 있다.
+ * 순서: id · 셀러명 · 대표 · 연락처 · 상태 · 입점일 · 상품수 · 평점 · 수수료율 ·
+ *       사업자 유형 · 취급 유형 · 위생인증 · 사업자등록번호 · 통신판매업 신고번호 · 소개 · 퇴점(예정)일
+ * ---------------------------------------------------------------------- */
+type BriefRow = [
+  string,
+  string,
+  string,
+  string,
+  SellerStatus,
+  string,
+  number,
+  number,
+  number,
+  BizType,
+  DealScope,
+  boolean,
+  string,
+  string,
+  string,
+  string?,
+];
+
+const BRIEF_ROWS: BriefRow[] = [
+  [
+    "S-201",
+    "리틀베이비",
+    "김유진",
+    "010-3201-1188",
+    "active",
+    "2024-01-10",
+    128,
+    4.9,
+    10,
+    "corporate",
+    "all",
+    true,
+    "201-81-45123",
+    "2024-서울강남-01021",
+    "프리미엄 유아용품 전문 · 왕복 무료배송",
+  ],
+  [
+    "S-202",
+    "베이비노리터",
+    "오세훈",
+    "010-3202-2277",
+    "active",
+    "2024-03-22",
+    96,
+    4.8,
+    11,
+    "corporate",
+    "all",
+    false,
+    "202-81-33456",
+    "2024-서울마포-00874",
+    "친환경 소재 · 전 상품 KC 인증",
+  ],
+  [
+    "S-203",
+    "장난감아저씨",
+    "한지민",
+    "010-3203-3366",
+    "exiting",
+    "2024-06-01",
+    210,
+    4.7,
+    12,
+    "individual",
+    "rent",
+    false,
+    "203-14-77012",
+    "2024-경기성남-02233",
+    "대형완구·놀이용품 렌트 1위",
+    "2026-09-30",
+  ],
+  [
+    "S-204",
+    "포근하우스",
+    "윤서아",
+    "010-3204-4455",
+    "active",
+    "2024-09-14",
+    74,
+    4.9,
+    9,
+    "corporate",
+    "sale",
+    true,
+    "204-81-51188",
+    "2024-서울송파-03310",
+    "수면·침구 전문 셀러",
+  ],
+  [
+    "S-205",
+    "쑥쑥마켓",
+    "정민재",
+    "010-3205-5544",
+    "active",
+    "2025-02-03",
+    152,
+    4.6,
+    13,
+    "individual",
+    "all",
+    false,
+    "205-22-64099",
+    "2025-인천남동-00457",
+    "성장단계별 큐레이션 셀러",
+  ],
+  [
+    "S-206",
+    "아이사랑컴퍼니",
+    "최도윤",
+    "010-3206-6710",
+    "active",
+    "2024-10-02",
+    63,
+    4.8,
+    8,
+    "corporate",
+    "rent",
+    true,
+    "206-81-20934",
+    "2024-서울강서-04120",
+    "수유·이유용품 전문 · 위생 인증 셀러",
+  ],
+  [
+    "S-207",
+    "튼튼키즈",
+    "강하은",
+    "010-3207-7820",
+    "active",
+    "2024-11-11",
+    88,
+    4.7,
+    14,
+    "individual",
+    "sale",
+    false,
+    "207-31-45560",
+    "2024-부산해운대-00981",
+    "유아 완구·교구 판매 셀러",
+  ],
+  [
+    "S-208",
+    "봄날유아",
+    "임서준",
+    "010-3208-8930",
+    "closed",
+    "2024-12-05",
+    45,
+    4.9,
+    9.5,
+    "corporate",
+    "all",
+    true,
+    "208-81-77821",
+    "2024-서울종로-05233",
+    "프리미엄 유아패브릭 전문",
+    "2026-05-15",
+  ],
+  [
+    "S-209",
+    "하이베베",
+    "송지아",
+    "010-3209-9040",
+    "active",
+    "2025-01-19",
+    112,
+    4.6,
+    11.5,
+    "corporate",
+    "rent",
+    false,
+    "209-81-11245",
+    "2025-서울영등포-00612",
+    "유모차·카시트 렌트 특화",
+  ],
+  [
+    "S-210",
+    "초록발자국",
+    "조은우",
+    "010-3210-1150",
+    "active",
+    "2025-02-27",
+    57,
+    4.8,
+    8.5,
+    "individual",
+    "sale",
+    true,
+    "210-19-38870",
+    "2025-경기용인-01344",
+    "유기농 유아식·이유식 판매",
+  ],
+  [
+    "S-211",
+    "미소맘마켓",
+    "백서연",
+    "010-3211-2260",
+    "active",
+    "2025-03-14",
+    134,
+    4.9,
+    12.5,
+    "corporate",
+    "all",
+    false,
+    "211-81-90034",
+    "2025-서울강남-06021",
+    "육아 필수템 종합 셀러",
+  ],
+  [
+    "S-212",
+    "코니베어",
+    "유준호",
+    "010-3212-3370",
+    "active",
+    "2025-03-30",
+    71,
+    4.5,
+    13.5,
+    "individual",
+    "rent",
+    true,
+    "212-27-55190",
+    "2025-대구수성-00733",
+    "바운서·스윙 렌트 전문",
+  ],
+  [
+    "S-213",
+    "폭신폭신",
+    "남도현",
+    "010-3213-4480",
+    "active",
+    "2025-04-08",
+    39,
+    4.7,
+    7,
+    "corporate",
+    "sale",
+    false,
+    "213-81-42277",
+    "2025-서울서초-07110",
+    "놀이방매트·범퍼침대 판매",
+  ],
+  [
+    "S-214",
+    "별빛아기",
+    "문채원",
+    "010-3214-5590",
+    "active",
+    "2025-04-22",
+    96,
+    4.8,
+    15,
+    "individual",
+    "all",
+    true,
+    "214-11-63301",
+    "2025-경기고양-02455",
+    "수면등·무드케어 전문",
+  ],
+  [
+    "S-215",
+    "두리하우스",
+    "오하준",
+    "010-3215-6600",
+    "exiting",
+    "2025-05-06",
+    60,
+    4.4,
+    6,
+    "corporate",
+    "rent",
+    false,
+    "215-81-28844",
+    "2025-서울노원-08120",
+    "대형 놀이기구 렌트",
+    "2026-10-10",
+  ],
+  [
+    "S-216",
+    "마미케어",
+    "신유나",
+    "010-3216-7710",
+    "active",
+    "2025-05-20",
+    83,
+    4.9,
+    10.5,
+    "corporate",
+    "sale",
+    true,
+    "216-81-70125",
+    "2025-서울강동-09033",
+    "산모·신생아 위생용품 전문",
+  ],
+  [
+    "S-217",
+    "곰곰상점",
+    "홍시우",
+    "010-3217-8820",
+    "active",
+    "2025-06-03",
+    52,
+    4.6,
+    16,
+    "individual",
+    "all",
+    false,
+    "217-24-51908",
+    "2025-인천연수-01722",
+    "원목완구·교구 종합",
+  ],
+  [
+    "S-218",
+    "뽀송데이",
+    "권지호",
+    "010-3218-9930",
+    "active",
+    "2025-06-17",
+    108,
+    4.8,
+    9.8,
+    "corporate",
+    "rent",
+    true,
+    "218-81-33417",
+    "2025-경기수원-03288",
+    "제습·공기케어 가전 렌트",
+  ],
+  [
+    "S-219",
+    "아기별장",
+    "서예린",
+    "010-3219-1040",
+    "active",
+    "2025-07-01",
+    44,
+    4.7,
+    11.8,
+    "individual",
+    "sale",
+    false,
+    "219-33-60271",
+    "2025-부산부산진-00590",
+    "수면·침구 세트 판매",
+  ],
+  [
+    "S-220",
+    "든든키즈랩",
+    "배건우",
+    "010-3220-2150",
+    "active",
+    "2025-07-15",
+    127,
+    4.9,
+    12.2,
+    "corporate",
+    "all",
+    true,
+    "220-81-84402",
+    "2025-서울금천-04901",
+    "육아가전·소독가전 종합",
+  ],
+  [
+    "S-221",
+    "포근솜사탕",
+    "안소율",
+    "010-3221-3260",
+    "active",
+    "2025-08-02",
+    66,
+    4.5,
+    8.8,
+    "individual",
+    "rent",
+    false,
+    "221-16-47115",
+    "2025-경기부천-02066",
+    "유아 침구·러그 렌트",
+  ],
+  [
+    "S-222",
+    "무럭무럭",
+    "황시온",
+    "010-3222-4370",
+    "active",
+    "2025-08-19",
+    91,
+    4.8,
+    13.8,
+    "corporate",
+    "sale",
+    true,
+    "222-81-19903",
+    "2025-서울관악-05744",
+    "성장단계 이유식·간식 판매",
+  ],
+  [
+    "S-223",
+    "방긋상회",
+    "노하율",
+    "010-3223-5480",
+    "closed",
+    "2025-09-05",
+    38,
+    4.3,
+    7.5,
+    "individual",
+    "all",
+    false,
+    "223-28-72240",
+    "2025-광주서구-00318",
+    "유아 잡화 종합 셀러",
+    "2026-04-28",
+  ],
+  [
+    "S-224",
+    "소중한하루",
+    "전지안",
+    "010-3224-6590",
+    "active",
+    "2025-09-21",
+    79,
+    4.9,
+    14.5,
+    "corporate",
+    "rent",
+    false,
+    "224-81-55071",
+    "2025-서울동작-06880",
+    "외출·이동용품 렌트",
+  ],
+  [
+    "S-225",
+    "아이코니",
+    "고라온",
+    "010-3225-7600",
+    "active",
+    "2025-10-10",
+    55,
+    4.6,
+    6.5,
+    "individual",
+    "sale",
+    true,
+    "225-21-40836",
+    "2025-경기안양-01099",
+    "유아 목욕·위생용품 판매",
+  ],
+];
+
+/** 간이 행 → 셀러. 원본 날짜에는 시각이 없어 09:00 으로 채운다(기간 필터가 시각까지 파싱한다) */
+const toSeller = ([
+  id,
+  name,
+  ceo,
+  phone,
+  status,
+  join,
+  products,
+  rating,
+  commission,
+  bizType,
+  dealScope,
+  hygiene,
+  bizNo,
+  salesNo,
+  intro,
+  exit,
+]: BriefRow): Seller => ({
+  id,
+  name,
+  isHeadquarters: false,
+  ceo,
+  phone,
+  commission,
+  date: `${join} 09:00`,
+  exitDate: exit ? `${exit} 00:00` : null,
+  products,
+  rating,
+  hygiene,
+  status,
+  bizType,
+  dealScope,
+  bizLicense: { fileName: "사업자등록증.pdf", number: bizNo },
+  salesLicense: { fileName: "통신판매업 신고증.pdf", number: salesNo },
+  intro,
+  catalog: [],
+});
+
+const BRIEF_SELLERS = BRIEF_ROWS.map(toSeller);
 
 export const SELLERS: Seller[] = [
   {
-    /* 본사 직영 — 자기 자신에게 수수료를 매기지 않아 `commission` 이 null 이다 */
+    /* 본사 직영 — 자기 자신에게 수수료를 매기지 않아 수수료율 0% 확정이다 */
     id: "S-0001",
-    no: 7,
     name: "베이비큐브",
     isHeadquarters: true,
     ceo: "서지호",
     phone: "1670-0114",
-    commission: null,
+    commission: 0,
     date: "2025-09-01 09:00",
     exitDate: null,
     products: 412,
-    rating: 4.91,
+    rating: 5.0,
     hygiene: true,
     status: "active",
     bizType: "corporate",
@@ -263,8 +778,7 @@ export const SELLERS: Seller[] = [
     /* 원본 셀러 상세의 "등록 상품 (3)" 표를 그대로 옮겼다 */
     catalog: [
       {
-        no: 1,
-        kind: "sale",
+        kinds: ["sale"],
         saleStatus: "onSale",
         code: "NR270900",
         name: "BabyCube 시그니처 원목 아기침대",
@@ -274,8 +788,7 @@ export const SELLERS: Seller[] = [
         shown: true,
       },
       {
-        no: 2,
-        kind: "rent",
+        kinds: ["rent"],
         saleStatus: "onSale",
         code: "PR270901",
         name: "본사 기획 사계절 아기 침낭 세트",
@@ -285,8 +798,7 @@ export const SELLERS: Seller[] = [
         shown: true,
       },
       {
-        no: 3,
-        kind: "sale",
+        kinds: ["sale"],
         saleStatus: "soldout",
         code: "QR270902",
         name: "BabyCube 프리미엄 모유저장팩 세트",
@@ -299,7 +811,6 @@ export const SELLERS: Seller[] = [
   },
   {
     id: "S-1042",
-    no: 6,
     name: "아기별상사",
     isHeadquarters: false,
     ceo: "김하윤",
@@ -308,9 +819,10 @@ export const SELLERS: Seller[] = [
     date: "2025-11-04 10:20",
     exitDate: null,
     products: 184,
-    rating: 4.82,
+    rating: 4.8,
     hygiene: true,
     status: "active",
+    openWork: { rents: 3, settlements: 0, claims: 1 },
     bizType: "corporate",
     dealScope: "all",
     bizLicense: { fileName: "사업자등록증.pdf", number: "214-81-30912" },
@@ -321,8 +833,7 @@ export const SELLERS: Seller[] = [
     intro: "신생아 용품을 중심으로 렌트와 판매를 함께 운영합니다.",
     catalog: [
       {
-        no: 1,
-        kind: "rent",
+        kinds: ["rent"],
         saleStatus: "onSale",
         code: "AR118203",
         name: "잘레토 전동 바운서 4세대",
@@ -332,8 +843,7 @@ export const SELLERS: Seller[] = [
         shown: true,
       },
       {
-        no: 2,
-        kind: "sale",
+        kinds: ["sale"],
         saleStatus: "onSale",
         code: "AS118477",
         name: "휴대용 젖병 소독기",
@@ -342,11 +852,110 @@ export const SELLERS: Seller[] = [
         updatedAt: "2026-03-02 15:41:09",
         shown: true,
       },
+      {
+        kinds: ["rent", "sale"],
+        saleStatus: "onSale",
+        code: "AB118530",
+        name: "렌트 겸용 젖병 워머",
+        category: "분유·이유식",
+        createdAt: "2026-03-10 10:11:02",
+        updatedAt: "2026-07-02 11:40:17",
+        shown: true,
+      },
+      {
+        kinds: ["rent"],
+        saleStatus: "onSale",
+        code: "AR118602",
+        name: "신생아 스윙 바운서 라이트",
+        category: "바운서·스윙",
+        createdAt: "2026-03-18 14:05:44",
+        updatedAt: "2026-03-18 14:05:44",
+        shown: true,
+      },
+      {
+        kinds: ["sale"],
+        saleStatus: "soldout",
+        code: "AS118655",
+        name: "오가닉 거즈 손수건 10매",
+        category: "목욕·위생",
+        createdAt: "2026-04-01 09:30:10",
+        updatedAt: "2026-08-12 16:20:31",
+        shown: true,
+      },
+      {
+        kinds: ["sale"],
+        saleStatus: "rejected",
+        code: "AS118701",
+        name: "무형광 아기 세제 2L",
+        category: "목욕·위생",
+        createdAt: "2026-04-09 13:12:55",
+        updatedAt: "2026-04-15 10:01:03",
+        shown: false,
+      },
+      {
+        kinds: ["rent"],
+        saleStatus: "onSale",
+        code: "AR118744",
+        name: "휴대용 아기 침대 트래블",
+        category: "아기침대",
+        createdAt: "2026-04-22 17:48:20",
+        updatedAt: "2026-06-30 09:15:42",
+        shown: true,
+      },
+      {
+        kinds: ["sale"],
+        saleStatus: "rereview",
+        code: "AS118790",
+        name: "실리콘 이유식 스푼 세트",
+        category: "분유·이유식",
+        createdAt: "2026-05-03 11:26:37",
+        updatedAt: "2026-09-02 15:44:08",
+        shown: false,
+      },
+      {
+        kinds: ["rent"],
+        saleStatus: "stopped",
+        code: "AR118812",
+        name: "전동 모빌 스타라이트",
+        category: "장난감",
+        createdAt: "2026-05-14 10:02:19",
+        updatedAt: "2026-08-28 18:07:55",
+        shown: false,
+      },
+      {
+        kinds: ["sale"],
+        saleStatus: "onSale",
+        code: "AS118856",
+        name: "아기 손톱깎이 세트",
+        category: "목욕·위생",
+        createdAt: "2026-05-27 15:39:00",
+        updatedAt: "2026-05-27 15:39:00",
+        shown: true,
+      },
+      {
+        kinds: ["rent", "sale"],
+        saleStatus: "onSale",
+        code: "AB118901",
+        name: "접이식 하이체어 클래식",
+        category: "유아 가구",
+        createdAt: "2026-06-08 12:21:48",
+        updatedAt: "2026-07-19 13:33:26",
+        shown: true,
+      },
+      {
+        kinds: ["sale"],
+        saleStatus: "onSale",
+        code: "AS118947",
+        name: "수유 쿠션 코튼",
+        category: "수유용품",
+        createdAt: "2026-06-21 09:58:13",
+        updatedAt: "2026-06-21 09:58:13",
+        shown: true,
+      },
     ],
   },
   {
     id: "S-1078",
-    no: 5,
     name: "베이비무브",
     isHeadquarters: false,
     ceo: "박정우",
@@ -355,7 +964,7 @@ export const SELLERS: Seller[] = [
     date: "2026-01-16 15:42",
     exitDate: null,
     products: 96,
-    rating: 4.64,
+    rating: 4.6,
     hygiene: true,
     status: "active",
     bizType: "individual",
@@ -368,8 +977,7 @@ export const SELLERS: Seller[] = [
     intro: "이동 장비 전문 — 유모차·카시트만 취급합니다.",
     catalog: [
       {
-        no: 1,
-        kind: "rent",
+        kinds: ["rent"],
         saleStatus: "onSale",
         code: "BR220154",
         name: "디럭스 유모차 스톨라 프로",
@@ -382,7 +990,6 @@ export const SELLERS: Seller[] = [
   },
   {
     id: "S-1123",
-    no: 4,
     name: "포근하루",
     isHeadquarters: false,
     ceo: "이서윤",
@@ -391,7 +998,7 @@ export const SELLERS: Seller[] = [
     date: "2026-03-02 09:05",
     exitDate: null,
     products: 57,
-    rating: 4.35,
+    rating: 4.4,
     hygiene: false,
     status: "active",
     bizType: "individual",
@@ -404,8 +1011,7 @@ export const SELLERS: Seller[] = [
     intro: "수면 용품과 침구를 판매합니다.",
     catalog: [
       {
-        no: 1,
-        kind: "sale",
+        kinds: ["sale"],
         saleStatus: "onSale",
         code: "CS330871",
         name: "원목 범퍼 아기침대",
@@ -415,8 +1021,7 @@ export const SELLERS: Seller[] = [
         shown: true,
       },
       {
-        no: 2,
-        kind: "sale",
+        kinds: ["sale"],
         saleStatus: "stopped",
         code: "CS330902",
         name: "사계절 순면 이불 세트",
@@ -428,20 +1033,20 @@ export const SELLERS: Seller[] = [
     ],
   },
   {
-    /* 퇴점 처리중 — 퇴점일이 아직 확정되지 않아 `exitDate` 가 null 이다 */
+    /* 퇴점 처리중 — `exitDate` 는 **퇴점 예정일**이다(원본 `quitAt`). 앞으로 나갈 셀러라 미래 날짜다 */
     id: "S-1155",
-    no: 3,
     name: "튼튼주니어",
     isHeadquarters: false,
     ceo: "최민준",
     phone: "010-5581-3027",
     commission: 8,
     date: "2026-04-21 13:38",
-    exitDate: null,
+    exitDate: "2026-11-30 00:00",
     products: 23,
-    rating: 4.12,
+    rating: 4.1,
     hygiene: false,
     status: "exiting",
+    openWork: { rents: 2, settlements: 1, claims: 1 },
     bizType: "corporate",
     dealScope: "all",
     bizLicense: { fileName: "사업자등록증.pdf", number: "402-86-11930" },
@@ -452,8 +1057,7 @@ export const SELLERS: Seller[] = [
     intro: "유아 가구와 안전용품을 취급합니다. 현재 퇴점 절차를 진행 중입니다.",
     catalog: [
       {
-        no: 1,
-        kind: "rent",
+        kinds: ["rent"],
         saleStatus: "stopped",
         code: "DR440215",
         name: "3in1 유아 카시트",
@@ -466,7 +1070,6 @@ export const SELLERS: Seller[] = [
   },
   {
     id: "S-1190",
-    no: 2,
     name: "초록숲키즈",
     isHeadquarters: false,
     ceo: "정다인",
@@ -488,8 +1091,7 @@ export const SELLERS: Seller[] = [
     intro: "친환경 소재 위주로 큐레이션한 렌트 전문 셀러입니다.",
     catalog: [
       {
-        no: 1,
-        kind: "rent",
+        kinds: ["rent"],
         saleStatus: "onSale",
         code: "ER550330",
         name: "접이식 아기 욕조",
@@ -502,7 +1104,6 @@ export const SELLERS: Seller[] = [
   },
   {
     id: "S-1204",
-    no: 1,
     name: "하늘담요",
     isHeadquarters: false,
     ceo: "한지호",
@@ -511,7 +1112,7 @@ export const SELLERS: Seller[] = [
     date: "2026-06-18 16:55",
     exitDate: "2026-07-30 09:40",
     products: 0,
-    rating: 3.87,
+    rating: 3.9,
     hygiene: false,
     status: "closed",
     bizType: "individual",
@@ -525,6 +1126,7 @@ export const SELLERS: Seller[] = [
     /* 퇴점한 셀러라 노출 중인 상품이 없다 — 표가 빈 상태가 된다 */
     catalog: [],
   },
+  ...BRIEF_SELLERS,
 ];
 
 /**
@@ -560,26 +1162,20 @@ export const SEARCH_FIELDS = [
   { value: "phone", label: "연락처", pick: (seller: Seller) => seller.phone },
 ];
 
-/** 셀러 수의 단위. 단위가 곧 도메인이라 여기 둔다 */
-export const SELLER_UNIT = "개사";
+/** 상태 카드의 단위 — 원본 v0.4 상태 카드 `22 건` (상품 관리만 `개`) */
+export const SELLER_UNIT = "건";
 
 /** 천 단위 구분만 하는 순수 수치 — 상품수 열과 대시 상자가 함께 쓴다 */
 export const num = (value: number) => value.toLocaleString("ko-KR");
 
-/** 셀러 수에 단위를 붙여 한 덩이로 읽히는 자리 */
-export const companies = (value: number) => `${num(value)}${SELLER_UNIT}`;
+/** 수수료율. **원본과 같이 자릿수를 맞추지 않는다** — `12%` · `9.5%` 그대로다 */
+export const rate = (value: number) => `${value}%`;
 
-/**
- * 수수료율. **원본과 같이 자릿수를 맞추지 않는다** — `12%` · `9.5%` 그대로다.
- * **본사 직영(`null`)은 수수료가 없다** — 0% 로 적으면 "면제받았다"로 읽히므로 `-` 로 낸다.
- */
-export const rate = (value: number | null) =>
-  value === null ? EMPTY_CELL : `${value}%`;
+/** 평점 — 원본 v0.4 `★ ${rating}`. 한 자리로 맞춰 `5` 가 `★ 5.0` 으로 나온다 */
+export const score = (value: number) => `★ ${value.toFixed(1)}`;
 
-/**
- * 평점. **소수 두 자리**로 고정한다 — 원본 `rating.toFixed(2)` 와 같다.
- */
-export const score = (value: number) => value.toFixed(2);
+/** 등록 상품수 — 원본 v0.4 `${prod}개` */
+export const productCount = (value: number) => `${num(value)}개`;
 
 /**
  * 입점일·퇴점일 표기 — 원본 `ymd` 와 같다.
@@ -588,17 +1184,47 @@ export const score = (value: number) => value.toFixed(2);
 export const ymd = (dateText: string | null) =>
   dateText ? dateText.slice(0, 10).replace(/-/g, ".") : EMPTY_CELL;
 
-/**
- * 한 페이지에 보여줄 행 수의 **기본값**.
- * 실서비스는 10·20·50·100(기본 10)이지만 **샘플이 7건뿐이라 페이징이 보이도록** 작게 잡았다.
- */
-export const PAGE_SIZE = 4;
+/** 페이지당 행 수 기본값 — 원본 `pager` 기본 10 */
+export const PAGE_SIZE = 10;
 
-/**
- * 페이지당 개수 후보 — 원본 표 하단의 셀렉트(기본 10개).
+/** 페이지당 개수 후보 — 원본 표 하단 셀렉트 그대로 */
+export const PAGE_SIZES = [10, 20, 50, 100];
+
+/* -------------------------------------------------------------------------
+ * 검색조건 요약 — 접힌 `FilterBar` 한 줄 (회원 관리와 같은 규칙)
  *
- * 맨 앞 4는 **샘플 전용**이다. 실데이터를 붙이면 이 줄에서 4를 빼고 기본값을 10으로
- * 올리면 된다 — 7건짜리 샘플에서 10을 기본으로 두면 페이지네이션이 한 장으로 접혀
- * 기획자가 그 기능을 볼 수 없다.
- */
-export const PAGE_SIZES = [4, 10, 20, 50];
+ * 조건이 없으면 원본 문구 `조건 없음 (전체)`. **상태는 넣지 않는다** — 건수 카드가 이미
+ * 선택된 채로 말하고 있다.
+ * ---------------------------------------------------------------------- */
+
+export const NO_FILTER_TEXT = "조건 없음 (전체)";
+
+const dotDate = (value: Date) =>
+  `${value.getFullYear()}.${String(value.getMonth() + 1).padStart(2, "0")}.${String(
+    value.getDate(),
+  ).padStart(2, "0")}`;
+
+export const filterSummary = ({
+  dateLabel,
+  from,
+  to,
+  hygieneLabel,
+  fieldLabel,
+  keyword,
+}: {
+  dateLabel: string;
+  from?: Date;
+  to?: Date;
+  /** 위생인증 조건이 걸렸을 때만(`전체` 면 undefined) */
+  hygieneLabel?: string;
+  fieldLabel: string;
+  keyword: string;
+}): string => {
+  const parts: string[] = [];
+  /* 하루만 고르면 `to` 가 없다 — 그때는 범위가 아니라 그 하루다 */
+  if (from)
+    parts.push(`${dateLabel} ${dotDate(from)}${to ? `~${dotDate(to)}` : ""}`);
+  if (hygieneLabel) parts.push(`위생인증 ${hygieneLabel}`);
+  if (keyword.trim() !== "") parts.push(`${fieldLabel} «${keyword.trim()}»`);
+  return parts.length > 0 ? parts.join(" · ") : NO_FILTER_TEXT;
+};
