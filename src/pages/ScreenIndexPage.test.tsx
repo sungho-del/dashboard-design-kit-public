@@ -13,7 +13,7 @@ import { SCREENS } from "./ScreenIndexPage.data";
  * 넘어가는지를 본다 — 경로가 틀리면 화면은 멀쩡하고 링크만 죽는다.
  *
  * 함께 못박는 것:
- *   1. 세 묶음(템플릿·차트온·BabyCube)이 모두 서고, 카드 수가 데이터와 맞는가
+ *   1. BabyCube 묶음이 서고, 카드 수가 데이터와 맞는가 (템플릿·데모는 목록에 없다)
  *   2. 카드 버튼의 접근가능 이름이 **유일한가** — `"열기"` 로만 두면 36개가 같아진다
  *   3. `navId` 가 곧 경로다(라우터가 경로로 화면을 고른다)
  *
@@ -62,13 +62,12 @@ const group = (name: string) => screen.getByRole("region", { name });
 
 describe("ScreenIndexPage (화면 목록)", () => {
   describe("구성", () => {
-    it("세 묶음이 모두 서고 카드 수가 데이터와 같다", () => {
+    it("BabyCube 화면만 있고 카드 수가 데이터와 같다", () => {
       renderPage();
 
-      for (const origin of ["template", "generated", "babycube"] as const) {
-        const items = SCREENS.filter((entry) => entry.origin === origin);
-        expect(items.length).toBeGreaterThan(0);
-      }
+      expect(SCREENS.every((entry) => entry.origin === "babycube")).toBe(true);
+      // 화면 생성기의 원본(템플릿)은 색인에 올리지 않는다 — /_template/* 로만 연다
+      expect(SCREENS.some((entry) => entry.navId.startsWith("/_"))).toBe(false);
 
       // 카드마다 `열기` 버튼이 하나씩 — 전체 개수가 데이터와 맞아야 한다
       expect(screen.getAllByRole("button", { name: /열기$/ })).toHaveLength(
@@ -92,14 +91,9 @@ describe("ScreenIndexPage (화면 목록)", () => {
       const { user, onNavSelect } = renderPage();
 
       const target = SCREENS.find((entry) => entry.origin === "babycube")!;
-      /*
-        ⚠️ 화면 이름만으로는 집히지 않는다 — 템플릿 묶음에도 `대시보드` 가 있어
-        같은 꼬리를 가진 버튼이 둘이다. 버튼 이름이 **묶음 이름까지 싣는 이유**가
-        바로 이것이라, 테스트도 완전한 이름으로 집는다.
-      */
       await user.click(
         screen.getByRole("button", {
-          name: `생성물 · BabyCube · ${target.name} 열기`,
+          name: `BabyCube 본사 어드민 · ${target.name} 열기`,
         }),
       );
 
@@ -138,7 +132,7 @@ describe("ScreenIndexPage (화면 목록)", () => {
 
       // 이름으로 집힌다는 것 자체가 `aria-label` 이 살아 있다는 뜻이다
       const babycube = SCREENS.filter((entry) => entry.origin === "babycube");
-      const section = group("생성물 · BabyCube");
+      const section = group("BabyCube 본사 어드민");
       expect(
         within(section).getAllByRole("button", { name: /열기$/ }),
       ).toHaveLength(babycube.length);

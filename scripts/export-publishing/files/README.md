@@ -70,7 +70,6 @@ publishing/
 - Tailwind 는 `src/styles/tokens.css` 의 `@source` 로 스캔 범위를 **명시**한다. 새 소스 폴더를 만들면 거기 등록해야 클래스가 생성된다
 - 차트 계열색은 `CHART_SERIES_COLORS[i]` 상수로만. `` `var(--color-chart-series-${i})` `` 로 조립하면 배포 CSS 에서 빠진다
 - 라우터는 `src/lib/router.ts` 의 최소 구현이다. 상세는 `App.tsx` 의 `DETAIL_ROUTES`(접두사 맵) — 화면이 경로 마지막 구간을 직접 읽는다
-- `「화면 목록」(/screens)` 은 개발용 색인이다. 데이터 파일(`ScreenIndexPage.data.ts`)에 원본 키트의 다른 데모 항목이 **걸러진 채** 남아 있다 — 화면에는 나오지 않는다
 
 ## 4. 실제 화면에 반영하기로 판정되면
 

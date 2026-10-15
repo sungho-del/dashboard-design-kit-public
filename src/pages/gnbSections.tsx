@@ -7,7 +7,6 @@ import {
   Coins,
   FileText,
   FolderTree,
-  GraduationCap,
   Images,
   LayoutDashboard,
   LayoutGrid,
@@ -256,34 +255,8 @@ export const GNB_SECTIONS: GnbSection[] = [
     ],
   },
   /*
-   * 클래스온 — **BabyCube 원본에 없는 섹션이다.** 다른 기획서(온라인 강의 플랫폼 운영
-   * 어드민)로 Stage 5 가 만든 2화면이라, 원본 9그룹을 건드리지 않고 아래에 덧붙인다.
-   *
-   * ⚠️ 이 저장소의 관행은 원래 "BabyCube 이외의 생성물은 GNB 가 아니라 화면 목록
-   * (`/screens`)으로 들어간다" 였다(템플릿 4종·차트온 4종이 GNB 에 없는 이유다 —
-   * 여러 서비스 메뉴가 한 사이드바에 섞여 이름이 충돌한 이력이 있다). 이번 2화면은
-   * 메뉴 배선까지 요구받아 섹션을 두되, **서비스 이름을 그룹 라벨로 달아** 어느 서비스의
-   * 메뉴인지 먼저 읽히게 했다. 실서비스로 이식할 때는 이 섹션만 남기고 나머지를 걷어낸다.
-   */
-  {
-    id: "g-classon",
-    label: "클래스온",
-    items: [
-      {
-        id: "/_classon/dashboard",
-        label: "운영 대시보드",
-        icon: navIcon(LayoutDashboard),
-      },
-      {
-        id: "/_classon/students",
-        label: "수강생 관리",
-        icon: navIcon(GraduationCap),
-      },
-    ],
-  },
-  /*
    * 저장소 색인 — **원본에 없는 항목이다.** 서비스 메뉴가 아니라 이 저장소의 색인이라
-   * 맨 아래 따로 뒀다. 여기서 템플릿 4종·차트온 4종까지 38화면 전부로 갈 수 있다.
+   * 맨 아래 따로 뒀다. 여기서 베이비큐브 전 화면(상세 포함)으로 갈 수 있다.
    * 실제 서비스로 이식할 때는 이 섹션과 `ScreenIndexPage` 를 함께 걷어낸다.
    */
   {

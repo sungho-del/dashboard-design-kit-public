@@ -1,20 +1,12 @@
 import { useState, type ComponentType } from "react";
 import { ToastProvider } from "./components/ui";
 import { navigate, usePathname } from "./lib/router";
-import { ClinicStatusPage } from "./pages/ClinicStatusPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { OrderDetailPage } from "./pages/OrderDetailPage";
 import { OrderListPage } from "./pages/OrderListPage";
-import { PatientFormPage } from "./pages/PatientFormPage";
 import { ProductFormPage } from "./pages/ProductFormPage";
-import { ReservationDetailPage } from "./pages/ReservationDetailPage";
-import { ReservationListPage } from "./pages/ReservationListPage";
 import { ScreenIndexPage } from "./pages/ScreenIndexPage";
-import { CHARTON_ROUTES, TEMPLATE_ROUTES } from "./pages/routes";
-
-/* 클래스온 — 온라인 강의 플랫폼 운영 어드민 (기획서 2화면, Stage 5 생성물) */
-import { OpsDashboardPage } from "./pages/classon/OpsDashboardPage";
-import { StudentListPage } from "./pages/classon/StudentListPage";
+import { TEMPLATE_ROUTES } from "./pages/routes";
 
 /* BabyCube — 기획서(pipeline/01-service-brief.json)에서 Stage 5 가 생성한 28화면 */
 import { BannerListPage } from "./pages/babycube/BannerListPage";
@@ -89,7 +81,7 @@ interface NavProps {
  * BabyCube 28개는 **원본 route 를 그대로** 쓴다. `gnbSections.tsx` 의 항목 id 도
  * 같은 문자열이라 **id↔경로 매핑표가 없다** — 따로 두면 한쪽만 고쳤을 때 조용히 어긋난다.
  *
- * 템플릿·차트온은 원본에 없는 화면이라 `/_` 접두사로 갈라 둔다. 서비스 경로와 섞이면
+ * 템플릿은 원본에 없는 화면이라 `/_` 접두사로 갈라 둔다. 서비스 경로와 섞이면
  * 어느 것이 실제 제품 화면인지 알 수 없다.
  */
 const ROUTES: Record<string, ComponentType<NavProps>> = {
@@ -126,31 +118,14 @@ const ROUTES: Record<string, ComponentType<NavProps>> = {
   /* ── 저장소 색인 (원본에 없는 화면) ── */
   "/screens": ScreenIndexPage,
 
-  /* ── 손으로 만든 템플릿 4종 (이커머스) ── */
+  /*
+   * ── 템플릿 4종 (이커머스) — 화면 생성기(screen-builder)의 원본 ──
+   * GNB·화면 목록에는 없다. 생성기·점검 에이전트가 경로로 직접 연다.
+   */
   [TEMPLATE_ROUTES.dashboard]: DashboardPage,
   [TEMPLATE_ROUTES.orders]: OrderListPage,
   [TEMPLATE_ROUTES.orderDetail]: OrderDetailPage,
   [TEMPLATE_ROUTES.productNew]: ProductFormPage,
-
-  /* ── 차트온 — 병·의원 예약 관리 (첫 리허설 생성물) ── */
-  [CHARTON_ROUTES.clinicStatus]: ClinicStatusPage,
-  [CHARTON_ROUTES.reservations]: ReservationListPage,
-  /*
-   * 상세형은 GNB 항목이 아니다(목록의 하위 화면). 메뉴에 없다고 화면이 없는 것은
-   * 아니므로 **경로는 반드시 만든다** — 빠뜨리면 '전체 상세 보기'가 폴백으로 떨어진다.
-   */
-  [CHARTON_ROUTES.reservationDetail]: ReservationDetailPage,
-  [CHARTON_ROUTES.patientNew]: PatientFormPage,
-
-  /*
-   * ── 클래스온 — 온라인 강의 플랫폼 운영 어드민 (두 번째 리허설 생성물) ──
-   *
-   * 기획서의 route 는 `/` 와 `/students` 지만 `/` 는 이미 BabyCube 대시보드가 쓰고 있다.
-   * 차트온과 같은 방식으로 `/_classon` 접두사를 붙여 서비스 경로와 갈라 둔다 —
-   * 실서비스로 이식할 때 접두사만 떼면 기획서 경로가 된다.
-   */
-  "/_classon/dashboard": OpsDashboardPage,
-  "/_classon/students": StudentListPage,
 };
 
 /**

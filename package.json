@@ -1,5 +1,5 @@
 {
-  "name": "design-system",
+  "name": "babycube-dashboard",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -15,8 +15,6 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "check:consistency": "node scripts/check-consistency.mjs",
-    "reset:project": "node scripts/reset-project.mjs",
-    "sync:public": "node scripts/sync-public.mjs",
     "export:publishing": "node scripts/export-publishing.mjs"
   },
   "dependencies": {

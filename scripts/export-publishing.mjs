@@ -9,7 +9,7 @@
  * React 19 + TS + Vite + Tailwind v4, 예시 데이터로 동작, API 미연동.
  *
  *   들어간다 → BabyCube 화면(`src/pages/babycube`) · UI 컴포넌트(stories 제외) · 토큰 · lib · 폰트
- *   빠진다   → 템플릿·차트온·클래스온 데모 · Storybook · `.claude`·`pipeline`·`docs` 등 생성 도구
+ *   빠진다   → 템플릿 4종(화면 생성기 원본) · Storybook · `.claude`·`pipeline`·`docs` 등 생성 도구
  *
  * ## 규칙 (README 에도 적힌다)
  *
@@ -30,7 +30,7 @@
  *
  * 전달용으로 바꾸는 파일은 아래 `TRANSFORMS` 에 있다. 각 치환은 **반드시 한 번 이상 맞아야**
  * 하고, 안 맞으면 멈춘다 — 원본이 바뀌어 치환이 조용히 빗나가면 데모가 섞여 나간다.
- * 전달본에만 있는 파일(README·문서·App 테스트)은 `scripts/export-publishing/` 에 있다.
+ * 전달본에만 있는 파일(README·문서)은 `scripts/export-publishing/` 에 있다.
  */
 import { execFileSync, execSync } from "node:child_process";
 import {
@@ -100,6 +100,7 @@ const INCLUDE = [
   "src/index.css",
   "src/vite-env.d.ts",
   "src/App.tsx",
+  "src/App.test.tsx",
   "src/assets",
   "src/components/ui",
   "src/lib",
@@ -109,9 +110,9 @@ const INCLUDE = [
   "src/tokens",
   "src/pages/babycube",
   "src/pages/gnbSections.tsx",
-  "src/pages/routes.ts",
   "src/pages/ScreenIndexPage.tsx",
   "src/pages/ScreenIndexPage.data.ts",
+  "src/pages/ScreenIndexPage.test.tsx",
 ];
 
 mkdirSync(OUT, { recursive: true });
@@ -135,10 +136,9 @@ execFileSync("tar", ["-x"], { cwd: OUT, input: tar });
 /** [찾을 것, 바꿀 것] — 문자열이면 정확히 일치, 정규식이면 g 플래그로 전부 */
 const TRANSFORMS = {
   "index.html": [
-    ['lang="en"', 'lang="ko"'],
     [/\s*<link rel="icon"[^>]*vite\.svg"[^>]*\/>/g, ""],
     [
-      "<title>대시보드 디자인 키트</title>",
+      "<title>베이비큐브 대시보드</title>",
       "<title>베이비큐브 본사 어드민 — 퍼블리싱</title>",
     ],
   ],
@@ -155,36 +155,17 @@ const TRANSFORMS = {
   "src/pages/babycube/DashboardPage.tsx": [
     ["(CLAUDE.md · Clay 아이콘 규격)", "(Clay 아이콘 규격 · README §3)"],
   ],
+  /* 템플릿 4종은 화면 생성기의 원본이라 이 저장소에만 둔다 */
   "src/App.tsx": [
     [
-      /^import \{[^}]*\} from "\.\/pages\/(ClinicStatusPage|DashboardPage|OrderDetailPage|OrderListPage|PatientFormPage|ProductFormPage|ReservationDetailPage|ReservationListPage|routes|classon\/\w+)";\n/gm,
+      /^import \{[^}]*\} from "\.\/pages\/(DashboardPage|OrderDetailPage|OrderListPage|ProductFormPage|routes)";\n/gm,
       "",
     ],
-    [/^\/\* 클래스온 — .*\*\/\n/gm, ""],
-    [/\n\n  \/\* ── 손으로 만든 템플릿 4종[\s\S]*?(?=\n\};)/g, ""],
-  ],
-  "src/pages/gnbSections.tsx": [
-    ["  GraduationCap,\n", ""],
-    [
-      / {2}\/\*\n {3}\* 클래스온 — [\s\S]*?\n {2}\},\n(?= {2}\/\*\n {3}\* 저장소 색인)/g,
-      "",
-    ],
-  ],
-  "src/pages/ScreenIndexPage.data.ts": [
-    [
-      "export const SCREENS: ScreenEntry[] = [",
-      "const ALL_SCREENS: ScreenEntry[] = [",
-    ],
-    [
-      /^\];$/gm,
-      "];\n\n/** 전달본은 BabyCube 화면만 보여준다 (export-publishing 이 넣은 줄) */\n" +
-        'export const SCREENS = ALL_SCREENS.filter((s) => s.origin === "babycube");',
-    ],
+    [/\n\n {2}\/\*\n {3}\* ── 템플릿 4종[\s\S]*?(?=\n\};)/g, ""],
   ],
   "src/pages/ScreenIndexPage.tsx": [
-    ['title: "생성물 · BabyCube"', 'title: "BabyCube 본사 어드민"'],
     [
-      /"실서비스 어드민을 기획서로 넣어 만든 28종[^"]*"/g,
+      /"유아용품 렌트·판매 멀티셀러 마켓플레이스의 본사 운영 어드민[^"]*"/g,
       '"퍼블리싱 기준본 — 예시 데이터로 동작하며 API 는 연결돼 있지 않다. 색·레이아웃·간격·타이포는 전부 Clay 디자인 토큰이다."',
     ],
   ],
