@@ -523,3 +523,44 @@ describe("CategoryListPage", () => {
     });
   });
 });
+
+/* ---------------------------------------------------------------------------
+ * 데이터 상태 미리보기 (?preview=) — §D8
+ * ------------------------------------------------------------------------ */
+describe("데이터 상태 미리보기 (?preview=)", () => {
+  afterEach(() => window.history.replaceState(null, "", "/"));
+
+  const renderAt = (url: string) => {
+    window.history.replaceState(null, "", url);
+    return renderPage();
+  };
+
+  it("loading — 헤더 글자는 남기고 값만 스켈레톤이다", () => {
+    renderAt("/categories?preview=loading");
+
+    expect(screen.getByText("카테고리")).toBeVisible();
+    expect(screen.queryByText("카시트")).toBeNull();
+    expect(
+      document.body.querySelectorAll("[data-skeleton]").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("empty — 트리가 있어도 빈 상태를 보여준다", () => {
+    renderAt("/categories?preview=empty");
+
+    expect(screen.queryByText("카시트")).toBeNull();
+    expect(document.body.querySelectorAll("[data-skeleton]")).toHaveLength(0);
+  });
+
+  it("refreshing — 스켈레톤으로 되돌리지 않고 이전 값을 흐리게 둔다", () => {
+    renderAt("/categories?preview=refreshing");
+
+    expect(screen.getByText("카시트")).toBeVisible();
+    expect(document.body.querySelectorAll("[data-skeleton]")).toHaveLength(0);
+
+    const body = document.body.querySelector<HTMLElement>(
+      "[data-table-shell-body]",
+    );
+    expect(body?.className ?? "").toContain("opacity-50");
+  });
+});

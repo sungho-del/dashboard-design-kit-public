@@ -77,7 +77,25 @@ export type DealKind = "rent" | "sale";
 /** 신청서가 고르는 값. `both` 는 원본의 `dealType: "전체"` 다 */
 export type ApplicationKind = DealKind | "both";
 
+/** 사업자 유형 — 원본 `sec.sellerReview_apply` 의 `[법인][개인]` 택1 */
+export type ReviewBizType = "corporate" | "individual";
+
+/**
+ * 제출 서류 한 건 — 사업자등록증 · 통신판매업신고증.
+ * 파일 자체는 서버에 있으므로 여기는 **보여줄 이름과 번호만** 든다.
+ */
+export interface ReviewDocument {
+  fileName: string;
+  number: string;
+}
+
 export interface Application {
+  /**
+   * 원본 표의 **No** 열. 화면이 세는 순번이 아니라 **레코드에 붙은 번호**다 —
+   * 정렬·필터가 바뀌어도 같은 신청 건은 같은 번호를 유지한다.
+   */
+  no: number;
+
   /** 신청번호 — 고유키 */
   id: string;
   /** 셀러명 */
@@ -105,6 +123,13 @@ export interface Application {
   /** 신청서에 적힌 위생인증 여부. 승인 게이트의 초깃값이 된다 */
   hygieneCertified: boolean;
   status: ApplicationStatus;
+
+  /* ── 여기부터는 **입점 심사 상세(BO-SEL-004)** 가 쓰는 값이다 ──
+     목록 표에는 나오지 않지만 같은 레코드에 속한다. */
+
+  bizType: ReviewBizType;
+  bizLicense: ReviewDocument;
+  salesLicense: ReviewDocument;
 }
 
 /**
@@ -165,6 +190,7 @@ export const PROCESSED_AT = "2026-08-24 09:00";
 export const APPLICATIONS: Application[] = [
   {
     id: "A-2026-0141",
+    no: 7,
     name: "포근한잠",
     ceo: "윤서아",
     phone: "010-4471-2280",
@@ -176,10 +202,17 @@ export const APPLICATIONS: Application[] = [
     commissionRate: 12,
     hygieneCertified: true,
     status: "requested",
+    bizType: "corporate",
+    bizLicense: { fileName: "사업자등록증.pdf", number: "128-81-55021" },
+    salesLicense: {
+      fileName: "통신판매업 신고증.pdf",
+      number: "2026-서울강남-55021",
+    },
   },
   {
     /* 수수료율을 제안하지 않은 신청 — 승인 게이트가 빈 칸으로 열려 입력을 요구한다 */
     id: "A-2026-0139",
+    no: 6,
     name: "하루베베",
     ceo: "강도윤",
     phone: "010-3320-7714",
@@ -191,10 +224,17 @@ export const APPLICATIONS: Application[] = [
     commissionRate: 0,
     hygieneCertified: false,
     status: "requested",
+    bizType: "individual",
+    bizLicense: { fileName: "사업자등록증.pdf", number: "214-86-33907" },
+    salesLicense: {
+      fileName: "통신판매업 신고증.pdf",
+      number: "2026-서울강남-33907",
+    },
   },
   {
     /* 렌트와 판매를 함께 하겠다는 신청 — 배지가 둘 뜬다(원본 `dealType: "전체"`) */
     id: "A-2026-0136",
+    no: 5,
     name: "리틀그린",
     ceo: "오지안",
     phone: "010-8852-1163",
@@ -206,9 +246,16 @@ export const APPLICATIONS: Application[] = [
     commissionRate: 9.5,
     hygieneCertified: true,
     status: "requested",
+    bizType: "corporate",
+    bizLicense: { fileName: "사업자등록증.pdf", number: "305-82-71144" },
+    salesLicense: {
+      fileName: "통신판매업 신고증.pdf",
+      number: "2026-서울강남-71144",
+    },
   },
   {
     id: "A-2026-0128",
+    no: 4,
     name: "소복이",
     ceo: "신하람",
     phone: "010-2214-9908",
@@ -220,9 +267,16 @@ export const APPLICATIONS: Application[] = [
     commissionRate: 14,
     hygieneCertified: false,
     status: "approved",
+    bizType: "individual",
+    bizLicense: { fileName: "사업자등록증.pdf", number: "412-88-20376" },
+    salesLicense: {
+      fileName: "통신판매업 신고증.pdf",
+      number: "2026-서울강남-20376",
+    },
   },
   {
     id: "A-2026-0122",
+    no: 3,
     name: "맘스케어",
     ceo: "배준서",
     phone: "010-7093-5541",
@@ -234,9 +288,16 @@ export const APPLICATIONS: Application[] = [
     commissionRate: 0,
     hygieneCertified: false,
     status: "rejected",
+    bizType: "corporate",
+    bizLicense: { fileName: "사업자등록증.pdf", number: "138-81-64822" },
+    salesLicense: {
+      fileName: "통신판매업 신고증.pdf",
+      number: "2026-서울강남-64822",
+    },
   },
   {
     id: "A-2026-0117",
+    no: 2,
     name: "아이랑숲",
     ceo: "임채원",
     phone: "010-6628-3390",
@@ -248,9 +309,16 @@ export const APPLICATIONS: Application[] = [
     commissionRate: 11,
     hygieneCertified: true,
     status: "approved",
+    bizType: "individual",
+    bizLicense: { fileName: "사업자등록증.pdf", number: "220-85-49013" },
+    salesLicense: {
+      fileName: "통신판매업 신고증.pdf",
+      number: "2026-서울강남-49013",
+    },
   },
   {
     id: "A-2026-0110",
+    no: 1,
     name: "밤톨상회",
     ceo: "노시우",
     phone: "010-5517-8842",
@@ -262,6 +330,12 @@ export const APPLICATIONS: Application[] = [
     commissionRate: 0,
     hygieneCertified: false,
     status: "rejected",
+    bizType: "corporate",
+    bizLicense: { fileName: "사업자등록증.pdf", number: "507-83-11290" },
+    salesLicense: {
+      fileName: "통신판매업 신고증.pdf",
+      number: "2026-서울강남-11290",
+    },
   },
 ];
 
@@ -307,11 +381,20 @@ export const parseRate = (text: string): number | null => {
 
 /** 상태 대시 = 상태 필터. 첫 항목은 반드시 `"all"`(필터 해제) — 어휘는 원본 `chip` 그대로다 */
 export const FILTERS = [
-  { value: "all", label: "전체" },
   { value: "requested", label: "승인요청" },
   { value: "approved", label: "승인" },
   { value: "rejected", label: "반려" },
 ];
+
+/**
+ * 화면을 열었을 때 고를 상태. 원본 `sellerReview.dash` — _"기본 : 화면 진입 시
+ * [승인신청] 선택"_ (우리 어휘로는 `승인요청`).
+ *
+ * ## ⚠️ **[전체] 카드는 없다** (2026-09-21, 원본 v0.4 대조)
+ * 원본 주석이 정책으로 못 박는다 — _"[전체] 카드 없음 — 목록은 항상 한 상태만
+ * 보여준다"_. 한때 우리는 [전체]를 넣고 기본값으로 뒀는데 원본은 그 반대를 **의도**했다.
+ */
+export const DEFAULT_FILTER = "requested";
 
 /**
  * 기간 기준 — 원본 `date.fields: [신청일, 승인일, 반려일]`.
@@ -362,3 +445,9 @@ export const ymdhms = (dateText: string | null) =>
  * "선택할 수 있는 행"과 "없는 행"이 한 화면에 같이 있어야 전체 선택이 무엇을 고르는지 보인다.
  */
 export const PAGE_SIZE = 4;
+
+/**
+ * 페이지당 개수 후보 — 원본 표 하단의 셀렉트(기본 10개).
+ * 맨 앞 4는 **샘플 전용**이다(7건뿐이라 10이면 페이지네이션이 한 장으로 접힌다).
+ */
+export const PAGE_SIZES = [4, 10, 20, 50];

@@ -81,6 +81,14 @@ function renderPage() {
 const periodGroups = () => screen.getAllByRole("radiogroup");
 
 /**
+ * 기간 합계 — 라벨 · 값 · 단위가 **다른 요소**라(§D3-3) 한 문자열로는 찾을 수 없다.
+ * 라벨 바로 다음 형제(값+단위 묶음)의 글자를 이어 읽는다. 0 = 건수 차트, 1 = 금액 차트.
+ */
+const periodTotal = (index: number) =>
+  screen.getAllByText("선택한 기간 합계")[index].nextElementSibling
+    ?.textContent;
+
+/**
  * 플로우 단계 버튼.
  *
  * 접근가능 이름은 `"${흐름} ${단계} ${건수}건 목록 열기"` 다 — 렌트와 판매가 "신규 주문"
@@ -234,6 +242,32 @@ describe("BabycubeDashboardPage (S01 대시보드)", () => {
       expect(screen.getAllByText("판매")).toHaveLength(2);
     });
 
+    it("기간 합계는 캡션이 아니라 수치다 — 값과 단위를 나눠 보여준다", () => {
+      renderPage();
+
+      const value = screen.getByText("3,634");
+      expect(value.tagName).toBe("STRONG");
+      expect(value.className.split(/\s+/)).toContain("metric-small");
+      expect(value.nextElementSibling?.textContent).toBe("건");
+    });
+
+    it("두 차트 모두 그라디언트 면으로 그린다", () => {
+      renderPage();
+
+      for (const name of [
+        "총 매출 현황 건수 추이. 렌트와 판매 비교",
+        "총 매출 현황 금액 추이. 렌트와 판매 비교",
+      ]) {
+        const chart = screen.getByRole("img", { name });
+        const fills = Array.from(
+          chart.querySelectorAll(".recharts-area-area"),
+        ).map((el) => el.getAttribute("fill"));
+        // 계열 2개(렌트·판매) — 둘 다 그라디언트를 참조한다
+        expect(fills).toHaveLength(2);
+        for (const fill of fills) expect(fill).toMatch(/^url\(#/);
+      }
+    });
+
     it("기본 기간은 1개월이고 합계가 그 기간의 값이다", () => {
       renderPage();
 
@@ -244,8 +278,8 @@ describe("BabycubeDashboardPage (S01 대시보드)", () => {
       expect(
         within(periodGroups()[1]).getByRole("radio", { name: "1개월" }),
       ).toBeChecked();
-      expect(screen.getByText("선택한 기간 합계 3,634건")).toBeVisible();
-      expect(screen.getByText("선택한 기간 합계 35,612만원")).toBeVisible();
+      expect(periodTotal(0)).toBe("3,634건");
+      expect(periodTotal(1)).toBe("35,612만원");
     });
 
     it("건수 차트의 기간을 바꾸면 그 차트의 합계만 바뀐다", async () => {
@@ -255,9 +289,9 @@ describe("BabycubeDashboardPage (S01 대시보드)", () => {
         within(periodGroups()[0]).getByRole("radio", { name: "1주" }),
       );
 
-      expect(screen.getByText("선택한 기간 합계 942건")).toBeVisible();
+      expect(periodTotal(0)).toBe("942건");
       // 금액 차트는 건드리지 않았으므로 1개월 그대로다
-      expect(screen.getByText("선택한 기간 합계 35,612만원")).toBeVisible();
+      expect(periodTotal(1)).toBe("35,612만원");
     });
 
     it("금액 차트의 기간을 바꾸면 그 차트의 합계만 바뀐다", async () => {
@@ -267,8 +301,104 @@ describe("BabycubeDashboardPage (S01 대시보드)", () => {
         within(periodGroups()[1]).getByRole("radio", { name: "3개월" }),
       );
 
-      expect(screen.getByText("선택한 기간 합계 96,700만원")).toBeVisible();
-      expect(screen.getByText("선택한 기간 합계 3,634건")).toBeVisible();
+      expect(periodTotal(1)).toBe("96,700만원");
+      expect(periodTotal(0)).toBe("3,634건");
+    });
+
+    /*
+     * 계열 토글 칩 — 범례 겸 토글. 칩의 계열 합계는 **원본에 없는 숫자**라(사용자 결정)
+     * 최소한 **전체 합계와 모순되지 않아야 한다.** 두 칩을 더하면 기간 합계가 된다.
+     */
+    it("칩이 계열별 합계를 보여주고, 둘을 더하면 기간 합계다", () => {
+      renderPage();
+
+      // 1개월 건수: 렌트 392+405+418+420 · 판매 470+496+511+522
+      expect(
+        screen.getByRole("button", { name: "렌트 1,635건" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "판매 1,999건" }),
+      ).toBeInTheDocument();
+      expect(1635 + 1999).toBe(3634);
+      expect(periodTotal(0)).toBe("3,634건");
+
+      // 금액 칩은 만원 단위에 "원" 을 붙인다 — 기간 합계("35,612만원")와 같은 표기
+      expect(
+        screen.getByRole("button", { name: "렌트 19,620만원" }),
+      ).toBeInTheDocument();
+    });
+
+    it("기간을 바꾸면 그 차트의 칩 합계도 따라 바뀐다", async () => {
+      const { user } = renderPage();
+
+      await user.click(
+        within(periodGroups()[0]).getByRole("radio", { name: "1주" }),
+      );
+
+      // 1주 렌트: 62+58+71+66+74+48+41
+      expect(
+        screen.getByRole("button", { name: "렌트 420건" }),
+      ).toBeInTheDocument();
+    });
+
+    it("칩을 누르면 그 계열만 숨기고, 남은 계열의 색은 그대로다", async () => {
+      const { user } = renderPage();
+      const chart = screen.getByRole("img", {
+        name: "총 매출 현황 건수 추이. 렌트와 판매 비교",
+      });
+      const curves = () =>
+        Array.from(chart.querySelectorAll(".recharts-area-curve")).map((el) =>
+          el.getAttribute("stroke"),
+        );
+
+      expect(curves()).toHaveLength(2);
+
+      const rent = screen.getByRole("button", { name: "렌트 1,635건" });
+      await user.click(rent);
+
+      expect(rent).toHaveAttribute("aria-pressed", "false");
+      // 판매는 2번 색 그대로 — 렌트를 꺼도 1번 색으로 당겨지지 않는다
+      expect(curves()).toEqual(["var(--color-chart-series-2)"]);
+      // 기간 합계는 숨김과 상관없이 전체다
+      expect(periodTotal(0)).toBe("3,634건");
+
+      // 금액 차트는 건드리지 않았다
+      const revenue = screen.getByRole("img", {
+        name: "총 매출 현황 금액 추이. 렌트와 판매 비교",
+      });
+      expect(revenue.querySelectorAll(".recharts-area-curve")).toHaveLength(2);
+    });
+
+    it("마지막 남은 계열은 끌 수 없고, 숨긴 계열은 다시 켤 수 있다", async () => {
+      const { user } = renderPage();
+
+      await user.click(screen.getByRole("button", { name: "렌트 1,635건" }));
+      expect(
+        screen.getByRole("button", { name: "판매 1,999건" }),
+      ).toBeDisabled();
+
+      await user.click(screen.getByRole("button", { name: "렌트 1,635건" }));
+      expect(
+        screen.getByRole("button", { name: "렌트 1,635건" }),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(
+        screen.getByRole("button", { name: "판매 1,999건" }),
+      ).toBeEnabled();
+    });
+
+    it("차트 줄이 남는 세로 공간을 흡수한다 (큰 모니터에서 아래가 비지 않게)", () => {
+      renderPage();
+
+      const chart = screen.getByRole("img", {
+        name: "총 매출 현황 건수 추이. 렌트와 판매 비교",
+      });
+      // 차트는 부모에 남는 높이를 채우고(최소 240) …
+      expect(chart.className.split(/\s+/)).toEqual(
+        expect.arrayContaining(["flex-1", "min-h-60"]),
+      );
+      // … 두 차트가 든 줄이 페이지 본문에서 늘어난다
+      const row = chart.closest(".grid");
+      expect(row?.className.split(/\s+/)).toContain("flex-1");
     });
 
     /** 기간이 길수록 합계가 커야 한다 — 버킷 단위가 달라도 숫자는 모순되면 안 된다 */
@@ -280,12 +410,12 @@ describe("BabycubeDashboardPage (S01 대시보드)", () => {
       await user.click(
         within(countPeriods).getByRole("radio", { name: "1주" }),
       );
-      expect(screen.getByText("선택한 기간 합계 942건")).toBeVisible();
+      expect(periodTotal(0)).toBe("942건");
 
       await user.click(
         within(countPeriods).getByRole("radio", { name: "3개월" }),
       );
-      expect(screen.getByText("선택한 기간 합계 9,860건")).toBeVisible();
+      expect(periodTotal(0)).toBe("9,860건");
     });
   });
 
@@ -339,6 +469,21 @@ describe("BabycubeDashboardPage (S01 대시보드)", () => {
       expect(within(renting).getByText("건")).toBeVisible();
     });
 
+    /*
+     * 단계 아래 비중 막대를 한때 붙였다가 걷어냈다(사용자 판단 — 어색하다).
+     * 되살리려는 변경이 오면 이 블록이 막는다.
+     */
+    it("단계 아래에 비중 막대를 두지 않는다", () => {
+      renderPage();
+
+      const rent = flowListOf("렌트 관리", "신규 주문");
+      for (const item of within(rent).getAllByRole("listitem")) {
+        // 칸 안에는 단계 버튼 하나뿐이다
+        expect(item.children).toHaveLength(1);
+        expect(item.firstElementChild?.tagName).toBe("BUTTON");
+      }
+    });
+
     it("등급 요약·경보 배너는 없다 — 원본에 없는 구성이다", () => {
       renderPage();
 
@@ -367,5 +512,80 @@ describe("BabycubeDashboardPage (S01 대시보드)", () => {
       expect(saleParams.get("stat")).toBe("판매");
       expect(saleParams.get("flow")).toBe("구매확정");
     });
+  });
+});
+
+/*
+ * 데이터 상태 — `DESIGN-dashboard.md` §D8. 실 API 가 없어 `?preview=` 로 미리 본다.
+ * 대시보드는 **카드 단위로** 로딩·갱신한다 — 화면 전체를 덮지 않는다.
+ */
+describe("데이터 상태 미리보기 (?preview=)", () => {
+  const renderAt = (url: string) => {
+    window.history.replaceState(null, "", url);
+    return renderPage();
+  };
+
+  afterEach(() => window.history.replaceState(null, "", "/"));
+
+  const cardOf = (title: string) =>
+    screen.getByText(title).closest("[aria-busy]") as HTMLElement;
+
+  it("loading — 제목은 실제 글자, 변하는 값만 스켈레톤이고 카드가 aria-busy 다", () => {
+    renderAt("/?preview=loading");
+
+    // 고정 문구는 스켈레톤으로 만들지 않는다 (§D8-1)
+    expect(screen.getByText("회원 지표")).toBeVisible();
+    expect(screen.getAllByText("선택한 기간 합계")).toHaveLength(2);
+    expect(cardOf("회원 지표")).toHaveAttribute("aria-busy", "true");
+
+    // 변하는 값은 아직 없다 — 로딩 중에 숫자나 "없음"을 보여주지 않는다
+    expect(screen.queryByText("4,182")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("표시할 기간 데이터가 없습니다."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: /총 매출 현황/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      document.body.querySelectorAll("[data-skeleton]").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("empty — 차트 자리에 원본 문구를 두고, 기간 세그먼트·지표·흐름은 살아 있다", () => {
+    renderAt("/?preview=empty");
+
+    expect(screen.getAllByText("표시할 기간 데이터가 없습니다.")).toHaveLength(
+      2,
+    );
+    // 빈 것은 에러가 아니다 — 다른 기간을 고를 수 있어야 한다
+    expect(periodGroups()).toHaveLength(2);
+    expect(
+      screen.queryByRole("img", { name: /총 매출 현황/ }),
+    ).not.toBeInTheDocument();
+
+    // 지표·흐름은 "빈 기간"이 없다 — 그대로 보인다
+    expect(screen.getByText("4,182")).toBeVisible();
+    expect(stepButton("렌트 관리", "대여중")).toBeInTheDocument();
+  });
+
+  it("refreshing — 스켈레톤으로 되돌리지 않고 이전 값을 흐리게 둔다", () => {
+    renderAt("/?preview=refreshing");
+
+    // 값은 그대로 있다 — 방금 본 값과 비교할 수 있어야 한다
+    expect(screen.getByText("4,182")).toBeInTheDocument();
+    expect(document.body.querySelectorAll("[data-skeleton]")).toHaveLength(0);
+
+    const card = cardOf("회원 지표");
+    expect(card).toHaveAttribute("aria-busy", "true");
+    // 헤더(제목)는 흐리지 않고 본문만 흐린다 — 조작은 계속된다
+    const body = card.querySelector("ul")?.parentElement;
+    expect(body?.className.split(/\s+/)).toContain("opacity-50");
+  });
+
+  it("모르는 preview 값은 평소 화면이다 — 주소 오타로 화면이 비지 않는다", () => {
+    renderAt("/?preview=lodaing");
+
+    expect(screen.getByText("4,182")).toBeVisible();
+    expect(cardOf("회원 지표")).toHaveAttribute("aria-busy", "false");
   });
 });

@@ -9,6 +9,7 @@ import {
   DataTableShell,
   DatePicker,
   EmptyState,
+  FilterBar,
   Gnb,
   InfoItem,
   InfoList,
@@ -19,12 +20,14 @@ import {
   ModalHeader,
   PageHeader,
   Pagination,
+  PaginationSizeSelect,
   Radio,
   RadioGroup,
   Select,
   SelectionBar,
   SelectionBarButton,
   SelectionBarDivider,
+  Skeleton,
   StatGrid,
   Table,
   TableBody,
@@ -37,6 +40,7 @@ import {
   TextButton,
   useToast,
   type DateRange,
+  type TableSortDirection,
 } from "../../components/ui";
 import { cn } from "../../lib/cn";
 import {
@@ -55,7 +59,10 @@ import {
   NOTICE_BODY,
   NOTICE_TITLE,
   NOTICE_WARNING,
+  DEFAULT_FILTER,
+  filterSummary,
   PAGE_SIZE,
+  PAGE_SIZES,
   PRODUCTS,
   REJECT_EMPTY,
   REJECT_ERROR,
@@ -82,6 +89,9 @@ import {
   type ProductSearchField,
   type SaleStatus,
 } from "./ProductListPage.data";
+import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
+import { PERIOD_PRESETS } from "../../lib/periodPresets";
+import { useSearchParams } from "../../lib/router";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
 /* =========================================================================
@@ -222,6 +232,42 @@ const inPeriod = (dateText: string, range?: DateRange) => {
 /** 렌트 전용 열은 판매 건에서 비고, 판매 전용 열은 렌트 건에서 빈다 */
 const DASH = "—";
 
+/**
+ * 표의 열 수 — 로딩 뼈대가 같은 수의 빈 칸을 그린다.
+ * ⚠️ `<colgroup>` 의 `<col>` 수와 **반드시 같아야** 한다(다르면 칸이 밀린다).
+ */
+const COLUMN_COUNT = 23;
+
+/* -------------------------------------------------------------------------
+ * 정렬 — 원본 표 헤더의 ↕ (상품등록일 · 최종수정일 **둘뿐이다**)
+ * ---------------------------------------------------------------------- */
+
+type SortKey = "date" | "updatedAt";
+
+interface SortState {
+  key: SortKey;
+  direction: TableSortDirection;
+}
+
+/**
+ * 둘 다 `"YYYY-MM-DD HH:mm"` 이라 **문자열 비교로 시간 순서가 맞는다**
+ * (자리수가 고정이고 큰 단위가 앞이다). `Date` 로 바꾸면 파싱 비용만 든다.
+ */
+const COMPARATORS: Record<SortKey, (a: Product, b: Product) => number> = {
+  date: (a, b) => a.date.localeCompare(b.date),
+  updatedAt: (a, b) => a.updatedAt.localeCompare(b.updatedAt),
+};
+
+/** **오름 → 내림 → 해제** 3단. 기본 순서 자체가 의미를 가지므로 돌아갈 자리를 남긴다 */
+const nextSort = (
+  current: SortState | null,
+  key: SortKey,
+): SortState | null => {
+  if (current?.key !== key) return { key, direction: "asc" };
+  if (current.direction === "asc") return { key, direction: "desc" };
+  return null;
+};
+
 export interface ProductListPageProps {
   navOpen: boolean;
   onNavOpenChange: (open: boolean) => void;
@@ -237,7 +283,17 @@ export function ProductListPage({
 }: ProductListPageProps) {
   const { toast } = useToast();
 
-  const [status, setStatus] = useState("all");
+  const [status, setStatus] = useState(DEFAULT_FILTER);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  const [sort, setSort] = useState<SortState | null>(null);
+  /** 검색조건 펼침. **기본은 접힘**이다(원본) — 먼저 보여야 하는 것은 결과다 */
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  /*
+    실 API 를 붙이면 이 한 줄을 fetch 상태로 바꾼다 — 지금은 `?preview=` 로 미리 본다
+    (`/products?preview=loading` · `empty` · `refreshing`).
+  */
+  const dataStatus = asStatus(useSearchParams().get("preview"));
   const [mode, setMode] = useState("all");
   const [display, setDisplay] = useState("all");
   const [major, setMajor] = useState("all");
@@ -313,32 +369,48 @@ export function ProductListPage({
     );
   });
 
-  const filtered = scoped.filter(
-    (product) => status === "all" || product.status === status,
-  );
+  /* 상태 카드는 **항상 하나가 선택돼 있다**(원본 정책: [전체] 없음) */
+  const matched = scoped.filter((product) => product.status === status);
+
+  /*
+    정렬은 **페이지를 나누기 전에** 한다. 페이지 안에서만 정렬하면 2페이지의 첫 값이
+    1페이지의 마지막보다 앞서는 일이 생긴다.
+    ⚠️ **복사한 뒤 정렬한다** — `sort` 는 제자리 정렬이라 모듈 상수의 순서를 영구히 바꾼다.
+  */
+  const filtered = sort
+    ? [...matched].sort((a, b) => {
+        const order = COMPARATORS[sort.key](a, b);
+        return sort.direction === "asc" ? order : -order;
+      })
+    : matched;
+
+  /** 헤더를 눌렀을 때. 정렬이 바뀌면 1페이지로 돌아간다 */
+  const toggleSort = (key: SortKey) => {
+    setSort((current) => nextSort(current, key));
+    setPage(1);
+  };
+
+  const directionOf = (key: SortKey) =>
+    sort?.key === key ? sort.direction : undefined;
 
   /** 상태별 건수 — 표와 어긋날 수 없도록 **지금 행에서 직접 센다** */
   const dash = FILTERS.map((item) => ({
     value: item.value,
     label: item.label,
-    count:
-      item.value === "all"
-        ? scoped.length
-        : scoped.filter((product) => product.status === item.value).length,
-    /* 원본은 상태마다 전이 설명을 달아 둔다. "전체"에는 없다 */
-    tip:
-      item.value === "all" ? undefined : STATUS_TIPS[item.value as SaleStatus],
+    count: scoped.filter((product) => product.status === item.value).length,
+    /* 원본은 상태마다 전이 설명을 달아 둔다 */
+    tip: STATUS_TIPS[item.value as SaleStatus],
   }));
 
   /*
    * 필터로 결과가 줄면 현재 페이지가 범위를 벗어날 수 있다. 그대로 두면 빈 표가
    * 그려지므로 마지막 페이지로 당긴다.
    */
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const paged = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
   );
 
   /** 선택은 **보이는 페이지 단위**다. 페이지를 넘기면 헤더 체크박스도 그 페이지를 가리킨다 */
@@ -365,7 +437,7 @@ export function ProductListPage({
 
   /** 초기화는 한 곳에서만 정의한다 — 되돌릴 항목이 늘어도 여기만 고치면 된다 */
   const resetFilters = () => {
-    setStatus("all");
+    setStatus(DEFAULT_FILTER);
     setMode("all");
     setDisplay("all");
     setMajor("all");
@@ -494,131 +566,159 @@ export function ProductListPage({
               setPage(1);
             }}
             ariaLabel="판매 상태별 건수"
-            columns={6}
+            columns={5}
           />
         </CardBody>
       </Card>
+
+      {/*
+        검색조건 — 원본 `products.filter`. **접힌 채로 열리고** 걸린 조건은 요약이 말한다.
+        컨트롤이 8개라 늘 펼쳐 두면 표가 첫 화면에서 통째로 밀려난다.
+
+        ⚠️ 판매 상태는 여기 없다 — 그 축의 입구는 위의 건수 대시 하나뿐이다
+        (원본 `chips[0].dash = true`). 같은 축을 두 군데 두면 어느 쪽이 진짜인지 모른다.
+      */}
+      <FilterBar
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        summary={filterSummary({
+          mode,
+          display,
+          major,
+          middle,
+          minor,
+          dateField,
+          from: period?.from,
+          to: period?.to,
+          searchField,
+          keyword,
+        })}
+        onReset={resetFilters}
+      >
+        /* 상태 축의 입구는 위의 대시 하나뿐이다 — 여기에는 유형만 둔다 */
+        <RadioGroup
+          value={mode}
+          onValueChange={(value) => {
+            setMode(value);
+            setPage(1);
+          }}
+          orientation="horizontal"
+          aria-label="유형"
+        >
+          {MODE_FILTERS.map((item) => (
+            <Radio
+              key={item.value}
+              value={item.value}
+              label={item.label}
+              size="small"
+            />
+          ))}
+        </RadioGroup>
+        {/* 전시 상태는 판매 상태와 **다른 축**이다(원본 `showStat`) */}
+        <Select
+          className="w-36"
+          aria-label="전시 상태"
+          options={DISPLAY_FILTERS}
+          value={display}
+          onValueChange={(value) => {
+            setDisplay(value);
+            setPage(1);
+          }}
+        />
+        <Select
+          className="w-36"
+          aria-label="카테고리 대분류"
+          options={majorOptions}
+          value={major}
+          onValueChange={(value) => {
+            setMajor(value);
+            setMiddle("all");
+            setMinor("all");
+            setPage(1);
+          }}
+        />
+        <Select
+          className="w-36"
+          aria-label="카테고리 중분류"
+          options={middleOptions}
+          value={middle}
+          disabled={major === "all"}
+          onValueChange={(value) => {
+            setMiddle(value);
+            setMinor("all");
+            setPage(1);
+          }}
+        />
+        <Select
+          className="w-32"
+          aria-label="카테고리 소분류"
+          options={minorOptions}
+          value={minor}
+          disabled={middle === "all"}
+          onValueChange={(value) => {
+            setMinor(value);
+            setPage(1);
+          }}
+        />
+        <Select
+          className="w-32"
+          aria-label="기간 종류"
+          options={DATE_FIELDS}
+          value={dateField}
+          onValueChange={(value) => {
+            setDateField(value as ProductDateField);
+            setPage(1);
+          }}
+        />
+        <DatePicker
+          mode="range"
+          /* 원본 "기간 빠른 버튼(오늘~전체)" — 어휘·계산은 `PERIOD_PRESETS` 가 든다 */
+          presets={PERIOD_PRESETS}
+          value={period}
+          onChange={(next) => {
+            setPeriod(next);
+            setPage(1);
+          }}
+          startPlaceholder="시작일"
+          endPlaceholder="종료일"
+        />
+        {/*
+              검색 대상 셀렉트 — 한 번에 하나만 훑는다.
+              세 필드를 동시에 훑으면 "맘스케어"가 셀러명에서 걸린 것인지
+              상품명에 들어간 것인지 결과만 보고는 구별할 수 없다.
+            */}
+        <Select
+          className="w-28"
+          aria-label="검색 대상"
+          options={SEARCH_FIELDS}
+          value={searchField}
+          onValueChange={(value) => {
+            setSearchField(value as ProductSearchField);
+            setPage(1);
+          }}
+        />
+        <Input
+          placeholder={SEARCH_PLACEHOLDER}
+          value={keyword}
+          onChange={(event) => {
+            setKeyword(event.target.value);
+            setPage(1);
+          }}
+          leftIcon={<Search size={16} strokeWidth={1.2} aria-hidden />}
+        />
+      </FilterBar>
 
       <DataTableShell
         /* 양쪽 고정 열을 비켜서 스크롤바를 그린다 — 바의 범위 = 실제 스크롤 범위 */
         scrollLeadWidth={FROZEN_LEAD_WIDTH}
         scrollTrailWidth={FROZEN_TRAIL_WIDTH}
-        toolbarStart={
-          /* 상태 축의 입구는 위의 대시 하나뿐이다 — 여기에는 유형만 둔다 */
-          <RadioGroup
-            value={mode}
-            onValueChange={(value) => {
-              setMode(value);
-              setPage(1);
-            }}
-            orientation="horizontal"
-            aria-label="유형"
-          >
-            {MODE_FILTERS.map((item) => (
-              <Radio
-                key={item.value}
-                value={item.value}
-                label={item.label}
-                size="small"
-              />
-            ))}
-          </RadioGroup>
-        }
-        toolbarEnd={
-          <>
-            {/* 전시 상태는 판매 상태와 **다른 축**이다(원본 `showStat`) */}
-            <Select
-              className="w-36"
-              aria-label="전시 상태"
-              options={DISPLAY_FILTERS}
-              value={display}
-              onValueChange={(value) => {
-                setDisplay(value);
-                setPage(1);
-              }}
-            />
-            <Select
-              className="w-36"
-              aria-label="카테고리 대분류"
-              options={majorOptions}
-              value={major}
-              onValueChange={(value) => {
-                setMajor(value);
-                setMiddle("all");
-                setMinor("all");
-                setPage(1);
-              }}
-            />
-            <Select
-              className="w-36"
-              aria-label="카테고리 중분류"
-              options={middleOptions}
-              value={middle}
-              disabled={major === "all"}
-              onValueChange={(value) => {
-                setMiddle(value);
-                setMinor("all");
-                setPage(1);
-              }}
-            />
-            <Select
-              className="w-32"
-              aria-label="카테고리 소분류"
-              options={minorOptions}
-              value={minor}
-              disabled={middle === "all"}
-              onValueChange={(value) => {
-                setMinor(value);
-                setPage(1);
-              }}
-            />
-            <Select
-              className="w-32"
-              aria-label="기간 종류"
-              options={DATE_FIELDS}
-              value={dateField}
-              onValueChange={(value) => {
-                setDateField(value as ProductDateField);
-                setPage(1);
-              }}
-            />
-            <DatePicker
-              mode="range"
-              value={period}
-              onChange={setPeriod}
-              startPlaceholder="시작일"
-              endPlaceholder="종료일"
-            />
-            {/*
-              검색 대상 셀렉트 — 한 번에 하나만 훑는다.
-              세 필드를 동시에 훑으면 "맘스케어"가 셀러명에서 걸린 것인지
-              상품명에 들어간 것인지 결과만 보고는 구별할 수 없다.
-            */}
-            <Select
-              className="w-28"
-              aria-label="검색 대상"
-              options={SEARCH_FIELDS}
-              value={searchField}
-              onValueChange={(value) => {
-                setSearchField(value as ProductSearchField);
-                setPage(1);
-              }}
-            />
-            <Input
-              placeholder={SEARCH_PLACEHOLDER}
-              value={keyword}
-              onChange={(event) => {
-                setKeyword(event.target.value);
-                setPage(1);
-              }}
-              leftIcon={<Search size={16} strokeWidth={1.2} aria-hidden />}
-            />
-            <TextButton tone="secondary" onClick={resetFilters}>
-              초기화
-            </TextButton>
-          </>
-        }
-        isEmpty={filtered.length === 0}
+        /* 다른 목록 화면과 같은 층(§Card soft) */
+        variant="soft"
+        fill
+        className="flex-1"
+        bodyClassName={dimWhile(dataStatus)}
+        aria-busy={isBusy(dataStatus)}
+        isEmpty={dataStatus === "empty" || filtered.length === 0}
         empty={
           <EmptyState
             size="table"
@@ -641,6 +741,17 @@ export function ProductListPage({
               <span className="body-small text-text-sub">
                 총 {filtered.length}건
               </span>
+            }
+            end={
+              /* 원본 표 하단의 페이지당 개수 셀렉트. 바꾸면 1페이지로 돌아간다 */
+              <PaginationSizeSelect
+                sizes={PAGE_SIZES}
+                value={pageSize}
+                onSizeChange={(size) => {
+                  setPageSize(size);
+                  setPage(1);
+                }}
+              />
             }
           />
         }
@@ -709,130 +820,176 @@ export function ProductListPage({
               <TableTh>등록 이미지</TableTh>
               <TableTh align="center">판매 상태</TableTh>
               <TableTh align="center">전시 상태</TableTh>
-              <TableTh>상품등록일</TableTh>
-              <TableTh>최종수정일</TableTh>
+              {/* 원본 표 헤더에서 ↕ 가 붙은 것은 이 둘뿐이다 */}
+              <TableTh
+                sortable
+                sortDirection={directionOf("date")}
+                onSort={() => toggleSort("date")}
+              >
+                상품등록일
+              </TableTh>
+              <TableTh
+                sortable
+                sortDirection={directionOf("updatedAt")}
+                onSort={() => toggleSort("updatedAt")}
+              >
+                최종수정일
+              </TableTh>
               <TableTh className={cn("sticky right-0 z-2", FROZEN_EDGE_LEFT)}>
                 관리
               </TableTh>
             </TableRow>
           </TableHead>
           <TableBody>
-            {paged.map((product) => {
-              const statusMeta = STATUS_META[product.status];
-              const modeMeta = MODE_META[product.mode];
-              const displayMeta = DISPLAY_META[product.display];
-              const isRent = product.mode === "rent";
-              const hasReason =
-                product.status === "rejected" || product.status === "rereview";
+            {/*
+              ⚠️ 이 화면만 `DataTableShell` 의 `isLoading`/`loading`(표 통째로 교체)을
+              쓰지 않고 **본문 행만** 스켈레톤으로 바꾼다.
 
-              return (
-                <TableRow
-                  key={product.id}
-                  clickable
-                  onClick={() => setDetail(product)}
-                >
-                  <TableTd className={frozenTd(0)}>
-                    <div
-                      role="presentation"
-                      onClick={(event) => event.stopPropagation()}
+              열이 23개이고 좌우 고정열 클래스(`frozenTh`/`frozenTd`)와 정렬 헤더가
+              얽혀 있어, 뼈대용 표를 한 벌 더 두면 **헤더를 두 곳에서 관리**하게 된다.
+              그러면 열을 하나 고칠 때 한쪽만 고쳐 로딩이 끝나는 순간 열이 밀린다.
+              본문만 바꾸면 colgroup·헤더가 애초에 하나뿐이라 어긋날 수 없다.
+            */}
+            {dataStatus === "loading"
+              ? Array.from({ length: pageSize }, (_, row) => (
+                  <TableRow key={`skeleton-${row}`}>
+                    {Array.from({ length: COLUMN_COUNT }, (_, cell) => (
+                      <TableTd key={cell} className={frozenTd(cell)}>
+                        <span className="body-small block">
+                          <Skeleton />
+                        </span>
+                      </TableTd>
+                    ))}
+                  </TableRow>
+                ))
+              : null}
+            {dataStatus === "loading"
+              ? null
+              : paged.map((product) => {
+                  const statusMeta = STATUS_META[product.status];
+                  const modeMeta = MODE_META[product.mode];
+                  const displayMeta = DISPLAY_META[product.display];
+                  const isRent = product.mode === "rent";
+                  const hasReason =
+                    product.status === "rejected" ||
+                    product.status === "rereview";
+
+                  return (
+                    <TableRow
+                      key={product.id}
+                      clickable
+                      onClick={() => setDetail(product)}
                     >
-                      <Checkbox
-                        size="small"
-                        aria-label={product.name + " 선택"}
-                        checked={selected.includes(product.id)}
-                        onChange={() => toggleRow(product.id)}
-                      />
-                    </div>
-                  </TableTd>
-                  <TableTd align="center" className={frozenTd(1)}>
-                    <Tag tone={modeMeta.tone} size="small">
-                      {modeMeta.label}
-                    </Tag>
-                  </TableTd>
-                  <TableTd className={frozenTd(2)}>{product.seller}</TableTd>
-                  <TableTd className={frozenTd(3)}>{product.id}</TableTd>
-                  <TableTd ellipsis className={frozenTd(4)}>
-                    {product.name}
-                  </TableTd>
-                  <TableTd>
-                    {isRent ? won(product.rentBase ?? 0) : DASH}
-                  </TableTd>
-                  <TableTd>
-                    {isRent ? won(product.rentDiscount ?? 0) : DASH}
-                  </TableTd>
-                  <TableTd>{isRent ? rentPriceText(product) : DASH}</TableTd>
-                  <TableTd>{isRent ? won(product.deposit ?? 0) : DASH}</TableTd>
-                  <TableTd>
-                    {isRent ? DASH : won(product.saleBase ?? 0)}
-                  </TableTd>
-                  <TableTd>
-                    {isRent ? DASH : won(product.saleDiscount ?? 0)}
-                  </TableTd>
-                  <TableTd>{isRent ? DASH : won(salePriceOf(product))}</TableTd>
-                  <TableTd>{won(product.shipFee)}</TableTd>
-                  <TableTd>{won(product.returnFee)}</TableTd>
-                  <TableTd>{won(product.exchangeFee)}</TableTd>
-                  {/* 원본과 같이 **이름 하나**다 — 3단 경로를 이어 붙이지 않는다 */}
-                  <TableTd ellipsis>{categoryNameOf(product)}</TableTd>
-                  <TableTd>{checkMark(product.kc)}</TableTd>
-                  <TableTd>{checkMark(product.image)}</TableTd>
-                  <TableTd align="center">
-                    {/*
-                      반려·재심사요청 건은 **왜 내려갔는지**가 이 화면의 핵심 정보다.
-                      Tag 는 표시 전용(span)이라 클릭 대상을 따로 둔다.
-                    */}
-                    <div className="flex flex-col items-center gap-1">
-                      <Tag tone={statusMeta.tone} dot size="small">
-                        {statusMeta.label}
-                      </Tag>
-                      {hasReason && (
+                      <TableTd className={frozenTd(0)}>
                         <div
                           role="presentation"
                           onClick={(event) => event.stopPropagation()}
                         >
-                          <TextButton
+                          <Checkbox
                             size="small"
-                            tone="secondary"
-                            onClick={() => setReasonTarget(product)}
-                          >
-                            사유 보기
-                          </TextButton>
+                            aria-label={product.name + " 선택"}
+                            checked={selected.includes(product.id)}
+                            onChange={() => toggleRow(product.id)}
+                          />
                         </div>
-                      )}
-                    </div>
-                  </TableTd>
-                  <TableTd align="center">
-                    <Tag tone={displayMeta.tone} size="small">
-                      {displayMeta.label}
-                    </Tag>
-                  </TableTd>
-                  {/* 저장은 하이픈, 화면은 점 — 날것을 그대로 흘리지 않는다 */}
-                  <TableTd>{ymdhm(product.date)}</TableTd>
-                  <TableTd>{ymdhm(product.updatedAt)}</TableTd>
-                  <TableTd
-                    className={cn(
-                      "sticky right-0 z-1 bg-inherit",
-                      FROZEN_EDGE_LEFT,
-                    )}
-                  >
-                    <div
-                      role="presentation"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      {/* 원본 관리 열도 `수정` 하나뿐이다 */}
-                      <Button
-                        size="small"
-                        variant="secondary"
-                        aria-label={product.name + " 수정"}
-                        onClick={() => toast("상품 수정 화면을 엽니다")}
+                      </TableTd>
+                      <TableTd align="center" className={frozenTd(1)}>
+                        <Tag tone={modeMeta.tone} size="small">
+                          {modeMeta.label}
+                        </Tag>
+                      </TableTd>
+                      <TableTd className={frozenTd(2)}>
+                        {product.seller}
+                      </TableTd>
+                      <TableTd className={frozenTd(3)}>{product.id}</TableTd>
+                      <TableTd ellipsis className={frozenTd(4)}>
+                        {product.name}
+                      </TableTd>
+                      <TableTd>
+                        {isRent ? won(product.rentBase ?? 0) : DASH}
+                      </TableTd>
+                      <TableTd>
+                        {isRent ? won(product.rentDiscount ?? 0) : DASH}
+                      </TableTd>
+                      <TableTd>
+                        {isRent ? rentPriceText(product) : DASH}
+                      </TableTd>
+                      <TableTd>
+                        {isRent ? won(product.deposit ?? 0) : DASH}
+                      </TableTd>
+                      <TableTd>
+                        {isRent ? DASH : won(product.saleBase ?? 0)}
+                      </TableTd>
+                      <TableTd>
+                        {isRent ? DASH : won(product.saleDiscount ?? 0)}
+                      </TableTd>
+                      <TableTd>
+                        {isRent ? DASH : won(salePriceOf(product))}
+                      </TableTd>
+                      <TableTd>{won(product.shipFee)}</TableTd>
+                      <TableTd>{won(product.returnFee)}</TableTd>
+                      <TableTd>{won(product.exchangeFee)}</TableTd>
+                      {/* 원본과 같이 **이름 하나**다 — 3단 경로를 이어 붙이지 않는다 */}
+                      <TableTd ellipsis>{categoryNameOf(product)}</TableTd>
+                      <TableTd>{checkMark(product.kc)}</TableTd>
+                      <TableTd>{checkMark(product.image)}</TableTd>
+                      <TableTd align="center">
+                        {/*
+                      반려·재심사요청 건은 **왜 내려갔는지**가 이 화면의 핵심 정보다.
+                      Tag 는 표시 전용(span)이라 클릭 대상을 따로 둔다.
+                    */}
+                        <div className="flex flex-col items-center gap-1">
+                          <Tag tone={statusMeta.tone} dot size="small">
+                            {statusMeta.label}
+                          </Tag>
+                          {hasReason && (
+                            <div
+                              role="presentation"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <TextButton
+                                size="small"
+                                tone="secondary"
+                                onClick={() => setReasonTarget(product)}
+                              >
+                                사유 보기
+                              </TextButton>
+                            </div>
+                          )}
+                        </div>
+                      </TableTd>
+                      <TableTd align="center">
+                        <Tag tone={displayMeta.tone} size="small">
+                          {displayMeta.label}
+                        </Tag>
+                      </TableTd>
+                      {/* 저장은 하이픈, 화면은 점 — 날것을 그대로 흘리지 않는다 */}
+                      <TableTd>{ymdhm(product.date)}</TableTd>
+                      <TableTd>{ymdhm(product.updatedAt)}</TableTd>
+                      <TableTd
+                        className={cn(
+                          "sticky right-0 z-1 bg-inherit",
+                          FROZEN_EDGE_LEFT,
+                        )}
                       >
-                        수정
-                      </Button>
-                    </div>
-                  </TableTd>
-                </TableRow>
-              );
-            })}
+                        <div
+                          role="presentation"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {/* 원본 관리 열도 `수정` 하나뿐이다 */}
+                          <Button
+                            size="small"
+                            variant="secondary"
+                            aria-label={product.name + " 수정"}
+                            onClick={() => toast("상품 수정 화면을 엽니다")}
+                          >
+                            수정
+                          </Button>
+                        </div>
+                      </TableTd>
+                    </TableRow>
+                  );
+                })}
           </TableBody>
         </Table>
       </DataTableShell>

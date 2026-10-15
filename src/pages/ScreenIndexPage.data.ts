@@ -31,6 +31,7 @@ import {
   Ticket,
   Undo2,
   UserPlus,
+  UserRound,
   Users,
   Wallet,
   XCircle,
@@ -197,9 +198,24 @@ export const SCREENS: ScreenEntry[] = [
     name: "회원 관리",
     type: "목록형",
     origin: "babycube",
-    summary: "상태·가입기간으로 조회하고 이용 정지/해제",
+    summary: "상태·가입기간으로 조회하고 이름을 눌러 상세로",
     file: "babycube/MemberListPage.tsx",
     icon: Users,
+  },
+  /*
+   * 상세형은 GNB 항목이 아니다(목록의 하위 화면). 경로에 회원 id 가 붙으므로
+   * 색인에서는 **대표 회원 하나**로 연다 — 차트온 `예약 상세`와 같은 방식이다.
+   * id 가 이메일이라 `@` 가 들어가므로 여기에도 인코딩된 형태로 적는다.
+   */
+  {
+    navId: `/members/${encodeURIComponent("sujin.park@example.com")}`,
+    name: "회원 상세",
+    type: "상세형",
+    origin: "babycube",
+    summary: "회원 한 명의 기본 정보·계정 상태·자녀·이용 이력",
+    file: "babycube/MemberDetailPage.tsx",
+    entryNote: "GNB 에 없다 — 회원 관리에서 이름이나 [상세] 를 눌러 들어간다",
+    icon: UserRound,
   },
   {
     navId: "/sellers",
@@ -210,6 +226,17 @@ export const SCREENS: ScreenEntry[] = [
     file: "babycube/SellerListPage.tsx",
     icon: Store,
   },
+  /* 상세형은 GNB 항목이 아니다 — 목록에서 셀러명을 눌러 들어간다 */
+  {
+    navId: "/sellers/S-1042",
+    name: "셀러 상세",
+    type: "상세형",
+    origin: "babycube",
+    summary: "셀러 한 곳의 서류·운영 값(수수료율·위생인증)과 등록 상품",
+    file: "babycube/SellerDetailPage.tsx",
+    entryNote: "GNB 에 없다 — 셀러 관리에서 셀러명을 눌러 들어간다",
+    icon: Store,
+  },
   {
     navId: "/seller-review",
     name: "입점 심사",
@@ -217,6 +244,16 @@ export const SCREENS: ScreenEntry[] = [
     origin: "babycube",
     summary: "입점 신청을 행 선택으로 골라 일괄 승인/반려",
     file: "babycube/SellerReviewPage.tsx",
+    icon: ClipboardCheck,
+  },
+  {
+    navId: "/seller-review/A-2026-0141",
+    name: "입점 심사 상세",
+    type: "상세형",
+    origin: "babycube",
+    summary: "신청 서류를 보고 수수료율을 정해 승인하거나 사유를 적어 반려",
+    file: "babycube/SellerReviewDetailPage.tsx",
+    entryNote: "GNB 에 없다 — 입점 심사에서 셀러명을 눌러 들어간다",
     icon: ClipboardCheck,
   },
   {

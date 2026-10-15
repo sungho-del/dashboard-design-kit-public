@@ -185,6 +185,33 @@ export const revenueTotals = {
   "3m": sumTrend(REVENUE_3M),
 };
 
+/**
+ * 계열별 기간 합계 — 차트 헤더의 계열 토글 칩("렌트 1,635건")이 쓴다.
+ *
+ * ⚠️ **원본에 없는 숫자다**(원본은 두 계열을 더한 합계 한 줄뿐). 사용자 결정으로 들였다
+ * (2026-09-18, shadcn `chart-bar-interactive` 헤더 패턴). 새 데이터가 아니라 위 추이를
+ * 계열별로 더한 **파생값**이라, 항목을 고치면 자동으로 따라오고 두 값의 합은 항상
+ * `orderCountTotals`·`revenueTotals` 와 같다(테스트가 고정한다).
+ *
+ * 키는 `TREND_SERIES` 의 `key` 와 같다 — 뼈대가 계열 키로 꺼내 쓴다.
+ */
+const sumBySeries = (rows: { rent: number; sale: number }[]) => ({
+  rent: rows.reduce((sum, row) => sum + row.rent, 0),
+  sale: rows.reduce((sum, row) => sum + row.sale, 0),
+});
+
+export const orderCountSeriesTotals = {
+  "1w": sumBySeries(COUNT_1W),
+  "1m": sumBySeries(COUNT_1M),
+  "3m": sumBySeries(COUNT_3M),
+};
+
+export const revenueSeriesTotals = {
+  "1w": sumBySeries(REVENUE_1W),
+  "1m": sumBySeries(REVENUE_1M),
+  "3m": sumBySeries(REVENUE_3M),
+};
+
 /* =========================================================================
  * 3. 상태 흐름 (F02)
  *
@@ -268,7 +295,7 @@ export const ORDERS_NAV_ID = "/orders-all";
  * 넷 다 원본에 없는 것이라 걷어냈다(타일 9장 × 4 = 36개 요소). 값 자체가 링크다.
  *
  * ## 뼈대가 이 파일에 기대하는 계약
- * - 그룹마다 **정확히 3장** — 뼈대가 한 박스 안에 3열로 깐다
+ * - 그룹마다 **정확히 3장** — 뼈대가 그룹을 3열로 세우고, 한 박스 안에 3행으로 쌓는다
  * - `unit` 은 값과 **분리한다.** 원본이 값과 단위에 다른 크기를 주기 때문이다
  *   (값은 크게, 단위는 작게). 붙여서 한 문자열로 넣으면 그 위계를 만들 수 없다
  * - `navId` 는 **있을 때만** 그 타일이 링크가 된다. 원본도 `go` 가 있는 타일만 눌린다 —

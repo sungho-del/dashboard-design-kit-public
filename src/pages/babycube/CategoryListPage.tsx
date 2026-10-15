@@ -1,4 +1,6 @@
 import { useRef, useState } from "react";
+import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
+import { useSearchParams } from "../../lib/router";
 import {
   ChevronDown,
   ChevronUp,
@@ -23,6 +25,7 @@ import {
   ModalHeader,
   PageHeader,
   SegmentedControl,
+  Skeleton,
   Table,
   TableBody,
   TableHead,
@@ -126,6 +129,55 @@ const LEVEL_INDENT: Record<CategoryLevel, string> = {
  */
 const UPLOADED_ICON = Shapes;
 
+/**
+ * 열 폭의 **정본**. 표와 로딩 뼈대가 **같은 것을 쓴다** — 폭을 두 번 적으면
+ * 로딩이 끝나는 순간 열이 밀린다. table-fixed 라 폭 지정 필수(합 100%).
+ */
+const COLGROUP = (
+  <colgroup>
+    <col className="w-20" />
+    <col className="w-12" />
+    <col className="w-33" />
+    <col className="w-20" />
+    <col className="w-58" />
+  </colgroup>
+);
+
+/** 로딩 자리의 셀 폭 */
+const SKELETON_WIDTHS = ["w-12", "w-8", "w-24", "w-10", "w-40"];
+
+/**
+ * 로딩 뼈대. **헤더는 실제 글자 그대로** 두고 본문만 가린다(§D8-1).
+ * 트리라 행 수가 들쭉날쭉하지만, 뼈대는 **대분류 수(6)** 에 맞춰 둔다.
+ */
+const loadingTable = (
+  <Table>
+    {COLGROUP}
+    <TableHead>
+      <TableRow>
+        <TableTh align="center">단계</TableTh>
+        <TableTh>아이콘</TableTh>
+        <TableTh>카테고리</TableTh>
+        <TableTh>등록 상품수</TableTh>
+        <TableTh>관리</TableTh>
+      </TableRow>
+    </TableHead>
+    <TableBody>
+      {Array.from({ length: 6 }, (_, row) => (
+        <TableRow key={row}>
+          {SKELETON_WIDTHS.map((width, cell) => (
+            <TableTd key={cell}>
+              <span className="body-small block">
+                <Skeleton className={width} />
+              </span>
+            </TableTd>
+          ))}
+        </TableRow>
+      ))}
+    </TableBody>
+  </Table>
+);
+
 export interface CategoryListPageProps {
   navOpen: boolean;
   onNavOpenChange: (open: boolean) => void;
@@ -149,6 +201,12 @@ export function CategoryListPage({
 
   const [rows, setRows] = useState<Category[]>(CATEGORIES);
   const [domain, setDomain] = useState<CategoryDomain>(DEFAULT_DOMAIN);
+
+  /*
+    실 API 를 붙이면 이 한 줄을 fetch 상태로 바꾼다 — 지금은 `?preview=` 로 미리 본다
+    (`/categories?preview=loading` · `empty` · `refreshing`).
+  */
+  const status = asStatus(useSearchParams().get("preview"));
 
   const [nameTarget, setNameTarget] = useState<NameTarget | null>(null);
   const [nameValue, setNameValue] = useState("");
@@ -249,6 +307,15 @@ export function CategoryListPage({
       header={<PageHeader title="카테고리 관리" />}
     >
       <DataTableShell
+        /* 다른 목록 화면과 같은 층(§Card soft) */
+        variant="soft"
+        /* 트리가 짧을 때 표 아래가 페이지 회색으로 비지 않게 남는 높이를 흡수한다 */
+        fill
+        className="flex-1"
+        bodyClassName={dimWhile(status)}
+        aria-busy={isBusy(status)}
+        isLoading={status === "loading"}
+        loading={loadingTable}
         toolbarStart={
           <>
             {/* 페이지네이션이 없는 화면이라 총 건수를 툴바가 든다 */}
@@ -270,7 +337,7 @@ export function CategoryListPage({
             {domainLabel(domain)} 대분류 추가
           </Button>
         }
-        isEmpty={visible.length === 0}
+        isEmpty={status === "empty" || visible.length === 0}
         empty={
           /* 필터가 없는 화면이라 "조건을 바꿔 보라"고 할 수 없다 —
              비어 있다면 정말로 그 트리에 카테고리가 하나도 없는 것이다 */
@@ -283,14 +350,7 @@ export function CategoryListPage({
         }
       >
         <Table>
-          {/* table-fixed 라 폭 지정 필수. 합 100% */}
-          <colgroup>
-            <col className="w-20" />
-            <col className="w-12" />
-            <col className="w-33" />
-            <col className="w-20" />
-            <col className="w-58" />
-          </colgroup>
+          {COLGROUP}
           <TableHead>
             <TableRow>
               {/* 배지만 들어가는 열이라 가운데, 나머지는 좌측 (DESIGN.md §7-2) */}
@@ -343,7 +403,10 @@ export function CategoryListPage({
                       {category.name}
                     </span>
                   </TableTd>
-                  <TableTd>{count(category.productCount)}</TableTd>
+                  {/* 수치는 **등폭**이다(§D6-2) — 자릿수가 세로로 맞아야 비교된다 */}
+                  <TableTd className="tabular-nums">
+                    {count(category.productCount)}
+                  </TableTd>
                   <TableTd>
                     {/*
                       원본 `actrow` — 다섯 개를 한 줄에 편다(드롭다운에 접지 않는다).

@@ -153,12 +153,44 @@ function statusCard(name: string): HTMLElement {
   ).getByRole("button", { name });
 }
 
+/**
+ * 상태 카드를 눌러 그 상태로 좁힌다.
+ *
+ * ⚠️ 원본 정책상 **[전체] 카드가 없어** 목록은 늘 한 상태만 보여준다
+ * (`products.dash`: _"상태 1개당 카드 1장 · [전체] 카드 없음"_). 기본은 [판매중] 이므로,
+ * 반려·재심사요청·판매중지·품절 상품을 봐야 하는 테스트는 **먼저 이것을 부른다.**
+ * 건수는 필터에 따라 달라지므로 라벨 앞부분만 맞춘다.
+ */
+const pickStatus = async (
+  user: ReturnType<typeof userEvent.setup>,
+  label: string,
+) =>
+  user.click(
+    within(screen.getByRole("group", { name: "판매 상태별 건수" })).getByRole(
+      "button",
+      { name: new RegExp(`^${label} `) },
+    ),
+  );
+
+/** 유형 라디오. 조건 영역 안에 있으므로 **먼저 펼쳐 둔 상태에서** 부른다 */
 function modeFilter(name: string): HTMLElement {
   return within(screen.getByRole("radiogroup", { name: "유형" })).getByRole(
     "radio",
     { name },
   );
 }
+
+/**
+ * 검색조건을 펼친다.
+ *
+ * ⚠️ 이 화면의 조건 영역(`FilterBar`)은 **접힌 채로 열린다**(원본). 닫혀 있는 동안은
+ * 안의 컨트롤이 **DOM 에 아예 없으므로**(포커스 안전 계약) 유형·전시·카테고리·기간·검색을
+ * 건드리는 테스트는 반드시 먼저 이것을 부른다.
+ */
+const openFilters = async (user: ReturnType<typeof userEvent.setup>) => {
+  const toggle = screen.queryByRole("button", { name: /검색 열기/ });
+  if (toggle) await user.click(toggle);
+};
 
 /** Select 트리거는 `role="combobox"` 다 (floating-ui `useRole({ role: "select" })`) */
 function selectTrigger(label: string): HTMLElement {
@@ -171,6 +203,8 @@ async function chooseOption(
   selectLabel: string,
   optionLabel: string,
 ) {
+  /* 페이지당 개수 셀렉트는 조건 영역 밖(페이지네이션)에 있다 */
+  if (selectLabel !== "페이지당 개수") await openFilters(user);
   await user.click(selectTrigger(selectLabel));
   const listbox = await screen.findByRole("listbox");
   await user.click(within(listbox).getByRole("option", { name: optionLabel }));
@@ -185,7 +219,11 @@ async function gotoPage(
   await user.click(within(nav).getByRole("button", { name: String(page) }));
 }
 
-function searchBox(): HTMLElement {
+/** 검색어 입력. 조건 영역 안에 있으므로 **먼저 펼친다** */
+async function searchBox(
+  user: ReturnType<typeof userEvent.setup>,
+): Promise<HTMLElement> {
+  await openFilters(user);
   return screen.getByPlaceholderText("검색어 입력");
 }
 
@@ -269,7 +307,8 @@ describe("ProductListPage", () => {
    * **원본에 없는 발명**이었고, 표에 8행뿐인 화면에서 스스로 모순되는 숫자였다.
    */
   describe("판매 상태별 건수 대시", () => {
-    it("상태 어휘 6칸(전체 + 5종)을 원본 순서대로 든다", () => {
+    /** 원본 `products.dash`: "상태 1개당 카드 1장 · **[전체] 카드 없음**" */
+    it("상태 어휘 5칸을 원본 순서대로 든다 ([전체] 카드는 없다)", () => {
       renderPage();
 
       const cards = within(
@@ -277,7 +316,6 @@ describe("ProductListPage", () => {
       ).getAllByRole("button");
 
       expect(cards.map((card) => card.getAttribute("aria-label"))).toEqual([
-        "전체 8개",
         "판매중 4개",
         "반려 1개",
         "재심사요청 1개",
@@ -299,13 +337,14 @@ describe("ProductListPage", () => {
     it("카드를 누르면 그 상태로 걸리고, 고른 카드가 눌린 상태가 된다", async () => {
       const { user } = renderPage();
 
-      expect(statusCard("전체 8개")).toHaveAttribute("aria-pressed", "true");
+      /* 원본 `products.dash`: "기본 : 화면 진입 시 [판매중] 선택" */
+      expect(statusCard("판매중 4개")).toHaveAttribute("aria-pressed", "true");
 
       await user.click(statusCard("반려 1개"));
 
       expect(visibleCodes()).toEqual(["R-1038"]);
       expect(statusCard("반려 1개")).toHaveAttribute("aria-pressed", "true");
-      expect(statusCard("전체 8개")).toHaveAttribute("aria-pressed", "false");
+      expect(statusCard("판매중 4개")).toHaveAttribute("aria-pressed", "false");
     });
 
     /**
@@ -315,10 +354,10 @@ describe("ProductListPage", () => {
     it("다른 필터를 걸면 건수도 함께 줄어 표의 행 수와 일치한다", async () => {
       const { user } = renderPage();
 
+      await openFilters(user);
       await user.click(modeFilter("렌트"));
 
       // 렌트 4건 = 판매중 2 · 반려 1 · 재심사요청 1 · 판매중지 0 · 품절 0
-      expect(statusCard("전체 4개")).toBeVisible();
       expect(statusCard("판매중 2개")).toBeVisible();
       expect(statusCard("품절 0개")).toBeVisible();
 
@@ -327,8 +366,9 @@ describe("ProductListPage", () => {
     });
 
     /** 상태 축의 입구는 대시 하나뿐이다 — 툴바에 세그먼트를 하나 더 두지 않는다 */
-    it("툴바에는 상태 필터가 없다 (radiogroup 은 유형 하나뿐)", () => {
-      renderPage();
+    it("조건 영역에는 상태 필터가 없다 (radiogroup 은 유형 하나뿐)", async () => {
+      const { user } = renderPage();
+      await openFilters(user);
 
       expect(screen.getAllByRole("radiogroup")).toHaveLength(1);
       expect(screen.getByRole("radiogroup")).toHaveAccessibleName("유형");
@@ -336,28 +376,37 @@ describe("ProductListPage", () => {
   });
 
   describe("판매 상태 색 (의미 검증)", () => {
-    it("반려는 critical · 재심사요청은 warning · 판매중은 success", () => {
-      renderPage();
+    /* 목록은 늘 한 상태만 보여주므로(원본 정책) 상태마다 카드를 갈아 끼워 본다 */
+    it("반려는 critical · 재심사요청은 warning · 판매중은 success", async () => {
+      const { user } = renderPage();
 
-      const rejected = within(rowOf("R-1038")).getByText("반려");
-      const rereview = within(rowOf("R-1031")).getByText("재심사요청");
-      const onSale = within(rowOf("R-1042")).getByText("판매중");
+      expect(classList(within(rowOf("R-1042")).getByText("판매중"))).toContain(
+        "text-text-success",
+      );
 
-      expect(classList(rejected)).toContain("text-text-critical");
-      expect(classList(rereview)).toContain("text-text-warning");
-      expect(classList(onSale)).toContain("text-text-success");
+      await pickStatus(user, "반려");
+      expect(classList(within(rowOf("R-1038")).getByText("반려"))).toContain(
+        "text-text-critical",
+      );
+
+      await pickStatus(user, "재심사요청");
+      expect(
+        classList(within(rowOf("R-1031")).getByText("재심사요청")),
+      ).toContain("text-text-warning");
     });
 
     it("품절·판매중지처럼 정상적으로 멈춘 상태는 중립색이다", async () => {
       const { user } = renderPage();
-      await gotoPage(user, 2);
 
+      await pickStatus(user, "품절");
       const soldout = within(rowOf("S-2198")).getByText("품절");
-      const stopped = within(rowOf("S-2185")).getByText("판매중지");
-
       expect(classList(soldout)).toContain("text-text-sub");
       expect(classList(soldout)).not.toContain("text-text-critical");
-      expect(classList(stopped)).toContain("text-text-sub");
+
+      await pickStatus(user, "판매중지");
+      expect(
+        classList(within(rowOf("S-2185")).getByText("판매중지")),
+      ).toContain("text-text-sub");
     });
 
     /**
@@ -368,17 +417,20 @@ describe("ProductListPage", () => {
     it("KC·이미지 열은 O/X 로 찍히고 X 에만 경고색이 붙는다", async () => {
       const { user } = renderPage();
 
+      /* 판매중 건은 둘 다 제출돼 있다 — "O" 는 색을 입힌 요소가 아니라 맨 텍스트다 */
+      expect(cellText("R-1042", CELL.kc)).toBe("O");
+      expect(within(rowOf("R-1042")).queryByText("X")).toBeNull();
+
+      /* 미제출은 재심사요청 건에 있다 */
+      await pickStatus(user, "재심사요청");
       expect(cellText("R-1031", CELL.kc)).toBe("X");
       expect(cellText("R-1031", CELL.image)).toBe("O");
+      expect(classList(within(rowOf("R-1031")).getByText("X"))).toContain(
+        "text-text-warning",
+      );
+
+      await pickStatus(user, "반려");
       expect(cellText("R-1038", CELL.image)).toBe("X");
-      expect(cellText("R-1042", CELL.kc)).toBe("O");
-
-      const missing = within(rowOf("R-1031")).getByText("X");
-      expect(classList(missing)).toContain("text-text-warning");
-
-      // "O" 는 색을 입힌 요소가 아니라 맨 텍스트다
-      await user.click(statusCard("전체 8개"));
-      expect(within(rowOf("R-1042")).queryByText("X")).toBeNull();
     });
 
     /** 카테고리 열은 원본과 같이 **이름 하나**다 — 3단 경로를 이어 붙이지 않는다 */
@@ -396,9 +448,11 @@ describe("ProductListPage", () => {
       const { user } = renderPage();
       expect(visibleCodes()).toContain("S-2210");
 
+      await openFilters(user);
       await user.click(modeFilter("렌트"));
 
-      expect(visibleCodes()).toEqual(["R-1042", "R-1038", "R-1031", "R-1019"]);
+      /* 유형은 상태와 **다른 축**이다 — [판매중] 안에서 렌트만 남는다 */
+      expect(visibleCodes()).toEqual(["R-1042", "R-1019"]);
     });
 
     it("판매 상태를 '반려'로 좁히면 반려 건만 남는다", async () => {
@@ -413,6 +467,7 @@ describe("ProductListPage", () => {
     it("유형과 상태를 함께 걸면 교집합만 남는다", async () => {
       const { user } = renderPage();
 
+      await openFilters(user);
       await user.click(modeFilter("판매"));
       await user.click(statusCard("판매중 2개"));
 
@@ -428,7 +483,11 @@ describe("ProductListPage", () => {
 
       await chooseOption(user, "전시 상태", "전시중지");
 
-      expect(visibleCodes()).toEqual(["R-1038", "R-1031", "S-2185"]);
+      /* 판매중인 상품은 전부 전시 중이다 — 축이 다르다는 것이 여기서 드러난다 */
+      expect(bodyRows()).toHaveLength(0);
+
+      await pickStatus(user, "반려");
+      expect(visibleCodes()).toEqual(["R-1038"]);
       expect(cellText("R-1038", CELL.display)).toBe("전시중지");
     });
 
@@ -443,8 +502,9 @@ describe("ProductListPage", () => {
   });
 
   describe("카테고리 3단 연쇄", () => {
-    it("대분류를 고르기 전에는 중·소분류를 열 수 없다", () => {
-      renderPage();
+    it("대분류를 고르기 전에는 중·소분류를 열 수 없다", async () => {
+      const { user } = renderPage();
+      await openFilters(user);
 
       expect(selectTrigger("카테고리 중분류")).toBeDisabled();
       expect(selectTrigger("카테고리 소분류")).toBeDisabled();
@@ -485,10 +545,11 @@ describe("ProductListPage", () => {
 
       await chooseOption(user, "카테고리 대분류", "카시트");
       await chooseOption(user, "카테고리 중분류", "신생아 카시트");
-      await chooseOption(user, "카테고리 대분류", "유모차");
+      await chooseOption(user, "카테고리 대분류", "수유·이유");
 
       expect(selectTrigger("카테고리 중분류")).toHaveTextContent("중분류 전체");
-      expect(visibleCodes()).toEqual(["R-1038", "S-2185"]);
+      /* 중분류가 «신생아 카시트» 로 남아 있었다면 여기가 0건이 된다 */
+      expect(visibleCodes()).toEqual(["S-2210"]);
     });
   });
 
@@ -496,15 +557,20 @@ describe("ProductListPage", () => {
     it("셀러명으로 검색하면 그 셀러 상품만 남는다", async () => {
       const { user } = renderPage();
 
-      await user.type(searchBox(), "맘스케어");
+      await user.type(await searchBox(user), "베이비루");
+      expect(visibleCodes()).toEqual(["R-1042", "S-2210"]);
 
-      expect(visibleCodes()).toEqual(["R-1038", "S-2185"]);
+      /* 검색은 상태 축과 독립이다 — 맘스케어 상품은 반려·판매중지에 있다 */
+      await pickStatus(user, "반려");
+      await user.clear(await searchBox(user));
+      await user.type(await searchBox(user), "맘스케어");
+      expect(visibleCodes()).toEqual(["R-1038"]);
     });
 
     it("결과가 없으면 도메인 문구의 빈 상태가 뜨고, 초기화하면 되돌아온다", async () => {
       const { user } = renderPage();
 
-      await user.type(searchBox(), "없는상품코드");
+      await user.type(await searchBox(user), "없는상품코드");
 
       expect(screen.getByText("해당 조건의 상품이 없습니다")).toBeVisible();
       expect(
@@ -516,24 +582,27 @@ describe("ProductListPage", () => {
 
       await user.click(screen.getByRole("button", { name: "필터 초기화" }));
 
-      expect(visibleCodes()).toEqual(["R-1042", "R-1038", "S-2210", "R-1031"]);
-      expect(searchBox()).toHaveValue("");
+      /* 초기화는 기본 상태([판매중])로 돌아간다 — 원본 `products.dash` 정책 */
+      expect(visibleCodes()).toEqual(["R-1042", "S-2210", "R-1019", "S-2170"]);
+      expect(await searchBox(user)).toHaveValue("");
     });
 
     it("초기화는 유형·상태·카테고리를 한 번에 되돌린다", async () => {
       const { user } = renderPage();
 
+      await openFilters(user);
       await user.click(modeFilter("렌트"));
-      await user.click(statusCard("판매중 2개"));
-      await chooseOption(user, "카테고리 대분류", "카시트");
-      expect(visibleCodes()).toEqual(["R-1042", "R-1019"]);
+      await pickStatus(user, "반려");
+      await chooseOption(user, "카테고리 대분류", "유모차");
+      expect(visibleCodes()).toEqual(["R-1038"]);
 
       await user.click(screen.getByRole("button", { name: "초기화" }));
 
       expect(modeFilter("전체")).toBeChecked();
-      expect(statusCard("전체 8개")).toHaveAttribute("aria-pressed", "true");
+      /* 상태도 **기본값으로** 돌아간다 — 원본 "필터 [초기화] 시 기본 상태로 복귀" */
+      expect(statusCard("판매중 4개")).toHaveAttribute("aria-pressed", "true");
       expect(selectTrigger("카테고리 중분류")).toBeDisabled();
-      expect(screen.getByText("총 8건")).toBeVisible();
+      expect(screen.getByText("총 4건")).toBeVisible();
     });
 
     /**
@@ -543,7 +612,7 @@ describe("ProductListPage", () => {
     it("검색 대상을 바꾸면 같은 낱말이라도 걸리는 행이 달라진다", async () => {
       const { user } = renderPage();
 
-      await user.type(searchBox(), "카시트");
+      await user.type(await searchBox(user), "카시트");
       // 기본 대상은 셀러명이라 상품명에 '카시트'가 있어도 걸리지 않는다
       expect(bodyRows()).toHaveLength(0);
 
@@ -554,14 +623,17 @@ describe("ProductListPage", () => {
   });
 
   describe("페이지네이션", () => {
-    it("8건을 4건씩 두 페이지로 나눈다", async () => {
+    it("페이지당 개수를 줄이면 두 페이지로 나뉜다", async () => {
       const { user } = renderPage();
 
-      expect(visibleCodes()).toEqual(["R-1042", "R-1038", "S-2210", "R-1031"]);
+      /* [판매중] 4건 — 페이지당 2개로 줄여 두 페이지로 나뉘는지 본다 */
+      expect(visibleCodes()).toEqual(["R-1042", "S-2210", "R-1019", "S-2170"]);
+
+      await chooseOption(user, "페이지당 개수", "2개씩 보기");
+      expect(visibleCodes()).toEqual(["R-1042", "S-2210"]);
 
       await gotoPage(user, 2);
-
-      expect(visibleCodes()).toEqual(["S-2198", "S-2185", "R-1019", "S-2170"]);
+      expect(visibleCodes()).toEqual(["R-1019", "S-2170"]);
     });
   });
 
@@ -592,6 +664,9 @@ describe("ProductListPage", () => {
     /** 반려 건(R-1038)만 승인으로 되살릴 수 있다 */
     it("승인 처리하면 결과와 도달 상태를 알리고 선택이 풀린다", async () => {
       const { user } = renderPage();
+
+      /* 디럭스 유모차 스톨라 프로(R-1038)는 **반려** 건이다 */
+      await pickStatus(user, "반려");
 
       await user.click(
         screen.getByRole("checkbox", {
@@ -629,6 +704,9 @@ describe("ProductListPage", () => {
     it("이미 반려된 상품에는 승인만, 반려는 뜨지 않는다", async () => {
       const { user } = renderPage();
 
+      /* 디럭스 유모차 스톨라 프로(R-1038)는 **반려** 건이다 */
+      await pickStatus(user, "반려");
+
       await user.click(
         screen.getByRole("checkbox", {
           name: "디럭스 유모차 스톨라 프로 선택",
@@ -642,6 +720,8 @@ describe("ProductListPage", () => {
     it("재심사요청 건은 본사 판단 대기라 둘 다 뜬다", async () => {
       const { user } = renderPage();
 
+      /* 베드사이드 아기침대 슬립온(R-1031)은 **재심사요청** 건이다 */
+      await pickStatus(user, "재심사요청");
       await user.click(
         screen.getByRole("checkbox", {
           name: "베드사이드 아기침대 슬립온 선택",
@@ -652,10 +732,16 @@ describe("ProductListPage", () => {
       expect(screen.getByRole("button", { name: "반려 처리" })).toBeVisible();
     });
 
-    it("자격이 섞이면 제외된 건수를 결과에 함께 알린다", async () => {
+    /**
+     * 원본 정책([전체] 카드 없음)의 결과 — 목록에 **한 상태만** 보이므로 고른 행의
+     * 자격이 균일하다. 그래서 일괄 처리에서 "일부만 처리됨"이 생기지 않는다
+     * (원본 `products.toolbar`: _"지금 고른 상태에서 갈 수 있는 곳만 노출"_).
+     * 제외 건수를 세는 문구 자체는 남아 있다 — 상태가 섞이는 화면에서 쓰인다.
+     */
+    it("한 상태만 보이므로 고른 수와 처리한 수가 같다", async () => {
       const { user } = renderPage();
 
-      // 1페이지 4건 = 판매중2 · 반려1 · 재심사요청1 → 승인 자격은 2건뿐이다
+      await pickStatus(user, "반려");
       await user.click(
         screen.getByRole("checkbox", { name: "이 페이지 전체 선택" }),
       );
@@ -663,7 +749,7 @@ describe("ProductListPage", () => {
 
       expect(
         await screen.findByText(
-          "2개 상품을 승인 처리했습니다 — 판매중으로 되돌렸습니다 · 2개 제외(승인 대상이 아닌 건)",
+          "1개 상품을 승인 처리했습니다 — 판매중으로 되돌렸습니다",
         ),
       ).toBeVisible();
     });
@@ -734,8 +820,9 @@ describe("ProductListPage", () => {
       await user.click(screen.getByRole("button", { name: "반려 처리" }));
 
       const dialog = await screen.findByRole("dialog");
+      /* [판매중] 4건은 전부 반려할 수 있다 — 한 상태만 보이므로 자격이 균일하다 */
       expect(
-        within(dialog).getByText("상품 반려 사유 입력 (3건)"),
+        within(dialog).getByText("상품 반려 사유 입력 (4건)"),
       ).toBeVisible();
 
       await user.type(
@@ -748,7 +835,7 @@ describe("ProductListPage", () => {
 
       expect(
         await screen.findByText(
-          "3개 상품을 반려 처리했습니다 — 판매 상태를 «반려»로 내렸습니다 · 1개 제외(반려 대상이 아닌 건)",
+          "4개 상품을 반려 처리했습니다 — 판매 상태를 «반려»로 내렸습니다",
         ),
       ).toBeVisible();
     });
@@ -758,6 +845,7 @@ describe("ProductListPage", () => {
     it("반려 건의 사유와 처리 시각을 보여준다", async () => {
       const { user } = renderPage();
 
+      await pickStatus(user, "반려");
       await user.click(
         within(rowOf("R-1038")).getByRole("button", { name: "사유 보기" }),
       );
@@ -770,6 +858,7 @@ describe("ProductListPage", () => {
     it("재심사요청 건에는 셀러가 이의를 제기했다는 꼬리말이 붙는다", async () => {
       const { user } = renderPage();
 
+      await pickStatus(user, "재심사요청");
       await user.click(
         within(rowOf("R-1031")).getByRole("button", { name: "사유 보기" }),
       );
@@ -808,6 +897,7 @@ describe("ProductListPage", () => {
     it("푸터 버튼은 그 상품의 자격만 보여준다", async () => {
       const { user } = renderPage();
 
+      await pickStatus(user, "반려");
       await user.click(within(rowOf("R-1038")).getAllByRole("cell")[CELL.name]);
 
       const sheet = await screen.findByRole("dialog", {

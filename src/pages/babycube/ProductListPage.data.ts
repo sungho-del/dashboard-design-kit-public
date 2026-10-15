@@ -524,22 +524,39 @@ export const PRODUCTS: Product[] = [
 export const DASH_UNIT = "개";
 
 /**
- * 판매 상태 필터 = **상태별 건수 대시의 카드 목록**. 첫 항목은 반드시 `"all"`(필터 해제).
+ * 판매 상태 필터 = **상태별 건수 대시의 카드 목록**.
  *
  * 원본은 이 축을 필터바의 칩이 아니라 `StatDash` 로 낸다(`chips[0].dash = true` 라
  * 필터바 렌더에서 건너뛰고 대시가 그 역할을 가져간다). 그래서 **카드를 누르는 것이
  * 곧 상태 필터**다 — 같은 축을 두 군데 두면 어느 쪽이 진짜인지 알 수 없다.
  *
+ * ## ⚠️ **[전체] 카드는 없다** (2026-09-21, 원본 v0.4 대조)
+ * 원본 주석 `products.dash` 가 정책으로 못 박는다 —
+ * _"상태 1개당 카드 1장 · **[전체] 카드 없음** — 목록은 항상 한 상태만 보여준다"_.
+ * 회원 화면(`MemberListPage.data.ts`)과 **같은 정책**이다. 한때 여기 `"all"` 이
+ * 첫 항목으로 있었는데 원본에 없는 카드였다.
+ *
  * 건수는 여기 두지 않는다. 뼈대가 **지금 보이는 행에서 직접 세므로** 표와 어긋날 수 없다.
  */
 export const FILTERS = [
-  { value: "all", label: "전체" },
   { value: "onSale", label: "판매중" },
   { value: "rejected", label: "반려" },
   { value: "rereview", label: "재심사요청" },
   { value: "stopped", label: "판매중지" },
   { value: "soldout", label: "품절" },
 ];
+
+/**
+ * 화면을 열었을 때 고를 상태. 원본 `products.dash` — _"기본 : 화면 진입 시 [판매중] 선택"_.
+ */
+export const DEFAULT_FILTER = "onSale";
+
+/**
+ * 페이지당 개수 후보 — 원본 표 하단의 셀렉트(10/20/50/100).
+ * 앞의 `2`·`4` 는 **샘플이 적어 페이징을 눈으로 보려고** 둔 값이다 —
+ * 상태 카드가 늘 한 상태만 보여주므로(원본 정책) 한 화면의 행이 많아야 4건이다.
+ */
+export const PAGE_SIZES = [2, 4, 10, 20, 50, 100];
 
 /** 유형 라디오 필터. 첫 항목은 `"all"` */
 export const MODE_FILTERS = [
@@ -708,3 +725,85 @@ export const REREVIEW_NOTE = "셀러가 재심사를 요청한 건입니다.";
 export const EMPTY_TITLE = "해당 조건의 상품이 없습니다";
 export const EMPTY_DESCRIPTION =
   "조건을 변경하거나 필터를 초기화한 뒤 다시 조회해 주세요.";
+
+/* -------------------------------------------------------------------------
+ * 검색조건 요약 — 접힌 `FilterBar` 한 줄에 들어가는 글자
+ *
+ * ⚠️ **판매 상태는 요약에 넣지 않는다.** 상태 축은 위의 건수 카드가 이미 선택된 채로
+ * 보여 주고 있어(원본 `chips[0].dash = true`), 여기서 또 적으면 같은 사실이 두 곳에서
+ * 말해진다. 회원 화면(`MemberListPage.data.ts`)과 같은 규칙이다.
+ * ---------------------------------------------------------------------- */
+
+/** 조건이 하나도 없을 때 — 원본 문구 그대로 */
+export const NO_FILTER_TEXT = "조건 없음 (전체)";
+
+/** 라벨 목록에서 값에 해당하는 라벨을 찾는다. 못 찾으면 값을 그대로 쓴다 */
+const labelOf = (
+  options: { value: string; label: string }[],
+  value: string,
+): string => options.find((option) => option.value === value)?.label ?? value;
+
+/**
+ * 걸린 조건을 사람이 읽는 한 줄로.
+ *
+ * 카테고리는 **가장 깊이 고른 것 하나만** 적는다 — `카시트 › 신생아 카시트 › …` 를
+ * 전부 적으면 요약이 한 줄에 안 들어가고, 깊은 값이 얕은 값을 이미 함의한다.
+ */
+export const filterSummary = ({
+  mode,
+  display,
+  major,
+  middle,
+  minor,
+  dateField,
+  from,
+  to,
+  searchField,
+  keyword,
+}: {
+  mode: string;
+  display: string;
+  major: string;
+  middle: string;
+  minor: string;
+  dateField: string;
+  from?: Date;
+  to?: Date;
+  searchField: string;
+  keyword: string;
+}): string => {
+  const parts: string[] = [];
+
+  if (mode !== "all") parts.push(labelOf(MODE_FILTERS, mode));
+  if (display !== "all") parts.push(labelOf(DISPLAY_FILTERS, display));
+
+  /* 가장 깊이 고른 분류 하나 — 트리를 평탄화해 라벨을 찾는다 */
+  const deepest = [minor, middle, major].find((value) => value !== "all");
+  if (deepest) {
+    const flat: { value: string; label: string }[] = [];
+    const walk = (nodes: CategoryNode[]) => {
+      for (const node of nodes) {
+        flat.push({ value: node.value, label: node.label });
+        if (node.children) walk(node.children);
+      }
+    };
+    walk(CATEGORY_TREE);
+    parts.push(labelOf(flat, deepest));
+  }
+
+  if (from) {
+    const day = (value: Date) =>
+      `${value.getFullYear()}.${String(value.getMonth() + 1).padStart(2, "0")}.${String(
+        value.getDate(),
+      ).padStart(2, "0")}`;
+    parts.push(
+      `${labelOf(DATE_FIELDS, dateField)} ${day(from)}${to ? `~${day(to)}` : ""}`,
+    );
+  }
+
+  if (keyword.trim() !== "") {
+    parts.push(`${labelOf(SEARCH_FIELDS, searchField)} «${keyword.trim()}»`);
+  }
+
+  return parts.length > 0 ? parts.join(" · ") : NO_FILTER_TEXT;
+};

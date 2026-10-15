@@ -11,8 +11,6 @@ import {
   EmptyState,
   FormField,
   Gnb,
-  InfoItem,
-  InfoList,
   Input,
   Modal,
   ModalBody,
@@ -20,10 +18,12 @@ import {
   ModalHeader,
   PageHeader,
   Pagination,
+  PaginationSizeSelect,
   SegmentedControl,
   Select,
   SelectionBar,
   SelectionBarButton,
+  Skeleton,
   StatGrid,
   Table,
   TableBody,
@@ -36,16 +36,22 @@ import {
   TextButton,
   useToast,
   type DateRange,
+  type TableSortDirection,
 } from "../../components/ui";
+import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
+import { PERIOD_PRESETS } from "../../lib/periodPresets";
+import { useSearchParams } from "../../lib/router";
 import {
   APPLICATIONS,
   count,
   DATE_FIELDS,
   dealKinds,
+  DEFAULT_FILTER,
   FILTERS,
   HYGIENE_OPTIONS,
   KIND_META,
   PAGE_SIZE,
+  PAGE_SIZES,
   parseRate,
   PROCESSED_AT,
   REVIEWABLE_STATUS,
@@ -67,7 +73,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * ## ⚠️ 구성은 **원본 어드민 그대로**다 — 임의로 더하지 말 것
  *
  * ```
- * 상태 대시 (전체·승인요청·승인·반려 건수, 누르면 필터)      ← 원본 StatDash
+ * 상태 대시 (승인요청·승인·반려 건수 — **전체 카드 없음**)     ← 원본 StatDash
  * 검색조건 바 (기간 기준+기간 · 검색조건+검색어)             ← 원본 filter/search
  * [ 총 N건 · 엑셀 다운로드 | 표(선택 체크박스) | 페이지네이션 ]
  * 선택 일괄 심사 (승인 처리 / 반려 처리)                     ← 원본 toolsRight 의 "심사" 셀렉트
@@ -82,6 +88,16 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *   원본 상태 안내도 "심사는 상세에서 서류를 보고 처리합니다"라고 말한다
  * - **상태 세그먼트**. 원본은 `chip.dash: true` 라 상태 축을 **건수 카드로만** 그린다
  * - **PageHeader 도움말 툴팁**. 상태 설명은 원본대로 **대시 카드의 툴팁**으로 내려갔다
+ *
+ * ## 원본 복원 (2026-09-21 · 원본 v0.4 프로토타입 대조)
+ * - ✅ **[전체] 카드 제거 · 기본 [승인요청]** · **No 열** · **페이지당 개수 셀렉트**
+ * - ✅ **정렬 헤더** — 원본이 ↕ 를 붙인 열은 **신청일 하나**다
+ * - ✅ **기간 빠른 선택** 7종
+ *
+ * ## 원본 대조로 확인한 것 — 행별 심사는 **원본에도 없다**
+ * 원본 주석은 "목록 행별 또는 체크 후 일괄로 승인·반려 처리"라고 적지만, 실제 화면의
+ * 상태 칸은 버튼이 아니라 배지(`<span class="badge">`)이고 행에서 누를 수 있는 것은
+ * 셀러명(상세 이동)뿐이다. 우리 구현(체크 후 일괄)이 원본과 같다.
  *
  * ## 원본에서 되살린 것 (이전에 빠져 있던 것)
  * - **연락처 열** — 원본 컬럼 배열에 있는데 우리 표에 없었다(검색은 되는데 확인할 곳이 없었다)
@@ -116,8 +132,9 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *    셀렉트를 액션 메뉴로 쓰는 것은 우리 시스템에 없는 패턴이고, 선택이 있어야만
  *    의미가 있는 버튼이라 §25 가 정확히 이 자리를 위한 것이다.
  *    그래서 원본의 "선택된 항목이 없습니다." 는 **필요가 없어졌다** — 선택이 없으면 바가 없다
- * 2. **처음 열릴 때 `전체`** — 원본은 `defaultStat: "승인요청"` 이다.
- *    대시가 이미 상태별 건수를 다 보여주므로 숨길 이유가 없다
+ * 2. ~~처음 열릴 때 `전체`~~ — **되돌렸다**(2026-09-21). 원본 `sellerReview.dash` 가
+ *    "[전체] 카드 없음 — 목록은 항상 한 상태만 보여준다"고 정책으로 못 박는다.
+ *    지금은 카드 3장에 기본 [승인요청] 이다
  * 3. **셀러명이 미리보기 모달을 연다** — 원본은 `/seller-review/{id}` 상세로 나가지만
  *    그 화면은 기획서 `gaps` 라 이 배치에 없다
  * ====================================================================== */
@@ -162,6 +179,65 @@ interface GateDraft {
   hygiene: string;
 }
 
+/** 로딩 자리의 셀 폭 — 실제 값의 글자 수에 가깝게 둬야 도착했을 때 덜 튄다 */
+const SKELETON_WIDTHS = [
+  "w-4",
+  "w-6",
+  "w-28",
+  "w-16",
+  "w-24",
+  "w-16",
+  "w-24",
+  "w-32",
+  "w-14",
+];
+
+/**
+ * 로딩 뼈대 — 헤더는 실제 글자, 본문만 가린다(§D8-1).
+ * 조건부 열이 빠진 기본 9열 배치를 쓴다 — 도착하면 그때 열이 정해진다.
+ */
+const loadingTable = (
+  <Table>
+    <colgroup>
+      <col className="w-10" />
+      <col className="w-16" />
+      <col className="w-35" />
+      <col className="w-23" />
+      <col className="w-33" />
+      <col className="w-28" />
+      <col className="w-20" />
+      <col className="w-40" />
+      <col className="w-25" />
+    </colgroup>
+    <TableHead sticky>
+      <TableRow>
+        <TableTh aria-label="선택" />
+        <TableTh>No</TableTh>
+        <TableTh>셀러명</TableTh>
+        <TableTh>대표명</TableTh>
+        <TableTh>연락처</TableTh>
+        <TableTh align="center">유형</TableTh>
+        <TableTh>사업자</TableTh>
+        <TableTh>신청일</TableTh>
+        <TableTh align="center">상태</TableTh>
+      </TableRow>
+    </TableHead>
+    <TableBody>
+      {Array.from({ length: PAGE_SIZE }, (_, row) => (
+        <TableRow key={row}>
+          {SKELETON_WIDTHS.map((width, cell) => (
+            <TableTd key={cell}>
+              <span className="body-small block">
+                <Skeleton className={width} />
+              </span>
+            </TableTd>
+          ))}
+        </TableRow>
+      ))}
+    </TableBody>
+  </Table>
+);
+
 export interface SellerReviewPageProps {
   navOpen: boolean;
   onNavOpenChange: (open: boolean) => void;
@@ -177,7 +253,13 @@ export function SellerReviewPage({
 }: SellerReviewPageProps) {
   const { toast } = useToast();
 
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState(DEFAULT_FILTER);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  /** 원본 표에서 ↕ 가 붙은 열은 **신청일 하나**라 정렬 키가 필요 없다 */
+  const [sort, setSort] = useState<TableSortDirection | null>(null);
+
+  /* 실 API 를 붙이면 이 한 줄을 fetch 상태로 바꾼다 (`/seller-review?preview=loading`) */
+  const status = asStatus(useSearchParams().get("preview"));
   const [dateField, setDateField] = useState(DATE_FIELDS[0].value);
   const [searchField, setSearchField] = useState(SEARCH_FIELDS[0].value);
   const [keyword, setKeyword] = useState("");
@@ -185,7 +267,12 @@ export function SellerReviewPage({
   const [page, setPage] = useState(1);
 
   const [selected, setSelected] = useState<string[]>([]);
-  const [preview, setPreview] = useState<Application | null>(null);
+  /**
+   * 입점 심사 상세로 이동 — 원본의 "셀러명 클릭 → `/seller-review/{id}`".
+   * 한때 이 자리에 미리보기 모달이 있었는데, **상세 화면이 생겨** 걷어냈다.
+   */
+  const openDetail = (application: Application) =>
+    onNavSelect(`/seller-review/${encodeURIComponent(application.id)}`);
 
   /* 심사 모달 — 어떤 처리인지와 대상이 무엇인지를 함께 들고 있는다 */
   const [reviewMode, setReviewMode] = useState<"approve" | "reject" | null>(
@@ -226,23 +313,26 @@ export function SellerReviewPage({
     return matchKeyword && inPeriod(dateAxis.pick(item), period);
   });
 
-  const filtered = scoped.filter(
-    (item) => filter === "all" || item.status === filter,
-  );
+  const matched = scoped.filter((item) => item.status === filter);
+
+  /*
+    원본 표에서 ↕ 가 붙은 열은 **신청일 하나**다. 페이지를 나누기 전에 정렬하고,
+    `APPLICATIONS` 가 모듈 상수라 복사한 뒤 정렬한다.
+  */
+  const filtered = sort
+    ? [...matched].sort((a, b) => {
+        const order = a.date.localeCompare(b.date);
+        return sort === "asc" ? order : -order;
+      })
+    : matched;
 
   /* 원본 상태 대시(`StatDash`) — 건수를 보여주면서 그 자체가 상태 필터다 */
   const dash = FILTERS.map((item) => ({
     value: item.value,
     label: item.label,
-    count:
-      item.value === "all"
-        ? scoped.length
-        : scoped.filter((row) => row.status === item.value).length,
-    /* 원본은 상태 카드에 `tip`(statusTips)을 달아 뜻을 설명한다. 전체에는 없다 */
-    tip:
-      item.value === "all"
-        ? undefined
-        : STATUS_META[item.value as ApplicationStatus].description,
+    count: scoped.filter((row) => row.status === item.value).length,
+    /* 원본은 상태 카드마다 `tip`(statusTips)을 달아 뜻을 설명한다 */
+    tip: STATUS_META[item.value as ApplicationStatus].description,
   }));
 
   const selectStatus = (value: string) => {
@@ -258,11 +348,11 @@ export function SellerReviewPage({
   const showRejectedAt = filter === "rejected";
 
   /* 필터로 결과가 줄면 현재 페이지가 범위를 벗어날 수 있다 — 마지막 페이지로 당긴다 */
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const paged = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
   );
 
   /* 심사할 수 있는 것은 승인요청 건뿐이다 — 선택 가능 여부가 여기서 갈린다 */
@@ -293,13 +383,14 @@ export function SellerReviewPage({
 
   /* 초기화는 **한 곳에서만 정의한다** — 선택까지 함께 비운다 */
   const resetFilters = () => {
-    setFilter("all");
+    setFilter(DEFAULT_FILTER);
     setDateField(DATE_FIELDS[0].value);
     setSearchField(SEARCH_FIELDS[0].value);
     setKeyword("");
     setPeriod(undefined);
     setPage(1);
     setSelected([]);
+    setSort(null);
   };
 
   /** 대상 행들 — 모달이 이름·초깃값을 여기서 읽는다 */
@@ -328,7 +419,6 @@ export function SellerReviewPage({
       ),
     );
     setReviewMode(mode);
-    setPreview(null);
   };
 
   const closeReview = () => {
@@ -386,7 +476,6 @@ export function SellerReviewPage({
     closeReview();
   };
 
-  const previewStatus = preview ? STATUS_META[preview.status] : null;
   /* 원본 모달 제목은 여러 건일 때만 건수를 붙인다 */
   const countSuffix =
     pendingIds.length > 1 ? ` (${count(pendingIds.length)})` : "";
@@ -410,8 +499,8 @@ export function SellerReviewPage({
         상태 대시 — 원본 `StatDash`. 건수를 보여주면서 그 자체가 상태 필터다.
         흰 카드(그룹) 안에 연한 그레이 상자(항목) 넷이 들어간다.
       */}
-      <Card>
-        <CardBody>
+      <Card variant="soft" aria-busy={isBusy(status)}>
+        <CardBody className={dimWhile(status)}>
           {/*
             건수 대시 = 필터. 상자의 시각 규격 · 선택/hover 축 분리 · 접근가능 이름
             조립 · 툴팁 분기는 전부 `StatGrid` 가 맡는다 (docs/DESIGN-dashboard.md §D4).
@@ -435,6 +524,13 @@ export function SellerReviewPage({
 
       {/* 심사 목록 — DataTableShell 이 §7-1 셸 구조를 책임진다 */}
       <DataTableShell
+        variant="soft"
+        /* 남는 세로 공간을 표가 흡수한다 — 페이지네이션은 셸 맨 아래에 붙는다 */
+        fill
+        className="flex-1"
+        bodyClassName={dimWhile(status)}
+        isLoading={status === "loading"}
+        loading={loadingTable}
         toolbarStart={
           /* 원본 `toolsLeft` 는 엑셀 다운로드 하나다 (`입점심사_N건.csv`) */
           <Button
@@ -461,6 +557,7 @@ export function SellerReviewPage({
             />
             <DatePicker
               mode="range"
+              presets={PERIOD_PRESETS}
               value={period}
               onChange={(next) => {
                 setPeriod(next);
@@ -492,7 +589,7 @@ export function SellerReviewPage({
             </TextButton>
           </>
         }
-        isEmpty={filtered.length === 0}
+        isEmpty={status === "empty" || filtered.length === 0}
         empty={
           <EmptyState
             size="table"
@@ -516,6 +613,17 @@ export function SellerReviewPage({
                 총 {filtered.length}건
               </span>
             }
+            end={
+              /* 원본 표 하단의 페이지당 개수 셀렉트. 바꾸면 1페이지로 돌아간다 */
+              <PaginationSizeSelect
+                sizes={PAGE_SIZES}
+                value={pageSize}
+                onSizeChange={(size) => {
+                  setPageSize(size);
+                  setPage(1);
+                }}
+              />
+            }
           />
         }
       >
@@ -534,9 +642,10 @@ export function SellerReviewPage({
             (원본 `ymdhms`). 다른 화면의 날짜 열은 전부 112 다.
           */}
           {showApprovedAt || showRejectedAt ? (
-            /* 9열 — 선택·셀러명·대표명·연락처·유형·사업자·신청일·[승인일|반려일]·상태 */
+            /* 10열 — 선택·No·셀러명·대표명·연락처·유형·사업자·신청일·[승인일|반려일]·상태 */
             <colgroup>
               <col className="w-10" />
+              <col className="w-16" />
               <col className="w-35" />
               <col className="w-23" />
               <col className="w-33" />
@@ -547,9 +656,10 @@ export function SellerReviewPage({
               <col className="w-25" />
             </colgroup>
           ) : (
-            /* 8열 — 조건부 열이 빠진 기본 구성 */
+            /* 9열 — 조건부 열이 빠진 기본 구성 */
             <colgroup>
               <col className="w-10" />
+              <col className="w-16" />
               <col className="w-35" />
               <col className="w-23" />
               <col className="w-33" />
@@ -559,7 +669,7 @@ export function SellerReviewPage({
               <col className="w-25" />
             </colgroup>
           )}
-          <TableHead>
+          <TableHead sticky>
             <TableRow>
               <TableTh>
                 {/*
@@ -576,12 +686,30 @@ export function SellerReviewPage({
                   onChange={toggleAll}
                 />
               </TableTh>
+              {/* 원본 표의 No — 레코드 번호라 정렬·필터와 무관하다 */}
+              <TableTh>No</TableTh>
               <TableTh>셀러명</TableTh>
               <TableTh>대표명</TableTh>
               <TableTh>연락처</TableTh>
               <TableTh align="center">유형</TableTh>
               <TableTh>사업자</TableTh>
-              <TableTh>신청일</TableTh>
+              {/* 원본 헤더에서 ↕ 가 붙은 유일한 열 */}
+              <TableTh
+                sortable
+                sortDirection={sort ?? undefined}
+                onSort={() => {
+                  setSort((current) =>
+                    current === null
+                      ? "asc"
+                      : current === "asc"
+                        ? "desc"
+                        : null,
+                  );
+                  setPage(1);
+                }}
+              >
+                신청일
+              </TableTh>
               {showApprovedAt ? <TableTh>승인일</TableTh> : null}
               {showRejectedAt ? <TableTh>반려일</TableTh> : null}
               <TableTh align="center">상태</TableTh>
@@ -602,6 +730,7 @@ export function SellerReviewPage({
                       onChange={() => toggleOne(item.id)}
                     />
                   </TableTd>
+                  <TableTd className="tabular-nums">{item.no}</TableTd>
                   {/*
                     원본에서 셀러명은 `/seller-review/{id}` 로 가는 링크다.
                     행 전체를 누르게 만들지 않는다 — 원본에 없는 어포던스다.
@@ -609,13 +738,13 @@ export function SellerReviewPage({
                   <TableTd>
                     <TextButton
                       className="max-w-full"
-                      onClick={() => setPreview(item)}
+                      onClick={() => openDetail(item)}
                     >
                       <span className="truncate">{item.name}</span>
                     </TextButton>
                   </TableTd>
                   <TableTd>{item.ceo}</TableTd>
-                  <TableTd>{item.phone}</TableTd>
+                  <TableTd className="tabular-nums">{item.phone}</TableTd>
                   <TableTd align="center">
                     {/*
                       유형은 분류다 — 상태색을 쓰지 않는다.
@@ -631,12 +760,18 @@ export function SellerReviewPage({
                   </TableTd>
                   <TableTd>{item.business}</TableTd>
                   {/* 신청일만 시각까지 낸다 — 같은 날 접수 순서가 곧 심사 순서다 */}
-                  <TableTd>{ymdhms(item.date)}</TableTd>
+                  <TableTd className="tabular-nums">
+                    {ymdhms(item.date)}
+                  </TableTd>
                   {showApprovedAt ? (
-                    <TableTd>{ymd(item.approvedAt)}</TableTd>
+                    <TableTd className="tabular-nums">
+                      {ymd(item.approvedAt)}
+                    </TableTd>
                   ) : null}
                   {showRejectedAt ? (
-                    <TableTd>{ymd(item.rejectedAt)}</TableTd>
+                    <TableTd className="tabular-nums">
+                      {ymd(item.rejectedAt)}
+                    </TableTd>
                   ) : null}
                   <TableTd align="center">
                     <Tag tone={status.tone} dot>
@@ -674,33 +809,6 @@ export function SellerReviewPage({
           반려 처리
         </SelectionBarButton>
       </SelectionBar>
-
-      {/*
-        입점 신청 미리보기 — 원본의 `/seller-review/{id}` 자리를 받는 빠른 확인용이다.
-        ⚠️ 여기에 심사 버튼을 두지 않는다. 원본 목록의 심사 경로는 선택 → 일괄 처리 하나뿐이고,
-        상태 안내도 "심사는 상세에서 서류를 보고 처리합니다"라고 말한다.
-      */}
-      <Modal open={preview !== null} onClose={() => setPreview(null)}>
-        <ModalHeader title="입점 신청 미리보기" description={preview?.name} />
-        <ModalBody>
-          <InfoList>
-            <InfoItem label="대표명">{preview?.ceo}</InfoItem>
-            <InfoItem label="연락처">{preview?.phone}</InfoItem>
-            <InfoItem label="사업자">{preview?.business}</InfoItem>
-            <InfoItem label="신청일">{ymdhms(preview?.date ?? null)}</InfoItem>
-          </InfoList>
-          {previewStatus ? (
-            <div className="flex flex-col gap-2">
-              <Tag tone={previewStatus.tone} dot>
-                {previewStatus.label}
-              </Tag>
-              <p className="body-small text-text-sub">
-                {previewStatus.description}
-              </p>
-            </div>
-          ) : null}
-        </ModalBody>
-      </Modal>
 
       {/*
         승인 게이트 — 원본 `SellerReviewBulkApproveGate`.

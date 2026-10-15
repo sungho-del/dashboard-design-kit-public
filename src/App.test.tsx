@@ -111,7 +111,7 @@ describe("App", () => {
   });
 
   describe("화면 목록", () => {
-    it("36화면을 출처별 세 묶음으로 보여준다", () => {
+    it("39화면을 출처별 세 묶음으로 보여준다", () => {
       renderAt("/screens");
 
       const template = screen.getByRole("region", { name: "템플릿" });
@@ -126,9 +126,10 @@ describe("App", () => {
       expect(
         within(chartOn).getAllByRole("button", { name: /열기$/ }),
       ).toHaveLength(4);
+      /* GNB 28항목 + 상세형 3(회원·셀러·입점 심사) — 상세는 메뉴에 없지만 색인에는 있다 */
       expect(
         within(babycube).getAllByRole("button", { name: /열기$/ }),
-      ).toHaveLength(28);
+      ).toHaveLength(31);
     });
 
     it("카드 버튼 이름이 전부 유일하다", () => {

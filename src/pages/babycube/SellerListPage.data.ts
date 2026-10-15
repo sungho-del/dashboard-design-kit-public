@@ -73,9 +73,53 @@ import type { TagCustomStyle, TagTone } from "../../components/ui";
 
 export type SellerStatus = "active" | "exiting" | "closed";
 
+/** 사업자 유형 — 원본 `sec.sellers_basic` 의 `[법인][개인]` 택1 */
+export type BizType = "corporate" | "individual";
+
+/** 상품 취급 유형 — 원본 `[전체][렌트][판매]` 택1 */
+export type DealScope = "all" | "rent" | "sale";
+
+/**
+ * 제출 서류 한 건 — 사업자등록증 · 통신판매업신고증.
+ *
+ * 원본은 파일 링크(`📄 사업자등록증.pdf`)와 번호를 **한 줄에** 두고 `[보기 ▸]` 를 단다.
+ * 파일 자체는 서버에 있으므로 여기는 **보여줄 이름과 번호만** 든다.
+ */
+export interface SellerDocument {
+  fileName: string;
+  /** 등록번호 · 신고번호 */
+  number: string;
+}
+
+/** 셀러가 등록한 상품 한 건 — 상세의 "등록 상품" 표가 쓴다 (원본 `sec.sellers_prod`) */
+export interface SellerProduct {
+  no: number;
+  /** 렌트 / 판매 */
+  kind: DealKind;
+  /** 판매 상태 — 원본 배지 어휘 그대로 */
+  saleStatus: "onSale" | "soldout" | "stopped";
+  code: string;
+  name: string;
+  category: string;
+  /** `YYYY-MM-DD HH:mm:ss` — 원본은 상세 표에서 **초까지** 낸다 */
+  createdAt: string;
+  updatedAt: string;
+  /** 전시중 / 숨김 */
+  shown: boolean;
+}
+
+/** 이 파일 안에서 쓰는 렌트/판매 두 갈래 */
+export type DealKind = "rent" | "sale";
+
 export interface Seller {
   /** 셀러 코드 — 고유키 */
   id: string;
+  /**
+   * 원본 표의 **No** 열. 화면이 세는 순번이 아니라 **레코드에 붙은 번호**다 —
+   * 정렬을 바꾸거나 필터를 걸어도 같은 셀러는 같은 번호를 유지한다.
+   * (행 인덱스로 그리면 "3번 셀러"라고 말했을 때 서로 다른 행을 보게 된다.)
+   */
+  no: number;
   name: string;
   /**
    * 본사 직영 계정인지. 본사도 셀러로 등록돼 자기 상품을 판다
@@ -99,6 +143,20 @@ export interface Seller {
   /** 위생인증 셀러 여부 */
   hygiene: boolean;
   status: SellerStatus;
+
+  /* ── 여기부터는 **셀러 상세(BO-SEL-002)** 가 쓰는 값이다 ──
+     목록 표에는 나오지 않지만 같은 레코드에 속한다. 상세만 따로 배열을 두면
+     한쪽만 고쳤을 때 같은 셀러의 대표자·연락처가 화면마다 달라진다. */
+
+  bizType: BizType;
+  /** 상품 취급 유형 — 본사는 `all` 이다 */
+  dealScope: DealScope;
+  bizLicense: SellerDocument;
+  salesLicense: SellerDocument;
+  /** 셀러 소개 — 원본 `소개` 텍스트영역 */
+  intro: string;
+  /** 등록 상품 — 상세의 표가 그대로 쓴다. `products` 수와 다를 수 있다(샘플은 일부만 든다) */
+  catalog: SellerProduct[];
 }
 
 /**
@@ -181,6 +239,7 @@ export const SELLERS: Seller[] = [
   {
     /* 본사 직영 — 자기 자신에게 수수료를 매기지 않아 `commission` 이 null 이다 */
     id: "S-0001",
+    no: 7,
     name: "베이비큐브",
     isHeadquarters: true,
     ceo: "서지호",
@@ -192,9 +251,55 @@ export const SELLERS: Seller[] = [
     rating: 4.91,
     hygiene: true,
     status: "active",
+    bizType: "corporate",
+    dealScope: "all",
+    bizLicense: { fileName: "사업자등록증.pdf", number: "000-81-00001" },
+    salesLicense: {
+      fileName: "통신판매업 신고증.pdf",
+      number: "2024-서울강남-00001",
+    },
+    intro:
+      "베이비큐브 본사 직영 계정입니다. 본사 기획 상품을 직접 등록·판매합니다.",
+    /* 원본 셀러 상세의 "등록 상품 (3)" 표를 그대로 옮겼다 */
+    catalog: [
+      {
+        no: 1,
+        kind: "sale",
+        saleStatus: "onSale",
+        code: "NR270900",
+        name: "BabyCube 시그니처 원목 아기침대",
+        category: "아기침대",
+        createdAt: "2026-05-10 09:14:22",
+        updatedAt: "2026-06-18 16:02:41",
+        shown: true,
+      },
+      {
+        no: 2,
+        kind: "rent",
+        saleStatus: "onSale",
+        code: "PR270901",
+        name: "본사 기획 사계절 아기 침낭 세트",
+        category: "아기침대",
+        createdAt: "2026-05-22 11:37:08",
+        updatedAt: "2026-05-22 11:37:08",
+        shown: true,
+      },
+      {
+        no: 3,
+        kind: "sale",
+        saleStatus: "soldout",
+        code: "QR270902",
+        name: "BabyCube 프리미엄 모유저장팩 세트",
+        category: "분유·이유식",
+        createdAt: "2026-06-05 14:50:13",
+        updatedAt: "2026-06-20 10:25:59",
+        shown: false,
+      },
+    ],
   },
   {
     id: "S-1042",
+    no: 6,
     name: "아기별상사",
     isHeadquarters: false,
     ceo: "김하윤",
@@ -206,9 +311,42 @@ export const SELLERS: Seller[] = [
     rating: 4.82,
     hygiene: true,
     status: "active",
+    bizType: "corporate",
+    dealScope: "all",
+    bizLicense: { fileName: "사업자등록증.pdf", number: "214-81-30912" },
+    salesLicense: {
+      fileName: "통신판매업 신고증.pdf",
+      number: "2025-서울성동-01142",
+    },
+    intro: "신생아 용품을 중심으로 렌트와 판매를 함께 운영합니다.",
+    catalog: [
+      {
+        no: 1,
+        kind: "rent",
+        saleStatus: "onSale",
+        code: "AR118203",
+        name: "잘레토 전동 바운서 4세대",
+        category: "바운서·스윙",
+        createdAt: "2026-02-14 10:02:31",
+        updatedAt: "2026-08-01 09:18:45",
+        shown: true,
+      },
+      {
+        no: 2,
+        kind: "sale",
+        saleStatus: "onSale",
+        code: "AS118477",
+        name: "휴대용 젖병 소독기",
+        category: "분유·이유식",
+        createdAt: "2026-03-02 15:41:09",
+        updatedAt: "2026-03-02 15:41:09",
+        shown: true,
+      },
+    ],
   },
   {
     id: "S-1078",
+    no: 5,
     name: "베이비무브",
     isHeadquarters: false,
     ceo: "박정우",
@@ -220,9 +358,31 @@ export const SELLERS: Seller[] = [
     rating: 4.64,
     hygiene: true,
     status: "active",
+    bizType: "individual",
+    dealScope: "rent",
+    bizLicense: { fileName: "사업자등록증.pdf", number: "605-12-88431" },
+    salesLicense: {
+      fileName: "통신판매업 신고증.pdf",
+      number: "2025-부산해운대-00714",
+    },
+    intro: "이동 장비 전문 — 유모차·카시트만 취급합니다.",
+    catalog: [
+      {
+        no: 1,
+        kind: "rent",
+        saleStatus: "onSale",
+        code: "BR220154",
+        name: "디럭스 유모차 스톨라 프로",
+        category: "유모차",
+        createdAt: "2026-01-20 11:22:03",
+        updatedAt: "2026-07-14 13:55:20",
+        shown: true,
+      },
+    ],
   },
   {
     id: "S-1123",
+    no: 4,
     name: "포근하루",
     isHeadquarters: false,
     ceo: "이서윤",
@@ -234,10 +394,43 @@ export const SELLERS: Seller[] = [
     rating: 4.35,
     hygiene: false,
     status: "active",
+    bizType: "individual",
+    dealScope: "sale",
+    bizLicense: { fileName: "사업자등록증.pdf", number: "118-09-55207" },
+    salesLicense: {
+      fileName: "통신판매업 신고증.pdf",
+      number: "2025-경기성남-02233",
+    },
+    intro: "수면 용품과 침구를 판매합니다.",
+    catalog: [
+      {
+        no: 1,
+        kind: "sale",
+        saleStatus: "onSale",
+        code: "CS330871",
+        name: "원목 범퍼 아기침대",
+        category: "아기침대",
+        createdAt: "2026-04-08 16:30:55",
+        updatedAt: "2026-06-02 10:04:12",
+        shown: true,
+      },
+      {
+        no: 2,
+        kind: "sale",
+        saleStatus: "stopped",
+        code: "CS330902",
+        name: "사계절 순면 이불 세트",
+        category: "침구",
+        createdAt: "2026-04-19 09:12:40",
+        updatedAt: "2026-08-25 17:41:06",
+        shown: false,
+      },
+    ],
   },
   {
     /* 퇴점 처리중 — 퇴점일이 아직 확정되지 않아 `exitDate` 가 null 이다 */
     id: "S-1155",
+    no: 3,
     name: "튼튼주니어",
     isHeadquarters: false,
     ceo: "최민준",
@@ -249,9 +442,31 @@ export const SELLERS: Seller[] = [
     rating: 4.12,
     hygiene: false,
     status: "exiting",
+    bizType: "corporate",
+    dealScope: "all",
+    bizLicense: { fileName: "사업자등록증.pdf", number: "402-86-11930" },
+    salesLicense: {
+      fileName: "통신판매업 신고증.pdf",
+      number: "2024-인천연수-00588",
+    },
+    intro: "유아 가구와 안전용품을 취급합니다. 현재 퇴점 절차를 진행 중입니다.",
+    catalog: [
+      {
+        no: 1,
+        kind: "rent",
+        saleStatus: "stopped",
+        code: "DR440215",
+        name: "3in1 유아 카시트",
+        category: "카시트",
+        createdAt: "2025-11-03 14:20:18",
+        updatedAt: "2026-09-01 08:35:44",
+        shown: false,
+      },
+    ],
   },
   {
     id: "S-1190",
+    no: 2,
     name: "초록숲키즈",
     isHeadquarters: false,
     ceo: "정다인",
@@ -263,9 +478,31 @@ export const SELLERS: Seller[] = [
     rating: 4.9,
     hygiene: true,
     status: "active",
+    bizType: "individual",
+    dealScope: "rent",
+    bizLicense: { fileName: "사업자등록증.pdf", number: "733-21-07716" },
+    salesLicense: {
+      fileName: "통신판매업 신고증.pdf",
+      number: "2026-대구수성-01109",
+    },
+    intro: "친환경 소재 위주로 큐레이션한 렌트 전문 셀러입니다.",
+    catalog: [
+      {
+        no: 1,
+        kind: "rent",
+        saleStatus: "onSale",
+        code: "ER550330",
+        name: "접이식 아기 욕조",
+        category: "목욕·위생",
+        createdAt: "2026-06-11 10:45:02",
+        updatedAt: "2026-06-11 10:45:02",
+        shown: true,
+      },
+    ],
   },
   {
     id: "S-1204",
+    no: 1,
     name: "하늘담요",
     isHeadquarters: false,
     ceo: "한지호",
@@ -277,22 +514,42 @@ export const SELLERS: Seller[] = [
     rating: 3.87,
     hygiene: false,
     status: "closed",
+    bizType: "individual",
+    dealScope: "sale",
+    bizLicense: { fileName: "사업자등록증.pdf", number: "890-33-41250" },
+    salesLicense: {
+      fileName: "통신판매업 신고증.pdf",
+      number: "2025-광주서구-00342",
+    },
+    intro: "담요·속싸개 전문. 퇴점이 완료된 셀러입니다.",
+    /* 퇴점한 셀러라 노출 중인 상품이 없다 — 표가 빈 상태가 된다 */
+    catalog: [],
   },
 ];
 
 /**
- * 상태 대시 = 상태 필터. 첫 항목은 반드시 `"all"`(필터 해제)이고,
- * 나머지 `value` 는 `SellerStatus` 와 같은 값이다 — 뼈대가 이 값으로 상태별 건수를 센다.
+ * 상태 대시 = 상태 필터. `value` 는 `SellerStatus` 와 같은 값이다 —
+ * 뼈대가 이 값으로 상태별 건수를 센다.
  *
- * 순서와 어휘는 원본 `chip.values`(`["입점","퇴점 처리중","퇴점"]`) + `chip.all`("전체") 그대로다.
- * 원본은 `chip.dash: true` 라 이 축을 **건수 카드**로 그린다 — 칩과 카드를 함께 두지 않는다.
+ * ## ⚠️ **[전체] 카드는 없다** (2026-09-21, 원본 v0.4 대조)
+ * 원본 주석(`sellers.dash`)이 정책으로 못 박는다 — _"구성 : 상태 1개당 카드 1장 ·
+ * [전체] 카드 없음 — 목록은 항상 한 상태만 보여준다"_. 한때 우리는 "필터가 걸린 줄
+ * 모르고 읽는 사고"를 막으려고 [전체]를 넣고 기본값으로 뒀는데, 원본은 그 반대를
+ * **의도**한 것이었다. 되살리지 말 것.
+ *
+ * 어휘·순서는 원본 `chip.values`(`["입점","퇴점 처리중","퇴점"]`) 그대로다.
  */
 export const FILTERS = [
-  { value: "all", label: "전체" },
   { value: "active", label: "입점" },
   { value: "exiting", label: "퇴점 처리중" },
   { value: "closed", label: "퇴점" },
 ];
+
+/**
+ * 화면을 열었을 때 고를 상태. 원본 `sellers.dash` — _"기본 : 화면 진입 시 [입점] 선택"_.
+ * **뼈대에 박지 않는다** — 상태 어휘가 바뀌면 활성 항목이 사라지는 사고가 난다.
+ */
+export const DEFAULT_FILTER = "active";
 
 /**
  * 검색 조건 — 원본 `search.fieldOpts` 의 어휘와 **순서** 그대로다.
@@ -332,7 +589,16 @@ export const ymd = (dateText: string | null) =>
   dateText ? dateText.slice(0, 10).replace(/-/g, ".") : EMPTY_CELL;
 
 /**
- * 한 페이지에 보여줄 행 수.
+ * 한 페이지에 보여줄 행 수의 **기본값**.
  * 실서비스는 10·20·50·100(기본 10)이지만 **샘플이 7건뿐이라 페이징이 보이도록** 작게 잡았다.
  */
 export const PAGE_SIZE = 4;
+
+/**
+ * 페이지당 개수 후보 — 원본 표 하단의 셀렉트(기본 10개).
+ *
+ * 맨 앞 4는 **샘플 전용**이다. 실데이터를 붙이면 이 줄에서 4를 빼고 기본값을 10으로
+ * 올리면 된다 — 7건짜리 샘플에서 10을 기본으로 두면 페이지네이션이 한 장으로 접혀
+ * 기획자가 그 기능을 볼 수 없다.
+ */
+export const PAGE_SIZES = [4, 10, 20, 50];

@@ -1,0 +1,517 @@
+import { useState, type ReactNode } from "react";
+import { ChevronDown, ChevronUp, Receipt, UserRound } from "lucide-react";
+import {
+  AppShell,
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  EmptyState,
+  Gnb,
+  IconButton,
+  InfoItem,
+  InfoList,
+  PageHeader,
+  SegmentedControl,
+  Skeleton,
+  Table,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableTd,
+  TableTh,
+  Tag,
+  useToast,
+} from "../../components/ui";
+import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
+import { usePathname, useSearchParams } from "../../lib/router";
+import {
+  ACCOUNT_STATES,
+  CHILD_GENDER_LABEL,
+  filterPayments,
+  paidAtText,
+  PAYMENT_EMPTY_DESCRIPTION,
+  PAYMENT_EMPTY_TITLE,
+  PAYMENT_KIND_LABEL,
+  PAYMENT_STATUS_META,
+  PAYMENT_TABS,
+  dormantBlockedText,
+  findMember,
+  GENDER_LABEL,
+  marketingLabel,
+  monthsSince,
+  SAVED_TEXT,
+  SECTIONS,
+  won,
+  ymd,
+} from "./MemberDetailPage.data";
+import {
+  canSleep,
+  STATUS_META,
+  people,
+  type PaymentKind,
+} from "./MemberListPage.data";
+import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
+
+/* =========================================================================
+ * S02-D 회원 상세 (BabyCube 본사 운영 어드민) — 뼈대
+ *
+ * ## 화면 유형: 폼형 (읽기 + 상태 한 가지만 고침)
+ *
+ * ## ⚠️ 구성은 **원본 어드민 그대로**다 (BO-MEM-002)
+ *
+ * ```
+ * 기본 정보   ← 이름 · 아이디(이메일) · 연락처 · 성별 · 생년월일 · 주소
+ * 계정 상태   ← [정상][휴면][정지] 택1 · 가입일 · 최근 접속일 · 포인트 · 마케팅 수신
+ * 자녀 정보   ← 자녀 수 + 표(이름/태명 · 생년월일·개월수 · 성별)
+ * 결제 내역 (N) ← [전체][렌트][판매] 탭 + 표
+ *                (No · 주문번호 · 결제 일시 · 구분 · 상품명 · 결제금액 · 상태)
+ * [목록]                                   [저장하기] [취소]   ← 하단 액션 바
+ * ```
+ * 섹션은 접을 수 있다(원본도 섹션마다 접기 버튼이 있다).
+ *
+ * ## 원본 정책 — 화면이 강제하는 것
+ * - **진행 중인 렌트가 있으면 휴면으로 바꿀 수 없다.** 버튼을 잠그고 이유를 문장으로 낸다
+ *   (원본 문구 그대로). 빌려 간 물건이 남아 있는데 계정을 재우면 반납 안내가 닿지 않는다
+ * - **탈퇴 회원은 상태를 바꿀 수 없다** — 원본은 "드롭다운 없이 배지로만 표시"다.
+ *   그래서 이 화면도 탈퇴면 택1 버튼 대신 배지를 낸다
+ * - 정지 사유·정지일 기록은 **아직 없다** — 원본도 "상세에 기록"이라고만 적고
+ *   입력 자리를 그리지 않는다. 사유 입력이 생기면 그때 이 자리에 붙인다
+ *
+ * ## ⚠️ 네 번째 섹션은 "이용 이력"이 아니라 **"결제 내역"** 이다 (2026-09-21 정정)
+ * 원본 주석(`sec.members_hist`)은 "이용 이력 / 번호·주문번호·셀러·상품·유형·금액·상태"라고
+ * 적지만 **원본 화면의 제목은 `결제 내역 (5)`** 이고 컬럼은 `No·주문번호·결제 일시·구분·
+ * 상품명·결제금액·상태` 다(셀러 열이 없고 결제 일시가 있다). 화면이 정본이다.
+ * 한때 이 자리에 `이용 내역 / 진행 중 렌트` 두 줄짜리 `InfoList` 를 뒀는데 표가 통째로
+ * 빠진 것이었다. 진행 중 렌트 건수는 **계정 상태 섹션의 휴면 가드 문구**가 이미 말한다.
+ *
+ * ## 원본과 의도적으로 다르게 둔 곳 (근거를 남긴다)
+ * 1. **읽기 전용 값을 비활성 입력칸이 아니라 `InfoList` 로 낸다.** 원본은 회색 입력칸에
+ *    값을 담아 두는데, 비활성 입력칸은 **"고칠 수 있을 것 같은데 안 되는 것"** 으로 읽힌다.
+ *    이 화면에서 실제로 고치는 값은 상태 하나뿐이라, 나머지는 읽는 값임을 형태로 밝힌다
+ * 2. **하단 액션 바를 쓴다.** 이 저장소의 폼 템플릿(`ProductFormPage`)은 저장 버튼을
+ *    `PageHeader` 에 두지만, 원본이 하단 바라서 원본을 따랐다 — 섹션이 길어 스크롤 끝에서
+ *    바로 저장하게 된다
+ *
+ * ## 이 파일은 도메인을 모른다 — 도메인은 `./MemberDetailPage.data.ts` 에 있다
+ *
+ * | 갈아끼울 것            | 위치                                        |
+ * | ---------------------- | ------------------------------------------- |
+ * | 회원 레코드            | `MemberListPage.data.ts` 의 `MEMBERS`       |
+ * | 섹션 제목·상태 선택지  | `MemberDetailPage.data.ts`                  |
+ * | 개월 수·단위 포맷      | 같은 파일의 `monthsSince` · `won` · `ymd`   |
+ *
+ * ## 데이터 상태 (§D8 · `src/lib/dataStatus.ts`)
+ * `/members/{id}?preview=loading` · `refreshing` 으로 미리 본다.
+ * `empty` 는 이 화면에 없다 — 회원이 없으면 "없는 회원" 화면이지 빈 목록이 아니다.
+ * ====================================================================== */
+
+export interface MemberDetailPageProps {
+  navOpen: boolean;
+  onNavOpenChange: (open: boolean) => void;
+  activeNav: string;
+  onNavSelect: (id: string) => void;
+}
+
+/** 목록 경로 — 뒤로 가는 곳이자, 없는 회원일 때 돌려보내는 곳 */
+const LIST_PATH = "/members";
+
+/**
+ * 기본 정보 블록만 라벨 폭을 넓힌다 — `아이디(이메일)` 이 실측 83px 라 기본 80 에서
+ * **두 줄로 쪼개졌다**(`아이디(이메 / 일)`). §30-3 대로 `labelWidth` 는 항목이 아니라
+ * **블록 전체가 함께** 가져간다 — 항목마다 다르면 값 시작선이 어긋나 정렬의 이점이 사라진다.
+ * 다른 세 블록은 가장 긴 라벨이 68px(`진행 중 렌트`)이라 기본 80 을 그대로 쓴다.
+ */
+const BASIC_LABEL_WIDTH = 96;
+
+/**
+ * 접을 수 있는 섹션 한 장.
+ *
+ * 접기 버튼은 `IconButton`(ghost·small)이고 아이콘만 있으므로 **이름을 반드시 준다** —
+ * "기본 정보 접기"처럼 무엇을 접는지까지 말해야 여러 섹션이 구별된다.
+ * `aria-expanded` 로 지금 펼쳐져 있는지도 함께 전달한다.
+ */
+function Section({
+  title,
+  busy,
+  dim,
+  children,
+}: {
+  title: string;
+  busy: boolean;
+  dim: string | undefined;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <Card variant="soft" aria-busy={busy}>
+      <CardHeader
+        title={title}
+        action={
+          <IconButton
+            variant="ghost"
+            size="small"
+            label={`${title} ${open ? "접기" : "펼치기"}`}
+            aria-expanded={open}
+            onClick={() => setOpen((prev) => !prev)}
+            icon={
+              open ? (
+                <ChevronUp strokeWidth={1.2} aria-hidden />
+              ) : (
+                <ChevronDown strokeWidth={1.2} aria-hidden />
+              )
+            }
+          />
+        }
+      />
+      {open ? <CardBody className={dim}>{children}</CardBody> : null}
+    </Card>
+  );
+}
+
+/** 로딩 자리 — 실제 줄 높이를 그대로 써서 도착했을 때 화면이 튀지 않는다 */
+function LoadingLines({ rows }: { rows: number }) {
+  return (
+    <div className="flex flex-col gap-4">
+      {Array.from({ length: rows }, (_, index) => (
+        <span key={index} className="body-medium block w-1/2">
+          <Skeleton />
+        </span>
+      ))}
+    </div>
+  );
+}
+
+export function MemberDetailPage({
+  navOpen,
+  onNavOpenChange,
+  activeNav,
+  onNavSelect,
+}: MemberDetailPageProps) {
+  const { toast } = useToast();
+  const pathname = usePathname();
+  const status = asStatus(useSearchParams().get("preview"));
+
+  /*
+    경로의 마지막 구간이 회원 id(이메일)다. 이메일에는 `@` 와 `.` 이 들어가고
+    주소창을 거치며 인코딩되므로 **반드시 디코딩해서** 찾는다.
+  */
+  const memberId = decodeURIComponent(pathname.split("/").pop() ?? "");
+  const member = findMember(memberId);
+
+  /* 고치는 값은 상태 하나뿐이다 — 저장 전까지 화면 안에만 산다 */
+  const [draftStatus, setDraftStatus] = useState(member?.status ?? "active");
+  /** 결제 내역 탭. 조회용이라 저장 대상이 아니다 */
+  const [paymentTab, setPaymentTab] = useState<"all" | PaymentKind>("all");
+
+  const nav = (
+    <Gnb
+      sections={GNB_SECTIONS}
+      activeId={activeNav}
+      onSelect={onNavSelect}
+      open={navOpen}
+      onOpenChange={onNavOpenChange}
+      logo={GNB_LOGO_SLOTS.logo}
+      collapsedLogo={GNB_LOGO_SLOTS.collapsed}
+    />
+  );
+
+  /*
+    없는 회원 — 주소를 손으로 고쳤거나 지워진 회원이다.
+    **빈 목록이 아니라 잘못된 주소**이므로 돌아갈 곳을 준다(§D8-2: 빈 것과 실패는 다르다).
+  */
+  if (!member) {
+    return (
+      <AppShell sidebar={nav} header={<PageHeader title="회원 상세" />}>
+        <Card variant="soft">
+          <CardBody>
+            {/*
+              다른 화면의 빈 상태는 거의 `table`(표 안이 비었다)이지만 여기는 **표가 아니라
+              화면 전체가 없는 것**이다 — §16 의 `page`(콘텐츠 전역 400)가 그 자리다.
+            */}
+            <EmptyState
+              size="page"
+              icon={<UserRound strokeWidth={1.2} aria-hidden />}
+              title="찾을 수 없는 회원입니다"
+              description="주소가 잘못되었거나 삭제된 회원일 수 있습니다."
+            >
+              <Button
+                variant="secondary"
+                onClick={() => onNavSelect(LIST_PATH)}
+              >
+                회원 목록으로
+              </Button>
+            </EmptyState>
+          </CardBody>
+        </Card>
+      </AppShell>
+    );
+  }
+
+  const meta = STATUS_META[member.status];
+  const busy = isBusy(status);
+  const dim = dimWhile(status);
+  const loading = status === "loading";
+
+  /*
+    진행 중인 렌트가 있으면 휴면은 잠긴다 — 이유를 문장으로도 낸다.
+    판정은 **목록의 일괄 변경과 같은 함수**(`canSleep`)를 쓴다. 각자 적어 두면
+    한쪽만 고쳤을 때 목록에서 이 가드를 우회할 수 있다.
+  */
+  const dormantBlocked = !canSleep(member);
+  /** 탈퇴는 되돌릴 수 없는 종결 상태라 이 화면에서 바꾸지 않는다 */
+  const editable = member.status !== "withdrawn";
+  const changed = draftStatus !== member.status;
+
+  /** 탭으로 거른 결제 내역. 제목의 건수는 **거르기 전** 전체 건수다 */
+  const visiblePayments = filterPayments(member.payments, paymentTab);
+
+  return (
+    <AppShell
+      sidebar={nav}
+      header={
+        /* 제목 옆에 누구의 상세인지 — 표에서 넘어온 뒤 "누구였더라"가 되지 않게 */
+        <PageHeader title="회원 상세" description={member.name} />
+      }
+    >
+      <Section title={SECTIONS.basic} busy={busy} dim={dim}>
+        {loading ? (
+          <LoadingLines rows={6} />
+        ) : (
+          <InfoList>
+            <InfoItem label="이름" labelWidth={BASIC_LABEL_WIDTH}>
+              {member.name}
+            </InfoItem>
+            <InfoItem label="아이디(이메일)" labelWidth={BASIC_LABEL_WIDTH}>
+              {member.id}
+            </InfoItem>
+            <InfoItem label="연락처" labelWidth={BASIC_LABEL_WIDTH}>
+              {member.phone}
+            </InfoItem>
+            <InfoItem label="성별" labelWidth={BASIC_LABEL_WIDTH}>
+              {GENDER_LABEL[member.gender]}
+            </InfoItem>
+            <InfoItem label="생년월일" labelWidth={BASIC_LABEL_WIDTH}>
+              {ymd(member.birth)}
+            </InfoItem>
+            <InfoItem label="주소" labelWidth={BASIC_LABEL_WIDTH}>
+              {member.address}
+            </InfoItem>
+          </InfoList>
+        )}
+      </Section>
+
+      <Section title={SECTIONS.account} busy={busy} dim={dim}>
+        {loading ? (
+          <LoadingLines rows={5} />
+        ) : (
+          <>
+            <div className="flex flex-col gap-2">
+              <span className="label-medium-bold text-text">상태</span>
+              {editable ? (
+                <>
+                  <SegmentedControl
+                    /*
+                      잠금은 **항목 단위**다 — 휴면만 막고 나머지는 그대로 고를 수 있다.
+                      컨트롤 전체를 비활성으로 만들면 정지 처리까지 막혀 버린다.
+                    */
+                    items={ACCOUNT_STATES.map((state) => ({
+                      ...state,
+                      disabled: state.value === "dormant" && dormantBlocked,
+                    }))}
+                    value={draftStatus}
+                    onValueChange={(value) =>
+                      setDraftStatus(value as typeof draftStatus)
+                    }
+                  />
+                  {dormantBlocked ? (
+                    <p className="body-small text-text-sub">
+                      {dormantBlockedText(member.activeRents)}
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                /* 탈퇴 — 원본과 같이 배지로만 표시한다 */
+                <span className="flex items-center gap-2">
+                  <Tag tone={meta.tone} dot>
+                    {meta.label}
+                  </Tag>
+                  <span className="body-small text-text-sub">
+                    {meta.description}
+                  </span>
+                </span>
+              )}
+            </div>
+
+            <InfoList>
+              <InfoItem label="가입일">{ymd(member.date)}</InfoItem>
+              <InfoItem label="최근 접속일">{ymd(member.lastVisit)}</InfoItem>
+              <InfoItem label="포인트">{won(member.points)}</InfoItem>
+              <InfoItem label="마케팅 수신">
+                {marketingLabel(member.marketingOptIn)}
+              </InfoItem>
+            </InfoList>
+          </>
+        )}
+      </Section>
+
+      <Section title={SECTIONS.child} busy={busy} dim={dim}>
+        {loading ? (
+          <LoadingLines rows={3} />
+        ) : (
+          <>
+            <InfoList>
+              <InfoItem label="자녀 수">{people(member.kids)}</InfoItem>
+            </InfoList>
+            <Table>
+              <colgroup>
+                <col className="w-40" />
+                <col className="w-50" />
+                <col className="w-25" />
+              </colgroup>
+              <TableHead>
+                <TableRow>
+                  <TableTh>이름</TableTh>
+                  {/* 원본 표기: `2020.02.23 · 75개월` — 날짜와 개월 수가 한 칸에 있다 */}
+                  <TableTh>생년월일 · 개월수</TableTh>
+                  <TableTh>성별</TableTh>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {member.children.map((child) => (
+                  <TableRow key={`${child.name}-${child.birth}`}>
+                    <TableTd>{child.name}</TableTd>
+                    <TableTd className="tabular-nums">
+                      {`${ymd(child.birth)} · ${monthsSince(child.birth)}개월`}
+                    </TableTd>
+                    <TableTd>{CHILD_GENDER_LABEL[child.gender]}</TableTd>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </>
+        )}
+      </Section>
+
+      {/*
+        결제 내역 — 원본 `sec.members_hist`. 제목에 **건수**가 붙고(`결제 내역 (5)`),
+        표 위에 `[전체][렌트][판매]` 탭이 있다.
+
+        ⚠️ 탭은 **지금 보고 있는 목록만** 거른다 — 제목의 건수는 거르기 전 전체 건수다.
+        탭을 따라 제목까지 바뀌면 "이 회원이 몇 번 결제했나"를 읽을 수 없다.
+      */}
+      <Section
+        title={`${SECTIONS.payment} (${member.payments.length})`}
+        busy={busy}
+        dim={dim}
+      >
+        {loading ? (
+          <LoadingLines rows={4} />
+        ) : member.payments.length === 0 ? (
+          <EmptyState
+            size="table"
+            icon={<Receipt strokeWidth={1.2} aria-hidden />}
+            title={PAYMENT_EMPTY_TITLE}
+            description={PAYMENT_EMPTY_DESCRIPTION}
+          />
+        ) : (
+          <>
+            <SegmentedControl
+              aria-label="결제 구분"
+              items={PAYMENT_TABS}
+              value={paymentTab}
+              onValueChange={(value) =>
+                setPaymentTab(value as typeof paymentTab)
+              }
+            />
+            <Table>
+              <colgroup>
+                <col className="w-12" />
+                <col className="w-40" />
+                <col className="w-35" />
+                <col className="w-18" />
+                <col className="w-60" />
+                <col className="w-28" />
+                <col className="w-24" />
+              </colgroup>
+              <TableHead>
+                <TableRow>
+                  <TableTh>No</TableTh>
+                  <TableTh>주문번호</TableTh>
+                  <TableTh>결제 일시</TableTh>
+                  <TableTh align="center">구분</TableTh>
+                  <TableTh>상품명</TableTh>
+                  <TableTh>결제금액</TableTh>
+                  <TableTh align="center">상태</TableTh>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {visiblePayments.map((payment) => {
+                  const meta = PAYMENT_STATUS_META[payment.status];
+                  return (
+                    <TableRow key={payment.orderNo}>
+                      <TableTd className="tabular-nums">{payment.no}</TableTd>
+                      {/* 주문번호·일시·금액은 **등폭**이다(§D6-2) — 자릿수가 세로로 맞아야 한다 */}
+                      <TableTd className="tabular-nums">
+                        {payment.orderNo}
+                      </TableTd>
+                      <TableTd className="tabular-nums">
+                        {paidAtText(payment.paidAt)}
+                      </TableTd>
+                      <TableTd align="center">
+                        {PAYMENT_KIND_LABEL[payment.kind]}
+                      </TableTd>
+                      <TableTd ellipsis>{payment.product}</TableTd>
+                      <TableTd className="tabular-nums">
+                        {won(payment.amount)}
+                      </TableTd>
+                      <TableTd align="center">
+                        <Tag tone={meta.tone} dot>
+                          {meta.label}
+                        </Tag>
+                      </TableTd>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            {visiblePayments.length === 0 ? (
+              /* 탭으로 걸러 0건 — 결제가 없는 것이 아니라 **그 구분이 없는** 것이다 */
+              <p className="body-small text-text-sub">
+                이 구분의 결제 내역이 없습니다.
+              </p>
+            ) : null}
+          </>
+        )}
+      </Section>
+
+      {/*
+        하단 액션 바 (원본). 좌측은 되돌아가는 길, 우측은 이 화면에서 하는 일이다.
+        [취소] 는 **고친 것을 되돌릴 뿐** 화면을 떠나지 않는다 — 떠나는 것은 [목록] 이다.
+      */}
+      <Card variant="soft">
+        <div className="flex items-center justify-between gap-2">
+          <Button variant="secondary" onClick={() => onNavSelect(LIST_PATH)}>
+            목록
+          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              disabled={!changed}
+              onClick={() => setDraftStatus(member.status)}
+            >
+              취소
+            </Button>
+            <Button
+              disabled={!editable || !changed}
+              onClick={() => toast(SAVED_TEXT)}
+            >
+              저장하기
+            </Button>
+          </div>
+        </div>
+      </Card>
+    </AppShell>
+  );
+}

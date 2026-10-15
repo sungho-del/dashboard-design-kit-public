@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { GrowthStageListPage } from "./GrowthStageListPage";
+import { EMPTY_TITLE } from "./GrowthStageListPage.data";
 
 /* -------------------------------------------------------------------------
  * 성장단계 관리 (S07) — 목록형
@@ -399,5 +400,46 @@ describe("GrowthStageListPage", () => {
       expect(visibleNames()).toContain("영아");
       expect(screen.getByText("목록 (총 5건)")).toBeVisible();
     });
+  });
+});
+
+/* ---------------------------------------------------------------------------
+ * 데이터 상태 미리보기 (?preview=) — §D8
+ * ------------------------------------------------------------------------ */
+describe("데이터 상태 미리보기 (?preview=)", () => {
+  afterEach(() => window.history.replaceState(null, "", "/"));
+
+  const renderAt = (url: string) => {
+    window.history.replaceState(null, "", url);
+    return renderPage();
+  };
+
+  it("loading — 헤더 글자는 남기고 값만 스켈레톤이다", () => {
+    renderAt("/stages?preview=loading");
+
+    expect(screen.getByText("단계 명칭")).toBeVisible();
+    expect(screen.queryByText("신생아")).toBeNull();
+    expect(
+      document.body.querySelectorAll("[data-skeleton]").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("empty — 값이 있어도 빈 상태를 보여준다", () => {
+    renderAt("/stages?preview=empty");
+
+    expect(screen.getByText(EMPTY_TITLE)).toBeVisible();
+    expect(document.body.querySelectorAll("[data-skeleton]")).toHaveLength(0);
+  });
+
+  it("refreshing — 스켈레톤으로 되돌리지 않고 이전 값을 흐리게 둔다", () => {
+    renderAt("/stages?preview=refreshing");
+
+    expect(screen.getByText("신생아")).toBeVisible();
+    expect(document.body.querySelectorAll("[data-skeleton]")).toHaveLength(0);
+
+    const body = document.body.querySelector<HTMLElement>(
+      "[data-table-shell-body]",
+    );
+    expect(body?.className ?? "").toContain("opacity-50");
   });
 });

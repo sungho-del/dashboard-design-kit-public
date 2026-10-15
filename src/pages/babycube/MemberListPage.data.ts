@@ -16,14 +16,15 @@ import type { TagTone } from "../../components/ui";
  * | `SEARCH_FIELDS`      | 검색 조건 셀렉트 (검색 필드 선택형)      |
  * | `ymd`·`people`·`usageText` | 표의 값 포맷 (가입일 · 명 · 이용)  |
  * | `PAGE_SIZE`          | 페이지당 행 수                           |
+ * | `BULK_TARGETS`       | 일괄 변경으로 갈 수 있는 상태            |
+ * | `canSleep`·`canChangeStatus` | 상태 변경 자격 (목록·상세 공용)  |
  *
  * ## 뼈대가 이 파일에 기대하는 계약
  * - 행 타입은 `id`(고유키) · `date`(`YYYY-MM-DD HH:mm`, 기간 필터가 파싱)를 반드시 갖는다
  *   여기서는 **아이디(이메일)가 곧 고유키**라 `id` 를 그대로 화면에 쓴다
  * - `STATUS_META` 의 키는 `Member["status"]` 유니온과 정확히 일치한다
- * - `FILTERS[0].value` 는 `"all"`(뼈대가 필터 해제로 취급)이고,
- *   나머지 항목의 `value` 는 **`MemberStatus` 와 같은 값**이다 —
- *   뼈대가 상태 대시에 건수를 세어 붙일 때 이 대응을 쓴다
+ * - `FILTERS` 의 `value` 는 **전부 `MemberStatus` 와 같은 값**이다 — 뼈대가 상태 대시에
+ *   건수를 세어 붙일 때 이 대응을 쓴다. **`"all"` 항목은 없다**(원본 정책, `DEFAULT_FILTER` 참고)
  * - `SEARCH_FIELDS[0].value` 가 검색 조건의 초기값이고, 각 항목의 `pick` 이
  *   **그 조건으로 무엇을 훑을지**를 정한다 — 뼈대는 필드 이름을 모른다
  *
@@ -54,9 +55,47 @@ import type { TagTone } from "../../components/ui";
 
 export type MemberStatus = "active" | "suspended" | "dormant" | "withdrawn";
 
+/** 자녀 한 명 — 회원 상세의 "자녀 정보" 표가 쓴다 (원본 `sec.members_child`) */
+export interface MemberChild {
+  /** 태어나기 전이면 태명이 들어간다 (원본 "자녀 이름(또는 태명)") */
+  name: string;
+  /** `YYYY-MM-DD`. 개월 수는 화면이 이 값에서 계산한다 — 저장해 두면 하루만 지나도 틀린다 */
+  birth: string;
+  gender: "male" | "female";
+}
+
+/** 결제 한 건 — 회원 상세의 "결제 내역" 표가 쓴다 (원본 `sec.members_hist`) */
+export interface MemberPayment {
+  /** 원본 표의 **No** 열. 그 회원 안에서만 유효한 번호로, 최근 건이 큰 수다 */
+  no: number;
+  /** 주문번호 `YYYYMMDD` + 6자리 (원본 `20260629330571`) */
+  orderNo: string;
+  /** 결제 일시 `YYYY-MM-DD HH:mm` — 표에는 `2026.06.29 13:15` 로 낸다 */
+  paidAt: string;
+  /** 원본 `구분` 열 — 이 서비스의 두 갈래다 */
+  kind: PaymentKind;
+  product: string;
+  /** 결제금액(원) */
+  amount: number;
+  status: PaymentStatus;
+}
+
+export type PaymentKind = "rent" | "sale";
+
+/**
+ * 결제 상태. 원본 화면에 나오는 것은 **둘뿐이다** —
+ * `결제완료`(배지 `b-prog`) · `결제취소`(배지 `b-done`).
+ */
+export type PaymentStatus = "paid" | "canceled";
+
 export interface Member {
   /** 아이디(이메일) — 고유키이자 화면에 그대로 보이는 값이다 */
   id: string;
+  /**
+   * 원본 표의 **No** 열. 화면이 세는 순번이 아니라 **레코드에 붙은 번호**다 —
+   * 정렬·필터가 바뀌어도 같은 회원은 같은 번호를 유지한다.
+   */
+  no: number;
   name: string;
   phone: string;
   /**
@@ -67,13 +106,35 @@ export interface Member {
   /** 자녀 수 */
   kids: number;
   /**
-   * 이용 내역은 **렌트와 구매를 나눠 든다.**
-   * 합계 하나로 접으면 이 서비스에서 가장 중요한 구분(빌려 쓰는 사람 / 사서 쓰는 사람)이
-   * 표에서 사라진다 — 원본 어드민도 `렌트 3 · 구매 2` 로 나눠 적는다.
+   * 결제 내역. 회원 상세의 "결제 내역" 표가 그대로 쓰고,
+   * **목록의 `이용` 열도 여기서 센다**(`usageText`).
+   *
+   * ⚠️ 한때 `rentCount`·`buyCount` 두 숫자를 따로 들고 있었는데, 상세에 결제 내역 표가
+   * 생기자 **같은 사람의 이용 횟수가 두 곳에 적히게** 됐다. 한쪽만 고치면 목록과 상세가
+   * 다른 말을 하므로 숫자를 지우고 **내역에서 세도록** 바꿨다.
    */
-  rentCount: number;
-  buyCount: number;
+  payments: MemberPayment[];
   status: MemberStatus;
+
+  /* ── 여기부터는 **회원 상세(BO-MEM-002)** 가 쓰는 값이다 ──
+     목록 표에는 나오지 않지만 같은 레코드에 속한다. 상세만 따로 배열을 두면
+     한쪽만 고쳤을 때 이름과 연락처가 화면마다 달라진다. */
+
+  gender: "male" | "female";
+  /** 생년월일 `YYYY-MM-DD` */
+  birth: string;
+  address: string;
+  /** 최근 접속일 `YYYY-MM-DD`. **1년 이상이면 휴면 전환 대상**이다(원본 정책) */
+  lastVisit: string;
+  /** 보유 포인트(원) */
+  points: number;
+  marketingOptIn: boolean;
+  children: MemberChild[];
+  /**
+   * 진행 중인 렌트 건수. **0 이 아니면 휴면으로 바꿀 수 없다**(원본 상세의 가드 문구) —
+   * 빌려 간 물건이 남아 있는데 계정을 재워 두면 반납 안내가 닿지 않는다.
+   */
+  activeRents: number;
 }
 
 /**
@@ -115,66 +176,353 @@ export const STATUS_META: Record<
 export const MEMBERS: Member[] = [
   {
     id: "sujin.park@example.com",
+    no: 8,
     name: "박수진",
     phone: "010-2841-7702",
     date: "2026-08-12 14:32",
     kids: 2,
-    rentCount: 9,
-    buyCount: 5,
     status: "active",
+    gender: "female",
+    birth: "1991-04-18",
+    address: "서울 마포구 월드컵북로 396",
+    lastVisit: "2026-09-18",
+    points: 24500,
+    marketingOptIn: true,
+    /* 진행 중인 렌트가 있어 **휴면으로 바꿀 수 없다** — 상세의 가드 문구가 이 값을 읽는다 */
+    activeRents: 1,
+    /* 원본 회원 상세의 결제 내역 5건을 그대로 옮겼다 (취소 1건 포함) */
+    payments: [
+      {
+        no: 5,
+        orderNo: "20260629330571",
+        paidAt: "2026-06-29 13:15",
+        kind: "rent",
+        product: "잘레토 전동 바운서 4세대",
+        amount: 135000,
+        status: "paid",
+      },
+      {
+        no: 4,
+        orderNo: "20260627543127",
+        paidAt: "2026-06-27 16:20",
+        kind: "sale",
+        product: "비접촉 체온계",
+        amount: 61000,
+        status: "canceled",
+      },
+      {
+        no: 3,
+        orderNo: "20260624231881",
+        paidAt: "2026-06-24 10:10",
+        kind: "sale",
+        product: "비접촉 체온계",
+        amount: 32000,
+        status: "paid",
+      },
+      {
+        no: 2,
+        orderNo: "20260623493905",
+        paidAt: "2026-06-23 13:10",
+        kind: "rent",
+        product: "잘레토 전동 바운서 4세대",
+        amount: 135000,
+        status: "paid",
+      },
+      {
+        no: 1,
+        orderNo: "20260514104534",
+        paidAt: "2026-05-14 14:18",
+        kind: "rent",
+        product: "원목 범퍼 아기침대",
+        amount: 84000,
+        status: "paid",
+      },
+    ],
+    children: [
+      { name: "하랑", birth: "2020-02-23", gender: "female" },
+      { name: "튼튼이", birth: "2024-11-05", gender: "male" },
+    ],
   },
   {
-    /* 렌트 0 — 사서만 쓰는 회원. "구매 6"만 나온다 */
     id: "dohyun.kim@example.com",
+    no: 7,
     name: "김도현",
     phone: "010-5520-3318",
     date: "2026-08-10 09:18",
     kids: 1,
-    rentCount: 0,
-    buyCount: 6,
     status: "active",
+    gender: "male",
+    birth: "1988-12-02",
+    address: "경기 성남시 분당구 판교로 174",
+    lastVisit: "2026-09-12",
+    points: 39000,
+    marketingOptIn: true,
+    activeRents: 0,
+    /* 사서만 쓰는 회원 — 렌트 0 이라 목록 `이용` 열이 "구매 3" 만 낸다 */
+    payments: [
+      {
+        no: 3,
+        orderNo: "20260902118430",
+        paidAt: "2026-09-02 09:41",
+        kind: "sale",
+        product: "실리콘 이유식 식기 세트",
+        amount: 28000,
+        status: "paid",
+      },
+      {
+        no: 2,
+        orderNo: "20260818552017",
+        paidAt: "2026-08-18 20:05",
+        kind: "sale",
+        product: "휴대용 젖병 소독기",
+        amount: 74000,
+        status: "paid",
+      },
+      {
+        no: 1,
+        orderNo: "20260811900264",
+        paidAt: "2026-08-11 11:32",
+        kind: "sale",
+        product: "비접촉 체온계",
+        amount: 32000,
+        status: "paid",
+      },
+    ],
+    children: [{ name: "봄이", birth: "2023-06-14", gender: "female" }],
   },
   {
-    /* 구매 0 — 빌려만 쓰는 회원. "렌트 3"만 나온다 */
     id: "haneul.lee@example.com",
+    no: 6,
     name: "이하늘",
     phone: "010-3377-9041",
     date: "2026-07-28 20:44",
     kids: 1,
-    rentCount: 3,
-    buyCount: 0,
     status: "dormant",
+    gender: "female",
+    birth: "1993-07-30",
+    address: "부산 해운대구 센텀중앙로 90",
+    /* 1년 넘게 접속이 없어 휴면으로 전환된 회원이다(원본 정책) */
+    lastVisit: "2025-06-02",
+    points: 1200,
+    marketingOptIn: false,
+    activeRents: 0,
+    /* 빌려만 쓰는 회원 — 구매 0 이라 "렌트 2" 만 낸다 */
+    payments: [
+      {
+        no: 2,
+        orderNo: "20260420773106",
+        paidAt: "2026-04-20 15:47",
+        kind: "rent",
+        product: "원목 범퍼 아기침대",
+        amount: 84000,
+        status: "paid",
+      },
+      {
+        no: 1,
+        orderNo: "20260315204918",
+        paidAt: "2026-03-15 10:22",
+        kind: "rent",
+        product: "접이식 아기 욕조",
+        amount: 39000,
+        status: "paid",
+      },
+    ],
+    children: [{ name: "코코", birth: "2022-09-09", gender: "male" }],
   },
   {
     id: "minseo.jung@example.com",
+    no: 5,
     name: "정민서",
     phone: "010-8814-2260",
     date: "2026-07-15 11:05",
     kids: 3,
-    rentCount: 15,
-    buyCount: 6,
     status: "suspended",
+    gender: "female",
+    birth: "1986-01-11",
+    address: "인천 연수구 송도과학로 32",
+    lastVisit: "2026-08-30",
+    points: 0,
+    marketingOptIn: false,
+    activeRents: 2,
+    payments: [
+      {
+        no: 4,
+        orderNo: "20260726611052",
+        paidAt: "2026-07-26 18:03",
+        kind: "rent",
+        product: "3in1 유아 카시트",
+        amount: 162000,
+        status: "paid",
+      },
+      {
+        no: 3,
+        orderNo: "20260719338741",
+        paidAt: "2026-07-19 12:55",
+        kind: "rent",
+        product: "디럭스 유모차 스톨라 프로",
+        amount: 148000,
+        status: "paid",
+      },
+      {
+        no: 2,
+        orderNo: "20260705129864",
+        paidAt: "2026-07-05 09:12",
+        kind: "sale",
+        product: "실리콘 이유식 식기 세트",
+        amount: 28000,
+        status: "canceled",
+      },
+      {
+        no: 1,
+        orderNo: "20260628470335",
+        paidAt: "2026-06-28 21:40",
+        kind: "rent",
+        product: "베드사이드 아기침대 슬립온",
+        amount: 96000,
+        status: "paid",
+      },
+    ],
+    children: [
+      { name: "다온", birth: "2017-03-21", gender: "male" },
+      { name: "라온", birth: "2019-08-02", gender: "female" },
+      { name: "새봄이", birth: "2025-01-27", gender: "female" },
+    ],
   },
   {
     id: "yuna.choi@example.com",
+    no: 4,
     name: "최유나",
     phone: "010-6693-5518",
     date: "2026-06-30 16:27",
     kids: 2,
-    rentCount: 4,
-    buyCount: 5,
     status: "active",
+    gender: "female",
+    birth: "1990-05-25",
+    address: "대전 유성구 대학로 99",
+    lastVisit: "2026-09-16",
+    points: 8300,
+    marketingOptIn: true,
+    activeRents: 0,
+    payments: [
+      {
+        no: 3,
+        orderNo: "20260822905613",
+        paidAt: "2026-08-22 14:08",
+        kind: "sale",
+        product: "휴대용 젖병 소독기",
+        amount: 74000,
+        status: "paid",
+      },
+      {
+        no: 2,
+        orderNo: "20260731662240",
+        paidAt: "2026-07-31 17:26",
+        kind: "rent",
+        product: "잘레토 전동 바운서 4세대",
+        amount: 135000,
+        status: "paid",
+      },
+      {
+        no: 1,
+        orderNo: "20260708341779",
+        paidAt: "2026-07-08 10:50",
+        kind: "rent",
+        product: "접이식 아기 욕조",
+        amount: 39000,
+        status: "paid",
+      },
+    ],
+    children: [
+      { name: "소유", birth: "2021-12-30", gender: "female" },
+      { name: "복덩이", birth: "2025-05-18", gender: "male" },
+    ],
   },
   {
-    /* 둘 다 0 — 가입만 하고 이용한 적이 없다. `usageText` 가 "-" 로 낸다 */
+    id: "yerin.song@example.com",
+    no: 3,
+    name: "송예린",
+    phone: "010-2277-4416",
+    date: "2026-08-05 13:40",
+    kids: 2,
+    status: "active",
+    gender: "female",
+    birth: "1992-09-14",
+    address: "서울 송파구 올림픽로 300",
+    lastVisit: "2026-09-17",
+    points: 15600,
+    marketingOptIn: true,
+    activeRents: 1,
+    payments: [
+      {
+        no: 2,
+        orderNo: "20260905228104",
+        paidAt: "2026-09-05 19:14",
+        kind: "rent",
+        product: "3in1 유아 카시트",
+        amount: 162000,
+        status: "paid",
+      },
+      {
+        no: 1,
+        orderNo: "20260827715339",
+        paidAt: "2026-08-27 13:02",
+        kind: "rent",
+        product: "원목 범퍼 아기침대",
+        amount: 84000,
+        status: "paid",
+      },
+    ],
+    children: [
+      { name: "온유", birth: "2021-05-06", gender: "male" },
+      { name: "가을이", birth: "2024-09-30", gender: "female" },
+    ],
+  },
+  {
+    id: "taeho.ryu@example.com",
+    no: 2,
+    name: "류태호",
+    phone: "010-6104-2285",
+    date: "2026-07-31 10:12",
+    kids: 1,
+    status: "active",
+    gender: "male",
+    birth: "1989-03-27",
+    address: "경기 고양시 일산동구 중앙로 1275",
+    lastVisit: "2026-09-10",
+    points: 4200,
+    marketingOptIn: false,
+    activeRents: 0,
+    payments: [
+      {
+        no: 1,
+        orderNo: "20260913087452",
+        paidAt: "2026-09-13 08:36",
+        kind: "sale",
+        product: "비접촉 체온계",
+        amount: 32000,
+        status: "paid",
+      },
+    ],
+    children: [{ name: "도담", birth: "2023-01-19", gender: "male" }],
+  },
+  {
     id: "jiwoo.han@example.com",
+    no: 1,
     name: "한지우",
     phone: "010-4402-8873",
     date: "2026-05-22 08:51",
     kids: 1,
-    rentCount: 0,
-    buyCount: 0,
     status: "withdrawn",
+    gender: "male",
+    birth: "1995-10-08",
+    address: "광주 서구 상무중앙로 58",
+    lastVisit: "2026-05-22",
+    points: 0,
+    marketingOptIn: false,
+    activeRents: 0,
+    /* 가입만 하고 결제한 적이 없다 — `usageText` 가 "-" 로 내고 표도 빈 상태가 된다 */
+    payments: [],
+    children: [{ name: "별이", birth: "2024-02-14", gender: "female" }],
   },
 ];
 
@@ -182,16 +530,93 @@ export const MEMBERS: Member[] = [
  * 상태 대시 = 상태 필터. 첫 항목은 반드시 `"all"`(필터 해제)이고,
  * 나머지 `value` 는 `MemberStatus` 와 같은 값이다 — 뼈대가 이 값으로 상태별 건수를 센다.
  *
- * 순서와 어휘는 원본 `chip.values`(`["정상","정지","휴면","탈퇴"]`) + `chip.all`("전체") 그대로다.
+ * 순서와 어휘는 원본 `chip.values`(`["정상","정지","휴면","탈퇴"]`) 그대로다 —
+ * **`chip.all`("전체")은 쓰지 않는다**(아래 `DEFAULT_FILTER` 주석의 원본 정책).
  * 원본은 `chip.dash: true` 라 이 축을 **건수 카드**로 그린다 — 칩과 카드를 함께 두지 않는다.
  */
 export const FILTERS = [
-  { value: "all", label: "전체" },
   { value: "active", label: "정상" },
   { value: "suspended", label: "정지" },
   { value: "dormant", label: "휴면" },
   { value: "withdrawn", label: "탈퇴" },
 ];
+
+/**
+ * 화면을 열었을 때 고를 상태. 원본 `members.dash` — _"기본 : 화면 진입 시 [정상] 선택"_.
+ *
+ * ## ⚠️ **[전체] 카드는 없다** (2026-09-21, 원본 v0.4 대조)
+ * 원본 주석이 정책으로 못 박는다 — _"[전체] 카드 없음 — 목록은 항상 한 상태만 보여준다"_.
+ */
+export const DEFAULT_FILTER = "active";
+
+/* -------------------------------------------------------------------------
+ * 일괄 상태 변경 — 원본 목록 툴바의 `[휴면으로 변경] [정지로 변경]`
+ *
+ * 원본 주석 `screen.members` 가 정한다 — _"체크 후 [정상으로 변경]/[휴면으로 변경]/
+ * [정지로 변경] → 선택 회원 일괄 변경"_.
+ *
+ * ## ⚠️ 목록이 상세의 가드를 우회하면 안 된다
+ * 상세 화면(`MemberDetailPage`)은 **진행 중 렌트가 있으면 휴면을 막는다.** 목록에서
+ * 여럿을 한꺼번에 재울 때 그 가드가 빠지면, 운영자는 상세에서 못 하는 일을 목록에서
+ * 할 수 있게 된다 — 같은 정책을 두 화면이 다르게 적용하는 순간 정책이 아니게 된다.
+ * 그래서 자격 판정(`canChangeStatus`)을 **데이터 층에 한 벌만** 둔다.
+ * ---------------------------------------------------------------------- */
+
+/** 일괄 변경으로 갈 수 있는 상태 — **탈퇴는 없다**(되돌릴 수 없는 종결 상태) */
+export const BULK_TARGETS: { value: MemberStatus; label: string }[] = [
+  { value: "active", label: "정상으로 변경" },
+  { value: "dormant", label: "휴면으로 변경" },
+  { value: "suspended", label: "정지로 변경" },
+];
+
+/**
+ * 이 회원을 재울 수 있는가 — **목록의 일괄 변경과 상세의 택1 버튼이 함께 쓴다.**
+ *
+ * 빌려 간 물건이 남아 있는데 계정을 재우면 반납 안내가 닿지 않는다.
+ * 판정을 두 화면에 각각 적어 두면 한쪽만 고쳤을 때 **목록으로 상세의 가드를 우회**할 수 있다.
+ */
+export const canSleep = (member: Member) => member.activeRents === 0;
+
+/**
+ * 이 회원을 `next` 상태로 바꿀 수 있는가(일괄 변경 전용).
+ *
+ * - **탈퇴 회원은 못 바꾼다** — 원본 _"탈퇴 회원은 상태 변경 드롭다운 없이 배지로만 표시"_
+ * - **이미 그 상태면 바꿀 것이 없다** — 고른 행에 섞여 있어도 조용히 빠진다
+ * - **휴면은 `canSleep` 이 허락할 때만**
+ *
+ * ⚠️ 상세 화면은 이 함수를 쓰지 않는다 — 거기서는 **현재 상태도 고를 수 있어야** 하므로
+ * "이미 그 상태면 false" 가 맞지 않는다. 공유하는 것은 `canSleep` 하나다.
+ */
+export const canChangeStatus = (
+  member: Member,
+  next: MemberStatus,
+): boolean => {
+  if (member.status === "withdrawn") return false;
+  if (member.status === next) return false;
+  if (next === "dormant") return canSleep(member);
+  return true;
+};
+
+/**
+ * 일괄 변경 결과 문구.
+ *
+ * 처리한 수와 **빠진 수를 함께** 알린다(상품 화면 `approveMessage` 와 같은 규칙).
+ * 고른 행 중 자격이 없는 건은 조용히 빠지는데, 그 사실을 숨기면 "5명 골랐는데 3명만
+ * 바뀐" 이유를 알 수 없다. 휴면은 빠지는 이유가 하나뿐이라 **이유까지 적는다.**
+ */
+export const bulkStatusMessage = (
+  next: MemberStatus,
+  done: number,
+  skipped: number,
+) => {
+  const label = STATUS_META[next].label;
+  const reason =
+    next === "dormant" ? "진행 중 렌트가 있는 회원" : "대상이 아닌 회원";
+  return (
+    `${done}명을 «${label}»으로 바꿨습니다` +
+    (skipped > 0 ? ` · ${skipped}명 제외(${reason})` : "")
+  );
+};
 
 /**
  * 검색 조건 — 원본 어드민의 "검색 필드 선택 + 검색어" 구조를 그대로 옮겼다.
@@ -227,13 +652,76 @@ export const ymd = (dateText: string) =>
  */
 export const usageText = (member: Member) => {
   const parts: string[] = [];
-  if (member.rentCount > 0) parts.push(`렌트 ${member.rentCount}`);
-  if (member.buyCount > 0) parts.push(`구매 ${member.buyCount}`);
+  const rent = countPayments(member, "rent");
+  const sale = countPayments(member, "sale");
+  if (rent > 0) parts.push(`렌트 ${rent}`);
+  if (sale > 0) parts.push(`구매 ${sale}`);
   return parts.length > 0 ? parts.join(" · ") : "-";
 };
+
+/**
+ * 그 회원의 결제 건수. **취소된 건은 세지 않는다** —
+ * 되돌린 주문을 이용 횟수로 세면 "몇 번 빌렸나"가 사실과 달라진다.
+ */
+export const countPayments = (member: Member, kind: PaymentKind) =>
+  member.payments.filter(
+    (payment) => payment.kind === kind && payment.status === "paid",
+  ).length;
 
 /**
  * 한 페이지에 보여줄 행 수.
  * 실서비스는 10·20·50·100(기본 10)이지만 **샘플이 6건뿐이라 페이징이 보이도록** 작게 잡았다.
  */
 export const PAGE_SIZE = 4;
+
+/**
+ * 페이지당 개수 후보 — 원본 표 하단의 셀렉트(기본 10개).
+ * 맨 앞 4는 **샘플 전용**이다(6건뿐이라 10이면 페이지네이션이 한 장으로 접힌다).
+ */
+export const PAGE_SIZES = [4, 10, 20, 50];
+
+/* -------------------------------------------------------------------------
+ * 검색조건 요약 — 접힌 `FilterBar` 한 줄에 들어가는 글자
+ *
+ * 원본은 조건이 없을 때 `조건 없음 (전체)` 라고 적는다. **비워 두지 않는다** —
+ * 빈 자리는 "조건이 없는 것"과 "요약을 못 만든 것"을 구별해 주지 못한다.
+ *
+ * ⚠️ **상태는 요약에 넣지 않는다.** 상태 축은 위의 건수 카드가 이미 선택된 채로
+ * 보여 주고 있어(원본 `chip.dash: true`), 여기서 또 적으면 같은 사실이 두 곳에서 말해진다.
+ * ---------------------------------------------------------------------- */
+
+/** 조건이 하나도 없을 때 — 원본 문구 그대로 */
+export const NO_FILTER_TEXT = "조건 없음 (전체)";
+
+/**
+ * 걸린 조건을 사람이 읽는 한 줄로.
+ *
+ * 날짜는 `Date` 로 받는다(`DatePicker` 가 그렇게 준다) — 문자열로 받으면 화면이
+ * 포맷을 한 번 더 정해야 하고, 그 포맷이 표의 `ymd` 와 어긋날 수 있다.
+ */
+export const filterSummary = ({
+  from,
+  to,
+  fieldLabel,
+  keyword,
+}: {
+  from?: Date;
+  to?: Date;
+  fieldLabel: string;
+  keyword: string;
+}): string => {
+  const parts: string[] = [];
+
+  if (from) {
+    const day = (value: Date) =>
+      `${value.getFullYear()}.${String(value.getMonth() + 1).padStart(2, "0")}.${String(
+        value.getDate(),
+      ).padStart(2, "0")}`;
+    /* 하루만 고르면 `to` 가 없다 — 그때는 범위가 아니라 그 하루다 */
+    parts.push(`가입일 ${day(from)}${to ? `~${day(to)}` : ""}`);
+  }
+
+  if (keyword.trim() !== "") parts.push(`${fieldLabel} «${keyword.trim()}»`);
+
+  return parts.length > 0 ? parts.join(" · ") : NO_FILTER_TEXT;
+};

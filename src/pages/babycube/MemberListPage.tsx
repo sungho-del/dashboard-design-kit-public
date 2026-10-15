@@ -5,19 +5,20 @@ import {
   Button,
   Card,
   CardBody,
+  Checkbox,
   DataTableShell,
   DatePicker,
   EmptyState,
+  FilterBar,
   Gnb,
-  InfoItem,
-  InfoList,
   Input,
-  Modal,
-  ModalBody,
-  ModalHeader,
   PageHeader,
   Pagination,
+  PaginationSizeSelect,
   Select,
+  SelectionBar,
+  SelectionBarButton,
+  Skeleton,
   StatGrid,
   Table,
   TableBody,
@@ -29,13 +30,23 @@ import {
   TextButton,
   useToast,
   type DateRange,
+  type TableSortDirection,
 } from "../../components/ui";
+import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
+import { PERIOD_PRESETS } from "../../lib/periodPresets";
+import { useSearchParams } from "../../lib/router";
 import {
+  BULK_TARGETS,
+  bulkStatusMessage,
+  canChangeStatus,
+  DEFAULT_FILTER,
   FILTERS,
+  filterSummary,
   MEMBERS,
   MEMBER_UNIT,
   num,
   PAGE_SIZE,
+  PAGE_SIZES,
   people,
   SEARCH_FIELDS,
   STATUS_META,
@@ -55,9 +66,10 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * ## ⚠️ 구성은 **원본 어드민 그대로**다 — 임의로 더하지 말 것
  *
  * ```
- * 상태 대시 (전체·정상·정지·휴면·탈퇴 건수, 누르면 필터)   ← 원본 StatDash
+ * 상태 대시 (정상·정지·휴면·탈퇴 건수, 누르면 필터)        ← 원본 StatDash
  * 검색조건 바 (기간 · 검색 조건 + 검색어 · 초기화)          ← 원본 filter
  * [ 총 N건 · 엑셀 다운로드 | 표 | 페이지네이션 ]            ← 원본 ListHead + table + foot
+ * 체크 후 일괄 상태 변경 바                                 ← 원본 목록 툴바
  * ```
  *
  * 원본 목록 셸(`20013`)의 섹션 순서가 `note → dash → filter → card[head→table→foot]` 이고
@@ -69,7 +81,10 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * - **증감 요약 카드 3장**(전체/휴면/탈퇴 회원 + ±% + 비교 기준). 원본의 상단 카드는
  *   상태별 **건수**뿐이고 증감도 비교 기준 문구도 없다
  * - **행 드롭다운 3종**(상세 보기 · 연락처 복사 · 이용 정지)과 **이용 정지 확인 모달**.
- *   원본 `관리` 컬럼은 `상세` 링크 버튼 하나다. 정지/해제는 목록이 아니라 회원 상세의 일이다
+ *   원본 `관리` 컬럼은 `상세` 링크 버튼 하나다. 한 사람의 상태는 회원 상세에서 바꾼다.
+ *   ⚠️ 원본 주석(`screen.members`)에는 "행별 상태 드롭다운"이 적혀 있지만 **원본 화면의
+ *   상태 칸은 배지뿐이다**(v0.4 실물 대조). 주석이 구현보다 앞서 있는 것이라 따르지 않는다 —
+ *   여럿을 한꺼번에 바꾸는 길은 아래 **체크 + 일괄 변경**으로 열려 있다
  * - **상태 세그먼트**. 원본은 `chip.dash: true` 라 상태 축을 **건수 카드로만** 그린다 —
  *   카드와 세그먼트를 함께 두면 한 축에 컨트롤이 둘이 된다
  * - **PageHeader 도움말 툴팁**. 상태 설명은 원본대로 **대시 카드의 툴팁**으로 내려갔다
@@ -83,27 +98,45 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * | 필터 구성              | `toolbarEnd` 슬롯                              |
  * | 화면 제목              | `PageHeader` 의 `title`                        |
  *
+ * ## 데이터 상태 (§D8 · `src/lib/dataStatus.ts`)
+ * 실 API 를 붙이면 `status` 를 fetch 상태로 바꾼다. 지금은 주소로 미리 본다 —
+ * `/members?preview=loading` · `empty` · `refreshing`.
+ * 로딩 뼈대는 표와 **같은 `COLGROUP`** 을 써서 도착 후 열이 밀리지 않는다.
+ *
  * ## 그대로 두는 것 (도메인 무관)
  * `DataTableShell` 셸 구조 · `colgroup` 비율 배분 · 페이지 범위 클램프 ·
  * `inPeriod` 날짜 필터 · **흰 카드 = 그룹 / 연한 그레이 상자 = 항목** 두 층 ·
  * 상자 안 **라벨 좌상단 · 수치 우하단** · 상태 건수를 **상태 필터를 뺀 나머지 조건**에서
  * 세는 규칙(아래 `scoped`)
  *
- * ## 원본에 있으나 우리 컴포넌트로 표현하지 못한 것 (미해결)
- * - **정렬 가능한 헤더**(원본 `sortable`: 이름·가입일·자녀) — `Table` 에 정렬 어포던스가 없다
- * - **고정열**(원본 `frozen`: 이름) — 가로 스크롤 시 첫 열 고정 수단이 없다
- * - **기간 빠른 선택**(오늘/1주일/1개월/3개월/6개월/1년/전체) — `DatePicker` 에 프리셋 슬롯이 없다
+ * ## 원본 기능 복원 (2026-09-21)
+ * - ✅ **체크 후 일괄 상태 변경**(원본 `rowchk` + 목록 툴바) — 머리글 체크박스는 **이 페이지의
+ *   행만** 고르고, 갈 수 있는 상태가 없으면 바 자체가 열리지 않는다.
+ *   ⚠️ 자격 판정은 **데이터 층의 `canChangeStatus`** 가 한다 — 상세 화면의 휴면 가드
+ *   (`canSleep`)를 목록이 우회하지 못하게 판정을 한 벌만 둔다
+ * - ✅ **정렬 가능한 헤더**(원본 `sortable`: 이름·가입일·자녀) — `TableTh sortable` 신설.
+ *   오름 → 내림 → **해제** 3단이고 `aria-sort` 로 스크린리더에 전달된다
+ * - ✅ **기간 빠른 선택**(오늘/1주일/1개월/3개월/6개월/1년/전체) — `DatePicker presets` 신설.
+ *   어휘·계산은 도메인이라 `PERIOD_PRESETS`(데이터 층)가 들고 온다
+ *
+ * ## 아직 표현하지 못한 것 (미해결)
+ * - **고정열**(원본 `frozen`: 이름) — 이 표는 열 폭 합이 988(체크박스 열 48 포함)이라
+ *   **가로 스크롤이 나지 않아**
+ *   지금은 필요가 없다. 열이 늘어 스크롤이 생기면 `DataTableShell` 의 `scrollLeadWidth` 와 짝을 맞춘다
  * - **기간 기준 셀렉트**(원본은 `가입일` 한 항목뿐인 select 를 강제로 띄운다) —
  *   고를 것이 하나뿐이라 `DatePicker` 자리표시자로 "가입일 시작/종료"라고 밝히는 데 그쳤다
  *
  * ## 원본과 의도적으로 다르게 둔 곳 (근거를 남긴다)
- * 1. **처음 열릴 때 `전체`** — 원본은 `defaultStat: "정상"` 이라 정상 회원만 보인 채 열린다.
- *    대시가 이미 상태별 건수를 다 보여주므로 숨길 이유가 없고, 필터가 걸린 줄 모르고
- *    "회원이 이것뿐인가" 하고 읽는 사고를 막는다
- * 2. **`상세` 가 미리보기 모달을 연다** — 원본은 `/members/{id}` 상세 화면으로 나가지만
- *    그 화면은 기획서 `gaps` 라 이 배치에 없다. 죽은 링크 대신 4항목 미리보기로 받는다
- * 3. **빈 상태 제목이 "회원"** — 원본은 공용 셸이라 "해당 조건의 항목이 없습니다."로
+ * 1. **빈 상태 제목이 "회원"** — 원본은 공용 셸이라 "해당 조건의 항목이 없습니다."로
  *    도메인을 모른다. 본문 문구는 원본 그대로다
+ * 2. **일괄 변경 바가 화면 하단에 뜬다** — 원본은 목록 위에 버튼 두 개를 늘 띄워 둔다.
+ *    이 저장소는 그 자리를 §25 `SelectionBar` 로 두는데, 고른 행이 스크롤로 사라져도
+ *    무엇을 고른 채인지 남기 때문이다
+ *
+ * > 한때 이 자리에 **"처음 열릴 때 전체"** 와 **"`상세` 가 미리보기 모달을 연다"** 두 항목이
+ * > 근거와 함께 적혀 있었다. 둘 다 지금은 사실이 아니다 — 기본값은 원본대로 `정상` 이고
+ * > (`DEFAULT_FILTER`), 회원 상세(`/members/{id}`)는 실제로 만들어졌다. 옛 근거를 남겨 두면
+ * > 다음 사람이 "의도된 이탈"로 읽고 되돌린다.
  * ====================================================================== */
 
 /**
@@ -135,6 +168,130 @@ export interface MemberListPageProps {
   onNavSelect: (id: string) => void;
 }
 
+/* -------------------------------------------------------------------------
+ * 정렬 — 원본 어드민의 `sortable` 열 (이름 · 가입일 · 자녀)
+ * ---------------------------------------------------------------------- */
+
+/** 정렬 가능한 열. 값은 `Member` 의 키와 같다 */
+type SortKey = "date" | "kids";
+
+interface SortState {
+  key: SortKey;
+  direction: TableSortDirection;
+}
+
+/**
+ * 열마다 **무엇을 어떻게 비교하는지**. 표는 비교 규칙을 모른다(§`Table` 주석).
+ *
+ *
+ * ⚠️ **이름은 정렬 열이 아니다.** 원본 표 헤더에서 ↕ 가 붙은 것은 **가입일·자녀** 둘뿐인데
+ * 한때 이름까지 정렬되게 만들어 뒀다(2026-09-21 원본 v0.4 대조로 바로잡음).
+ * - 가입일: `"YYYY-MM-DD HH:mm"` 이라 **문자열 비교로 시간 순서가 맞는다**
+ *   (자리수가 고정이고 큰 단위가 앞이다). `Date` 로 바꾸면 파싱 비용만 든다.
+ * - 자녀: 수치 비교.
+ */
+const COMPARATORS: Record<SortKey, (a: Member, b: Member) => number> = {
+  date: (a, b) => a.date.localeCompare(b.date),
+  kids: (a, b) => a.kids - b.kids,
+};
+
+/**
+ * 다음 정렬 상태. **오름 → 내림 → 해제** 3단이다.
+ *
+ * 2단(오름↔내림)으로 두면 **원래 순서로 되돌릴 방법이 없다.** 목록의 기본 순서는
+ * 그 자체로 의미가 있어(가입 역순으로 들어온 데이터) 되돌아갈 자리를 남긴다.
+ * `aria-sort` 가 none/ascending/descending 세 값을 그대로 전달한다.
+ */
+const nextSort = (
+  current: SortState | null,
+  key: SortKey,
+): SortState | null => {
+  if (current?.key !== key) return { key, direction: "asc" };
+  if (current.direction === "asc") return { key, direction: "desc" };
+  return null;
+};
+
+/* -------------------------------------------------------------------------
+ * 표 골격
+ * ---------------------------------------------------------------------- */
+
+/**
+ * 열 폭의 **정본**. 표와 로딩 뼈대가 **같은 것을 쓴다** — 폭을 두 번 적으면
+ * 로딩이 끝나는 순간 열이 밀린다(`DataTableShell.loading` 주석의 요구사항이다).
+ *
+ * table-fixed 라 폭 지정 필수. 한 컬럼만 auto 로 두면 여백을 독식한다.
+ * 값은 **원본 어드민의 컬럼 정의(`minWidth`)** 를 옮긴 것이다 —
+ * 110·200·130·110·70·90·140·80 을 4px 격자로 올림했다(§DESIGN.md §7-2).
+ * 표가 `width:auto; min-width:100%` 라, 합(940)이 화면보다 좁으면 비율대로 늘어난다.
+ */
+const COLGROUP = (
+  <colgroup>
+    {/* 체크박스 열 — 원본 `rowchk`. 값이 아니라 조작이라 가장 좁게 둔다 */}
+    <col className="w-12" />
+    <col className="w-16" />
+    <col className="w-28" />
+    <col className="w-50" />
+    <col className="w-33" />
+    <col className="w-28" />
+    <col className="w-18" />
+    <col className="w-23" />
+    <col className="w-35" />
+    <col className="w-20" />
+  </colgroup>
+);
+
+/** 로딩 자리의 셀 폭 — 실제 값의 글자 수에 가깝게 둬야 도착했을 때 덜 튄다 */
+const SKELETON_WIDTHS = [
+  "w-4",
+  "w-6",
+  "w-16",
+  "w-40",
+  "w-28",
+  "w-24",
+  "w-10",
+  "w-12",
+  "w-24",
+  "w-12",
+];
+
+/**
+ * 로딩 뼈대. **헤더는 실제 글자 그대로** 두고 본문만 가린다 —
+ * 고정 텍스트는 어차피 바뀌지 않으므로 스켈레톤으로 만들지 않는다(§D8-1).
+ */
+const loadingTable = (
+  <Table>
+    {COLGROUP}
+    <TableHead sticky>
+      <TableRow>
+        {/* 로딩 중에는 고를 것이 없으므로 체크박스를 그리지 않는다 — 자리만 맞춘다 */}
+        <TableTh />
+        <TableTh>No</TableTh>
+        <TableTh>이름</TableTh>
+        <TableTh>아이디(이메일)</TableTh>
+        <TableTh>연락처</TableTh>
+        <TableTh>가입일</TableTh>
+        <TableTh>자녀</TableTh>
+        <TableTh align="center">상태</TableTh>
+        <TableTh>이용</TableTh>
+        <TableTh>관리</TableTh>
+      </TableRow>
+    </TableHead>
+    <TableBody>
+      {Array.from({ length: PAGE_SIZE }, (_, row) => (
+        <TableRow key={row}>
+          {SKELETON_WIDTHS.map((width, cell) => (
+            <TableTd key={cell}>
+              <span className="body-small block">
+                <Skeleton className={width} />
+              </span>
+            </TableTd>
+          ))}
+        </TableRow>
+      ))}
+    </TableBody>
+  </Table>
+);
+
 export function MemberListPage({
   navOpen,
   onNavOpenChange,
@@ -143,13 +300,40 @@ export function MemberListPage({
 }: MemberListPageProps) {
   const { toast } = useToast();
 
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState(DEFAULT_FILTER);
   const [searchField, setSearchField] = useState(SEARCH_FIELDS[0].value);
   const [keyword, setKeyword] = useState("");
   const [period, setPeriod] = useState<DateRange | undefined>();
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  /** 일괄 변경 대상 — 회원 id(이메일)를 담는다 */
+  const [selected, setSelected] = useState<string[]>([]);
+  /**
+   * 검색조건 펼침. **기본은 접힘**이다(원본) — 목록 화면에서 먼저 보여야 하는 것은
+   * 조건이 아니라 결과다. 걸린 조건은 접힌 줄의 요약이 대신 말한다.
+   */
+  const [filterOpen, setFilterOpen] = useState(false);
 
-  const [preview, setPreview] = useState<Member | null>(null);
+  /**
+   * 회원 상세로 이동 — 원본의 "이름 또는 [상세] 클릭 → 회원 상세로 이동".
+   *
+   * id 가 이메일이라 `@` 와 `.` 이 들어간다. 주소에 그대로 넣으면 브라우저마다
+   * 다르게 다루므로 **인코딩해서** 넘기고, 상세 화면이 디코딩해 읽는다.
+   */
+  const openDetail = (member: Member) =>
+    onNavSelect(`/members/${encodeURIComponent(member.id)}`);
+  const [sort, setSort] = useState<SortState | null>(null);
+
+  /*
+    실 API 를 붙이면 이 한 줄을 fetch 상태로 바꾼다 — 지금은 `?preview=` 로 미리 본다
+    (`/members?preview=loading` · `empty` · `refreshing`). 대시보드와 같은 방식이다.
+  */
+  const status = asStatus(useSearchParams().get("preview"));
+
+  /** 요약 줄에 쓰는 현재 검색 조건의 이름(«이름» · «연락처» …) */
+  const searchFieldLabel =
+    SEARCH_FIELDS.find((field) => field.value === searchField)?.label ??
+    SEARCH_FIELDS[0].label;
 
   /* 검색 조건이 "어느 값을 훑을지"를 정한다 — 뼈대는 필드 이름을 모른다 */
   const pick =
@@ -167,9 +351,32 @@ export function MemberListPage({
     return matchKeyword && inPeriod(member.date, period);
   });
 
-  const filtered = scoped.filter(
-    (member) => filter === "all" || member.status === filter,
-  );
+  const matched = scoped.filter((member) => member.status === filter);
+
+  /*
+    정렬은 **페이지를 나누기 전에** 한다. 페이지 안에서만 정렬하면 "이름 오름차순"이
+    페이지마다 따로 걸려, 2페이지의 첫 이름이 1페이지의 마지막보다 앞서는 일이 생긴다.
+
+    ⚠️ **복사한 뒤 정렬한다.** `sort` 는 제자리 정렬이라 `MEMBERS`(모듈 상수)의 순서를
+    영구히 바꿔 "정렬 해제"가 원래 순서로 돌아가지 못한다. `toSorted` 는 이 저장소의
+    TS 타깃(ES2020)에 없다.
+  */
+  const filtered = sort
+    ? [...matched].sort((a, b) => {
+        const order = COMPARATORS[sort.key](a, b);
+        return sort.direction === "asc" ? order : -order;
+      })
+    : matched;
+
+  /** 헤더를 눌렀을 때. 정렬이 바뀌면 1페이지로 돌아간다 — 보던 페이지의 내용이 통째로 바뀐다 */
+  const toggleSort = (key: SortKey) => {
+    setSort((current) => nextSort(current, key));
+    setPage(1);
+  };
+
+  /** 이 열이 정렬 중이면 방향, 아니면 `undefined`(= `aria-sort="none"`) */
+  const directionOf = (key: SortKey) =>
+    sort?.key === key ? sort.direction : undefined;
 
   /*
    * 원본 상태 대시(`StatDash`)가 하던 일 — 상태별 건수를 클릭 없이 보여주고,
@@ -179,15 +386,9 @@ export function MemberListPage({
   const dash = FILTERS.map((item) => ({
     value: item.value,
     label: item.label,
-    count:
-      item.value === "all"
-        ? scoped.length
-        : scoped.filter((member) => member.status === item.value).length,
-    /* 원본은 상태 카드에 `tip`(statusTips)을 달아 뜻을 설명한다. 전체에는 없다 */
-    tip:
-      item.value === "all"
-        ? undefined
-        : STATUS_META[item.value as MemberStatus].description,
+    count: scoped.filter((member) => member.status === item.value).length,
+    /* 원본은 상태 카드마다 `tip`(statusTips)을 달아 뜻을 설명한다 */
+    tip: STATUS_META[item.value as MemberStatus].description,
   }));
 
   const selectStatus = (value: string) => {
@@ -199,11 +400,11 @@ export function MemberListPage({
    * 필터로 결과가 줄면 현재 페이지가 범위를 벗어날 수 있다(2페이지를 보던 중 1페이지까지만
    * 남는 경우). 그대로 두면 **빈 표**가 그려지므로 마지막 페이지로 당긴다.
    */
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const paged = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
   );
 
   /*
@@ -211,14 +412,60 @@ export function MemberListPage({
    * 기간이나 검색 조건을 되돌리지 않아 "초기화했는데 여전히 비어 있음"이 된다.
    */
   const resetFilters = () => {
-    setFilter("all");
+    setFilter(DEFAULT_FILTER);
     setSearchField(SEARCH_FIELDS[0].value);
     setKeyword("");
     setPeriod(undefined);
     setPage(1);
   };
 
-  const previewStatus = preview ? STATUS_META[preview.status] : null;
+  /* -------------------------------------------------------------------
+   * 일괄 상태 변경 (원본 목록 툴바)
+   *
+   * 선택은 **id 로** 들고 있다. 인덱스로 들면 정렬·필터·페이지가 바뀌는 순간
+   * 다른 사람이 선택된 것이 된다 — 일괄 처리에서는 그것이 곧 사고다.
+   * ---------------------------------------------------------------- */
+  const pageIds = paged.map((member) => member.id);
+  const allPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selected.includes(id));
+  const somePageSelected =
+    pageIds.some((id) => selected.includes(id)) && !allPageSelected;
+
+  const toggleOne = (id: string) =>
+    setSelected((current) =>
+      current.includes(id)
+        ? current.filter((value) => value !== id)
+        : [...current, id],
+    );
+
+  /** 머리글 체크박스는 **이 페이지**만 고르고 푼다 — 안 보이는 행까지 고르지 않는다 */
+  const togglePage = () =>
+    setSelected((current) =>
+      allPageSelected
+        ? current.filter((id) => !pageIds.includes(id))
+        : [...new Set([...current, ...pageIds])],
+    );
+
+  const selectedMembers = MEMBERS.filter((member) =>
+    selected.includes(member.id),
+  );
+
+  /*
+    원본 툴바는 지금 보고 있는 상태에서 **갈 수 있는 곳만** 낸다([정상] 탭에서는
+    [휴면으로 변경][정지로 변경] 둘). 탈퇴 탭에서는 아무것도 못 바꾸므로 비어 있고,
+    그때는 `SelectionBar` 자체가 열리지 않는다.
+  */
+  const bulkTargets = BULK_TARGETS.filter((target) =>
+    selectedMembers.some((member) => canChangeStatus(member, target.value)),
+  );
+
+  const applyBulk = (target: (typeof BULK_TARGETS)[number]) => {
+    const done = selectedMembers.filter((member) =>
+      canChangeStatus(member, target.value),
+    ).length;
+    toast(bulkStatusMessage(target.value, done, selectedMembers.length - done));
+    setSelected([]);
+  };
 
   return (
     <AppShell
@@ -239,8 +486,8 @@ export function MemberListPage({
         상태 대시 — 원본 `StatDash`. 건수를 보여주면서 그 자체가 상태 필터다.
         흰 카드(그룹) 안에 연한 그레이 상자(항목) 다섯이 들어간다.
       */}
-      <Card>
-        <CardBody>
+      <Card variant="soft" aria-busy={isBusy(status)}>
+        <CardBody className={dimWhile(status)}>
           {/*
             건수 대시 = 필터. 상자의 시각 규격 · 선택/hover 축 분리 · 접근가능 이름
             조립 · 툴팁 분기는 전부 `StatGrid` 가 맡는다 (docs/DESIGN-dashboard.md §D4).
@@ -262,8 +509,74 @@ export function MemberListPage({
         </CardBody>
       </Card>
 
+      {/*
+        검색조건 — 원본 `filter` 영역. **접힌 채로 열리고** 걸린 조건은 요약이 말한다.
+        컨트롤 구성(기간 · 조건 셀렉트 + 검색어)은 원본 그대로다.
+
+        ⚠️ 원본은 [검색] 버튼을 눌러야 조건이 적용된다(Enter 동일). 이 화면은
+        **입력 즉시 적용**이다 — 건수 카드가 조건에 따라 같이 움직여야 하는데
+        버튼을 기다리면 카드와 목록이 서로 다른 조건을 말하는 순간이 생긴다.
+      */}
+      <FilterBar
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        summary={filterSummary({
+          from: period?.from,
+          to: period?.to,
+          fieldLabel: searchFieldLabel,
+          keyword,
+        })}
+        onReset={resetFilters}
+      >
+        <DatePicker
+          mode="range"
+          presets={PERIOD_PRESETS}
+          value={period}
+          onChange={(next) => {
+            setPeriod(next);
+            setPage(1);
+          }}
+          startPlaceholder="가입일 시작"
+          endPlaceholder="가입일 종료"
+        />
+        {/*
+          검색은 "조건 선택 + 검색어" 2단이다(원본 `search.fieldOpts` + `ph`).
+          트리거에 보이는 글자는 현재 조건이라, 무엇을 고르는 셀렉트인지는
+          `aria-label` 이 대신 말한다.
+        */}
+        <Select
+          aria-label="검색 조건"
+          options={SEARCH_FIELDS}
+          value={searchField}
+          onValueChange={(value) => {
+            setSearchField(value);
+            setPage(1);
+          }}
+        />
+        <Input
+          placeholder="검색어 입력"
+          value={keyword}
+          onChange={(event) => {
+            setKeyword(event.target.value);
+            setPage(1);
+          }}
+          leftIcon={<Search size={16} strokeWidth={1.2} aria-hidden />}
+        />
+      </FilterBar>
+
       {/* 회원 목록 — DataTableShell 이 §7-1 셸 구조를 책임진다 */}
       <DataTableShell
+        variant="soft"
+        /*
+          남는 세로 공간을 표가 흡수한다. 2560×1215 에서 콘텐츠가 661px 에서 끝나
+          아래 550px 이 비어 있었다. 페이지네이션은 셸 맨 아래에 붙고, 행이 많아지면
+          표 래퍼 안에서 스크롤된다(그래서 헤더를 sticky 로 둔다).
+        */
+        fill
+        className="flex-1"
+        bodyClassName={dimWhile(status)}
+        isLoading={status === "loading"}
+        loading={loadingTable}
         toolbarStart={
           /* 원본 `toolsLeft` 는 엑셀 다운로드 하나다 — 툴바 좌측이 그 자리다 */
           <Button
@@ -281,47 +594,7 @@ export function MemberListPage({
             엑셀 다운로드
           </Button>
         }
-        toolbarEnd={
-          <>
-            <DatePicker
-              mode="range"
-              value={period}
-              onChange={(next) => {
-                setPeriod(next);
-                setPage(1);
-              }}
-              startPlaceholder="가입일 시작"
-              endPlaceholder="가입일 종료"
-            />
-            {/*
-              검색은 "조건 선택 + 검색어" 2단이다(원본 `search.fieldOpts` + `ph`).
-              트리거에 보이는 글자는 현재 조건이라, 무엇을 고르는 셀렉트인지는
-              `aria-label` 이 대신 말한다.
-            */}
-            <Select
-              aria-label="검색 조건"
-              options={SEARCH_FIELDS}
-              value={searchField}
-              onValueChange={(value) => {
-                setSearchField(value);
-                setPage(1);
-              }}
-            />
-            <Input
-              placeholder="검색어 입력"
-              value={keyword}
-              onChange={(event) => {
-                setKeyword(event.target.value);
-                setPage(1);
-              }}
-              leftIcon={<Search size={16} strokeWidth={1.2} aria-hidden />}
-            />
-            <TextButton tone="secondary" onClick={resetFilters}>
-              초기화
-            </TextButton>
-          </>
-        }
-        isEmpty={filtered.length === 0}
+        isEmpty={status === "empty" || filtered.length === 0}
         empty={
           <EmptyState
             size="table"
@@ -345,35 +618,66 @@ export function MemberListPage({
                 총 {filtered.length}건
               </span>
             }
+            end={
+              /* 원본 표 하단의 페이지당 개수 셀렉트. 바꾸면 1페이지로 돌아간다 */
+              <PaginationSizeSelect
+                sizes={PAGE_SIZES}
+                value={pageSize}
+                onSizeChange={(size) => {
+                  setPageSize(size);
+                  setPage(1);
+                }}
+              />
+            }
           />
         }
       >
         <Table>
+          {COLGROUP}
           {/*
-            table-fixed 라 폭 지정 필수. 한 컬럼만 auto 로 두면 여백을 독식한다.
-
-            폭은 **원본 어드민의 컬럼 정의(`minWidth`)** 를 옮긴 값이다 —
-            110·200·130·110·70·90·140·80 을 4px 격자로 올림했다(§DESIGN.md §7-2).
-            표가 `width:auto; min-width:100%` 라, 합(940)이 화면보다 좁으면 비율대로 늘어난다.
+            헤더는 **표 래퍼 안에서 스크롤될 때 위에 붙는다**(`fill` 로 표가 늘어나
+            행이 많으면 여기서 세로 스크롤이 생긴다). 붙지 않으면 스크롤 한 번에
+            어느 열이 무엇인지 알 수 없다.
           */}
-          <colgroup>
-            <col className="w-28" />
-            <col className="w-50" />
-            <col className="w-33" />
-            <col className="w-28" />
-            <col className="w-18" />
-            <col className="w-23" />
-            <col className="w-35" />
-            <col className="w-20" />
-          </colgroup>
-          <TableHead>
+          <TableHead sticky>
             <TableRow>
+              {/*
+                전체 선택 — 원본 `rowchk` 의 머리글. **이 페이지의 행만** 고른다.
+                일부만 골랐을 때는 `indeterminate` 로 "부분 선택"을 표시한다.
+              */}
+              <TableTh align="center">
+                <Checkbox
+                  size="small"
+                  aria-label="이 페이지 전체 선택"
+                  checked={allPageSelected}
+                  indeterminate={somePageSelected}
+                  onChange={togglePage}
+                />
+              </TableTh>
+              {/* 원본 표의 첫 열. 레코드 번호라 정렬·필터와 무관하다 */}
+              <TableTh>No</TableTh>
               <TableTh>이름</TableTh>
               <TableTh>아이디(이메일)</TableTh>
               <TableTh>연락처</TableTh>
-              <TableTh>가입일</TableTh>
-              {/* 숫자 컬럼은 우측 정렬 — 자릿수를 세로로 맞춰 비교한다 (§7 · 원본도 right) */}
-              <TableTh>자녀</TableTh>
+              <TableTh
+                sortable
+                sortDirection={directionOf("date")}
+                onSort={() => toggleSort("date")}
+              >
+                가입일
+              </TableTh>
+              {/*
+                ⚠️ 수치 열도 **좌측 정렬**이다 — 이 저장소는 회계 관행을 알면서
+                좌측을 택했다(§7-2 · §D6-4). 한때 이 자리에 "우측 정렬" 주석이
+                달려 있었는데 코드와 어긋난 설명이었다.
+              */}
+              <TableTh
+                sortable
+                sortDirection={directionOf("kids")}
+                onSort={() => toggleSort("kids")}
+              >
+                자녀
+              </TableTh>
               <TableTh align="center">상태</TableTh>
               <TableTh>이용</TableTh>
               <TableTh>관리</TableTh>
@@ -384,12 +688,22 @@ export function MemberListPage({
               const status = STATUS_META[member.status];
               return (
                 <TableRow key={member.id}>
+                  <TableTd align="center">
+                    <Checkbox
+                      size="small"
+                      /* 이름을 함께 읽어 줘야 어느 행을 고르는지 알 수 있다 */
+                      aria-label={`${member.name} 선택`}
+                      checked={selected.includes(member.id)}
+                      onChange={() => toggleOne(member.id)}
+                    />
+                  </TableTd>
+                  <TableTd className="tabular-nums">{member.no}</TableTd>
                   {/*
                     원본에서 이름은 `/members/{id}` 로 가는 링크다(`className: "linkish"`).
                     행 전체를 누르게 만들지 않는다 — 원본에 없는 어포던스다.
                   */}
                   <TableTd>
-                    <TextButton onClick={() => setPreview(member)}>
+                    <TextButton onClick={() => openDetail(member)}>
                       {member.name}
                     </TextButton>
                   </TableTd>
@@ -404,23 +718,32 @@ export function MemberListPage({
                     */}
                     <span className="block truncate">{member.id}</span>
                   </TableTd>
-                  <TableTd>{member.phone}</TableTd>
-                  {/* 원본 `ymd` — 날짜만 낸다 */}
-                  <TableTd>{ymd(member.date)}</TableTd>
-                  <TableTd>{people(member.kids)}</TableTd>
+                  <TableTd className="tabular-nums">{member.phone}</TableTd>
+                  {/*
+                    원본 `ymd` — 날짜만 낸다.
+                    날짜·수치 열은 **등폭**이다(§D6-2) — 비례폭이면 자릿수가 세로로
+                    어긋나 위아래 행을 비교할 수 없다. 큰 글자(타일 수치)와 달리
+                    표는 "줄이 맞는 곳"이라 등폭이 맞다.
+                  */}
+                  <TableTd className="tabular-nums">{ymd(member.date)}</TableTd>
+                  <TableTd className="tabular-nums">
+                    {people(member.kids)}
+                  </TableTd>
                   <TableTd align="center">
                     <Tag tone={status.tone} dot>
                       {status.label}
                     </Tag>
                   </TableTd>
                   {/* 렌트 / 구매를 나눠 적는다 — 합계 하나로 접으면 이 서비스의 핵심 구분이 사라진다 */}
-                  <TableTd>{usageText(member)}</TableTd>
+                  <TableTd className="tabular-nums">
+                    {usageText(member)}
+                  </TableTd>
                   <TableTd>
                     {/* 원본 `관리` 컬럼은 `상세` 버튼 하나다 (`btn line sm`) */}
                     <Button
                       variant="secondary"
                       size="small"
-                      onClick={() => setPreview(member)}
+                      onClick={() => openDetail(member)}
                     >
                       상세
                     </Button>
@@ -433,42 +756,29 @@ export function MemberListPage({
       </DataTableShell>
 
       {/*
-        회원 미리보기 — 원본의 `/members/{id}` 자리를 받는 4항목짜리 빠른 확인용이다.
-        제목을 "회원 상세"로 두지 않는다. 상세 화면이 생기면 같은 이름의 화면이 둘이 되고,
-        모달에 전체 정보를 밀어 넣으라는 신호로 읽힌다.
+        일괄 처리 바 — 원본 목록 위의 `[휴면으로 변경] [정지로 변경]`.
+        이 저장소는 그 자리를 §25 `SelectionBar`(화면 하단 고정)로 둔다. 고른 행이
+        화면 밖으로 스크롤돼도 무엇을 고른 채인지 사라지지 않기 때문이다.
+
+        **갈 수 있는 곳이 없으면 열지 않는다** — 탈퇴 회원만 골랐을 때 버튼 없는
+        빈 바가 뜨면 "왜 아무것도 못 하지"가 된다.
       */}
-      <Modal open={preview !== null} onClose={() => setPreview(null)}>
-        <ModalHeader title="회원 미리보기" description={preview?.name} />
-        <ModalBody>
-          <InfoList>
-            <InfoItem label="아이디">{preview?.id}</InfoItem>
-            <InfoItem label="연락처">{preview?.phone}</InfoItem>
-            <InfoItem label="자녀">
-              {preview ? people(preview.kids) : ""}
-            </InfoItem>
-            <InfoItem label="가입일">{preview?.date}</InfoItem>
-          </InfoList>
-          {/*
-            상태만 보여주고 끝내지 않는다 — "정지를 풀면 [정상]으로 돌아갑니다" 같은
-            **되돌림 가능 여부**가 곧 조치 판단의 근거라서 설명을 함께 낸다
-            (원본 `statusTips` 문구 그대로).
-          */}
-          {previewStatus ? (
-            <div className="flex flex-col gap-2">
-              <Tag tone={previewStatus.tone} dot>
-                {previewStatus.label}
-              </Tag>
-              <p className="body-small text-text-sub">
-                {previewStatus.description}
-              </p>
-            </div>
-          ) : null}
-        </ModalBody>
-        {/*
-          ⚠️ 푸터를 두지 않는다. 원본 회원 목록에는 행 액션이 하나도 없다 —
-          정지·해제는 회원 상세 화면의 일이라 여기에 버튼을 만들면 없는 기능을 지어내는 것이다.
-        */}
-      </Modal>
+      <SelectionBar
+        open={selected.length > 0 && bulkTargets.length > 0}
+        count={selected.length}
+        /* 기본 문구는 "N개" 다 — 세는 것이 사람이라 단위를 바꾼다 */
+        countLabel={(value) => `${value}명 선택됨`}
+        onClear={() => setSelected([])}
+      >
+        {bulkTargets.map((target) => (
+          <SelectionBarButton
+            key={target.value}
+            onClick={() => applyBulk(target)}
+          >
+            {target.label}
+          </SelectionBarButton>
+        ))}
+      </SelectionBar>
     </AppShell>
   );
 }

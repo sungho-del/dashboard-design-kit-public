@@ -9,15 +9,12 @@ import {
   DatePicker,
   EmptyState,
   Gnb,
-  InfoItem,
-  InfoList,
   Input,
-  Modal,
-  ModalBody,
-  ModalHeader,
   PageHeader,
   Pagination,
+  PaginationSizeSelect,
   Select,
+  Skeleton,
   StatGrid,
   Table,
   TableBody,
@@ -29,9 +26,14 @@ import {
   TextButton,
   useToast,
   type DateRange,
+  type TableSortDirection,
 } from "../../components/ui";
+import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
+import { PERIOD_PRESETS } from "../../lib/periodPresets";
+import { useSearchParams } from "../../lib/router";
 import {
   DATE_FIELDS,
+  DEFAULT_FILTER,
   EMPTY_CELL,
   FILTERS,
   HQ_SUFFIX,
@@ -39,6 +41,7 @@ import {
   HYGIENE_FILTERS,
   num,
   PAGE_SIZE,
+  PAGE_SIZES,
   rate,
   score,
   SEARCH_FIELDS,
@@ -61,7 +64,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * ## ⚠️ 구성은 **원본 어드민 그대로**다 — 임의로 더하지 말 것
  *
  * ```
- * 상태 대시 (전체·입점·퇴점 처리중·퇴점 건수, 누르면 필터)   ← 원본 StatDash
+ * 상태 대시 (입점·퇴점 처리중·퇴점 건수 — **전체 카드 없음**)  ← 원본 StatDash
  * 검색조건 바 (기간 기준+기간 · 위생인증 · 검색조건+검색어)   ← 원본 filter/chips/search
  * [ 총 N건 · 엑셀 다운로드 | 표 | 페이지네이션 ]              ← 원본 ListHead + table + foot
  * ```
@@ -95,16 +98,23 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * **분류 배지에 상태색을 쓰지 않는** 규칙(위생인증은 highlight 계열) ·
  * 상태 건수를 **상태 필터를 뺀 나머지 조건**에서 세는 규칙(아래 `scoped`)
  *
- * ## 원본에 있으나 우리 컴포넌트로 표현하지 못한 것 (미해결)
- * - **정렬 가능한 헤더**(원본 `sortable`: 셀러명·수수료율·입점일·퇴점일·상품수)
- * - **고정열**(원본 `frozen`: 셀러명)
- * - **기간 빠른 선택**(오늘/1주일/1개월/3개월/6개월/1년/전체)
- * - **위생인증의 다중 선택**(원본은 체크박스 칩이라 두 값을 동시에 고를 수 있다).
- *   값이 둘뿐이라 둘 다 고르면 전체와 같아져, 3지 택일 셀렉트로 대신했다
+ * ## 원본 복원 (2026-09-21 · 원본 v0.4 프로토타입 대조)
+ * - ✅ **[전체] 카드 제거 · 기본 [입점]** — 원본 `sellers.dash` 가 "목록은 항상 한 상태만
+ *   보여준다"고 정책으로 못 박는다. 한때 우리가 [전체]를 넣고 기본값으로 둔 것을 되돌렸다
+ * - ✅ **No 열** · **페이지당 개수 셀렉트** · **수수료율 인라인 수정**(원본 `feecell`)
+ * - ✅ **정렬 헤더** — 원본이 ↕ 를 붙인 **입점일·상품수·평점** 3열.
+ *   옛 주석은 "셀러명·수수료율·입점일·퇴점일·상품수"라고 적고 있었는데 **틀린 기록**이었다
+ * - ✅ **기간 빠른 선택** 7종
+ *
+ * ## 아직 표현하지 못한 것 (미해결)
+ * - **검색조건 접기** — 원본은 "조건 없음(전체) + [검색 열기]" 로 접어 둔다.
+ *   목록형 27화면이 공유할 패턴이라 공용 부품으로 만들어야 한다(별도 승인 필요)
+ * - **고정열**(원본 `frozen`: 셀러명) — 이 표는 가로 스크롤이 나지 않아 아직 불필요
+ * - **행 선택 체크박스** — 원본 표에는 열이 있으나 **일괄 액션이 하나도 없다.**
+ *   넣으면 눌러도 아무 일 없는 열이 되므로 액션이 생길 때 함께 넣는다
+ * - **위생인증의 다중 선택**(원본은 체크박스 칩). 값이 둘뿐이라 3지 택일 셀렉트로 대신했다
  *
  * ## 원본과 의도적으로 다르게 둔 곳 (근거를 남긴다)
- * 1. **처음 열릴 때 `전체`** — 원본은 `defaultStat: "입점"` 이라 입점 셀러만 보인 채 열린다.
- *    대시가 이미 상태별 건수를 다 보여주므로 숨길 이유가 없다
  * 2. **셀러명이 미리보기 모달을 연다** — 원본은 `/sellers/{id}` 상세로 나가지만
  *    그 화면은 기획서 `gaps` 라 이 배치에 없다
  * 3. **값이 없는 셀을 `-` 로 채운다** — 원본은 빈칸이다. 빈 셀은 "값이 없음"인지
@@ -144,6 +154,153 @@ export interface SellerListPageProps {
   onNavSelect: (id: string) => void;
 }
 
+/* -------------------------------------------------------------------------
+ * 정렬 — 원본 표 헤더의 ↕ 가 붙은 열 (입점일 · 상품수 · 평점)
+ *
+ * ⚠️ 셀러명·수수료율·퇴점일에는 원본에 ↕ 가 **없다.** 한때 이 파일 주석이
+ * "셀러명·수수료율·입점일·퇴점일·상품수"라고 적고 있었는데 원본(v0.4)과 대조하니
+ * 틀린 기록이었다(2026-09-21). 원본 헤더가 정본이다.
+ * ---------------------------------------------------------------------- */
+
+type SortKey = "date" | "products" | "rating";
+
+interface SortState {
+  key: SortKey;
+  direction: TableSortDirection;
+}
+
+/**
+ * 열마다 무엇을 비교하는지. 표는 비교 규칙을 모른다.
+ * 입점일은 `"YYYY-MM-DD HH:mm"` 이라 문자열 비교로 시간 순서가 맞는다(자리수 고정).
+ */
+const COMPARATORS: Record<SortKey, (a: Seller, b: Seller) => number> = {
+  date: (a, b) => a.date.localeCompare(b.date),
+  products: (a, b) => a.products - b.products,
+  rating: (a, b) => a.rating - b.rating,
+};
+
+/** 오름 → 내림 → 해제 3단. 해제가 있어야 원래 순서로 돌아갈 수 있다 */
+const nextSort = (
+  current: SortState | null,
+  key: SortKey,
+): SortState | null => {
+  if (current?.key !== key) return { key, direction: "asc" };
+  if (current.direction === "asc") return { key, direction: "desc" };
+  return null;
+};
+
+/**
+ * 로딩 뼈대 — 헤더는 실제 글자, 본문만 가린다(§D8-1).
+ *
+ * 열 폭은 퇴점일이 빠진 기본 배치를 쓴다. 로딩 중에는 어느 상태로 좁혔는지와
+ * 무관하게 **한 벌**이면 된다 — 도착하면 그때 열이 정해진다.
+ */
+const SKELETON_WIDTHS = [
+  "w-6",
+  "w-28",
+  "w-20",
+  "w-16",
+  "w-24",
+  "w-12",
+  "w-14",
+  "w-20",
+  "w-10",
+  "w-10",
+];
+
+const loadingTable = (
+  <Table>
+    <colgroup>
+      <col className="w-16" />
+      <col className="w-35" />
+      <col className="w-25" />
+      <col className="w-23" />
+      <col className="w-33" />
+      <col className="w-25" />
+      <col className="w-23" />
+      <col className="w-28" />
+      <col className="w-20" />
+      <col className="w-18" />
+    </colgroup>
+    <TableHead sticky>
+      <TableRow>
+        <TableTh>No</TableTh>
+        <TableTh>셀러명</TableTh>
+        <TableTh align="center">위생인증</TableTh>
+        <TableTh>대표명</TableTh>
+        <TableTh>연락처</TableTh>
+        <TableTh align="center">상태</TableTh>
+        <TableTh>수수료율</TableTh>
+        <TableTh>입점일</TableTh>
+        <TableTh>상품수</TableTh>
+        <TableTh>평점</TableTh>
+      </TableRow>
+    </TableHead>
+    <TableBody>
+      {Array.from({ length: PAGE_SIZE }, (_, row) => (
+        <TableRow key={row}>
+          {SKELETON_WIDTHS.map((width, cell) => (
+            <TableTd key={cell}>
+              <span className="body-small block">
+                <Skeleton className={width} />
+              </span>
+            </TableTd>
+          ))}
+        </TableRow>
+      ))}
+    </TableBody>
+  </Table>
+);
+
+/**
+ * 수수료율 셀 — 원본 `feecell`(숫자 입력 + `%` + [수정] 버튼).
+ *
+ * ## 본사는 입력 자리를 만들지 않는다
+ * 본사 직영은 자기 자신에게 수수료를 매기지 않아 값이 `null` 이다(`-`).
+ * 빈 입력칸을 띄우면 "아직 안 정했으니 넣어라"로 읽힌다 — 정할 수 없는 값이다.
+ *
+ * ## 입력 중인 값은 문자열로 둔다
+ * 숫자로 바로 바꾸면 `9.` 처럼 **입력 도중의 상태**를 표현할 수 없다(소수점을 찍는 순간
+ * 사라진다). 커밋할 때 한 번만 숫자로 해석한다.
+ */
+function CommissionCell({
+  seller,
+  value,
+  draft,
+  onDraftChange,
+  onCommit,
+}: {
+  seller: Seller;
+  value: number | null;
+  draft: string | undefined;
+  onDraftChange: (next: string) => void;
+  onCommit: () => void;
+}) {
+  if (value === null) return <>{rate(null)}</>;
+
+  return (
+    <span className="flex items-center gap-2">
+      <Input
+        size="small"
+        className="w-16"
+        inputMode="decimal"
+        aria-label={`${seller.name} 수수료율`}
+        value={draft ?? String(value)}
+        onChange={(event) => onDraftChange(event.target.value)}
+        /* Enter 로도 확정된다 — 버튼까지 가지 않고 끝낼 수 있어야 한다 */
+        onKeyDown={(event) => {
+          if (event.key === "Enter") onCommit();
+        }}
+      />
+      <span className="body-small text-text-sub">%</span>
+      {/* 원본 `btn line sm` — 우리의 secondary small 과 같은 자리다 */}
+      <Button variant="secondary" size="small" onClick={onCommit}>
+        수정
+      </Button>
+    </span>
+  );
+}
+
 export function SellerListPage({
   navOpen,
   onNavOpenChange,
@@ -152,15 +309,34 @@ export function SellerListPage({
 }: SellerListPageProps) {
   const { toast } = useToast();
 
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState(DEFAULT_FILTER);
   const [hygieneFilter, setHygieneFilter] = useState(HYGIENE_FILTERS[0].value);
   const [dateField, setDateField] = useState(DATE_FIELDS[0].value);
   const [searchField, setSearchField] = useState(SEARCH_FIELDS[0].value);
   const [keyword, setKeyword] = useState("");
   const [period, setPeriod] = useState<DateRange | undefined>();
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
 
-  const [preview, setPreview] = useState<Seller | null>(null);
+  /**
+   * 셀러 상세로 이동 — 원본의 "셀러명 클릭 → `/sellers/{id}`".
+   * 한때 이 자리에 4항목짜리 미리보기 모달이 있었는데, **상세 화면이 생겨** 걷어냈다.
+   */
+  const openDetail = (seller: Seller) =>
+    onNavSelect(`/sellers/${encodeURIComponent(seller.id)}`);
+  const [sort, setSort] = useState<SortState | null>(null);
+
+  /*
+    수수료율 인라인 수정(원본 `feecell`) — 실 API 를 붙이기 전까지는 화면 안에서만 산다.
+    **원본 값을 덮어쓰지 않고 덮개(overlay)로 얹는다** — 초기화·새로고침이 원본으로
+    되돌릴 수 있어야 하고, `SELLERS` 는 모듈 상수라 직접 바꾸면 다른 화면까지 오염된다.
+  */
+  const [commissions, setCommissions] = useState<Record<string, number>>({});
+  /** 입력 중인 값(문자열) — 커밋 전까지는 표시용 문자열 그대로 둔다 */
+  const [draft, setDraft] = useState<Record<string, string>>({});
+
+  /* 실 API 를 붙이면 이 한 줄을 fetch 상태로 바꾼다 (`/sellers?preview=loading`) */
+  const status = asStatus(useSearchParams().get("preview"));
 
   /* 검색 조건이 "어느 값을 훑을지"를 정한다 — 뼈대는 필드 이름을 모른다 */
   const pick =
@@ -187,9 +363,59 @@ export function SellerListPage({
     );
   });
 
-  const filtered = scoped.filter(
-    (seller) => filter === "all" || seller.status === filter,
-  );
+  const matched = scoped.filter((seller) => seller.status === filter);
+
+  /*
+    정렬은 **페이지를 나누기 전에** 한다. 복사한 뒤 정렬하는 이유는 `SELLERS` 가
+    모듈 상수이기 때문이다 — 제자리 정렬하면 "정렬 해제"가 원래 순서로 못 돌아간다.
+  */
+  const filtered = sort
+    ? [...matched].sort((a, b) => {
+        const order = COMPARATORS[sort.key](a, b);
+        return sort.direction === "asc" ? order : -order;
+      })
+    : matched;
+
+  const toggleSort = (key: SortKey) => {
+    setSort((current) => nextSort(current, key));
+    setPage(1);
+  };
+
+  const directionOf = (key: SortKey) =>
+    sort?.key === key ? sort.direction : undefined;
+
+  /** 지금 화면에 보이는 수수료율 — 수정한 값이 있으면 그것, 없으면 원본 */
+  const commissionOf = (seller: Seller) =>
+    commissions[seller.id] ?? seller.commission;
+
+  /**
+   * 수수료율 커밋. 원본은 셀에서 고치고 [수정] 을 눌러 확정한다.
+   * 숫자가 아니거나 범위를 벗어나면 **되돌리고 알린다** — 조용히 버리면
+   * 사용자는 고쳐졌다고 믿는다.
+   */
+  const commitCommission = (seller: Seller) => {
+    const raw = draft[seller.id];
+    if (raw === undefined) return;
+
+    const value = Number(raw.trim());
+    if (!raw.trim() || Number.isNaN(value) || value < 0 || value > 100) {
+      setDraft((prev) => {
+        const next = { ...prev };
+        delete next[seller.id];
+        return next;
+      });
+      toast("수수료율은 0~100 사이의 숫자로 입력해 주세요");
+      return;
+    }
+
+    setCommissions((prev) => ({ ...prev, [seller.id]: value }));
+    setDraft((prev) => {
+      const next = { ...prev };
+      delete next[seller.id];
+      return next;
+    });
+    toast(`${seller.name} 수수료율을 ${value}% 로 변경했습니다`);
+  };
 
   /*
    * 원본 상태 대시(`StatDash`)가 하던 일 — 상태별 건수를 클릭 없이 보여주고,
@@ -198,15 +424,9 @@ export function SellerListPage({
   const dash = FILTERS.map((item) => ({
     value: item.value,
     label: item.label,
-    count:
-      item.value === "all"
-        ? scoped.length
-        : scoped.filter((seller) => seller.status === item.value).length,
-    /* 원본은 상태 카드에 `tip`(statusTips)을 달아 뜻을 설명한다. 전체에는 없다 */
-    tip:
-      item.value === "all"
-        ? undefined
-        : STATUS_META[item.value as SellerStatus].description,
+    count: scoped.filter((seller) => seller.status === item.value).length,
+    /* 원본은 상태 카드마다 `tip`(statusTips)을 달아 뜻을 설명한다 */
+    tip: STATUS_META[item.value as SellerStatus].description,
   }));
 
   const selectStatus = (value: string) => {
@@ -222,25 +442,26 @@ export function SellerListPage({
   const showExitDate = filter === "closed";
 
   /* 필터로 결과가 줄면 현재 페이지가 범위를 벗어날 수 있다 — 마지막 페이지로 당긴다 */
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const paged = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
   );
 
   /* 초기화는 **한 곳에서만 정의한다** — 툴바와 빈 상태가 서로 다르게 되돌리면 안 된다 */
   const resetFilters = () => {
-    setFilter("all");
+    setFilter(DEFAULT_FILTER);
     setHygieneFilter(HYGIENE_FILTERS[0].value);
     setDateField(DATE_FIELDS[0].value);
     setSearchField(SEARCH_FIELDS[0].value);
     setKeyword("");
     setPeriod(undefined);
     setPage(1);
+    setSort(null);
+    /* 입력하다 만 값은 되돌린다 — 확정한 수수료율(`commissions`)은 남긴다 */
+    setDraft({});
   };
-
-  const previewStatus = preview ? STATUS_META[preview.status] : null;
 
   return (
     <AppShell
@@ -261,8 +482,8 @@ export function SellerListPage({
         상태 대시 — 원본 `StatDash`. 건수를 보여주면서 그 자체가 상태 필터다.
         흰 카드(그룹) 안에 연한 그레이 상자(항목) 넷이 들어간다.
       */}
-      <Card>
-        <CardBody>
+      <Card variant="soft" aria-busy={isBusy(status)}>
+        <CardBody className={dimWhile(status)}>
           {/*
             건수 대시 = 필터. 상자의 시각 규격 · 선택/hover 축 분리 · 접근가능 이름
             조립 · 툴팁 분기는 전부 `StatGrid` 가 맡는다 (docs/DESIGN-dashboard.md §D4).
@@ -286,6 +507,13 @@ export function SellerListPage({
 
       {/* 셀러 목록 — DataTableShell 이 §7-1 셸 구조를 책임진다 */}
       <DataTableShell
+        variant="soft"
+        /* 남는 세로 공간을 표가 흡수한다 — 페이지네이션은 셸 맨 아래에 붙는다 */
+        fill
+        className="flex-1"
+        bodyClassName={dimWhile(status)}
+        isLoading={status === "loading"}
+        loading={loadingTable}
         toolbarStart={
           /* 원본 `toolsLeft` 는 엑셀 다운로드 하나다 — 툴바 좌측이 그 자리다 */
           <Button
@@ -319,6 +547,7 @@ export function SellerListPage({
             />
             <DatePicker
               mode="range"
+              presets={PERIOD_PRESETS}
               value={period}
               onChange={(next) => {
                 setPeriod(next);
@@ -363,7 +592,7 @@ export function SellerListPage({
             </TextButton>
           </>
         }
-        isEmpty={filtered.length === 0}
+        isEmpty={status === "empty" || filtered.length === 0}
         empty={
           <EmptyState
             size="table"
@@ -387,6 +616,17 @@ export function SellerListPage({
                 총 {filtered.length}건
               </span>
             }
+            end={
+              /* 원본 표 하단의 페이지당 개수 셀렉트. 바꾸면 1페이지로 돌아간다 */
+              <PaginationSizeSelect
+                sizes={PAGE_SIZES}
+                value={pageSize}
+                onSizeChange={(size) => {
+                  setPageSize(size);
+                  setPage(1);
+                }}
+              />
+            }
           />
         }
       >
@@ -403,6 +643,7 @@ export function SellerListPage({
           */}
           {showExitDate ? (
             <colgroup>
+              <col className="w-16" />
               <col className="w-35" />
               <col className="w-25" />
               <col className="w-23" />
@@ -416,6 +657,7 @@ export function SellerListPage({
             </colgroup>
           ) : (
             <colgroup>
+              <col className="w-16" />
               <col className="w-35" />
               <col className="w-25" />
               <col className="w-23" />
@@ -427,20 +669,48 @@ export function SellerListPage({
               <col className="w-18" />
             </colgroup>
           )}
-          <TableHead>
+          {/*
+            헤더는 표 래퍼 안에서 스크롤될 때 위에 붙는다(`fill` 로 표가 늘어나
+            행이 많으면 여기서 세로 스크롤이 생긴다).
+          */}
+          <TableHead sticky>
             <TableRow>
-              {/* 식별자가 첫 열이다 — 무엇의 행인지가 가장 먼저 읽혀야 한다 */}
+              {/* 원본 표의 첫 열. 레코드에 붙은 번호라 정렬·필터와 무관하다 */}
+              <TableTh>No</TableTh>
               <TableTh>셀러명</TableTh>
               <TableTh align="center">위생인증</TableTh>
               <TableTh>대표명</TableTh>
               <TableTh>연락처</TableTh>
               <TableTh align="center">상태</TableTh>
-              {/* 숫자 열은 우측 정렬 — 자릿수를 세로로 맞춰 비교한다 (§7 · 원본도 right) */}
+              {/*
+                ⚠️ 수치 열도 **좌측 정렬**이다 — 이 저장소는 회계 관행을 알면서
+                좌측을 택했다(§7-2 · §D6-4). 한때 여기 "우측 정렬" 주석이 달려
+                있었는데 코드와 어긋난 설명이었다.
+              */}
               <TableTh>수수료율</TableTh>
-              <TableTh>입점일</TableTh>
+              {/* 원본 헤더에 ↕ 가 붙은 세 열만 정렬한다 */}
+              <TableTh
+                sortable
+                sortDirection={directionOf("date")}
+                onSort={() => toggleSort("date")}
+              >
+                입점일
+              </TableTh>
               {showExitDate ? <TableTh>퇴점일</TableTh> : null}
-              <TableTh>상품수</TableTh>
-              <TableTh>평점</TableTh>
+              <TableTh
+                sortable
+                sortDirection={directionOf("products")}
+                onSort={() => toggleSort("products")}
+              >
+                상품수
+              </TableTh>
+              <TableTh
+                sortable
+                sortDirection={directionOf("rating")}
+                onSort={() => toggleSort("rating")}
+              >
+                평점
+              </TableTh>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -448,6 +718,7 @@ export function SellerListPage({
               const status = STATUS_META[seller.status];
               return (
                 <TableRow key={seller.id}>
+                  <TableTd className="tabular-nums">{seller.no}</TableTd>
                   {/*
                     원본에서 셀러명은 `/sellers/{id}` 로 가는 링크다(`className: "linkish"`).
                     행 전체를 누르게 만들지 않는다 — 원본에 없는 어포던스다.
@@ -455,7 +726,7 @@ export function SellerListPage({
                   <TableTd>
                     <TextButton
                       className="max-w-full"
-                      onClick={() => setPreview(seller)}
+                      onClick={() => openDetail(seller)}
                     >
                       <span className="truncate">
                         {seller.name}
@@ -480,68 +751,43 @@ export function SellerListPage({
                     )}
                   </TableTd>
                   <TableTd>{seller.ceo}</TableTd>
-                  <TableTd>{seller.phone}</TableTd>
+                  <TableTd className="tabular-nums">{seller.phone}</TableTd>
                   <TableTd align="center">
                     <Tag tone={status.tone} dot>
                       {status.label}
                     </Tag>
                   </TableTd>
-                  <TableTd>{rate(seller.commission)}</TableTd>
+                  <TableTd>
+                    <CommissionCell
+                      seller={seller}
+                      value={commissionOf(seller)}
+                      draft={draft[seller.id]}
+                      onDraftChange={(next) =>
+                        setDraft((prev) => ({ ...prev, [seller.id]: next }))
+                      }
+                      onCommit={() => commitCommission(seller)}
+                    />
+                  </TableTd>
                   {/* 원본 `ymd` — 날짜만 낸다 */}
-                  <TableTd>{ymd(seller.date)}</TableTd>
+                  <TableTd className="tabular-nums">{ymd(seller.date)}</TableTd>
                   {showExitDate ? (
-                    <TableTd>{ymd(seller.exitDate)}</TableTd>
+                    <TableTd className="tabular-nums">
+                      {ymd(seller.exitDate)}
+                    </TableTd>
                   ) : null}
                   {/* 원본 `productCount.toLocaleString("ko-KR")` — 단위를 붙이지 않는다 */}
-                  <TableTd>{num(seller.products)}</TableTd>
-                  <TableTd>{score(seller.rating)}</TableTd>
+                  <TableTd className="tabular-nums">
+                    {num(seller.products)}
+                  </TableTd>
+                  <TableTd className="tabular-nums">
+                    {score(seller.rating)}
+                  </TableTd>
                 </TableRow>
               );
             })}
           </TableBody>
         </Table>
       </DataTableShell>
-
-      {/*
-        셀러 미리보기 — 원본의 `/sellers/{id}` 자리를 받는 4항목짜리 빠른 확인용이다.
-        제목을 "셀러 상세"로 두지 않는다. 상세 화면이 생기면 같은 이름의 화면이 둘이 된다.
-      */}
-      <Modal open={preview !== null} onClose={() => setPreview(null)}>
-        <ModalHeader title="셀러 미리보기" description={preview?.name} />
-        <ModalBody>
-          <InfoList>
-            {/*
-              **셀러 코드는 표에 없다** — 정산·문의를 주고받을 때 쓰는 식별자라
-              행을 열었을 때 가장 먼저 필요하다.
-            */}
-            <InfoItem label="셀러 코드">{preview?.id}</InfoItem>
-            <InfoItem label="대표명">{preview?.ceo}</InfoItem>
-            <InfoItem label="연락처">{preview?.phone}</InfoItem>
-            <InfoItem label="수수료율">
-              {preview ? rate(preview.commission) : ""}
-            </InfoItem>
-          </InfoList>
-          {/*
-            상태만 보여주고 끝내지 않는다 — "종결 상태라 되돌아가지 않습니다" 같은
-            **되돌림 가능 여부**가 곧 조치 판단의 근거다 (원본 `statusTips` 문구 그대로).
-          */}
-          {previewStatus ? (
-            <div className="flex flex-col gap-2">
-              <Tag tone={previewStatus.tone} dot>
-                {previewStatus.label}
-              </Tag>
-              <p className="body-small text-text-sub">
-                {previewStatus.description}
-              </p>
-            </div>
-          ) : null}
-        </ModalBody>
-        {/*
-          ⚠️ 푸터를 두지 않는다. 원본 셀러 목록에는 행 액션이 하나도 없다 —
-          수수료율 조정·퇴점 처리는 셀러 상세 화면의 일이라 여기에 버튼을 만들면
-          없는 기능을 지어내는 것이다.
-        */}
-      </Modal>
     </AppShell>
   );
 }

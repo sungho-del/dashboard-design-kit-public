@@ -25,6 +25,7 @@ import { BabycubeDashboardPage } from "./pages/babycube/DashboardPage";
 import { FaqListPage } from "./pages/babycube/FaqListPage";
 import { GrowthStageListPage } from "./pages/babycube/GrowthStageListPage";
 import { HolidayListPage } from "./pages/babycube/HolidayListPage";
+import { MemberDetailPage } from "./pages/babycube/MemberDetailPage";
 import { MemberListPage } from "./pages/babycube/MemberListPage";
 import { NoticeListPage } from "./pages/babycube/NoticeListPage";
 import { OrderCancelListPage } from "./pages/babycube/OrderCancelListPage";
@@ -38,7 +39,9 @@ import { ProductListPage } from "./pages/babycube/ProductListPage";
 import { RentDepositListPage } from "./pages/babycube/RentDepositListPage";
 import { ReviewListPage } from "./pages/babycube/ReviewListPage";
 import { ScriptSettingsPage } from "./pages/babycube/ScriptSettingsPage";
+import { SellerDetailPage } from "./pages/babycube/SellerDetailPage";
 import { SellerListPage } from "./pages/babycube/SellerListPage";
+import { SellerReviewDetailPage } from "./pages/babycube/SellerReviewDetailPage";
 import { SellerReviewPage } from "./pages/babycube/SellerReviewPage";
 import { SellerSettlementPage } from "./pages/babycube/SellerSettlementPage";
 import { SettingsPage } from "./pages/babycube/SettingsPage";
@@ -150,6 +153,35 @@ const ROUTES: Record<string, ComponentType<NavProps>> = {
   "/_classon/students": StudentListPage,
 };
 
+/**
+ * 상세 화면 — **경로 뒤에 식별자가 붙는다**(`/members/{id}`).
+ *
+ * 위 `ROUTES` 는 정확히 일치하는 경로만 찾으므로 여기 접두사 맵을 한 벌 더 둔다.
+ * 순서는 상관없다 — 접두사끼리 겹치지 않기 때문이다(겹치면 더 긴 쪽을 먼저 둘 것).
+ *
+ * ## 왜 react-router 를 넣지 않는가
+ * "가져다 쓰는 쪽에 라우터 선택을 강요하지 않는다"는 이 저장소의 원칙 때문이다
+ * (`src/lib/router.ts` 주석). 상세 화면 하나 때문에 의존성과 API 를 고정하지 않는다.
+ *
+ * ## id 는 화면이 직접 읽는다
+ * 라우터가 파라미터를 파싱해 props 로 내려주지 않는다 — 그러려면 화면 계약
+ * (`{navOpen, onNavOpenChange, activeNav, onNavSelect}`)이 화면마다 갈라진다.
+ * 상세 화면은 `usePathname()` 에서 마지막 구간을 직접 떼어 쓴다.
+ */
+const DETAIL_ROUTES: {
+  prefix: string;
+  parent: string;
+  screen: ComponentType<NavProps>;
+}[] = [
+  { prefix: "/members/", parent: "/members", screen: MemberDetailPage },
+  { prefix: "/sellers/", parent: "/sellers", screen: SellerDetailPage },
+  {
+    prefix: "/seller-review/",
+    parent: "/seller-review",
+    screen: SellerReviewDetailPage,
+  },
+];
+
 /** 없는 경로에서 보여줄 화면 — 저장소 색인이 가장 덜 당황스럽다 */
 const FALLBACK = ScreenIndexPage;
 
@@ -157,14 +189,23 @@ export function App() {
   const [navOpen, setNavOpen] = useState(true);
   const pathname = usePathname();
 
+  /*
+    상세 화면에서도 GNB 는 **부모 항목**이 선택된 채로 남아야 한다.
+    `activeNav` 에 `/members/sujin...` 을 그대로 넘기면 일치하는 GNB 항목이 없어
+    사이드바에서 아무것도 강조되지 않는다 — "내가 어디에 있는지"가 사라진다.
+  */
+  const detail = DETAIL_ROUTES.find((route) =>
+    pathname.startsWith(route.prefix),
+  );
+
   const nav = {
     navOpen,
     onNavOpenChange: setNavOpen,
-    activeNav: pathname,
+    activeNav: detail?.parent ?? pathname,
     onNavSelect: navigate,
   };
 
-  const Screen = ROUTES[pathname] ?? FALLBACK;
+  const Screen = ROUTES[pathname] ?? detail?.screen ?? FALLBACK;
 
   return (
     <ToastProvider position="bottom">

@@ -68,7 +68,6 @@ const bar = () => screen.getByRole("group", { name: "선택한 신청 일괄 심
 const queryBar = () =>
   screen.queryByRole("group", { name: "선택한 신청 일괄 심사" });
 
-const sheet = () => screen.getByRole("dialog", { name: "입점 신청 미리보기" });
 const approveModal = () =>
   screen.getByRole("dialog", { name: /입점 심사 일괄 승인/ });
 const rejectModal = () =>
@@ -80,10 +79,10 @@ function bodyRows(): HTMLElement[] {
   return within(table).getAllByRole("row").slice(1);
 }
 
-/** 남아 있는 신청의 "셀러명" 셀(2번째 열)만 뽑는다 */
+/** 남아 있는 신청의 "셀러명" 셀만 뽑는다 (선택·No 다음 세 번째 칸) */
 function visibleNames(): string[] {
   return bodyRows().map(
-    (row) => within(row).getAllByRole("cell")[1].textContent ?? "",
+    (row) => within(row).getAllByRole("cell")[2].textContent ?? "",
   );
 }
 
@@ -93,8 +92,8 @@ function rowOf(name: string): HTMLElement {
 
 /**
  * 열 순서(원본 컬럼 배열 그대로):
- *   0 선택 · 1 셀러명 · 2 대표명 · 3 연락처 · 4 유형 · 5 사업자 · 6 신청일 ·
- *   [7 승인일 | 7 반려일] · 상태
+ *   0 선택 · 1 No · 2 셀러명 · 3 대표명 · 4 연락처 · 5 유형 · 6 사업자 · 7 신청일 ·
+ *   [8 승인일 | 8 반려일] · 상태
  * 승인일·반려일은 그 상태로 좁혔을 때만 끼어든다.
  */
 const cellText = (name: string, index: number) =>
@@ -114,7 +113,8 @@ const rowCheckbox = (name: string) =>
 
 const selectAll = () => screen.getByRole("checkbox", { name: "전체 선택" });
 
-const searchBox = () => screen.getByRole("textbox");
+/** 검색어 입력. 자리표시자로 못 박는다 — 화면에 다른 입력이 늘어날 수 있다 */
+const searchBox = () => screen.getByPlaceholderText("검색어 입력");
 
 /**
  * 상태 대시 상자. 접근가능 이름을 `aria-label` 로 못 박아 두었으므로
@@ -139,13 +139,25 @@ async function chooseOption(
 
 describe("SellerReviewPage (S04 입점 심사)", () => {
   describe("상태 대시 — 원본 StatDash", () => {
-    it("전체와 상태 3종의 건수를 클릭 없이 보여준다", () => {
+    /*
+     * ⚠️ 원본에는 **[전체] 카드가 없다** — `sellerReview.dash` 주석이
+     * "목록은 항상 한 상태만 보여준다"로 못 박는다. 되살리려는 변경을 이 블록이 막는다.
+     */
+    it("상태 3종만 카드로 세운다 — 전체 카드는 없다", () => {
       renderPage();
 
-      expect(statusBox("전체 7건")).toBeVisible();
       expect(statusBox("승인요청 3건")).toBeVisible();
       expect(statusBox("승인 2건")).toBeVisible();
       expect(statusBox("반려 2건")).toBeVisible();
+      expect(screen.queryByRole("button", { name: /^전체 / })).toBeNull();
+    });
+
+    it("화면은 [승인요청] 이 선택된 채로 열린다 (원본 기본값)", () => {
+      renderPage();
+
+      expect(statusBox("승인요청 3건")).toHaveAttribute("aria-pressed", "true");
+      /* 심사할 건만 보이므로 처리 완료 건은 기본 화면에 없다 */
+      expect(visibleNames()).not.toContain("맘스케어");
     });
 
     it("대시 상자가 곧 상태 필터다", async () => {
@@ -196,6 +208,7 @@ describe("SellerReviewPage (S04 입점 심사)", () => {
 
       expect(headers).toEqual([
         "", // 선택 체크박스 열 (접근가능 이름은 체크박스가 갖는다)
+        "No",
         "셀러명",
         "대표명",
         "연락처",
@@ -227,7 +240,7 @@ describe("SellerReviewPage (S04 입점 심사)", () => {
       expect(
         screen.queryByRole("columnheader", { name: "반려일" }),
       ).not.toBeInTheDocument();
-      expect(cellText("소복이", 7)).toBe("2026.08.16");
+      expect(cellText("소복이", 8)).toBe("2026.08.16");
 
       await user.click(statusBox("반려 2건"));
       expect(
@@ -236,7 +249,7 @@ describe("SellerReviewPage (S04 입점 심사)", () => {
       expect(
         screen.queryByRole("columnheader", { name: "승인일" }),
       ).not.toBeInTheDocument();
-      expect(cellText("맘스케어", 7)).toBe("2026.08.13");
+      expect(cellText("맘스케어", 8)).toBe("2026.08.13");
     });
 
     it("조건부 열이 붙고 빠져도 colgroup 이 컬럼 수와 맞는다", async () => {
@@ -258,22 +271,22 @@ describe("SellerReviewPage (S04 입점 심사)", () => {
     it("렌트·판매를 함께 하겠다는 신청은 배지가 둘 뜬다", () => {
       renderPage();
 
-      const kinds = within(rowOf("리틀그린")).getAllByRole("cell")[4];
+      const kinds = within(rowOf("리틀그린")).getAllByRole("cell")[5];
       expect(within(kinds).getByText("렌트")).toBeVisible();
       expect(within(kinds).getByText("판매")).toBeVisible();
 
       // 한쪽만 신청한 건은 배지가 하나다
-      expect(cellText("포근한잠", 4)).toBe("렌트");
+      expect(cellText("포근한잠", 5)).toBe("렌트");
     });
 
     /** 신청일만 시각까지 낸다(원본 `ymdhms`) — 같은 날 접수 순서가 곧 심사 순서다 */
     it("신청일은 시각까지, 승인일·반려일은 날짜만 낸다", async () => {
       const { user } = renderPage();
 
-      expect(cellText("포근한잠", 6)).toBe("2026.08.22 10:14");
+      expect(cellText("포근한잠", 7)).toBe("2026.08.22 10:14");
 
       await user.click(statusBox("승인 2건"));
-      expect(cellText("소복이", 7)).toBe("2026.08.16");
+      expect(cellText("소복이", 8)).toBe("2026.08.16");
     });
   });
 
@@ -310,7 +323,9 @@ describe("SellerReviewPage (S04 입점 심사)", () => {
 
       await user.click(screen.getByRole("button", { name: "필터를 초기화" }));
 
-      expect(bodyRows()).toHaveLength(4);
+      /* 상태도 기본값([승인요청] 3건)으로 돌아온다 */
+      expect(bodyRows()).toHaveLength(3);
+      expect(statusBox("승인요청 3건")).toHaveAttribute("aria-pressed", "true");
       expect(searchBox()).toHaveValue("");
       expect(selectOf("검색 조건")).toHaveTextContent("셀러명");
       expect(selectOf("기간 기준")).toHaveTextContent("신청일");
@@ -322,24 +337,31 @@ describe("SellerReviewPage (S04 입점 심사)", () => {
    * 원본의 "승인요청 상태인 신청만 심사할 수 있습니다"를 **UI 로** 강제한다.
    */
   describe("행 선택", () => {
-    it("승인요청 건만 고를 수 있다", () => {
+    it("승인요청 목록의 행은 모두 고를 수 있다", () => {
       renderPage();
 
       expect(rowCheckbox("포근한잠")).toBeEnabled();
       expect(rowCheckbox("하루베베")).toBeEnabled();
       expect(rowCheckbox("리틀그린")).toBeEnabled();
-      // 소복이는 이미 승인된 건이라 다시 심사할 수 없다
-      expect(rowCheckbox("소복이")).toBeDisabled();
     });
 
-    it("전체 선택은 심사 가능한 행만 고른다", async () => {
+    /** 처리 완료 건은 다시 심사할 수 없다 — 그 상태로 좁혀 보면 확인된다 */
+    it("이미 승인된 건은 고를 수 없다", async () => {
+      const { user } = renderPage();
+
+      await user.click(statusBox("승인 2건"));
+
+      expect(rowCheckbox("소복이")).toBeDisabled();
+      expect(selectAll()).toBeDisabled();
+    });
+
+    it("전체 선택은 지금 페이지의 심사 가능한 행을 고른다", async () => {
       const { user } = renderPage();
 
       await user.click(selectAll());
 
       expect(rowCheckbox("포근한잠")).toBeChecked();
       expect(rowCheckbox("리틀그린")).toBeChecked();
-      expect(rowCheckbox("소복이")).not.toBeChecked();
       expect(within(bar()).getByText("3건 선택됨")).toBeVisible();
     });
 
@@ -472,14 +494,21 @@ describe("SellerReviewPage (S04 입점 심사)", () => {
       );
 
       expect(screen.getByText("1건 승인 처리되었습니다.")).toBeVisible();
-      expect(within(rowOf("포근한잠")).getByText("승인")).toBeVisible();
-      expect(rowCheckbox("포근한잠")).toBeDisabled();
       // 처리된 건은 선택에서도 빠져 바가 닫힌다
       expect(queryBar()).not.toBeInTheDocument();
 
-      // 승인일이 채워졌다 — 승인 필터로 좁히면 그 열이 보인다
+      /*
+        목록은 한 상태만 보여주므로(원본 정책) **승인된 건은 [승인요청] 목록에서 빠진다.**
+        건수 카드도 함께 옮겨간다 — 3 → 2 / 2 → 3.
+      */
+      expect(visibleNames()).not.toContain("포근한잠");
+      expect(statusBox("승인요청 2건")).toBeVisible();
+
+      // 승인 쪽으로 옮겨가 있고, 다시 심사할 수 없으며, 승인일이 채워졌다
       await user.click(statusBox("승인 3건"));
-      expect(cellText("포근한잠", 7)).toBe("2026.08.24");
+      expect(within(rowOf("포근한잠")).getByText("승인")).toBeVisible();
+      expect(rowCheckbox("포근한잠")).toBeDisabled();
+      expect(cellText("포근한잠", 8)).toBe("2026.08.24");
     });
 
     it("취소하면 아무 일도 일어나지 않는다", async () => {
@@ -558,6 +587,10 @@ describe("SellerReviewPage (S04 입점 심사)", () => {
       );
 
       expect(screen.getByText("1건 반려 처리되었습니다.")).toBeVisible();
+      /* 반려된 건도 [승인요청] 목록에서 빠진다 — 목록은 한 상태만 보여준다 */
+      expect(visibleNames()).not.toContain("포근한잠");
+
+      await user.click(statusBox("반려 3건"));
       expect(within(rowOf("포근한잠")).getByText("반려")).toBeVisible();
       expect(rowCheckbox("포근한잠")).toBeDisabled();
     });
@@ -620,35 +653,130 @@ describe("SellerReviewPage (S04 입점 심사)", () => {
   });
 
   describe("미리보기 모달", () => {
-    it("셀러명을 누르면 표에 없는 정보까지 보여준다", async () => {
-      const { user } = renderPage();
+    /*
+     * 한때 셀러명이 **미리보기 모달**을 열었다. 원본은 `/seller-review/{id}` 상세로
+     * 나가는 링크이고, 이제 그 화면이 실제로 있으므로 모달을 걷어내고 이동으로 바꿨다.
+     * (원본 상태 안내도 "심사는 **상세에서** 서류를 보고 처리합니다"라고 말한다)
+     */
+    it("셀러명을 누르면 입점 심사 상세로 이동한다", async () => {
+      const { user, onNavSelect } = renderPage();
 
       await user.click(screen.getByRole("button", { name: "리틀그린" }));
 
-      expect(within(sheet()).getByText("오지안")).toBeVisible();
-      expect(within(sheet()).getByText("010-8852-1163")).toBeVisible();
-      expect(
-        within(sheet()).getByText(
-          "입점 신청이 접수돼 심사를 기다리는 건입니다. 심사는 상세에서 서류를 보고 처리합니다.",
-        ),
-      ).toBeVisible();
+      expect(onNavSelect).toHaveBeenCalledWith(
+        expect.stringMatching(/^\/seller-review\/A-2026-/),
+      );
     });
 
     /**
      * ⚠️ 원본에 없어서 걷어낸 것 — 되살리지 말 것.
      * 원본 목록의 심사 경로는 **선택 → 일괄 처리** 하나뿐이다.
      */
-    it("모달에 단건 심사 버튼을 두지 않는다", async () => {
+    /** 원본 목록의 심사 경로는 **선택 → 일괄 처리** 하나뿐이다 (단건은 상세의 일) */
+    it("목록에 단건 심사 버튼을 두지 않는다", async () => {
       const { user } = renderPage();
 
       await user.click(screen.getByRole("button", { name: "리틀그린" }));
 
       expect(
-        within(sheet()).queryByRole("button", { name: /승인 처리/ }),
+        screen.queryByRole("button", { name: /^승인 처리$/ }),
       ).not.toBeInTheDocument();
       expect(
-        within(sheet()).queryByRole("button", { name: /반려 처리/ }),
+        screen.queryByRole("button", { name: /^반려 처리$/ }),
       ).not.toBeInTheDocument();
     });
+  });
+});
+
+/* -------------------------------------------------------------------------
+ * 정렬 · 페이지당 개수 · 데이터 상태 (2026-09-21 원본 대조로 추가)
+ * ---------------------------------------------------------------------- */
+
+describe("정렬", () => {
+  const header = (name: string) => screen.getByRole("columnheader", { name });
+
+  /** 원본 표에서 ↕ 가 붙은 열은 신청일 하나다 */
+  it("신청일만 정렬할 수 있다", () => {
+    renderPage();
+
+    expect(header("신청일")).toHaveAttribute("aria-sort", "none");
+    for (const name of ["No", "셀러명", "대표명", "사업자"]) {
+      expect(header(name)).not.toHaveAttribute("aria-sort");
+    }
+  });
+
+  it("오름 → 내림 → 해제 순으로 돌고, 해제하면 원래 순서로 돌아온다", async () => {
+    const { user } = renderPage();
+    const original = visibleNames();
+    const sortButton = () => within(header("신청일")).getByRole("button");
+
+    await user.click(sortButton());
+    expect(header("신청일")).toHaveAttribute("aria-sort", "ascending");
+    const asc = visibleNames();
+    // 신청일 오름차순이면 가장 오래된 건이 맨 위다
+    expect(asc).not.toEqual(original);
+
+    await user.click(sortButton());
+    expect(header("신청일")).toHaveAttribute("aria-sort", "descending");
+    expect(visibleNames()).toEqual([...asc].reverse());
+
+    await user.click(sortButton());
+    expect(header("신청일")).toHaveAttribute("aria-sort", "none");
+    expect(visibleNames()).toEqual(original);
+  });
+
+  /** No 는 레코드 번호라 정렬해도 그 신청 건에 붙어 있다 */
+  it("정렬해도 No 는 행 번호로 다시 매겨지지 않는다", async () => {
+    const { user } = renderPage();
+
+    const noOf = (name: string) =>
+      within(rowOf(name)).getAllByRole("cell")[1].textContent;
+    const before = noOf("포근한잠");
+
+    await user.click(
+      within(screen.getByRole("columnheader", { name: "신청일" })).getByRole(
+        "button",
+      ),
+    );
+
+    expect(noOf("포근한잠")).toBe(before);
+  });
+});
+
+describe("페이지당 개수", () => {
+  it("개수를 바꾸면 한 페이지에 담기는 행 수가 달라진다", async () => {
+    const { user } = renderPage();
+
+    await user.click(statusBox("승인 2건"));
+    await user.click(screen.getByRole("combobox", { name: "페이지당 개수" }));
+    await user.click(screen.getByRole("option", { name: "10개씩 보기" }));
+
+    expect(bodyRows()).toHaveLength(2);
+  });
+});
+
+describe("데이터 상태 미리보기 (?preview=)", () => {
+  const renderAt = (url: string) => {
+    window.history.replaceState(null, "", url);
+    return renderPage();
+  };
+
+  afterEach(() => window.history.replaceState(null, "", "/seller-review"));
+
+  it("loading — 툴바는 남기고 본문만 스켈레톤이다", () => {
+    renderAt("/seller-review?preview=loading");
+
+    expect(screen.getByRole("button", { name: "엑셀 다운로드" })).toBeVisible();
+    expect(
+      document.body.querySelectorAll("[data-skeleton]").length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText("해당 조건의 신청 건이 없습니다")).toBeNull();
+  });
+
+  it("empty — 빈 상태를 보여주고 스켈레톤은 없다", () => {
+    renderAt("/seller-review?preview=empty");
+
+    expect(document.body.querySelectorAll("[data-skeleton]")).toHaveLength(0);
+    expect(bodyRows()).toHaveLength(0);
   });
 });
