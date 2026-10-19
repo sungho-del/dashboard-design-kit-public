@@ -47,7 +47,6 @@ import {
   CHECK_LABEL,
   DASH_UNIT,
   DATE_FIELDS,
-  DETAIL_PENDING,
   DISPLAY_FILTERS,
   DISPLAY_META,
   EMPTY_DESCRIPTION,
@@ -127,7 +126,7 @@ import { ProductRejectModal } from "./shared/ProductRejectModal";
  *
  * ## 퍼블 범위
  * 승인·반려·엑셀은 **알림만** 띄운다. 행의 상태·건수는 바뀌지 않는다(저장은 개발 영역).
- * 상품명·[수정]의 목적지(상품 상세)는 아직 없어 알림만 띄운다(`DETAIL_PENDING`).
+ * 상품명·[수정]은 상품 상세(`/products/{상품코드}`)로 간다(원본 — 둘 다 같은 수정 폼).
  *
  * ## 원본과 일부러 다른 것
  * - **조건을 바꾸면 선택이 풀린다**(상태 카드·유형·카테고리·기간·검색). 원본은 선택을 남겨
@@ -883,7 +882,7 @@ export function ProductListPage({
                         {product.seller}
                       </TableTd>
                       <TableTd className={frozenTd(3)}>{product.id}</TableTd>
-                      {/* 원본: 상품명은 상품 상세(수정 폼)로 가는 링크 — 화면이 생기기 전까지 알림 */}
+                      {/* 원본: 상품명은 상품 상세(수정 폼)로 가는 링크 */}
                       <TableTd className={frozenTd(4)}>
                         {/*
                           ⚠️ 글자가 **줄바꿈될 수 있어야** 열 폭(232)이 지켜진다. 표가 `w-max` 라
@@ -892,7 +891,7 @@ export function ProductListPage({
                         */}
                         <TextButton
                           className="max-w-full"
-                          onClick={() => toast(DETAIL_PENDING)}
+                          onClick={() => onNavSelect(`/products/${product.id}`)}
                         >
                           <span className="line-clamp-2 text-left whitespace-normal">
                             {product.name}
@@ -967,7 +966,7 @@ export function ProductListPage({
                           size="small"
                           variant="secondary"
                           aria-label={product.name + " 수정"}
-                          onClick={() => toast(DETAIL_PENDING)}
+                          onClick={() => onNavSelect(`/products/${product.id}`)}
                         >
                           수정
                         </Button>

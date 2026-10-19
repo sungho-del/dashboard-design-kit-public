@@ -444,6 +444,302 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
     });
   });
 
+  describe("상품이미지 — 보기·확대만 (등록·교체·삭제는 알림)", () => {
+    /** 목록 「등록 이미지」 O/△/X 와 맞아야 한다 */
+    it("이미지 O 상품은 대표 + 추가 2장, X 상품은 대표 자리가 비어 있다", () => {
+      renderAt("BL240814");
+      const images = section(/상품이미지/);
+      expect(within(images).getByText("(2/9)")).toBeVisible();
+      expect(
+        within(images).getByRole("button", { name: "대표이미지 확대" }),
+      ).toBeVisible();
+    });
+
+    it("이미지 X 상품은 대표이미지를 등록하라는 빈 자리다", () => {
+      renderAt("MC240812");
+      const images = section(/상품이미지/);
+
+      expect(
+        within(images).getByRole("button", { name: "대표이미지 등록" }),
+      ).toBeVisible();
+      expect(within(images).getByText("(0/9)")).toBeVisible();
+    });
+
+    it("확대하면 창이 열리고, 교체는 개발 연동 안내를 띄운다", async () => {
+      const { user } = renderAt("BL240814");
+
+      await user.click(
+        screen.getByRole("button", { name: "추가이미지 2 확대" }),
+      );
+      const dialog = screen.getByRole("dialog", { name: "추가이미지 2" });
+      await user.click(within(dialog).getByRole("button", { name: "닫기" }));
+
+      await user.click(
+        within(section(/상품이미지/)).getAllByRole("button", {
+          name: "교체",
+        })[0],
+      );
+      expect(
+        await screen.findByText(
+          "이미지 등록·교체·삭제는 개발 연동 시 제공됩니다.",
+        ),
+      ).toBeVisible();
+    });
+  });
+
+  describe("상세설명", () => {
+    /** 원본 시드는 HTML 이다 — 평문 칸에 태그 글자가 보이면 안 된다 */
+    it("평문으로 열리고 태그 글자가 섞이지 않는다", () => {
+      renderAt("BL240814");
+      const detail = screen.getByRole("textbox", { name: "상세설명" });
+
+      expect((detail as HTMLTextAreaElement).value).toContain(
+        "회전형 카시트 스핀 360 — 안전하고",
+      );
+      expect((detail as HTMLTextAreaElement).value).not.toMatch(/<\/?[a-z]/);
+    });
+  });
+
+  describe("상품 주요정보", () => {
+    it("등록 주체·성장단계·인증이 열리고, 등록 주체도 고칠 수 있다(원본)", () => {
+      renderAt("BL240814");
+
+      expect(
+        screen.getByRole("combobox", { name: /등록 주체/ }),
+      ).toHaveTextContent("베이비루");
+      expect(screen.getByRole("combobox", { name: /등록 주체/ })).toBeEnabled();
+      expect(textbox("인증 1 인증번호")).toHaveValue("CB-B2026-0814");
+    });
+
+    /** 목록 KC X 상품 — 인증이 비어 있어 저장이 막히고 그 칸으로 간다 */
+    it("인증이 하나도 없으면 저장을 막고 인증 칸으로 간다", async () => {
+      const { user, onNavSelect } = renderAt("LS240809");
+
+      await user.click(screen.getByRole("button", { name: "수정 저장" }));
+
+      expect(
+        screen.getByText(
+          "인증 정보를 1행 이상 선택해주세요(비대상 품목은 ‘해당없음’).",
+        ),
+      ).toBeVisible();
+      await waitFor(() =>
+        expect(
+          screen.getByRole("combobox", { name: "인증 1 유형" }),
+        ).toHaveFocus(),
+      );
+      expect(onNavSelect).not.toHaveBeenCalled();
+    });
+
+    /** 목록 KC △(보완 필요) 상품 — 유형은 있는데 번호가 비어 있다 */
+    it("인증번호가 빈 인증은 저장을 막고, 「해당없음」 으로 바꾸면 번호 칸이 잠긴다", async () => {
+      const { user } = renderAt("AS730125");
+
+      await user.click(screen.getByRole("button", { name: "수정 저장" }));
+      expect(
+        screen.getByText("선택한 인증의 인증번호를 입력해주세요."),
+      ).toBeVisible();
+
+      await user.click(screen.getByRole("combobox", { name: "인증 1 유형" }));
+      await user.click(
+        within(await screen.findByRole("listbox")).getByRole("option", {
+          name: "해당없음",
+        }),
+      );
+      expect(textbox("인증 1 인증번호")).toBeDisabled();
+      expect(
+        screen.queryByText("선택한 인증의 인증번호를 입력해주세요."),
+      ).toBeNull();
+    });
+
+    it("상품상세참조를 켜면 내용이 채워지고 잠기며, 전체 적용은 모든 줄에 건다", async () => {
+      const { user } = renderAt("BL240814");
+
+      await user.click(
+        screen.getByRole("checkbox", { name: "색상 상품상세참조" }),
+      );
+      expect(textbox("색상 내용")).toHaveValue("상품상세참조");
+      expect(textbox("색상 내용")).toBeDisabled();
+
+      await user.click(
+        screen.getByRole("button", { name: "전체 상품상세참조" }),
+      );
+      expect(textbox("제조국 내용")).toHaveValue("상품상세참조");
+      expect(
+        await screen.findByText("전체 항목에 상품상세참조가 적용되었습니다."),
+      ).toBeVisible();
+    });
+
+    it("기본 세트는 지울 수 없고, 직접 추가한 줄만 지운다", async () => {
+      const { user } = renderAt("BL240814");
+      const info = section(/상품 주요정보/);
+
+      expect(
+        within(info).queryByRole("button", { name: "색상 삭제" }),
+      ).toBeNull();
+
+      await user.click(within(info).getByRole("button", { name: "항목 추가" }));
+      await user.type(textbox("추가 항목 12 항목명"), "구성품");
+      await user.click(
+        within(info).getByRole("button", { name: "구성품 삭제" }),
+      );
+      expect(
+        screen.queryByRole("textbox", { name: "추가 항목 12 항목명" }),
+      ).toBeNull();
+    });
+  });
+
+  describe("배송", () => {
+    it("무료면 금액 칸이 잠기고, 풀면 다시 적을 수 있다", async () => {
+      const { user } = renderAt("BL240814");
+      const fee = () => screen.getByRole("textbox", { name: "배송비" });
+
+      expect(fee()).toBeDisabled();
+      await user.click(screen.getByRole("checkbox", { name: "배송비 무료" }));
+      expect(fee()).toBeEnabled();
+    });
+
+    it("회수·반납 요금은 렌트에만 있다", async () => {
+      const { user } = renderAt("BL240811");
+
+      expect(screen.queryByRole("textbox", { name: "회수 배송비" })).toBeNull();
+      await user.click(
+        screen.getByRole("checkbox", { name: /방문 수령 추가 제공/ }),
+      );
+      expect(screen.getByRole("textbox", { name: "픽업 요금" })).toBeVisible();
+      expect(screen.queryByRole("textbox", { name: "반납 요금" })).toBeNull();
+    });
+
+    it("방문 수령을 켜면 주소가 필요하고, 주소록에서 고르면 그 주소가 붙는다", async () => {
+      const { user } = renderAt("BL240814");
+
+      await user.click(
+        screen.getByRole("checkbox", { name: /방문 수령 추가 제공/ }),
+      );
+      await user.click(screen.getByRole("button", { name: "수정 저장" }));
+      expect(screen.getByText("방문 수령 주소를 선택해주세요.")).toBeVisible();
+
+      await user.click(screen.getByRole("button", { name: "판매자 주소록" }));
+      const dialog = screen.getByRole("dialog", { name: "주소록" });
+      await user.click(
+        within(dialog).getByRole("button", {
+          name: "본사 반품·교환 센터 선택",
+        }),
+      );
+
+      expect(
+        await screen.findByText("방문 수령 주소가 선택되었습니다."),
+      ).toBeVisible();
+      expect(
+        within(section(/^배송/)).getByText("본사 반품·교환 센터"),
+      ).toBeVisible();
+      expect(screen.queryByText("방문 수령 주소를 선택해주세요.")).toBeNull();
+    });
+
+    it("공항 픽업을 켜면 공항이 필요하고, 요금 이름이 방문 수령과 갈린다", async () => {
+      const { user } = renderAt("BL240814");
+
+      await user.click(
+        screen.getByRole("checkbox", { name: /공항 픽업 추가 제공/ }),
+      );
+      expect(
+        screen.getByRole("textbox", { name: "공항 픽업 요금" }),
+      ).toBeVisible();
+      expect(
+        screen.getByRole("textbox", { name: "공항 반납 요금" }),
+      ).toBeVisible();
+
+      await user.click(screen.getByRole("button", { name: "수정 저장" }));
+      expect(screen.getByText("공항 픽업 공항을 선택해주세요.")).toBeVisible();
+    });
+  });
+
+  describe("옵션 — 조합 목록", () => {
+    const rows = () =>
+      within(section(/^옵션/))
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => within(row).getAllByRole("cell")[1].textContent);
+
+    it("값을 더해 다시 적용하면 조합이 늘고, 이미 친 옵션가는 되살아난다", async () => {
+      const { user } = renderAt("BL240814");
+
+      await user.clear(textbox("옵션 1 옵션값"));
+      await user.type(
+        textbox("옵션 1 옵션값"),
+        "기본 구성,추가 커버 세트,휴대 파우치",
+      );
+      await user.click(
+        screen.getByRole("button", { name: "옵션목록으로 적용" }),
+      );
+
+      expect(rows()).toEqual(["기본 구성", "추가 커버 세트", "휴대 파우치"]);
+      expect(textbox("추가 커버 세트 옵션가")).toHaveValue("9,000");
+      expect(
+        await screen.findByText("3개 옵션 조합을 목록에 적용했습니다."),
+      ).toBeVisible();
+    });
+
+    it("축을 둘로 늘리면 두 축의 모든 조합이 생긴다", async () => {
+      const { user } = renderAt("BL240814");
+
+      await user.click(screen.getByRole("button", { name: "옵션명 추가" }));
+      await user.type(textbox("옵션 2 옵션명"), "색상");
+      await user.type(textbox("옵션 2 옵션값"), "그레이,베이지");
+      await user.click(
+        screen.getByRole("button", { name: "옵션목록으로 적용" }),
+      );
+
+      expect(within(section(/^옵션/)).getByText("(총 4개)")).toBeVisible();
+      expect(
+        screen.getByRole("checkbox", { name: "추가 커버 세트 / 베이지 선택" }),
+      ).toBeVisible();
+    });
+
+    it("정렬·선택 일괄수정·선택삭제", async () => {
+      const { user } = renderAt("BL240814");
+
+      await user.click(screen.getByRole("combobox", { name: /정렬 순서/ }));
+      await user.click(
+        within(await screen.findByRole("listbox")).getByRole("option", {
+          name: "높은 가격순",
+        }),
+      );
+      expect(rows()).toEqual(["추가 커버 세트", "기본 구성"]);
+
+      await user.click(
+        screen.getByRole("checkbox", { name: "기본 구성 선택" }),
+      );
+      await user.type(textbox("일괄 재고수량"), "7");
+      await user.click(
+        screen.getByRole("button", { name: "선택목록 일괄수정" }),
+      );
+      expect(textbox("기본 구성 재고수량")).toHaveValue("7");
+      expect(textbox("추가 커버 세트 재고수량")).toHaveValue("1");
+
+      await user.click(screen.getByRole("button", { name: "선택삭제" }));
+      expect(rows()).toEqual(["추가 커버 세트"]);
+    });
+
+    it("재고가 0 이면 판매상태가 품절이다(고치는 칸이 아니다)", async () => {
+      const { user } = renderAt("BL240814");
+
+      await user.clear(textbox("기본 구성 재고수량"));
+      await user.type(textbox("기본 구성 재고수량"), "0");
+
+      const row = textbox("기본 구성 재고수량").closest("tr") as HTMLElement;
+      expect(within(row).getByText("품절")).toBeVisible();
+    });
+
+    it("옵션 없이 연 상품은 [설정안함] 이고 목록이 없다", () => {
+      renderAt("BL240811");
+
+      expect(
+        screen.getByRole("radio", { name: "설정안함", checked: true }),
+      ).toBeTruthy();
+      expect(screen.queryByText(/옵션목록/)).toBeNull();
+    });
+  });
+
   /** 주소만 바뀌어 다른 상품으로 가면 처음부터 — A→B→A 로 돌아와도 고친 값이 되살아나지 않는다 */
   it("다른 상품으로 갔다 와도 고친 값·열린 창이 따라가지 않는다", async () => {
     const { user } = renderAt("BL240814");

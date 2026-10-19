@@ -974,9 +974,9 @@ describe("ProductListPage", () => {
   });
 
   describe("행 액션", () => {
-    /** 원본: 상품명과 [수정]은 같은 상품 상세로 간다 — 그 화면이 생기기 전까지 알림 */
-    it("상품명 링크는 상세가 준비 중이라고 알린다", async () => {
-      const { user } = renderPage();
+    /** 원본: 상품명과 [수정]은 **같은** 상품 상세(수정 폼)로 간다 */
+    it("상품명 링크는 그 상품의 상세로 간다", async () => {
+      const { user, onNavSelect } = renderPage();
 
       await user.click(
         within(rowOf("BL240814")).getByRole("button", {
@@ -984,13 +984,11 @@ describe("ProductListPage", () => {
         }),
       );
 
-      expect(
-        await screen.findByText("상품 상세 화면은 준비 중입니다"),
-      ).toBeVisible();
+      expect(onNavSelect).toHaveBeenCalledWith("/products/BL240814");
     });
 
-    it("관리 열에는 수정 버튼 하나만 있고, 같은 안내를 띄운다", async () => {
-      const { user } = renderPage();
+    it("관리 열에는 수정 버튼 하나만 있고, 같은 상세로 간다", async () => {
+      const { user, onNavSelect } = renderPage();
 
       const manage = within(rowOf("BL240814")).getAllByRole("cell")[
         CELL.manage
@@ -1001,9 +999,7 @@ describe("ProductListPage", () => {
       expect(buttons[0]).toHaveAccessibleName("회전형 카시트 스핀 360 수정");
 
       await user.click(buttons[0]);
-      expect(
-        await screen.findByText("상품 상세 화면은 준비 중입니다"),
-      ).toBeVisible();
+      expect(onNavSelect).toHaveBeenCalledWith("/products/BL240814");
     });
   });
 

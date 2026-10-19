@@ -85,4 +85,19 @@ describe("App (전달본)", () => {
     );
     expect(window.location.pathname).toBe("/members");
   });
+
+  /** 테스트가 이동 호출만 보면 경로가 없어도 통과한다 — 실제로 상세 화면에 **도착**하는지 본다 */
+  it("상품 목록의 상품명을 누르면 그 상품의 상세 화면에 도착한다", async () => {
+    renderAt("/products");
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "회전형 카시트 스핀 360" }),
+    );
+
+    expect(window.location.pathname).toBe("/products/BL240814");
+    expect(pageTitle()).toBe("상품 상세 (수정)");
+    expect(
+      screen.getByText("회전형 카시트 스핀 360 · BL240814 · 베이비루"),
+    ).toBeVisible();
+  });
 });

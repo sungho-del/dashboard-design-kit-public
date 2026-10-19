@@ -763,12 +763,6 @@ export const REJECT_EMPTY = "등록된 반려 사유가 없습니다.";
 /** 재심사요청 건에만 덧붙는 꼬리말 */
 export const REREVIEW_NOTE = "셀러가 재심사를 요청한 건입니다.";
 
-/**
- * 상품명·[수정]의 목적지 — 원본은 둘 다 상품 상세(수정 폼)로 간다.
- * 그 화면이 아직 없어 **알림만** 띄운다(2026-10-19 사용자 결정). 화면이 생기면 이동으로 바꾼다.
- */
-export const DETAIL_PENDING = "상품 상세 화면은 준비 중입니다";
-
 /** 빈 상태 문구 — 다른 목록과 같은 틀(명사만 이 화면의 것) */
 export const EMPTY_TITLE = "해당 조건의 상품이 없습니다";
 export const EMPTY_DESCRIPTION =

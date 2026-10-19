@@ -5,6 +5,7 @@ import {
   type Product,
   type ProductMode,
 } from "./ProductListPage.data";
+import { STAGES } from "./GrowthStageListPage.data";
 
 /* -------------------------------------------------------------------------
  * 상품 상세 (BO-PRD-002) — 도메인 층
@@ -18,7 +19,10 @@ import {
  * ## ⚠️ 상품 레코드는 **목록과 같은 것을 쓴다**
  * `ProductListPage.data.ts` 의 `LISTED_PRODUCTS`(본사 직영 제외)에서 찾는다. 같은 상품의 상태·가격·
  * 반려 사유·카테고리가 화면마다 다르게 보이면 안 된다. 목록에 없는 칸(기본 렌트일·기간 옵션·
- * 렌트 수량·재고·코멘트·태그)은 `draftOf` 가 **상품코드로 정해지는 예시 값**으로 채운다.
+ * 렌트 수량·재고·이미지·주요정보·배송 세부·옵션·코멘트·태그)은 `draftOf` 가
+ * **상품코드로 정해지는 예시 값**으로 채운다. 목록의 KC·이미지 표시(O/△/X)와 어긋나지 않게 —
+ * 이미지 X 는 대표이미지 없음, KC X 는 인증 행이 빈 채로, △ 는 인증번호가 빈 채로 연다.
+ * 성장단계는 성장단계 관리 화면의 `STAGES` 를 읽는다.
  *
  * ## 갈아끼울 것 (이 파일 전체)
  * | 실물 이름        | 역할                                                |
@@ -78,7 +82,89 @@ export interface ProductDraft {
   display: DisplayStatus;
   comment: string;
   tags: string;
+  /** 대표이미지가 있나 · 추가이미지 장수 — 실제 파일은 개발 영역이라 자리만 센다 */
+  mainImage: boolean;
+  extraImages: number;
+  /** 상세설명 — 원본은 서식 편집기, 우리는 평문(2026-10-19 사용자 결정) */
+  detail: string;
+  /** 등록 주체(셀러명) — 본사가 바꿀 수 있다(원본) */
+  seller: string;
+  /** 성장단계 id — 성장단계 관리의 `STAGES` */
+  stage: string;
+  certs: CertRow[];
+  info: InfoRow[];
+  courier: string;
+  shipFee: Fee;
+  /** 회수 배송비 — 렌트만 */
+  collectFee: Fee;
+  returnFee: string;
+  exchangeFee: string;
+  pickupOn: boolean;
+  /** 방문 수령 주소 — 주소록(`ADDRESSES`)의 id. 비면 미선택 */
+  pickupAddress: string;
+  pickupFee: Fee;
+  /** 방문 반납 요금 — 렌트만 */
+  pickupReturnFee: Fee;
+  airportOn: boolean;
+  airport: string;
+  airportPlace: string;
+  airportFee: Fee;
+  /** 공항 반납 요금 — 렌트만 */
+  airportReturnFee: Fee;
+  optionOn: boolean;
+  optionSort: OptionSort;
+  /** 옵션입력 — 축마다 이름과 쉼표로 나눈 값(최대 3축) */
+  optionInputs: OptionInput[];
+  /** 옵션목록 — [옵션목록으로 적용] 이 만든 조합 */
+  options: OptionRow[];
+  /** 옵션목록의 축 이름 — 적용할 때 정해진다(입력칸을 바꿔도 표 머리는 그대로) */
+  optionAxes: string[];
 }
+
+/** 금액 + 「무료」 체크 — 무료면 금액 칸이 잠긴다(원본 `_freeMoney`) */
+export interface Fee {
+  amount: string;
+  free: boolean;
+}
+
+/** 인증 정보 한 줄 — 원본 `pfCertBody` */
+export interface CertRow {
+  id: number;
+  type: string;
+  no: string;
+  note: string;
+}
+
+/** 상품 주요 정보(고시) 한 줄 — 기본 세트(`fixed`)는 항목명을 못 고치고 지우지 못한다 */
+export interface InfoRow {
+  id: number;
+  key: string;
+  value: string;
+  /** 「상품상세참조」 — 켜면 내용이 그 글자로 채워지고 잠긴다 */
+  ref: boolean;
+  fixed: boolean;
+}
+
+export interface OptionInput {
+  id: number;
+  name: string;
+  values: string;
+}
+
+/** 옵션목록 한 줄 — 조합(축마다 값 하나)이 곧 열쇠다 */
+export interface OptionRow {
+  combo: string[];
+  /** 옵션가(원 · 주문당 1회) */
+  price: string;
+  stock: string;
+  code: string;
+  recommended: boolean;
+  use: boolean;
+  /** 등록순 — 정렬을 「등록순」으로 되돌릴 때 쓴다 */
+  seq: number;
+}
+
+export type OptionSort = "reg" | "abc" | "lo" | "hi";
 
 /** 상품 등급 — 원본 S·A·B·C */
 export const GRADES = ["S급", "A급", "B급", "C급"];
@@ -93,6 +179,182 @@ export const TAG_COUNT_MAX = 10;
 
 /** 상품명 글자 수 한도 — 원본 `nvInput('name', …, 100)` */
 export const NAME_MAX = 100;
+
+/** 추가이미지 장수 한도 — 원본 9장 */
+export const EXTRA_IMAGE_MAX = 9;
+
+/** 옵션 축 한도 — 원본 최대 3 */
+export const OPTION_AXIS_MAX = 3;
+
+/** 인증 유형 — 원본 `CERT_TYPES` */
+export const CERT_TYPES = [
+  "어린이제품 안전인증",
+  "어린이제품 안전확인",
+  "어린이제품 공급자적합성확인",
+  "전기용품 KC",
+  "전파 적합성(KC)",
+  "식품용 기구",
+  "기타",
+  "해당없음",
+];
+
+/** 인증번호가 필요 없는 유형 — 원본 검사가 이 둘을 뺀다 */
+const NO_NUMBER_TYPES = ["해당없음", "기타"];
+export const needsCertNumber = (type: string) =>
+  type !== "" && !NO_NUMBER_TYPES.includes(type);
+
+/** 상품정보제공고시 「영유아용품」 기본 세트 — 원본 `GOSI_ROWS` */
+export const INFO_KEYS = [
+  "품명 및 모델명",
+  "크기·중량",
+  "색상",
+  "재질",
+  "사용연령 또는 체중 범위",
+  "동일모델 출시년월",
+  "제조자·수입자",
+  "제조국",
+  "취급방법 및 취급 시 주의사항",
+  "품질보증기준",
+  "A/S 책임자와 전화번호",
+];
+
+/** 「상품상세참조」 를 켜면 내용에 들어가는 글자 */
+export const INFO_REF_TEXT = "상품상세참조";
+
+export const COURIERS = [
+  "CJ대한통운",
+  "롯데택배",
+  "한진택배",
+  "로젠택배",
+  "우체국",
+];
+
+export const AIRPORTS = [
+  "인천국제공항 T1",
+  "인천국제공항 T2",
+  "김포공항",
+  "김해공항",
+  "제주공항",
+];
+
+export const OPTION_SORTS: { value: OptionSort; label: string }[] = [
+  { value: "reg", label: "등록순" },
+  { value: "abc", label: "가나다순" },
+  { value: "lo", label: "낮은 가격순" },
+  { value: "hi", label: "높은 가격순" },
+];
+
+/** 성장단계 선택지 — 성장단계 관리의 단계 이름·월령 그대로 */
+export const STAGE_OPTIONS = STAGES.map((stage) => ({
+  value: stage.id,
+  label:
+    stage.monthTo === null
+      ? `${stage.name} (${stage.monthFrom}개월~)`
+      : `${stage.name} (${stage.monthFrom}~${stage.monthTo}개월)`,
+}));
+
+/** 등록 주체로 고를 수 있는 셀러 — 목록에 상품이 있는 입점 셀러 */
+export const SELLER_OPTIONS = [
+  ...new Set(LISTED_PRODUCTS.map((product) => product.seller)),
+].map((name) => ({ value: name, label: name }));
+
+/** 판매자 주소록 예시 — 원본 `ADDR_BOOK` 시드(본사 물류센터 주소) 그대로 */
+export interface Address {
+  id: string;
+  name: string;
+  tag: string;
+  address: string;
+  phone1: string;
+  phone2: string;
+}
+
+export const ADDRESSES: Address[] = [
+  {
+    id: "A1",
+    name: "본사 물류센터 출고지",
+    tag: "출고지",
+    address:
+      "경기도 이천시 마장면 물류로 45 (BabyCube 통합물류센터) A동 (우 : 17378)",
+    phone1: "031-635-1200",
+    phone2: "010-2345-6789",
+  },
+  {
+    id: "A2",
+    name: "본사 반품·교환 센터",
+    tag: "반품/교환지",
+    address:
+      "경기도 이천시 마장면 물류로 45 (BabyCube 통합물류센터) B동 반품처리동 (우 : 17378)",
+    phone1: "031-635-1201",
+    phone2: "",
+  },
+];
+
+/** 옵션 조합의 열쇠 — 다시 적용해도 같은 조합의 옵션가·재고·관리코드·추천·사용을 되살린다 */
+export const optionKey = (row: Pick<OptionRow, "combo">) =>
+  JSON.stringify(row.combo);
+
+/** 옵션목록 정렬 — 원본 `_optSorted`. 가격순은 옵션가, 가나다는 조합 글자 */
+export const sortOptions = (rows: OptionRow[], sort: OptionSort) => {
+  const list = [...rows];
+  if (sort === "abc")
+    return list.sort((a, b) =>
+      a.combo.join(" / ").localeCompare(b.combo.join(" / "), "ko"),
+    );
+  if (sort === "lo") return list.sort((a, b) => num(a.price) - num(b.price));
+  if (sort === "hi") return list.sort((a, b) => num(b.price) - num(a.price));
+  return list.sort((a, b) => a.seq - b.seq);
+};
+
+/**
+ * [옵션목록으로 적용] — 축마다 쉼표로 나눈 값의 **모든 조합**(원본 `pfOptApply`).
+ * 이름이나 값이 빈 축은 건너뛴다. 이미 친 값은 열쇠로 되살린다 — 값 하나 고치려고 다시
+ * 적용했다가 앞서 친 것이 전부 0 으로 돌아가면 조합이 많을수록 손해가 크다.
+ * 축이 하나도 없으면 `null` (원본 「옵션명과 옵션값을 입력해주세요.」).
+ */
+export const applyOptions = (
+  inputs: OptionInput[],
+  previous: OptionRow[],
+  sort: OptionSort,
+): { axes: string[]; rows: OptionRow[] } | null => {
+  const axes = inputs
+    .map((input) => ({
+      name: input.name.trim(),
+      values: input.values
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean),
+    }))
+    .filter((axis) => axis.name !== "" && axis.values.length > 0);
+  if (axes.length === 0) return null;
+
+  let combos: string[][] = [[]];
+  for (const axis of axes) {
+    combos = combos.flatMap((combo) =>
+      axis.values.map((value) => [...combo, value]),
+    );
+  }
+  const kept = new Map(previous.map((row) => [optionKey(row), row]));
+  const rows = combos.map((combo, seq) => {
+    const old = kept.get(optionKey({ combo }));
+    return old
+      ? { ...old, combo, seq }
+      : {
+          combo,
+          price: "0",
+          stock: "0",
+          code: "",
+          recommended: false,
+          use: true,
+          seq,
+        };
+  });
+  return { axes: axes.map((axis) => axis.name), rows: sortOptions(rows, sort) };
+};
+
+const fee = (amount: number | null | undefined): Fee =>
+  amount === null || amount === undefined
+    ? { amount: "", free: false }
+    : { amount: amount > 0 ? String(amount) : "", free: amount === 0 };
 
 const digits = (value: number | null | undefined) =>
   value === null || value === undefined ? "" : String(value);
@@ -165,6 +427,74 @@ export const draftOf = (product: Product): ProductDraft => {
         ? "360도 회전으로 태우고 내리기 편해요. 신생아부터 4세까지 쓸 수 있습니다."
         : "",
     tags: product.id === "BL240814" ? "신생아, 회전형, ISOFIX" : "",
+    /* 목록 「등록 이미지」 와 맞춘다 — X 는 대표 없음, △ 는 대표만, O 는 대표 + 추가 2장 */
+    mainImage: product.image !== "missing",
+    extraImages: product.image === "ok" ? 2 : 0,
+    detail: `${product.name} — 안전하고 실용적인 육아 필수품입니다.\n· KC 안전인증 완료 · 유해물질 검사 통과\n· 친환경 소재로 아이 피부에 안심\n· 세척·관리가 간편한 분리형 구조`,
+    seller: product.seller,
+    stage: pick(product.id, STAGES).id,
+    /* 목록 「KC 인증」 과 맞춘다 — X 는 빈 행, △ 는 번호 빈 행(보완 필요), O 는 번호까지 */
+    certs: [
+      {
+        id: 1,
+        type: product.kc === "missing" ? "" : "어린이제품 안전확인",
+        no: product.kc === "ok" ? `CB-B2026-${product.id.slice(-4)}` : "",
+        note: "",
+      },
+    ],
+    info: INFO_KEYS.map((key, index) => ({
+      id: index + 1,
+      key,
+      value:
+        product.id === "BL240814" && index === 0 ? "스핀 360 / BL-S360" : "",
+      ref: false,
+      fixed: true,
+    })),
+    courier: "CJ대한통운",
+    shipFee: fee(product.shipFee),
+    collectFee: product.mode === "rent" ? fee(product.shipFee) : fee(null),
+    returnFee: String(product.returnFee),
+    exchangeFee: String(product.exchangeFee),
+    pickupOn: false,
+    pickupAddress: "",
+    pickupFee: { amount: "", free: true },
+    pickupReturnFee: { amount: "", free: true },
+    airportOn: false,
+    airport: "",
+    airportPlace: "",
+    airportFee: { amount: "", free: false },
+    airportReturnFee: { amount: "", free: false },
+    /* 원본 시드처럼 옵션 하나짜리 상품 — 다른 상품은 옵션 없이 연다 */
+    optionOn: product.id === "BL240814",
+    optionSort: "reg",
+    optionInputs:
+      product.id === "BL240814"
+        ? [{ id: 1, name: "구성", values: "기본 구성,추가 커버 세트" }]
+        : [{ id: 1, name: "", values: "" }],
+    options:
+      product.id === "BL240814"
+        ? [
+            {
+              combo: ["기본 구성"],
+              price: "0",
+              stock: "3",
+              code: "",
+              recommended: false,
+              use: true,
+              seq: 0,
+            },
+            {
+              combo: ["추가 커버 세트"],
+              price: "9000",
+              stock: "1",
+              code: "",
+              recommended: true,
+              use: true,
+              seq: 1,
+            },
+          ]
+        : [],
+    optionAxes: product.id === "BL240814" ? ["구성"] : [],
   };
 };
 
@@ -231,7 +561,7 @@ export const tagCount = (tags: string) =>
     .filter(Boolean).length;
 
 /* -------------------------------------------------------------------------
- * 저장 검사 — 원본 `pfValidate` 중 **지금 화면에 있는 칸만**
+ * 저장 검사 — 원본 `pfValidate`
  *
  * 원본에 없는 검사를 더하지 않는다. 재고 수량은 원본도 검사하지 않는다(0 = 품절은 정상).
  * 숨은 유형의 칸(렌트 상품의 판매가 등)은 검사하지 않는다.
@@ -247,8 +577,18 @@ export type FieldKey =
   | "rentQty"
   | "saleBase"
   | "saleDisc"
+  | "seller"
+  | "stage"
+  | "certs"
+  | "pickupAddress"
+  | "airport"
   | "tags";
 
+/**
+ * 오류는 **화면 순서대로** 쌓는다 — 뼈대가 첫 오류로 이동한다.
+ * 원본의 「권장 월령」 검사는 그 칸이 화면에 없어(원본도 조립하지 않음) 뺐다.
+ * 「빈 옵션명」 검사도 뺐다 — 우리 옵션목록은 [적용] 으로만 생겨 이름이 빌 수 없다.
+ */
 /** 칸 → 그 칸이 들어 있는 섹션. 접힌 섹션의 오류를 펼쳐 보이려고 쓴다 */
 export const SECTION_OF: Record<FieldKey, SectionKey> = {
   name: "name",
@@ -259,11 +599,26 @@ export const SECTION_OF: Record<FieldKey, SectionKey> = {
   rentQty: "quantity",
   saleBase: "price",
   saleDisc: "price",
+  seller: "mainInfo",
+  stage: "mainInfo",
+  certs: "mainInfo",
+  pickupAddress: "shipping",
+  airport: "shipping",
   tags: "display",
 };
 
 export type SectionKey =
-  "name" | "mode" | "category" | "price" | "quantity" | "display";
+  | "name"
+  | "mode"
+  | "category"
+  | "price"
+  | "quantity"
+  | "images"
+  | "detail"
+  | "mainInfo"
+  | "shipping"
+  | "option"
+  | "display";
 
 export const validate = (
   draft: ProductDraft,
@@ -296,6 +651,19 @@ export const validate = (
     )
       errors.saleDisc = COPY.errors.saleDisc;
   }
+  if (draft.seller === "") errors.seller = COPY.errors.seller;
+  if (draft.stage === "") errors.stage = COPY.errors.stage;
+  if (!draft.certs.some((row) => row.type !== "")) {
+    errors.certs = COPY.errors.certs;
+  } else if (
+    draft.certs.some((row) => needsCertNumber(row.type) && row.no.trim() === "")
+  ) {
+    errors.certs = COPY.errors.certNo;
+  }
+  if (draft.pickupOn && draft.pickupAddress === "")
+    errors.pickupAddress = COPY.errors.pickupAddress;
+  if (draft.airportOn && draft.airport === "")
+    errors.airport = COPY.errors.airport;
   if (tagCount(draft.tags) > TAG_COUNT_MAX) errors.tags = COPY.errors.tags;
 
   return errors;
@@ -315,8 +683,48 @@ export const COPY = {
     priceSale: "가격",
     rentQty: "렌트 수량",
     stock: "재고 수량",
+    images: "상품이미지",
+    detail: "상세설명",
+    mainInfo: "상품 주요정보",
+    shipping: "배송",
+    option: "옵션",
     display: "노출 관리",
   },
+  imageHelp:
+    "이미지 크기 : 최대 1000 X 1000px, 최소 300 X 300px 이상 · 이미지 형식 : jpg,png 형식의 이미지만 등록 가능합니다. · 이미지 용량 : 1MB 이하 (최대 5MB)",
+  imageDragHelp: "이미지를 드래그하여 순서를 변경할 수 있습니다.",
+  /** 업로드·교체·삭제·순서 바꾸기는 개발 영역 — 퍼블은 알림만(2026-10-19 사용자 결정) */
+  imagePending: "이미지 등록·교체·삭제는 개발 연동 시 제공됩니다.",
+  detailPlaceholder:
+    "상품 상세페이지를 작성하세요. 소재·사이즈·구성품·사용 연령·세탁/관리 방법·주의사항 등을 이미지와 함께 자유롭게 구성할 수 있습니다.",
+  detailHelp:
+    "사용자 앱 상품 상세 ‘상품정보’ 탭 본문으로 노출됩니다. 서식(굵게·정렬·목록·이미지 삽입) 편집기는 개발 연동 시 붙습니다.",
+  stageHelp:
+    "성장단계는 본사 ‘성장단계 관리’에서 동적으로 관리됩니다(선택만 가능). 사용 중 단계가 삭제되면 ‘없음’으로 자동 대체됩니다.",
+  certHelp:
+    "유아용품은 어린이제품 안전 특별법(KC) 등 법정 인증 대상입니다(판매·대여 모두 적용). 해당하는 인증을 모두 등록해주세요 — 비대상 품목은 ‘해당없음’을 선택합니다(1행 이상 필수). 등록한 인증은 사용자 상품 상세·본사 검수 화면에 노출됩니다.",
+  infoHelp:
+    "전자상거래법 상품정보제공고시 ‘영유아용품’ 필수 항목이 기본 세트로 제공됩니다 — 기본 세트는 삭제·항목명 수정 불가(내용 입력·상품상세참조만), 직접 추가한 행만 자유 편집됩니다. 체크 시 내용에 “상품상세참조”가 자동 입력됩니다.",
+  infoRefAll: "전체 항목에 상품상세참조가 적용되었습니다.",
+  shipMethodHelp: "택배는 기본 배송 방법으로 항상 제공됩니다.",
+  pickupHelp:
+    "체크하면 택배와 함께 방문 수령도 제공합니다. 구매자는 결제 시 택배·방문 수령 중 선택합니다.",
+  pickupEmpty: "판매자 주소록에서 방문 수령 주소를 등록·선택해주세요.",
+  pickupSelected: "방문 수령 주소가 선택되었습니다.",
+  /** 주소록 편집은 판매자 계정의 데이터라 퍼블은 알림만 */
+  addressPending: "주소록 등록·수정·삭제는 개발 연동 시 제공됩니다.",
+  airportHelp:
+    "체크하면 택배·방문 수령과 함께 공항 픽업도 제공합니다. 방문 수령 규칙을 준용해 준비 완료 알림 → 수령 기한 7일 → 경과 시 자동취소되며, 반납도 같은 장소(공항)에서 합니다. 공항 수령·반납 요금은 아래 공항 픽업 요금·공항 반납 요금으로 각각 설정합니다(무료 가능 · 렌트는 두 요금이 합산 부과되고, 구매는 픽업 요금만 부과).",
+  optionHelp:
+    "옵션명(축)과 옵션값을 입력하고 [옵션목록으로 적용]하면 값의 모든 조합이 목록으로 생성됩니다(최대 3축). 옵션가는 렌트 기간과 무관한 주문당 1회 정액이며, 추천을 체크하면 사용자 화면 옵션 목록에 추천 배지가 붙습니다.",
+  optionApplied: (count: number) =>
+    `${count}개 옵션 조합을 목록에 적용했습니다.`,
+  optionEmptyInput: "옵션명과 옵션값을 입력해주세요.",
+  optionNoneSelected: "선택된 옵션이 없습니다.",
+  optionBulkDone: (count: number) => `${count}개 옵션을 일괄수정했습니다.`,
+  optionEmptyTitle: "데이터가 존재하지 않습니다.",
+  optionEmptyDescription:
+    "위 옵션입력에 옵션명·옵션값을 적고 [옵션목록으로 적용]을 눌러 주세요.",
   namePlaceholder: "상품명을 입력해 주세요",
   rentBaseHelp: "할인 전 렌트 원가를 입력해주세요.",
   saleBaseHelp: "할인 전 판매 원가를 입력해주세요.",
@@ -363,6 +771,12 @@ export const COPY = {
     rentQty: "렌트 수량을 입력해주세요.",
     saleBase: "판매가를 입력해주세요.",
     saleDisc: "판매 할인율은 100%를 초과할 수 없습니다.",
+    seller: "셀러를 선택해주세요.",
+    stage: "성장단계를 선택해주세요.",
+    certs: "인증 정보를 1행 이상 선택해주세요(비대상 품목은 ‘해당없음’).",
+    certNo: "선택한 인증의 인증번호를 입력해주세요.",
+    pickupAddress: "방문 수령 주소를 선택해주세요.",
+    airport: "공항 픽업 공항을 선택해주세요.",
     tags: "검색 태그는 최대 10개까지 입력할 수 있습니다.",
-  } satisfies Record<FieldKey, string>,
+  } satisfies Record<FieldKey | "certNo", string>,
 };
