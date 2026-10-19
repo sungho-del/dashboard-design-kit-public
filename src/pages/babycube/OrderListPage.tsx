@@ -1,28 +1,24 @@
 import { useState } from "react";
-import { ArrowDownToLine, HelpCircle, Search } from "lucide-react";
+import { ArrowDownToLine, Search } from "lucide-react";
 import {
   AppShell,
   Button,
   Card,
   CardBody,
-  CardHeader,
+  Checkbox,
   DataTableShell,
   DatePicker,
   EmptyState,
-  FormField,
+  FilterBar,
   Gnb,
-  IconButton,
-  InfoItem,
-  InfoList,
   Input,
-  Modal,
-  ModalBody,
-  ModalHeader,
   PageHeader,
   Pagination,
+  PaginationSizeSelect,
   Radio,
   RadioGroup,
   Select,
+  Skeleton,
   StatGrid,
   Table,
   TableBody,
@@ -32,153 +28,175 @@ import {
   TableTh,
   Tag,
   TextButton,
-  Tooltip,
   useToast,
   type DateRange,
+  type TableSortDirection,
 } from "../../components/ui";
+import { cn } from "../../lib/cn";
+import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
+import { PERIOD_PRESETS } from "../../lib/periodPresets";
+import { useSearchParams } from "../../lib/router";
 import {
+  DASH_UNIT,
+  DETAIL_PENDING,
+  EMPTY_DESCRIPTION,
   EMPTY_FILTERS,
-  EXPORT_EXTRA_COLUMNS,
-  EXPORT_NAME,
-  FILTERS,
+  EMPTY_TITLE,
   ORDERS,
   PAGE_SIZE,
+  PAGE_SIZES,
+  SEARCH_FIELDS,
+  SEARCH_PLACEHOLDER,
   SELLER_KINDS,
   SELLERS,
-  SEARCH_FIELDS,
   STATUS_META,
   STATUS_OPTIONS_BY_TYPE,
+  TYPE_FILTERS,
   TYPE_META,
-  TYPE_NOTICE,
+  filterSummary,
   filtersFromQuery,
+  periodText,
   rentPriceOf,
-  searchHaystack,
+  searchValueOf,
   sellerLabel,
   won,
   ymdhm,
   type Order,
   type OrderFilters,
+  type OrderSearchField,
+  type OrderType,
 } from "./OrderListPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
 /* =========================================================================
- * S08 주문 목록 — 뼈대 (BabyCube 본사 운영 어드민)
+ * S08 주문 목록 — 목록형 · 뼈대 (BabyCube 본사 운영 어드민)
  *
- * ## 화면 유형: 목록형
- * 렌트·판매 주문을 **처리단위** 기준으로 조회하는 어드민의 중심 목록.
- * 조회 조건이 6종이고 표가 24열이라, 템플릿(`src/pages/OrderListPage.tsx`)의
- * "툴바 한 줄" 구성으로는 담기지 않는다. 세 군데가 갈린다 — 아래 참고.
+ * ## 화면 유형: 목록형 (조회 전용)
+ * 렌트·판매 주문을 **처리단위** 기준으로 조회한다. 행 액션·일괄 처리는 없다(원본 —
+ * 처리는 셀러 어드민의 몫). 선택은 엑셀 선택분을 정하는 데만 쓴다.
+ *
+ * [ 유형 카드 2장 | 검색조건(접힘+요약) | 목록 (총 N건) · 엑셀 다운로드 | 표 | 페이지네이션 ]
+ *                                                  ← 원본 v0.4 와 같은 순서
  *
  * ## 이 파일은 도메인을 모른다 — 도메인은 `./OrderListPage.data.ts` 에 있다
  *
- * | 갈아끼울 것            | 위치                                          |
- * | ---------------------- | --------------------------------------------- |
- * | 데이터·타입·라벨·단위  | `OrderListPage.data.ts` **전체**              |
+ * | 갈아끼울 것            | 위치                                           |
+ * | ---------------------- | ---------------------------------------------- |
+ * | 데이터·타입·라벨·단위  | `OrderListPage.data.ts` **전체**               |
  * | 표 컬럼 구성           | 이 파일의 `<colgroup>` + `TableHead` + 본문 셀 |
- * | 조회 조건 구성         | "조회 조건" 카드                               |
- * | 화면 제목·도움말       | `PageHeader` 의 `title` · `badges`            |
+ * | 유형 대시 구성         | `TYPE_FILTERS` (카드가 곧 유형 필터다)         |
+ * | 검색조건 구성          | `FilterBar` 의 자식 (원본 순서: 기간→판매자→셀러→상태→검색) |
  *
- * ## 템플릿과 갈린 세 곳 (의도된 것)
- * 1. **유형이 필터바가 아니라 건수 대시다.** 원본이 유형 칩에 `dash: !0` 을 줘서
- *    필터바가 아니라 표 위의 건수 카드로 내보낸다. 카드가 곧 필터라
- *    건수를 읽는 것과 좁히는 것이 한 동작이 된다.
- * 2. **조회 조건이 툴바가 아니라 카드다.** 필터가 6종(기간·판매자·셀러·상태·
- *    검색조건·검색어)이라 `DataTableShell` 툴바에 넣으면 라벨 없이 세 줄로 접힌다.
- *    "본사 / 셀러" 라디오는 그룹 이름이 없으면 무엇을 고르는지 알 수 없어 라벨이 필수다.
- *    → `FormField` 로 라벨을 붙여 카드에 담고, 툴바에는 기획서가 정한
- *    **목록 헤더(총 N건 · 엑셀 다운로드)** 만 남긴다.
- * 3. **표가 가로로 스크롤한다.** 24열이라 `<colgroup>` 을 %가 아니라
- *    **px(4px 그리드 유틸)** 로 준다. 가로 스크롤은 `DataTableShell` 의
- *    표 래퍼(`overflow-auto`) 안에서만 일어난다 — `AppShell` 콘텐츠가 `min-w-0` 이라
- *    페이지 본문은 밀리지 않는다.
+ * ## 공통 목록 규칙 (상품·회원 목록과 같다)
+ * - 유형 카드를 바꾸면 **상태·정렬·선택·페이지가 함께 풀린다**(상태 선택지가 통째로 갈린다)
+ * - 다른 조건을 바꾸면 1페이지로, **선택도 풀린다** — 결과 밖으로 나간 선택이 엑셀에 섞이지 않게
+ * - 정렬은 필터 뒤·페이지 나누기 전. 정렬을 바꾸면 1페이지로
+ * - 엑셀은 **지금 조회 결과 안에서 고른 행**, 없으면 조회 결과 전체 — 알림만(파일 생성은 개발 영역)
+ * - No 는 **조회 결과의 역순 순번**(원본 `total-(start+i)`) — 레코드 번호가 아니다
+ *
+ * ## 퍼블 범위
+ * 주문번호 링크는 상세 화면을 만들기 전까지 알림만 띄운다(`DETAIL_PENDING`).
  *
  * ## ⚠️ 원본에 없어서 걷어낸 것 — 되살리지 말 것
- * - **증감 요약 카드 3장**(`STATS` · "오늘 신규 주문 128건 +12건" 류).
- *   원본 어디에도 없는 지어낸 숫자였다. 그 자리에 원본이 실제로 두는 유형 대시를 세웠다
- * - **`판매자`(본사/셀러 배지) + `셀러`(이름) 두 열**. 원본 `y()` 는
- *   `"자체" === owner ? "본사" : sellerName` 으로 **열 하나**로 끝낸다.
- *   그래서 `SELLER_KIND_META` 배지가 사라졌다
- * - **`결제금액`·`처리단위`·`주문일시` 열**. 원본에서 이 셋은
- *   `ORDER_EXPORT_EXTRA_COLUMNS`(엑셀 전용)다. 화면에서는 겹치는 정보라 뺐다
- * - **행 액션(`배송 처리` 버튼 + 확인 모달)**. 원본 주문 목록에는 행 액션이 없다.
- *   미리보기 모달에 남는 버튼은 헤더의 닫기 X 하나뿐이다
- * - **유형 `SegmentedControl`**. 유형은 대시 카드가 맡는다
- *
- * ## 그대로 두는 것 (도메인 무관 · §7-1 실측 규격)
- * `DataTableShell` 셸 구조 · 셀 정렬 규칙(§7-2) · 페이지 범위 클램프 ·
- * `inPeriod` 날짜 필터 · 행클릭 → Modal(미리보기) 흐름
+ * - 유형 카드의 **[전체]** — v0.4 는 렌트·판매 2장, 들어오면 렌트
+ * - 제목 옆 "상태 흐름" 도움말 툴팁 · 유형 안내 문구(원본 `statusTips` 라 적혀 있었지만 v0.4 에 없다)
+ * - **행 클릭 「주문 미리보기」 모달** — 원본은 주문번호 링크로 상세에 간다
+ * - 검색 대상 "조건 없음 (전체)" — 원본은 7종, 기본 주문번호
+ * - 지어낸 증감 요약 카드 · 표의 `결제금액` 열(엑셀 전용) · 행 액션
  * ====================================================================== */
 
 /**
- * 결제 일시가 선택한 기간 안에 드는지.
- *
- * 기획서가 기간 필터 기준을 **결제일**로 못박아 `order.date` 가 결제 일시다.
- * `"YYYY-MM-DD HH:mm"` 의 공백 구분자는 브라우저별 파싱이 갈리므로 `T` 로 바꿔
- * ISO 형태로 넘긴다. 시작일은 00:00, 종료일은 23:59:59 까지 포함한다
- * (종료일을 그대로 쓰면 그날 낮에 결제된 건이 빠진다).
+ * 좌측 고정 7열(원본 `frozenTable(…, 7)`: 선택·No·상태·주문번호·유형·판매자·이용 기간)의
+ * `left` 오프셋 — **`<colgroup>` 폭의 누적합**이다.
+ *   52 / 56 / 116 / 144 / 72 / 112 / 208 → 0 · 52 · 108 · 224 · 368 · 440 · 552 (합 760)
+ * ⚠️ 첫 열은 52 다 — 체크박스 16 + 셀 여백(왼쪽 24 · 오른쪽 12). 40 을 줘도 브라우저가 늘린다.
+ * ⚠️ 파생값이라 `<colgroup>` 을 고치면 **반드시 함께** 고친다. 어긋나면 열이 겹친다.
+ */
+const FROZEN_LEFT = [
+  "left-0",
+  "left-13",
+  "left-27",
+  "left-56",
+  "left-92",
+  "left-110",
+  "left-138",
+];
+const LAST_FROZEN = FROZEN_LEFT.length - 1;
+
+/** 고정 구간의 폭 — `DataTableShell` 이 가로 스크롤바를 이만큼 비켜서 그린다 */
+const FROZEN_LEAD_WIDTH = 760;
+
+/** 고정 구간의 오른쪽 끝 1px. `border` 는 collapse 표에서 함께 스크롤돼 사라진다 */
+const FROZEN_EDGE =
+  "after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-divide after:content-['']";
+
+/** 헤더 셀 — 배경을 더하지 않는다(TableTh 가 이미 `bg-surface`) */
+const frozenTh = (index: number) =>
+  index > LAST_FROZEN
+    ? undefined
+    : cn(
+        "sticky z-2",
+        FROZEN_LEFT[index],
+        index === LAST_FROZEN && FROZEN_EDGE,
+      );
+
+/** 본문 셀 — 배경은 행에서 물려받는다(zebra·hover 를 따라가려면 상속뿐) */
+const frozenTd = (index: number) =>
+  index > LAST_FROZEN
+    ? undefined
+    : cn(
+        "sticky z-1 bg-inherit",
+        FROZEN_LEFT[index],
+        index === LAST_FROZEN && FROZEN_EDGE,
+      );
+
+/** 표의 열 수 — 로딩 뼈대가 같은 수의 빈 칸을 그린다. `<col>` 수와 같아야 한다 */
+const COLUMN_COUNT = 26;
+
+/** 값이 없는 칸 — 데이터가 없는 것과 화면이 깨진 것을 구별한다 */
+const DASH = "—";
+const dash = (value: string) => (value.trim() === "" ? DASH : value);
+const money = (value: number | null) => (value === null ? DASH : won(value));
+
+/**
+ * 결제 일시가 선택한 기간 안에 드는지. 시작일 00:00 ~ 종료일 23:59:59 를 포함한다.
+ * 공백 구분자는 브라우저별 파싱이 갈려 `T` 로 바꿔 넘긴다.
  */
 const inPeriod = (dateText: string, range?: DateRange) => {
   if (!range?.from) return true;
-
   const at = new Date(dateText.replace(" ", "T"));
-  if (Number.isNaN(at.getTime())) return true;
-
   const from = new Date(range.from);
   from.setHours(0, 0, 0, 0);
-
   const to = new Date(range.to ?? range.from);
   to.setHours(23, 59, 59, 999);
-
   return at >= from && at <= to;
 };
 
-/** 값이 없는 칸은 빈칸이 아니라 `—` 로 —— 데이터가 없는 것과 화면이 깨진 것을 구별한다 */
-const dash = (value: string) => (value.trim() === "" ? "—" : value);
+/* -------------------------------------------------------------------------
+ * 정렬 — 원본 표 머리의 ↕ (이용 기간 · 결제 일시 **둘뿐이다**)
+ * 둘 다 `YYYY-MM-DD…` 라 문자열 비교가 곧 시간순이다. 판매의 빈 기간은 한쪽 끝에 모인다.
+ * ---------------------------------------------------------------------- */
+type SortKey = "period" | "date";
 
-/** 유형에 따라 존재하지 않는 금액(판매 건의 렌트가 등)은 `—` */
-const money = (value: number | null) => (value === null ? "—" : won(value));
+interface SortState {
+  key: SortKey;
+  direction: TableSortDirection;
+}
 
-/**
- * 좌측 고정 5열 (원본 frozen: 상태 · 주문번호 · 유형 · 판매자 · 이용 기간).
- *
- * 폭과 `left` 오프셋이 **짝**이다 — 앞 열들의 폭 합이 다음 열의 오프셋이 된다.
- *   w-29(116) · w-39(156) · w-22(88) · w-32(128) · w-52(208)
- *   →  left-0 · left-29 · left-68 · left-90 · left-122
- * `<colgroup>` 을 고치면 **여기도 함께 고친다.** 어긋나면 열이 서로 겹쳐 덮는다.
- */
-const FROZEN_TH = [
-  "sticky left-0 z-1",
-  "sticky left-29 z-1",
-  "sticky left-68 z-1",
-  "sticky left-90 z-1",
-  /*
-   * 마지막 고정 열만 오른쪽 경계선을 갖는다 — 여기가 "고정 구간의 끝"이라는 표시다.
-   * `border-collapse: collapse` 에서는 border 를 셀이 아니라 표가 그려서, 셀이
-   * sticky 로 떠 있는 동안 border 만 원래 자리에 남아 함께 스크롤돼 사라진다.
-   * 그래서 `::after` 로 그린다 (`Table.tsx` 의 sticky thead 가 쓰는 것과 같은 방식).
-   * 배치 기준은 `sticky` 자신이 만든다 — `relative` 를 더하면 position 이 두 번 나온다.
-   */
-  "sticky left-122 z-1 after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-divide after:content-['']",
-];
+const COMPARATORS: Record<SortKey, (a: Order, b: Order) => number> = {
+  period: (a, b) => a.period.localeCompare(b.period),
+  date: (a, b) => a.date.localeCompare(b.date),
+};
 
-/**
- * 고정 구간의 총 폭 — 마지막 오프셋(488) + 그 열 폭(208).
- *
- * `DataTableShell` 이 가로 스크롤바를 이만큼 **들여서** 그린다. 안 그러면 바가 표 전체
- * 폭에 깔려 "당기면 고정 열도 움직이겠지"로 읽히는데 실제로는 안 움직인다.
- * ⚠️ 위 폭·오프셋과 **같이 고쳐야 하는 세 번째 값**이다.
- */
-const FROZEN_LEAD_WIDTH = 122 * 4 + 52 * 4;
-
-/**
- * 본문 쪽 고정 열은 배경을 **행에서 물려받는다**(`bg-inherit`).
- *
- * zebra 줄무늬는 `<tr>` 이 칠하는데(`odd:bg-surface even:bg-surface-sub`), 고정 열이
- * 배경 없이 떠 있으면 아래를 지나가는 셀이 비쳐 글자가 겹쳐 보인다.
- * 색을 새로 지정하면 zebra 홀짝과 hover 세 상태를 따라가지 못하므로 상속이 유일한 답이다.
- * (헤더 셀은 `TableTh` 가 이미 `bg-surface` 를 갖고 있어 더할 것이 없다.)
- */
-const FROZEN_TD = FROZEN_TH.map((cls) => cls + " bg-inherit");
+/** **오름 → 내림 → 해제** 3단. 해제하면 기본 순서(결제 최신순)로 돌아간다 */
+const nextSort = (
+  current: SortState | null,
+  key: SortKey,
+): SortState | null => {
+  if (current?.key !== key) return { key, direction: "asc" };
+  if (current.direction === "asc") return { key, direction: "desc" };
+  return null;
+};
 
 export interface OrderListPageProps {
   navOpen: boolean;
@@ -197,104 +215,122 @@ export function OrderListPage({
 
   /*
    * 대시보드 흐름 타일이 `/orders-all?stat=렌트&flow=연체중` 으로 링크한다.
-   * 받는 쪽이 없으면 **링크는 열리고 필터만 안 걸린다** — 화면은 멀쩡해 보여서
-   * 타입·린트로는 잡히지 않는다. 쿼리 → 필터 변환과 정합성 보정은 도메인이라
-   * `filtersFromQuery`(도메인 층)가 하고, 뼈대는 그 결과를 초기값으로 받기만 한다.
+   * 쿼리 → 필터 변환과 정합성 보정은 도메인이라 `filtersFromQuery` 가 하고,
+   * 뼈대는 그 결과를 초기값으로 받기만 한다.
    */
   const [filters, setFilters] = useState<OrderFilters>(() =>
     filtersFromQuery(new URLSearchParams(window.location.search)),
   );
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  const [sort, setSort] = useState<SortState | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
+  /** 검색조건 펼침. **기본은 접힘**이다(원본) — 먼저 보여야 하는 것은 결과다 */
+  const [filterOpen, setFilterOpen] = useState(false);
 
-  const [preview, setPreview] = useState<Order | null>(null);
+  /* `?preview=loading|empty|refreshing` 으로 데이터 상태를 미리 본다 */
+  const dataStatus = asStatus(useSearchParams().get("preview"));
 
-  /** 조건 하나를 갈아끼운다. **조건이 바뀌면 페이지는 언제나 1로 되돌아간다** */
+  /** 조건 하나를 바꾼다 — 1페이지로, 선택도 풀린다 */
   const patch = (next: Partial<OrderFilters>) => {
     setFilters((prev) => ({ ...prev, ...next }));
     setPage(1);
+    setSelected([]);
   };
 
-  const statusOptions =
-    STATUS_OPTIONS_BY_TYPE[filters.type] ?? STATUS_OPTIONS_BY_TYPE.all;
+  /** 유형을 바꾸면 **상태·정렬·선택·페이지가 함께 풀린다**(상태 선택지가 통째로 갈린다) */
+  const selectType = (value: string) => {
+    patch({ type: value as OrderType, status: "all" });
+    setSort(null);
+  };
 
-  /*
-   * 유형이 바뀌면 상태 선택지가 통째로 갈린다(렌트 11단계 / 판매 5단계).
-   * 판매로 좁혔는데 "대여중"이 남아 있으면 **필터는 걸린 채인데 결과는 늘 0건**이 되고,
-   * 운영자는 셀렉트에 보이지도 않는 값 때문에 빈 화면을 보게 된다. 그래서 되돌린다.
-   */
-  const handleTypeChange = (next: string) => {
-    const allowed = STATUS_OPTIONS_BY_TYPE[next] ?? STATUS_OPTIONS_BY_TYPE.all;
+  /** 판매자를 "셀러"에서 다른 값으로 옮기면 셀러 지정도 푼다 — 잠긴 셀렉트에 값이 남지 않게 */
+  const selectSellerKind = (value: string) =>
     patch({
-      type: next,
-      status: allowed.some((option) => option.value === filters.status)
-        ? filters.status
-        : "all",
+      sellerKind: value,
+      seller: value === "seller" ? filters.seller : "all",
     });
+
+  /** 초기화는 한 곳에서만 — 검색조건과 빈 상태가 서로 다르게 되돌리면 안 된다 */
+  const resetFilters = () => {
+    patch(EMPTY_FILTERS);
+    setSort(null);
   };
 
   /*
-   * 판매자를 "셀러"에서 다른 값으로 옮기면 셀러 지정도 함께 푼다.
-   * 셀렉트가 비활성으로 잠기는데 값은 남아 있으면 손댈 수 없는 필터가 걸린 셈이 된다.
+   * 유형을 **뺀** 나머지 조건까지 적용한 결과. 유형 카드의 건수를 여기서 센다
+   * (원본 `orderTypeDash` skipType) — 전체 데이터에서 세면 검색을 좁혀도 숫자가 안 변한다.
    */
-  const handleSellerKindChange = (next: string) => {
-    patch({
-      sellerKind: next,
-      sellerId: next === "seller" ? filters.sellerId : "all",
-    });
-  };
-
-  /*
-   * 유형을 **뺀** 나머지 조건까지 적용한 결과. 대시 카드의 건수를 여기서 센다.
-   * 전체 데이터에서 세면 검색을 좁혀도 숫자가 안 변해 **표와 모순된 건수**가 남는다.
-   */
-  const base = ORDERS.filter((order) => {
-    const matchSellerKind =
-      filters.sellerKind === "all" || order.sellerKind === filters.sellerKind;
-    const matchSeller =
-      filters.sellerId === "all" || order.sellerId === filters.sellerId;
-    const matchStatus =
-      filters.status === "all" || order.status === filters.status;
-    const matchKeyword =
-      filters.keyword.trim() === "" ||
-      searchHaystack(order, filters.searchField).includes(
-        filters.keyword.trim(),
-      );
-    return (
-      matchSellerKind &&
-      matchSeller &&
-      matchStatus &&
-      matchKeyword &&
-      inPeriod(order.date, filters.period)
-    );
-  });
-
-  /** 카드마다 붙는 건수. `전체 = 렌트 + 판매` 가 언제나 성립한다 */
-  const countOf = (value: string) =>
-    value === "all"
-      ? base.length
-      : base.filter((order) => order.type === value).length;
-
-  const filtered =
-    filters.type === "all"
-      ? base
-      : base.filter((order) => order.type === filters.type);
-
-  /*
-   * 필터로 결과가 줄면 현재 페이지가 범위를 벗어날 수 있다(2페이지를 보던 중
-   * 1페이지까지만 남는 경우). 그대로 두면 **빈 표**가 그려지므로 마지막 페이지로 당긴다.
-   */
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const paged = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
+  const keyword = filters.keyword.trim().toLowerCase();
+  const scoped = ORDERS.filter(
+    (order) =>
+      (filters.sellerKind === "all" ||
+        order.sellerKind === filters.sellerKind) &&
+      (filters.seller === "all" || order.seller === filters.seller) &&
+      (filters.status === "all" || order.status === filters.status) &&
+      (keyword === "" ||
+        searchValueOf(order, filters.searchField)
+          .toLowerCase()
+          .includes(keyword)) &&
+      inPeriod(order.date, filters.period),
   );
 
-  /* 초기화는 **한 곳에서만 정의한다.** 카드와 빈 상태 두 곳에서 부르는데 한쪽만
-   * 되돌리면 "초기화했는데 여전히 비어 있음"이 된다. 조건이 늘어도 여기만 고친다. */
-  const resetFilters = () => {
-    setFilters(EMPTY_FILTERS);
+  const matched = scoped.filter((order) => order.type === filters.type);
+
+  /* 정렬은 **페이지를 나누기 전에**, 복사한 뒤 한다(제자리 정렬은 모듈 상수를 바꾼다) */
+  const filtered = sort
+    ? [...matched].sort((a, b) => {
+        const order = COMPARATORS[sort.key](a, b);
+        return sort.direction === "asc" ? order : -order;
+      })
+    : matched;
+
+  const toggleSort = (key: SortKey) => {
+    setSort((current) => nextSort(current, key));
     setPage(1);
+  };
+  const directionOf = (key: SortKey) =>
+    sort?.key === key ? sort.direction : undefined;
+
+  /* 결과가 줄어 현재 페이지가 범위를 벗어나면 마지막 페이지로 당긴다 */
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const paged = filtered.slice(start, start + pageSize);
+
+  /** 머리 체크박스는 **보이는 페이지 단위**다 */
+  const pageIds = paged.map((order) => order.id);
+  const allPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selected.includes(id));
+  const somePageSelected =
+    pageIds.some((id) => selected.includes(id)) && !allPageSelected;
+  const selectedOrders = filtered.filter((order) =>
+    selected.includes(order.id),
+  );
+
+  const toggleRow = (id: string) =>
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id],
+    );
+  const togglePage = () =>
+    setSelected((prev) =>
+      allPageSelected
+        ? prev.filter((id) => !pageIds.includes(id))
+        : [...prev, ...pageIds.filter((id) => !prev.includes(id))],
+    );
+
+  /* 엑셀 — 상품 목록과 같은 규칙·문구. 퍼블은 대상 건수만 알린다 */
+  const exportCsv = () => {
+    const rows = selectedOrders.length > 0 ? selectedOrders : filtered;
+    if (rows.length === 0) {
+      toast("다운로드할 데이터가 없습니다");
+      return;
+    }
+    toast(
+      selectedOrders.length > 0
+        ? `선택한 ${rows.length}건을 내려받았습니다`
+        : `조회 결과 ${rows.length}건을 내려받았습니다`,
+    );
   };
 
   return (
@@ -310,185 +346,128 @@ export function OrderListPage({
           collapsedLogo={GNB_LOGO_SLOTS.collapsed}
         />
       }
-      header={
-        <PageHeader
-          title="주문 목록"
-          badges={
-            <Tooltip
-              title="상태 흐름"
-              content="렌트는 배송 완료 뒤에도 대여중 → 수거 신청 → 검수중 → 검수완료 → 반납완료로 이어집니다. 판매는 구매확정에서 끝납니다. 연체중은 보증금 차감으로 이어지므로 먼저 처리하세요."
-            >
-              <IconButton
-                size="small"
-                label="상태 도움말"
-                icon={<HelpCircle strokeWidth={1.2} aria-hidden />}
-              />
-            </Tooltip>
-          }
-        />
-      }
+      header={<PageHeader title="주문 목록" />}
     >
       {/*
-        유형 대시 — 원본 `chip.dash: !0`. 건수를 보여주면서 그 자체가 유형 필터다.
-        흰 카드(그룹) 안에 연한 그레이 상자(항목) 셋이 들어간다.
-        ⚠️ 증감(±)·비교 기준은 두지 않는다 — 원본에 없는 숫자다.
+        유형 대시 — 원본 `chip.dash`. 건수를 보여주면서 그 자체가 유형 필터다.
+        **항상 하나가 선택돼 있다**([전체] 없음 · 기본 렌트).
       */}
       <Card>
         <CardBody>
-          {/*
-            건수 대시 = 필터. 상자의 시각 규격 · 선택/hover 축 분리 · 접근가능 이름
-            조립 · 툴팁 분기는 전부 `StatGrid` 가 맡는다 (docs/DESIGN-dashboard.md §D4).
-            여기서는 **무엇을 세는지**만 말한다.
-          */}
           <StatGrid
-            items={FILTERS.map((item) => ({
+            items={TYPE_FILTERS.map((item) => ({
               value: item.value,
               label: item.label,
-              count: String(countOf(item.value)),
-              unit: "건",
+              count: String(
+                scoped.filter((order) => order.type === item.value).length,
+              ),
+              unit: DASH_UNIT,
             }))}
             selected={filters.type}
-            onSelect={handleTypeChange}
-            ariaLabel="유형"
-            columns={3}
+            onSelect={selectType}
+            ariaLabel="유형별 건수"
+            columns={2}
           />
-
-          {/*
-            유형별 안내 — 원본 `statusTips` 문구다. 렌트와 판매는 **열의 의미가 다르다**.
-            원본은 툴팁으로 띄우지만, 이 문구는 "왜 이 열이 비어 있나"의 답이라
-            표를 보기 **전에** 읽혀야 해서 상시 노출한다.
-          */}
-          <p className="body-small text-text-sub">
-            {TYPE_NOTICE[filters.type]}
-          </p>
         </CardBody>
       </Card>
 
-      {/* 조회 조건 — 필터 6종. 라벨이 필요한 컨트롤이라 툴바가 아니라 카드에 담는다 */}
-      <Card>
-        <CardHeader
-          title="조회 조건"
-          action={
-            <TextButton tone="secondary" onClick={resetFilters}>
-              초기화
-            </TextButton>
+      {/*
+        검색조건 — **접힌 채로 열리고** 걸린 조건은 요약이 말한다.
+        순서는 원본 그대로: 기간(결제일) → 판매자 → 셀러 → 상태 → 검색.
+        ⚠️ 유형은 여기 없다 — 그 축의 입구는 위의 건수 카드 하나뿐이다.
+      */}
+      <FilterBar
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        summary={filterSummary(filters)}
+        onReset={resetFilters}
+      >
+        <DatePicker
+          mode="range"
+          aria-label="결제일"
+          presets={PERIOD_PRESETS}
+          value={filters.period}
+          onChange={(next) => patch({ period: next })}
+          startPlaceholder="결제일 시작"
+          endPlaceholder="결제일 종료"
+        />
+        <RadioGroup
+          value={filters.sellerKind}
+          onValueChange={selectSellerKind}
+          orientation="horizontal"
+          aria-label="판매자"
+        >
+          {SELLER_KINDS.map((item) => (
+            <Radio
+              key={item.value}
+              value={item.value}
+              label={item.label}
+              size="small"
+            />
+          ))}
+        </RadioGroup>
+        {/* 판매자가 '셀러'일 때만 열린다 — 잠긴 동안은 "셀러 전체"가 자리를 지킨다 */}
+        <Select
+          className="w-36"
+          aria-label="셀러"
+          options={SELLERS}
+          value={filters.seller}
+          disabled={filters.sellerKind !== "seller"}
+          onValueChange={(value) => patch({ seller: value })}
+        />
+        <Select
+          className="w-36"
+          aria-label="상태"
+          options={STATUS_OPTIONS_BY_TYPE[filters.type]}
+          value={filters.status}
+          onValueChange={(value) => patch({ status: value })}
+        />
+        {/* 검색 대상은 한 번에 하나만 훑는다 — 어디서 걸렸는지 결과만 보고 구별할 수 있게 */}
+        <Select
+          className="w-28"
+          aria-label="검색 대상"
+          options={SEARCH_FIELDS}
+          value={filters.searchField}
+          onValueChange={(value) =>
+            patch({ searchField: value as OrderSearchField })
           }
         />
-        <CardBody>
-          {/* §29-4 균등 분할 — 래퍼 flex + 각 항목 flex-1 min-w-0 (2열 grid 금지) */}
-          <div className="flex flex-wrap items-start gap-2">
-            <FormField label="기간 (결제일)" className="flex-1 min-w-0">
-              <DatePicker
-                mode="range"
-                value={filters.period}
-                onChange={(next) => patch({ period: next })}
-                startPlaceholder="시작일"
-                endPlaceholder="종료일"
-              />
-            </FormField>
-            {/* 그룹 컨트롤은 `group` 이 없으면 접근가능 이름이 아예 없다 (§29-6b) */}
-            <FormField label="판매자" group className="flex-1 min-w-0">
-              <RadioGroup
-                orientation="horizontal"
-                value={filters.sellerKind}
-                onValueChange={handleSellerKindChange}
-              >
-                {SELLER_KINDS.map((item) => (
-                  <Radio
-                    key={item.value}
-                    value={item.value}
-                    label={item.label}
-                  />
-                ))}
-              </RadioGroup>
-            </FormField>
-            <FormField
-              label="셀러"
-              className="flex-1 min-w-0"
-              description="판매자에서 '셀러'를 선택하면 특정 셀러를 지정할 수 있습니다."
-            >
-              <Select
-                options={SELLERS}
-                value={filters.sellerId}
-                onValueChange={(next) => patch({ sellerId: next })}
-                disabled={filters.sellerKind !== "seller"}
-                placeholder="셀러 전체"
-              />
-            </FormField>
-          </div>
+        <Input
+          placeholder={SEARCH_PLACEHOLDER}
+          value={filters.keyword}
+          onChange={(event) => patch({ keyword: event.target.value })}
+          leftIcon={<Search size={16} strokeWidth={1.2} aria-hidden />}
+        />
+      </FilterBar>
 
-          <div className="flex flex-wrap items-start gap-2">
-            <FormField
-              label="상태"
-              className="flex-1 min-w-0"
-              description={
-                filters.type === "sale"
-                  ? "판매는 구매확정에서 끝납니다."
-                  : "렌트는 반납완료까지 이어집니다."
-              }
-            >
-              <Select
-                options={statusOptions}
-                value={filters.status}
-                onValueChange={(next) => patch({ status: next })}
-                placeholder="상태 전체"
-              />
-            </FormField>
-            <FormField label="검색조건" className="flex-1 min-w-0">
-              <Select
-                options={SEARCH_FIELDS}
-                value={filters.searchField}
-                onValueChange={(next) => patch({ searchField: next })}
-                placeholder="조건 없음 (전체)"
-              />
-            </FormField>
-            <FormField label="검색어" className="flex-1 min-w-0">
-              <Input
-                placeholder="검색어 입력"
-                value={filters.keyword}
-                onChange={(event) => patch({ keyword: event.target.value })}
-                leftIcon={<Search size={16} strokeWidth={1.2} aria-hidden />}
-              />
-            </FormField>
-          </div>
-        </CardBody>
-      </Card>
-
-      {/* 목록 — 툴바에는 기획서가 정한 "목록 헤더"(총 N건 · 엑셀 다운로드)만 둔다 */}
       <DataTableShell
-        /* 가로 스크롤바를 고정 구간만큼 들여서 그린다 — 바의 범위 = 실제 스크롤 범위 */
+        /* 고정 구간을 비켜서 스크롤바를 그린다 — 바의 범위 = 실제 스크롤 범위 */
         scrollLeadWidth={FROZEN_LEAD_WIDTH}
+        /* 다른 목록 화면과 같은 층(§Card soft) */
+        variant="soft"
+        fill
+        className="flex-1"
+        bodyClassName={dimWhile(dataStatus)}
+        aria-busy={isBusy(dataStatus)}
         toolbarStart={
           <h2 className="heading-medium-bold text-text">
             목록 (총 {filtered.length}건)
           </h2>
         }
         toolbarEnd={
-          <Button
-            variant="secondary"
-            /*
-              표에 없는 열 셋(처리단위·결제금액·주문일시)이 파일에는 들어간다.
-              파일을 열어 봐야 아는 것보다 내려받는 순간 알리는 편이 낫다.
-            */
-            onClick={() =>
-              toast(
-                `${EXPORT_NAME}_${filtered.length}건.csv 를 내려받았습니다 (${EXPORT_EXTRA_COLUMNS.map(
-                  (column) => column.label,
-                ).join("·")} 포함)`,
-              )
-            }
-          >
+          <Button variant="secondary" onClick={exportCsv}>
             <ArrowDownToLine size={16} strokeWidth={1.2} aria-hidden />
             엑셀 다운로드
           </Button>
         }
-        isEmpty={filtered.length === 0}
+        isEmpty={dataStatus === "empty" || filtered.length === 0}
         empty={
           <EmptyState
             size="table"
+            sticky
             icon={<Search strokeWidth={1.2} aria-hidden />}
-            title="해당 조건의 항목이 없습니다"
-            description="조건을 변경하거나 필터를 초기화한 뒤 다시 조회해 주세요."
+            title={EMPTY_TITLE}
+            description={EMPTY_DESCRIPTION}
           >
             <Button variant="secondary" onClick={resetFilters}>
               필터 초기화
@@ -500,25 +479,31 @@ export function OrderListPage({
             page={currentPage}
             totalPages={totalPages}
             onPageChange={setPage}
-            start={
-              <span className="body-small text-text-sub">
-                {currentPage} / {totalPages} 페이지
-              </span>
+            end={
+              <PaginationSizeSelect
+                sizes={PAGE_SIZES}
+                value={pageSize}
+                onSizeChange={(size) => {
+                  setPageSize(size);
+                  setPage(1);
+                }}
+              />
             }
           />
         }
       >
         <Table>
           {/*
-            `table-fixed` 라 폭 지정이 필수다. 24열이라 %가 아니라 px 로 준다 —
-            합계가 곧 표 폭이 되고, 그만큼 셸의 표 래퍼가 가로로 스크롤한다.
-            ⚠️ 앞 5개는 `FROZEN_TH` 의 left 오프셋과 **짝**이다. 함께 고칠 것.
+            table-fixed 라 폭 지정 필수. 26열이라 px(4px 그리드 유틸)로 준다.
+            ⚠️ 앞 7개는 `FROZEN_LEFT` 의 오프셋과 **짝**이다(합 760). 함께 고칠 것.
           */}
           <colgroup>
+            <col className="w-13" />
+            <col className="w-14" />
             <col className="w-29" />
-            <col className="w-39" />
-            <col className="w-22" />
-            <col className="w-32" />
+            <col className="w-36" />
+            <col className="w-18" />
+            <col className="w-28" />
             <col className="w-52" />
             <col className="w-27" />
             <col className="w-39" />
@@ -527,7 +512,7 @@ export function OrderListPage({
             <col className="w-37" />
             <col className="w-32" />
             <col className="w-37" />
-            <col className="w-32" />
+            <col className="w-27" />
             <col className="w-54" />
             <col className="w-29" />
             <col className="w-29" />
@@ -542,18 +527,42 @@ export function OrderListPage({
           </colgroup>
           <TableHead>
             <TableRow>
-              {/* 배지만 들어가는 열은 가운데 (§7-2) — th·td 를 반드시 함께 바꾼다 */}
-              <TableTh align="center" className={FROZEN_TH[0]}>
+              <TableTh className={frozenTh(0)}>
+                <Checkbox
+                  size="small"
+                  aria-label="이 페이지 전체 선택"
+                  checked={allPageSelected}
+                  indeterminate={somePageSelected}
+                  onChange={togglePage}
+                />
+              </TableTh>
+              <TableTh className={frozenTh(1)}>No</TableTh>
+              {/* 배지만 들어가는 열은 가운데 (§7-2) — th·td 를 함께 바꾼다 */}
+              <TableTh align="center" className={frozenTh(2)}>
                 상태
               </TableTh>
-              <TableTh className={FROZEN_TH[1]}>주문번호</TableTh>
-              <TableTh align="center" className={FROZEN_TH[2]}>
+              <TableTh className={frozenTh(3)}>주문번호</TableTh>
+              <TableTh align="center" className={frozenTh(4)}>
                 유형
               </TableTh>
-              <TableTh className={FROZEN_TH[3]}>판매자</TableTh>
-              <TableTh className={FROZEN_TH[4]}>이용 기간</TableTh>
+              <TableTh className={frozenTh(5)}>판매자</TableTh>
+              {/* 원본 표 머리에서 ↕ 가 붙은 것은 이용 기간·결제 일시 둘뿐이다 */}
+              <TableTh
+                className={frozenTh(6)}
+                sortable
+                sortDirection={directionOf("period")}
+                onSort={() => toggleSort("period")}
+              >
+                이용 기간
+              </TableTh>
               <TableTh>결제수단</TableTh>
-              <TableTh>결제 일시</TableTh>
+              <TableTh
+                sortable
+                sortDirection={directionOf("date")}
+                onSort={() => toggleSort("date")}
+              >
+                결제 일시
+              </TableTh>
               <TableTh>배송 방법</TableTh>
               <TableTh>택배사</TableTh>
               <TableTh>송장번호</TableTh>
@@ -561,7 +570,6 @@ export function OrderListPage({
               <TableTh>수거 송장번호</TableTh>
               <TableTh>상품코드</TableTh>
               <TableTh>상품명</TableTh>
-              {/* 크기를 비교하는 수치는 우측 (§7-2) */}
               <TableTh>렌트 원가</TableTh>
               <TableTh>할인 금액</TableTh>
               <TableTh>렌트가</TableTh>
@@ -575,84 +583,86 @@ export function OrderListPage({
             </TableRow>
           </TableHead>
           <TableBody>
-            {paged.map((order) => {
-              const statusMeta = STATUS_META[order.status];
-              const typeMeta = TYPE_META[order.type];
-              return (
-                <TableRow
-                  key={order.id}
-                  clickable
-                  onClick={() => setPreview(order)}
-                >
-                  <TableTd align="center" className={FROZEN_TD[0]}>
-                    <Tag tone={statusMeta.tone} dot>
-                      {statusMeta.label}
-                    </Tag>
-                  </TableTd>
-                  <TableTd className={FROZEN_TD[1]}>{order.id}</TableTd>
-                  <TableTd align="center" className={FROZEN_TD[2]}>
-                    <Tag tone={typeMeta.tone} size="small">
-                      {typeMeta.label}
-                    </Tag>
-                  </TableTd>
-                  {/* 원본 `y()` — 본사면 "본사", 아니면 셀러명. 열 하나로 끝낸다 */}
-                  <TableTd className={FROZEN_TD[3]}>
-                    {sellerLabel(order)}
-                  </TableTd>
-                  <TableTd className={FROZEN_TD[4]}>
-                    {dash(order.usagePeriod)}
-                  </TableTd>
-                  <TableTd>{order.payMethod}</TableTd>
-                  {/* 저장은 하이픈, 화면은 점 — 날것을 그대로 흘리지 않는다 */}
-                  <TableTd>{ymdhm(order.date)}</TableTd>
-                  <TableTd>{order.shipMethod}</TableTd>
-                  <TableTd>{dash(order.carrier)}</TableTd>
-                  <TableTd>{dash(order.trackingNo)}</TableTd>
-                  <TableTd>{dash(order.pickupCarrier)}</TableTd>
-                  <TableTd>{dash(order.pickupTrackingNo)}</TableTd>
-                  <TableTd>{order.productCode}</TableTd>
-                  <TableTd ellipsis>{order.productName}</TableTd>
-                  <TableTd>{money(order.rentBasePrice)}</TableTd>
-                  <TableTd>{won(order.discount)}</TableTd>
-                  {/* 렌트가는 저장값이 아니라 원가−할인 파생값이다 */}
-                  <TableTd>{money(rentPriceOf(order))}</TableTd>
-                  <TableTd>{order.buyerName}</TableTd>
-                  <TableTd ellipsis>{order.buyerId}</TableTd>
-                  <TableTd>{order.buyerPhone}</TableTd>
-                  <TableTd>{order.receiver}</TableTd>
-                  <TableTd>{order.receiverPhone}</TableTd>
-                  <TableTd ellipsis>{order.address}</TableTd>
-                  <TableTd ellipsis>{dash(order.shipMemo)}</TableTd>
-                </TableRow>
-              );
-            })}
+            {/* 로딩은 본문 행만 스켈레톤으로 — 정렬 머리·고정 열을 두 벌로 관리하지 않는다 */}
+            {dataStatus === "loading"
+              ? Array.from({ length: pageSize }, (_, row) => (
+                  <TableRow key={`skeleton-${row}`}>
+                    {Array.from({ length: COLUMN_COUNT }, (_, cell) => (
+                      <TableTd key={cell} className={frozenTd(cell)}>
+                        <span className="body-small block">
+                          <Skeleton />
+                        </span>
+                      </TableTd>
+                    ))}
+                  </TableRow>
+                ))
+              : paged.map((order, index) => {
+                  const statusMeta = STATUS_META[order.status];
+                  const typeMeta = TYPE_META[order.type];
+                  const isRent = order.type === "rent";
+                  return (
+                    <TableRow key={order.id}>
+                      <TableTd className={frozenTd(0)}>
+                        {/* 같은 주문번호에 처리단위가 여럿일 수 있어 상품명까지 이름에 넣는다 */}
+                        <Checkbox
+                          size="small"
+                          aria-label={`${order.orderNo} ${order.productName} 선택`}
+                          checked={selected.includes(order.id)}
+                          onChange={() => toggleRow(order.id)}
+                        />
+                      </TableTd>
+                      {/* 조회 결과의 역순 순번 — 필터·정렬을 바꾸면 다시 센다 */}
+                      <TableTd className={cn("tabular-nums", frozenTd(1))}>
+                        {filtered.length - (start + index)}
+                      </TableTd>
+                      <TableTd align="center" className={frozenTd(2)}>
+                        <Tag tone={statusMeta.tone} dot size="small">
+                          {statusMeta.label}
+                        </Tag>
+                      </TableTd>
+                      {/* 원본: 주문번호를 누르면 처리단위별 주문 상세로 간다 */}
+                      <TableTd className={frozenTd(3)}>
+                        <TextButton onClick={() => toast(DETAIL_PENDING)}>
+                          {order.orderNo}
+                        </TextButton>
+                      </TableTd>
+                      <TableTd align="center" className={frozenTd(4)}>
+                        <Tag tone={typeMeta.tone} size="small">
+                          {typeMeta.label}
+                        </Tag>
+                      </TableTd>
+                      <TableTd className={frozenTd(5)}>
+                        {sellerLabel(order)}
+                      </TableTd>
+                      <TableTd className={frozenTd(6)}>
+                        {isRent ? periodText(order.period) : DASH}
+                      </TableTd>
+                      <TableTd>{order.payMethod}</TableTd>
+                      <TableTd>{ymdhm(order.date)}</TableTd>
+                      <TableTd>{order.shipMethod}</TableTd>
+                      <TableTd>{dash(order.carrier)}</TableTd>
+                      <TableTd>{dash(order.trackingNo)}</TableTd>
+                      <TableTd>{dash(order.pickupCarrier)}</TableTd>
+                      <TableTd>{dash(order.pickupTrackingNo)}</TableTd>
+                      <TableTd>{order.productCode}</TableTd>
+                      <TableTd ellipsis>{order.productName}</TableTd>
+                      {/* 판매 건은 렌트 금액 세 열이 **모두** 비어 있다(원본 `hasRent`) */}
+                      <TableTd>{money(order.rentBasePrice)}</TableTd>
+                      <TableTd>{money(order.rentDiscount)}</TableTd>
+                      <TableTd>{money(rentPriceOf(order))}</TableTd>
+                      <TableTd>{order.buyerName}</TableTd>
+                      <TableTd ellipsis>{order.buyerId}</TableTd>
+                      <TableTd>{order.buyerPhone}</TableTd>
+                      <TableTd>{order.receiver}</TableTd>
+                      <TableTd>{order.receiverPhone}</TableTd>
+                      <TableTd ellipsis>{order.address}</TableTd>
+                      <TableTd ellipsis>{dash(order.shipMemo)}</TableTd>
+                    </TableRow>
+                  );
+                })}
           </TableBody>
         </Table>
       </DataTableShell>
-
-      {/*
-        주문 미리보기 — 4항목짜리 빠른 확인용이다.
-        제목을 "주문 상세"로 두지 않는다. 표가 24열이라 전체 정보가 모달에 들어가지
-        않으므로, 여기서 다 보여주려 들면 모달이 두 번째 표가 된다.
-        ⚠️ 푸터(도메인 액션)를 두지 않는다 — 원본 주문 목록에는 행 액션이 없다.
-        표에서 뺀 **결제금액**을 여기서 보는 것이 이 모달이 하는 일이다.
-      */}
-      <Modal open={preview !== null} onClose={() => setPreview(null)}>
-        <ModalHeader title="주문 미리보기" description={preview?.id} />
-        <ModalBody>
-          <InfoList>
-            <InfoItem label="상품">{preview?.productName}</InfoItem>
-            <InfoItem label="구매자">{preview?.buyerName}</InfoItem>
-            <InfoItem label="결제금액">
-              {preview ? won(preview.payAmount) : ""}
-            </InfoItem>
-            {/* 라벨이 4글자라 기본 폭 80 에 들어간다 — `labelWidth` 를 주지 않는다 */}
-            <InfoItem label="결제 일시">
-              {preview ? ymdhm(preview.date) : ""}
-            </InfoItem>
-          </InfoList>
-        </ModalBody>
-      </Modal>
     </AppShell>
   );
 }

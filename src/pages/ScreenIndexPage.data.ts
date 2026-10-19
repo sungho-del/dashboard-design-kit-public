@@ -178,7 +178,7 @@ export const SCREENS: ScreenEntry[] = [
     name: "주문 목록",
     type: "목록형",
     origin: "babycube",
-    summary: "렌트·판매 주문 27열 · 처리단위 기준 조회",
+    summary: "렌트·판매 유형 카드 · 처리단위 기준 26열 조회",
     file: "babycube/OrderListPage.tsx",
     icon: ShoppingCart,
   },
