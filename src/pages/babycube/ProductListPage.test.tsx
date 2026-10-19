@@ -598,7 +598,7 @@ describe("ProductListPage", () => {
 
       await chooseOption(user, "카테고리 대분류", "카시트");
       await chooseOption(user, "카테고리 중분류", "신생아 카시트");
-      await chooseOption(user, "카테고리 대분류", "수유·이유");
+      await chooseOption(user, "카테고리 대분류", "육아가전");
 
       expect(selectTrigger("카테고리 중분류")).toHaveTextContent("중분류 전체");
       expect(visibleCodes()).toEqual(["BL560372"]);
@@ -616,7 +616,8 @@ describe("ProductListPage", () => {
       expect(selectTrigger("카테고리 대분류")).toHaveTextContent(
         "카테고리 전체",
       );
-      await chooseOption(user, "카테고리 대분류", "카시트");
+      await chooseOption(user, "카테고리 대분류", "외출·이동");
+      await chooseOption(user, "카테고리 중분류", "주니어 카시트");
       /* 판매 트리의 카시트 — 렌트 카시트 상품은 걸리지 않는다 */
       expect(visibleCodes()).toEqual(["LS240724", "AR271948"]);
     });

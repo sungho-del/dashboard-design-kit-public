@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
 import { useSearchParams } from "../../lib/router";
 import {
@@ -7,7 +7,6 @@ import {
   Image as ImageIcon,
   Plus,
   RefreshCw,
-  Shapes,
   Trash2,
 } from "lucide-react";
 import {
@@ -42,15 +41,15 @@ import {
   DELETE_NOTICE,
   DELETE_WARNING,
   DOMAIN_TABS,
+  DUPLICATE_ERROR,
   EMPTY_DESCRIPTION,
   EMPTY_TITLE,
   ICON_GUIDE,
   ICON_REMOVED,
   ICON_SAVED,
   LEVEL_META,
+  MOVED_MESSAGE,
   NAME_ERROR,
-  addChildCategory,
-  addRootCategory,
   addedChildMessage,
   addedRootMessage,
   canAddChild,
@@ -58,17 +57,16 @@ import {
   deleteBlockReasonOf,
   deletedMessage,
   domainLabel,
+  isDuplicateName,
   isFirstSibling,
   isLastSibling,
-  moveCategory,
-  removeCategory,
-  renameCategory,
+  productCountsOf,
   renamedMessage,
-  setCategoryIcon,
   type Category,
   type CategoryDomain,
   type CategoryLevel,
 } from "./CategoryListPage.data";
+import { PRODUCTS } from "./ProductListPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
 /* =========================================================================
@@ -84,14 +82,21 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * | --------------------- | ---------------------------------------------- |
  * | 데이터·타입·라벨·단위 | `CategoryListPage.data.ts` **전체**            |
  * | 표 컬럼 구성          | 이 파일의 `<colgroup>` + `TableHead` + 본문 셀 |
- * | 트리 조작 규칙        | `.data.ts` 의 `moveCategory`·`addChildCategory` |
+ * | 상품수 계산·삭제 가드 | `.data.ts` 의 `productCountsOf`·`deleteBlockReasonOf` |
  * | 행 액션               | `관리` 셀의 버튼 5개                           |
  *
  * ## 트리가 **둘**이라는 것이 이 화면의 첫 사실이다
  * 원본이 `categoryApi.tree("렌트" | "판매")` 로 아예 다른 트리를 받아 오고,
- * 화면 위 칩으로 그 둘을 오간다. 그래서 상태는 **한 배열**(두 트리를 이어 붙인 것)이고
- * 화면은 `domain` 으로 잘라 본다 — 순서 이동·하위 추가가 도메인 경계를 넘지 않도록
- * 판정 함수들이 전부 `domain` 을 함께 본다(`.data.ts` `blockLengthAt`).
+ * 화면 위 칩으로 그 둘을 오간다. 데이터는 **한 배열**(두 트리를 이어 붙인 것)이고
+ * 화면은 `domain` 으로 잘라 본다 — ▲▼ 잠금·이름 중복 판정도 `domain` 을 함께 본다.
+ *
+ * ## 편집은 알림만 띄운다 (퍼블 범위 · 2026-10-19 사용자 결정)
+ * 원본은 저장 버튼 없이 즉시 반영하는 화면이지만, 처리 결과로 데이터를 바꾸는 것은
+ * 개발 영역이다(상품 승인·반려, 상품 이미지 업로드와 같은 기준). 그래서
+ * - 이름 입력·검증(빈 이름·중복·그대로)은 화면에서 하고, 확정하면 **알림만**
+ * - 삭제는 막히면 **창 없이** 이유 알림(원본 UI-325), 빈 카테고리만 확인 창 → 알림
+ * - ▲▼·아이콘 등록/교체/삭제도 알림만. 아이콘 창은 처리 뒤에도 열려 있다(원본)
+ * 표·`CATEGORIES`·상품 데이터는 바뀌지 않는다 — 실 API 를 붙이면 그 자리에서 다시 받는다.
  *
  * ## 템플릿(`OrderListPage`)과 갈라지는 지점 — 셋 다 의도된 것이다
  * 1. **페이지네이션이 없다.** 행이 트리라 페이지를 나누면 부모와 자식이 갈라진다.
@@ -120,14 +125,13 @@ const LEVEL_INDENT: Record<CategoryLevel, string> = {
 };
 
 /**
- * 새로 등록한 아이콘의 자리를 채우는 **프로토타입 대체물**.
- *
- * 실서비스는 업로드한 이미지를 그리지만 이 디자인 시스템에는 `Thumbnail` 이 없다
- * (`.data.ts` `Category.icon` 주석). 등록/교체/삭제 흐름을 살리려면 "아이콘이 생겼다"를
- * 눈으로 확인할 무언가가 필요해서, 빈 자리 표식(`ImageIcon`)과 **구별되는** 도형을 쓴다.
- * 업로드가 붙으면 이 상수는 통째로 사라진다.
+ * 등록 상품수 — **상품 목록과 같은 샘플**에서 센다(하위 포함 합계).
+ * 표와 삭제 가드가 이 한 결과를 같이 쓴다. 상품 데이터가 `.data.ts` 를 import 하므로
+ * 계산은 순환이 없는 이 뼈대에서 묶는다.
  */
-const UPLOADED_ICON = Shapes;
+const PRODUCT_COUNTS = productCountsOf(CATEGORIES, PRODUCTS);
+const productCountOf = (category: Category) =>
+  PRODUCT_COUNTS.get(category.id) ?? 0;
 
 /**
  * 열 폭의 **정본**. 표와 로딩 뼈대가 **같은 것을 쓴다** — 폭을 두 번 적으면
@@ -148,7 +152,7 @@ const SKELETON_WIDTHS = ["w-12", "w-8", "w-24", "w-10", "w-40"];
 
 /**
  * 로딩 뼈대. **헤더는 실제 글자 그대로** 두고 본문만 가린다(§D8-1).
- * 트리라 행 수가 들쭉날쭉하지만, 뼈대는 **대분류 수(6)** 에 맞춰 둔다.
+ * 트리라 행 수가 들쭉날쭉하지만, 뼈대는 **렌트 대분류 수(8)** 에 맞춰 둔다.
  */
 const loadingTable = (
   <Table>
@@ -163,7 +167,7 @@ const loadingTable = (
       </TableRow>
     </TableHead>
     <TableBody>
-      {Array.from({ length: 6 }, (_, row) => (
+      {Array.from({ length: 8 }, (_, row) => (
         <TableRow key={row}>
           {SKELETON_WIDTHS.map((width, cell) => (
             <TableTd key={cell}>
@@ -199,7 +203,6 @@ export function CategoryListPage({
 }: CategoryListPageProps) {
   const { toast } = useToast();
 
-  const [rows, setRows] = useState<Category[]>(CATEGORIES);
   const [domain, setDomain] = useState<CategoryDomain>(DEFAULT_DOMAIN);
 
   /*
@@ -212,30 +215,16 @@ export function CategoryListPage({
   const [nameValue, setNameValue] = useState("");
   const [nameTouched, setNameTouched] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
-  const [iconTargetId, setIconTargetId] = useState<string | null>(null);
+  const [iconTarget, setIconTarget] = useState<Category | null>(null);
 
-  /** 새 행의 키. 도메인을 가로질러 유일하기만 하면 되는 **기술 키**다 */
-  const seq = useRef(0);
-  const makeId = () => `category-new-${(seq.current += 1)}`;
-
-  /* 화면은 지금 보고 있는 트리만 그린다 — 상태는 두 트리를 이어 붙인 한 배열이다 */
+  /* 화면은 지금 보고 있는 트리만 그린다 — 데이터는 두 트리를 이어 붙인 한 배열이다 */
+  const rows = CATEGORIES;
   const visible = rows.filter((category) => category.domain === domain);
+  const IconPreview = iconTarget?.icon ?? null;
 
-  const openCreateRoot = () => {
-    setNameTarget({ mode: "root" });
-    setNameValue("");
-    setNameTouched(false);
-  };
-
-  const openAddChild = (parent: Category) => {
-    setNameTarget({ mode: "child", parent });
-    setNameValue("");
-    setNameTouched(false);
-  };
-
-  const openRename = (category: Category) => {
-    setNameTarget({ mode: "rename", category });
-    setNameValue(category.name);
+  const openName = (target: NameTarget) => {
+    setNameTarget(target);
+    setNameValue(target.mode === "rename" ? target.category.name : "");
     setNameTouched(false);
   };
 
@@ -245,50 +234,55 @@ export function CategoryListPage({
     setNameTouched(false);
   };
 
-  const nameInvalid = nameTouched && nameValue.trim() === "";
+  /* 오류는 [저장]을 한 번 누른 뒤부터 입력에 따라 바뀐다 */
+  const name = nameValue.trim();
+  const nameProblem =
+    name === ""
+      ? NAME_ERROR
+      : isDuplicateName(
+            rows,
+            domain,
+            name,
+            nameTarget?.mode === "rename" ? nameTarget.category.id : undefined,
+          )
+        ? DUPLICATE_ERROR
+        : undefined;
 
   const submitName = () => {
-    setNameTouched(true);
-    const name = nameValue.trim();
-    if (name === "" || nameTarget === null) return;
-
-    if (nameTarget.mode === "root") {
-      setRows((prev) => addRootCategory(prev, domain, makeId(), name));
-      toast(addedRootMessage(domain, name));
-    } else if (nameTarget.mode === "child") {
-      const { parent } = nameTarget;
-      setRows((prev) => addChildCategory(prev, parent, makeId(), name));
-      toast(addedChildMessage(parent.name, name));
-    } else {
-      const { category } = nameTarget;
-      setRows((prev) => renameCategory(prev, category.id, name));
-      toast(renamedMessage(category.name, name));
+    if (nameTarget === null) return;
+    /* 이름을 그대로 두고 저장하면 아무 일 없이 닫는다(원본 `v===name`) */
+    if (nameTarget.mode === "rename" && name === nameTarget.category.name) {
+      closeName();
+      return;
     }
+    setNameTouched(true);
+    if (nameProblem) return;
+
+    toast(
+      nameTarget.mode === "root"
+        ? addedRootMessage(name)
+        : nameTarget.mode === "child"
+          ? addedChildMessage(nameTarget.parent.name, name)
+          : renamedMessage(nameTarget.category.name, name),
+    );
     closeName();
   };
 
-  /** 막힌 이유가 있으면 삭제 버튼을 잠그고 **그 문장을** 보여준다 */
-  const deleteBlockReason = deleteTarget
-    ? deleteBlockReasonOf(rows, deleteTarget)
-    : null;
-
-  const confirmDelete = () => {
-    if (!deleteTarget || deleteBlockReason) return;
-    setRows((prev) => removeCategory(prev, deleteTarget.id));
-    toast(deletedMessage(deleteTarget.name));
-    setDeleteTarget(null);
+  /** 막히면 창을 열지 않고 이유만 알린다 — 빈 카테고리만 확인 창으로 간다(원본 UI-325) */
+  const requestDelete = (category: Category) => {
+    const reason = deleteBlockReasonOf(
+      rows,
+      category,
+      productCountOf(category),
+    );
+    if (reason) toast(reason);
+    else setDeleteTarget(category);
   };
 
-  /* 아이콘 모달은 **id 로** 대상을 기억한다 — 아이콘을 바꾸면 행 객체가 새로 만들어져
-     객체를 붙들고 있으면 모달이 옛 아이콘을 계속 보여준다 */
-  const iconTarget = rows.find((category) => category.id === iconTargetId);
-  const IconPreview = iconTarget?.icon ?? null;
-
-  const applyIcon = (icon: typeof UPLOADED_ICON | null) => {
-    if (!iconTarget) return;
-    setRows((prev) => setCategoryIcon(prev, iconTarget.id, icon));
-    toast(icon === null ? ICON_REMOVED : ICON_SAVED);
-    setIconTargetId(null);
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    toast(deletedMessage(deleteTarget.name));
+    setDeleteTarget(null);
   };
 
   return (
@@ -332,7 +326,7 @@ export function CategoryListPage({
           </>
         }
         toolbarEnd={
-          <Button onClick={openCreateRoot}>
+          <Button onClick={() => openName({ mode: "root" })}>
             <Plus size={16} strokeWidth={1.2} aria-hidden />
             {domainLabel(domain)} 대분류 추가
           </Button>
@@ -378,7 +372,7 @@ export function CategoryListPage({
                       size="small"
                       variant="ghost"
                       label={`${category.name} 아이콘 관리`}
-                      onClick={() => setIconTargetId(category.id)}
+                      onClick={() => setIconTarget(category)}
                       icon={
                         Icon ? (
                           <Icon strokeWidth={1.2} aria-hidden />
@@ -395,17 +389,22 @@ export function CategoryListPage({
                     */}
                     <span
                       className={cn(
-                        "inline-block",
+                        "inline-block body-medium-bold",
                         LEVEL_INDENT[category.level],
                       )}
                     >
-                      {category.parentId === null ? "" : "└"}
+                      {/* 계층은 단계 배지가 말한다 — 가지 기호는 눈으로만 읽는다 */}
+                      {category.parentId !== null && (
+                        <span aria-hidden className="text-text-minimal">
+                          {"└ "}
+                        </span>
+                      )}
                       {category.name}
                     </span>
                   </TableTd>
                   {/* 수치는 **등폭**이다(§D6-2) — 자릿수가 세로로 맞아야 비교된다 */}
                   <TableTd className="tabular-nums">
-                    {count(category.productCount)}
+                    {count(productCountOf(category))}
                   </TableTd>
                   <TableTd>
                     {/*
@@ -419,9 +418,7 @@ export function CategoryListPage({
                         variant="secondary"
                         label={`${category.name} 위로`}
                         disabled={isFirstSibling(rows, category)}
-                        onClick={() =>
-                          setRows((prev) => moveCategory(prev, category.id, -1))
-                        }
+                        onClick={() => toast(MOVED_MESSAGE)}
                         icon={<ChevronUp strokeWidth={1.2} aria-hidden />}
                       />
                       <IconButton
@@ -429,9 +426,7 @@ export function CategoryListPage({
                         variant="secondary"
                         label={`${category.name} 아래로`}
                         disabled={isLastSibling(rows, category)}
-                        onClick={() =>
-                          setRows((prev) => moveCategory(prev, category.id, 1))
-                        }
+                        onClick={() => toast(MOVED_MESSAGE)}
                         icon={<ChevronDown strokeWidth={1.2} aria-hidden />}
                       />
                       {/* 소분류(3단계)가 마지막이라 그 아래로는 만들 수 없다 */}
@@ -440,7 +435,9 @@ export function CategoryListPage({
                           size="small"
                           variant="secondary"
                           aria-label={`${category.name} 하위 추가`}
-                          onClick={() => openAddChild(category)}
+                          onClick={() =>
+                            openName({ mode: "child", parent: category })
+                          }
                         >
                           + 하위
                         </Button>
@@ -449,7 +446,7 @@ export function CategoryListPage({
                         size="small"
                         variant="secondary"
                         aria-label={`${category.name} 이름변경`}
-                        onClick={() => openRename(category)}
+                        onClick={() => openName({ mode: "rename", category })}
                       >
                         이름변경
                       </Button>
@@ -457,7 +454,7 @@ export function CategoryListPage({
                         size="small"
                         variant="critical"
                         aria-label={`${category.name} 삭제`}
-                        onClick={() => setDeleteTarget(category)}
+                        onClick={() => requestDelete(category)}
                       >
                         삭제
                       </Button>
@@ -493,7 +490,7 @@ export function CategoryListPage({
           <FormField
             label="카테고리명"
             required
-            error={nameInvalid ? NAME_ERROR : undefined}
+            error={nameTouched ? nameProblem : undefined}
           >
             <Input
               value={nameValue}
@@ -512,26 +509,18 @@ export function CategoryListPage({
         </ModalFooter>
       </Modal>
 
-      {/* 카테고리 삭제 확인 — 막힌 이유가 있으면 잠그고 그 이유를 말한다 */}
+      {/* 카테고리 삭제 확인 — 빈 카테고리만 여기까지 온다 */}
       <Modal
         open={deleteTarget !== null}
         onClose={() => setDeleteTarget(null)}
         size="small"
       >
-        <ModalHeader
-          closeLabel="대화상자 닫기"
-          title="카테고리 삭제"
-          description={deleteTarget?.name}
-        />
+        <ModalHeader closeLabel="대화상자 닫기" title="카테고리 삭제" />
         <ModalBody>
           <p className="body-medium text-text-sub">{DELETE_NOTICE}</p>
-          {deleteBlockReason ? (
-            <p role="alert" className="body-medium text-text-critical">
-              {deleteBlockReason}
-            </p>
-          ) : (
-            <p className="body-medium text-text-critical">{DELETE_WARNING}</p>
-          )}
+          <p className="body-medium-bold text-text-critical">
+            {DELETE_WARNING}
+          </p>
         </ModalBody>
         <ModalFooter>
           <Button
@@ -541,27 +530,24 @@ export function CategoryListPage({
           >
             취소
           </Button>
-          <Button
-            variant="critical"
-            size="large"
-            disabled={deleteBlockReason !== null}
-            onClick={confirmDelete}
-          >
+          <Button variant="critical" size="large" onClick={confirmDelete}>
             삭제
           </Button>
         </ModalFooter>
       </Modal>
 
-      {/* 아이콘 관리 — 이 모달 자체가 "확대 미리보기"다 */}
+      {/*
+        아이콘 관리 — 이 모달 자체가 "확대 미리보기"다(원본의 확대 버튼은 두지 않는다).
+        등록·교체·삭제는 알림만 띄우고 창은 그대로 둔다(원본도 처리 뒤 닫지 않는다)
+      */}
       <Modal
-        open={iconTarget !== undefined}
-        onClose={() => setIconTargetId(null)}
+        open={iconTarget !== null}
+        onClose={() => setIconTarget(null)}
         size="small"
       >
         <ModalHeader
           closeLabel="대화상자 닫기"
-          title="카테고리 아이콘"
-          description={iconTarget?.name}
+          title={`카테고리 아이콘 · ${iconTarget?.name ?? ""}`}
         />
         <ModalBody>
           <div className="flex flex-col items-center gap-3">
@@ -575,20 +561,17 @@ export function CategoryListPage({
             {/* 아이콘이 있으면 교체·삭제, 없으면 등록 — 원본 `pimg-ops` 와 같은 갈래다 */}
             {IconPreview ? (
               <div className="flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  onClick={() => applyIcon(UPLOADED_ICON)}
-                >
+                <Button variant="secondary" onClick={() => toast(ICON_SAVED)}>
                   <RefreshCw size={16} strokeWidth={1.2} aria-hidden />
                   교체
                 </Button>
-                <Button variant="critical" onClick={() => applyIcon(null)}>
+                <Button variant="critical" onClick={() => toast(ICON_REMOVED)}>
                   <Trash2 size={16} strokeWidth={1.2} aria-hidden />
                   삭제
                 </Button>
               </div>
             ) : (
-              <Button onClick={() => applyIcon(UPLOADED_ICON)}>
+              <Button onClick={() => toast(ICON_SAVED)}>
                 <Plus size={16} strokeWidth={1.2} aria-hidden />
                 아이콘 등록
               </Button>
@@ -608,7 +591,7 @@ export function CategoryListPage({
           <Button
             variant="secondary"
             size="large"
-            onClick={() => setIconTargetId(null)}
+            onClick={() => setIconTarget(null)}
           >
             닫기
           </Button>

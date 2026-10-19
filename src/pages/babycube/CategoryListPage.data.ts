@@ -1,4 +1,4 @@
-import { Baby, Car, Milk, Moon, type LucideIcon } from "lucide-react";
+import { Baby, Car, type LucideIcon } from "lucide-react";
 import type { TagTone } from "../../components/ui";
 
 /* -------------------------------------------------------------------------
@@ -15,20 +15,23 @@ import type { TagTone } from "../../components/ui";
  *    "유형에서 렌트 또는 판매 먼저 선택"이라고 막는 것도 같은 이유다.
  * 3. **조회 필터가 없다.** 기간·상태·검색 어느 것도 원본에 없다 — 트리를 통째로
  *    보고 고치는 화면이지 찾는 화면이 아니다.
+ * 4. **편집은 알림만 띄운다**(퍼블 범위 · 사용자 결정 2026-10-19). 추가·하위 추가·
+ *    이름변경·삭제·순서·아이콘은 입력·검증까지만 화면에서 하고, 확정하면 원본 문구의
+ *    알림만 띄운다 — 표·`CATEGORIES`·상품 데이터는 바뀌지 않는다.
  *
  * ## 뼈대가 이 파일에 기대하는 계약
  * - 행 타입은 `id`(고유 키)를 갖는다. **두 트리를 한 배열에 담으므로 id 는 도메인을
  *   가로질러 유일해야 한다** (`hasChildren` 이 id 로만 판정한다)
  *   ⚠️ **`date` 는 없다.** 기간 조회가 없는 화면이라 날짜 필드를 만들 이유가 없다
  * - `LEVEL_META` 의 키는 `Category["level"]` 과 정확히 일치한다
- * - 배열은 **표시 순서 그대로**다. 부모 바로 뒤에 그 자손이 연속으로 온다 —
- *   순서 이동(`moveCategory`)이 이 연속성을 전제로 블록을 통째로 옮긴다
- * - 부모의 `productCount` 는 **자식 합계와 일치해야 한다**
+ * - 배열은 **표시 순서 그대로**다. 부모 바로 뒤에 그 자손이 연속으로 온다
+ * - 등록 상품수는 행이 들고 있지 않다 — 뼈대가 상품 샘플을 `productCountsOf` 에
+ *   넘겨 계산한다(상품 목록과 숫자가 어긋나지 않게)
  *
  * ## 원본 어드민에서 가져온 것 / 버린 것
  * 가져온 것은 도메인뿐이다 — 컬럼명(단계·아이콘·카테고리·등록 상품수·관리),
- * 행 액션 5종(▲ ▼ + 하위 · 이름변경 · 삭제), 삭제 가드 문구, 아이콘 규격 안내 3줄,
- * 처리 결과 문구. 색 체계(대분류=파랑 · 중분류=회색 · 소분류=금색)는 쓰지 않는다.
+ * 행 액션 5종(▲ ▼ + 하위 · 이름변경 · 삭제), 삭제 가드 문구, 이름 중복 검사,
+ * 아이콘 규격 안내 3줄, 처리 결과 문구, 대분류 시드. 색 체계(대분류=파랑 · 중분류=회색 · 소분류=금색)는 쓰지 않는다.
  *
  * ⚠️ **원본에 없어서 걷어낸 것 — 되살리지 말 것:** 단계 세그먼트 필터 ·
  * 카테고리명 검색 · 초기화 버튼 · PageHeader 도움말 툴팁 · "정사각형 이미지를
@@ -50,12 +53,6 @@ export interface Category {
   name: string;
   /** 상위 카테고리 코드. 대분류는 `null` */
   parentId: string | null;
-  /**
-   * 이 카테고리에 등록된 상품 수.
-   * 상위 카테고리는 하위 합계를 들고 있어야 한다 — 표에서 나란히 보이므로
-   * 어긋나면 화면이 스스로 모순된다.
-   */
-  productCount: number;
   /**
    * 카테고리 아이콘.
    *
@@ -95,493 +92,175 @@ export const LEVEL_META: Record<
   minor: { label: "소분류", tone: "default" },
 };
 
-/** 계층 깊이 — 순서 이동이 "자기 자신 + 자손" 구간을 재는 데 쓴다 */
-export const LEVEL_DEPTH: Record<CategoryLevel, number> = {
-  major: 1,
-  middle: 2,
-  minor: 3,
-};
-
 /** 하위를 더 만들 수 있는가 — 소분류(3단계)가 마지막이다 */
 export const canAddChild = (category: Category) => category.level !== "minor";
 
-/** 다음 단계. 소분류에는 하위가 없다 */
-export const childLevelOf = (category: Category): CategoryLevel | null =>
-  category.level === "major"
-    ? "middle"
-    : category.level === "middle"
-      ? "minor"
-      : null;
+/** 행 하나 — 시드가 길어 반복을 줄인다 */
+const row = (
+  domain: CategoryDomain,
+  level: CategoryLevel,
+  id: string,
+  name: string,
+  parentId: string | null = null,
+  icon: LucideIcon | null = null,
+): Category => ({ id, domain, level, name, parentId, icon });
 
 /**
  * 두 트리를 **표시 순서대로 편 배열**. 부모 바로 아래에 그 자손이 연속으로 온다.
  *
- * 상품 수 정합 —
- *   [렌트] 카시트 128 = 신생아 74(31+43) + 주니어 54(54)
- *          유모차 96 = 디럭스 52(52) + 휴대용 44(44)
- *          수면·안전 33 = 아기침대 33(33) + 놀이매트 0(0)
- *          수유·이유 0 = 젖병소독기 0(0)
- *   [판매] 카시트 42 · 유모차 18 · 수면·안전 26 · 수유·이유 37 (각 1:1:1 체인)
+ * 대분류의 이름·순서·개수(렌트 8 · 판매 7)와 아이콘 보유(렌트 카시트·유모차 2개)는
+ * 원본 `RENT_CATTREE`·`SALE_CATTREE` 그대로다. ⚠️ **원본은 대분류만 시드한다** —
+ * 하위는 들여쓰기·순서·삭제 차단·상품 화면의 3단 선택을 보여 주려고 **일부 대분류에만**
+ * 붙인 시연용이다. 상품 샘플(`ProductListPage.data.ts`)의 `category` 가 소분류 id 를
+ * 가리키므로 **소분류 id 를 바꾸면 상품 쪽도 함께 바꿔야 한다.**
+ * 하위도 상품도 없는 대분류(바운서·스윙 등)가 "삭제할 수 있는" 예시다.
  */
 export const CATEGORIES: Category[] = [
   /* ── 렌트 트리 ─────────────────────────────────────────── */
-  {
-    id: "carseat",
-    domain: "rent",
-    level: "major",
-    name: "카시트",
-    parentId: null,
-    productCount: 128,
-    icon: Car,
-  },
-  {
-    id: "carseat-infant",
-    domain: "rent",
-    level: "middle",
-    name: "신생아 카시트",
-    parentId: "carseat",
-    productCount: 74,
-    icon: null,
-  },
-  {
-    id: "carseat-infant-basket",
-    domain: "rent",
-    level: "minor",
-    name: "바구니형",
-    parentId: "carseat-infant",
-    productCount: 31,
-    icon: null,
-  },
-  {
-    id: "carseat-infant-swivel",
-    domain: "rent",
-    level: "minor",
-    name: "회전형",
-    parentId: "carseat-infant",
-    productCount: 43,
-    icon: null,
-  },
-  {
-    id: "carseat-junior",
-    domain: "rent",
-    level: "middle",
-    name: "주니어 카시트",
-    parentId: "carseat",
-    productCount: 54,
-    icon: null,
-  },
-  {
-    id: "carseat-junior-booster",
-    domain: "rent",
-    level: "minor",
-    name: "부스터",
-    parentId: "carseat-junior",
-    productCount: 54,
-    icon: null,
-  },
-  {
-    id: "stroller",
-    domain: "rent",
-    level: "major",
-    name: "유모차",
-    parentId: null,
-    productCount: 96,
-    icon: Baby,
-  },
-  {
-    id: "stroller-deluxe",
-    domain: "rent",
-    level: "middle",
-    name: "디럭스",
-    parentId: "stroller",
-    productCount: 52,
-    icon: null,
-  },
-  {
-    id: "stroller-deluxe-4wheel",
-    domain: "rent",
-    level: "minor",
-    name: "4륜",
-    parentId: "stroller-deluxe",
-    productCount: 52,
-    icon: null,
-  },
-  {
-    id: "stroller-light",
-    domain: "rent",
-    level: "middle",
-    name: "휴대용",
-    parentId: "stroller",
-    productCount: 44,
-    icon: null,
-  },
-  {
-    id: "stroller-light-cabin",
-    domain: "rent",
-    level: "minor",
-    name: "기내반입",
-    parentId: "stroller-light",
-    productCount: 44,
-    icon: null,
-  },
-  {
-    id: "sleep",
-    domain: "rent",
-    level: "major",
-    name: "수면·안전",
-    parentId: null,
-    productCount: 33,
-    icon: Moon,
-  },
-  {
-    id: "sleep-bed",
-    domain: "rent",
-    level: "middle",
-    name: "아기침대",
-    parentId: "sleep",
-    productCount: 33,
-    icon: null,
-  },
-  {
-    id: "sleep-bed-side",
-    domain: "rent",
-    level: "minor",
-    name: "베드사이드",
-    parentId: "sleep-bed",
-    productCount: 33,
-    icon: null,
-  },
-  {
-    id: "sleep-mat",
-    domain: "rent",
-    level: "middle",
-    name: "놀이매트",
-    parentId: "sleep",
-    productCount: 0,
-    icon: null,
-  },
-  {
-    /** 상품도 하위도 없어 **삭제되는** 카테고리 */
-    id: "sleep-mat-roll",
-    domain: "rent",
-    level: "minor",
-    name: "롤매트",
-    parentId: "sleep-mat",
-    productCount: 0,
-    icon: null,
-  },
-  {
-    /** 상품은 0이지만 하위가 있어 삭제되지 않는다 */
-    id: "feeding",
-    domain: "rent",
-    level: "major",
-    name: "수유·이유",
-    parentId: null,
-    productCount: 0,
-    icon: null,
-  },
-  {
-    id: "feeding-sterilizer",
-    domain: "rent",
-    level: "middle",
-    name: "젖병소독기",
-    parentId: "feeding",
-    productCount: 0,
-    icon: null,
-  },
-  {
-    id: "feeding-sterilizer-uv",
-    domain: "rent",
-    level: "minor",
-    name: "UV",
-    parentId: "feeding-sterilizer",
-    productCount: 0,
-    icon: null,
-  },
+  row("rent", "major", "carseat", "카시트", null, Car),
+  row("rent", "middle", "carseat-infant", "신생아 카시트", "carseat"),
+  row("rent", "minor", "carseat-infant-basket", "바구니형", "carseat-infant"),
+  row("rent", "minor", "carseat-infant-swivel", "회전형", "carseat-infant"),
+  row("rent", "middle", "carseat-junior", "주니어 카시트", "carseat"),
+  row("rent", "minor", "carseat-junior-booster", "부스터", "carseat-junior"),
+  row("rent", "major", "bed", "아기침대"),
+  row("rent", "middle", "sleep-bed", "일반 침대", "bed"),
+  row("rent", "minor", "sleep-bed-side", "베드사이드", "sleep-bed"),
+  row("rent", "major", "stroller", "유모차", null, Baby),
+  row("rent", "middle", "stroller-deluxe", "디럭스", "stroller"),
+  row("rent", "minor", "stroller-deluxe-4wheel", "4륜", "stroller-deluxe"),
+  row("rent", "middle", "stroller-light", "휴대용", "stroller"),
+  row("rent", "minor", "stroller-light-cabin", "기내반입", "stroller-light"),
+  row("rent", "major", "bouncer", "바운서·스윙"),
+  row("rent", "major", "toy", "장난감"),
+  row("rent", "middle", "sleep-mat", "놀이매트", "toy"),
+  row("rent", "minor", "sleep-mat-roll", "롤매트", "sleep-mat"),
+  row("rent", "major", "walker", "보행기·점퍼루"),
+  row("rent", "major", "pump", "유축기"),
+  row("rent", "major", "appliance", "육아가전"),
+  row("rent", "middle", "feeding-sterilizer", "젖병소독기", "appliance"),
+  row("rent", "minor", "feeding-sterilizer-uv", "UV", "feeding-sterilizer"),
 
   /* ── 판매 트리 ─────────────────────────────────────────── */
-  {
-    id: "sale-carseat",
-    domain: "sale",
-    level: "major",
-    name: "카시트",
-    parentId: null,
-    productCount: 42,
-    icon: Car,
-  },
-  {
-    id: "sale-carseat-junior",
-    domain: "sale",
-    level: "middle",
-    name: "주니어 카시트",
-    parentId: "sale-carseat",
-    productCount: 42,
-    icon: null,
-  },
-  {
-    id: "sale-carseat-junior-booster",
-    domain: "sale",
-    level: "minor",
-    name: "부스터",
-    parentId: "sale-carseat-junior",
-    productCount: 42,
-    icon: null,
-  },
-  {
-    id: "sale-stroller",
-    domain: "sale",
-    level: "major",
-    name: "유모차",
-    parentId: null,
-    productCount: 18,
-    icon: Baby,
-  },
-  {
-    id: "sale-stroller-light",
-    domain: "sale",
-    level: "middle",
-    name: "휴대용",
-    parentId: "sale-stroller",
-    productCount: 18,
-    icon: null,
-  },
-  {
-    id: "sale-stroller-light-cabin",
-    domain: "sale",
-    level: "minor",
-    name: "기내반입",
-    parentId: "sale-stroller-light",
-    productCount: 18,
-    icon: null,
-  },
-  {
-    id: "sale-sleep",
-    domain: "sale",
-    level: "major",
-    name: "수면·안전",
-    parentId: null,
-    productCount: 26,
-    icon: Moon,
-  },
-  {
-    id: "sale-sleep-mat",
-    domain: "sale",
-    level: "middle",
-    name: "놀이매트",
-    parentId: "sale-sleep",
-    productCount: 26,
-    icon: null,
-  },
-  {
-    id: "sale-sleep-mat-folding",
-    domain: "sale",
-    level: "minor",
-    name: "폴딩매트",
-    parentId: "sale-sleep-mat",
-    productCount: 26,
-    icon: null,
-  },
-  {
-    id: "sale-feeding",
-    domain: "sale",
-    level: "major",
-    name: "수유·이유",
-    parentId: null,
-    productCount: 37,
-    icon: Milk,
-  },
-  {
-    id: "sale-feeding-sterilizer",
-    domain: "sale",
-    level: "middle",
-    name: "젖병소독기",
-    parentId: "sale-feeding",
-    productCount: 37,
-    icon: null,
-  },
-  {
-    id: "sale-feeding-sterilizer-uv",
-    domain: "sale",
-    level: "minor",
-    name: "UV",
-    parentId: "sale-feeding-sterilizer",
-    productCount: 37,
-    icon: null,
-  },
+  row("sale", "major", "sale-outing", "외출·이동"),
+  row("sale", "middle", "sale-carseat-junior", "주니어 카시트", "sale-outing"),
+  row(
+    "sale",
+    "minor",
+    "sale-carseat-junior-booster",
+    "부스터",
+    "sale-carseat-junior",
+  ),
+  row("sale", "middle", "sale-stroller-light", "휴대용 유모차", "sale-outing"),
+  row(
+    "sale",
+    "minor",
+    "sale-stroller-light-cabin",
+    "기내반입",
+    "sale-stroller-light",
+  ),
+  row("sale", "major", "sale-sleep", "수면·침실"),
+  row("sale", "major", "sale-play", "놀이·발달"),
+  row("sale", "middle", "sale-sleep-mat", "놀이매트", "sale-play"),
+  row("sale", "minor", "sale-sleep-mat-folding", "폴딩매트", "sale-sleep-mat"),
+  row("sale", "major", "sale-feeding", "수유가전·소독"),
+  row(
+    "sale",
+    "middle",
+    "sale-feeding-sterilizer",
+    "젖병소독기",
+    "sale-feeding",
+  ),
+  row(
+    "sale",
+    "minor",
+    "sale-feeding-sterilizer-uv",
+    "UV",
+    "sale-feeding-sterilizer",
+  ),
+  row("sale", "major", "sale-diaper", "기저귀·물티슈"),
+  row("sale", "major", "sale-formula", "분유·이유식"),
+  row("sale", "major", "sale-bath", "목욕·위생"),
 ];
 
 /** 등록 상품수 표기. 단위가 도메인이라 여기 둔다 */
 export const count = (value: number) => value.toLocaleString("ko-KR") + "개";
+
+/**
+ * 카테고리별 등록 상품수 — **하위 포함 합계**(사용자 결정 2026-10-19).
+ *
+ * 원본 `catDirectCount` 는 직접 걸린 수만 세지만, 원본 시드는 대분류만 있어 그것이 곧
+ * 합계였다. 우리 상품은 소분류에만 걸리므로 직접 수로 세면 대·중분류가 전부 0이 된다.
+ * 상품은 **인자로 받는다** — 상품 데이터가 이 파일을 import 하므로 여기서 상품을
+ * import 하면 순환이 된다. 표시와 삭제 판정이 반드시 **이 결과 하나**를 같이 쓴다.
+ */
+export const productCountsOf = (
+  rows: Category[],
+  products: readonly { category: string }[],
+): Map<string, number> => {
+  const counts = new Map<string, number>();
+  const total = (category: Category): number => {
+    const own = products.filter(
+      (product) => product.category === category.id,
+    ).length;
+    const sum = rows
+      .filter((child) => child.parentId === category.id)
+      .reduce((acc, child) => acc + total(child), own);
+    counts.set(category.id, sum);
+    return sum;
+  };
+  rows.filter((category) => category.parentId === null).forEach(total);
+  return counts;
+};
 
 /** 하위 카테고리가 하나라도 있으면 삭제할 수 없다 */
 export const hasChildren = (rows: Category[], category: Category) =>
   rows.some((item) => item.parentId === category.id);
 
 /**
- * 삭제 가능 여부와 **그 이유**. 원본 `onDelete` 의 두 가드를 문구까지 그대로 옮겼다.
- *
- * 막힌 이유를 문장으로 돌려주는 것이 이 함수의 존재 이유다 —
- * 버튼만 잠그면 운영자는 무엇을 치워야 지울 수 있는지 알 수 없다.
+ * 삭제가 막히는 이유. 원본 `onDelete` 의 두 가드를 순서·문구까지 그대로 옮겼다.
+ * 막히면 **확인 창 없이** 이 문장을 알림으로 띄운다(원본 UI-325).
  */
 export const deleteBlockReasonOf = (
   rows: Category[],
   category: Category,
+  productCount: number,
 ): string | null => {
   if (hasChildren(rows, category))
     return "하위 카테고리가 있어 삭제할 수 없습니다.";
-  if (category.productCount > 0)
-    return `등록 상품 ${category.productCount}건이 있어 삭제할 수 없습니다.`;
+  if (productCount > 0)
+    return `등록 상품 ${productCount}건이 있어 삭제할 수 없습니다.`;
   return null;
 };
 
-/* =========================================================================
- * 표시 순서 다루기
- *
- * 배열이 **표시 순서 그대로**라, 어떤 행의 자손은 그 뒤에 **연속으로** 온다.
- * 그 연속 구간을 "블록"이라 부르고, 순서 이동은 형제 블록끼리 통째로 맞바꾼다 —
- * 부모만 옮기고 자식을 두고 오면 트리가 끊긴다.
- * ====================================================================== */
-
 /**
- * `index` 행의 블록 길이 = 자기 자신 + 뒤따르는 모든 자손.
- *
- * ⚠️ **도메인 경계에서 반드시 멈춘다.** 두 트리를 한 배열에 담고 있어서, 깊이만 보면
- * 렌트 마지막 대분류의 블록이 판매 트리를 삼킬 수 있다.
+ * 같은 이름이 **지금 보는 트리 전체**(단계 무관)에 있는가 — 원본 `catExists`.
+ * 다른 유형 트리의 같은 이름은 허용한다. 이름변경은 자기 자신을 뺀다.
  */
-const blockLengthAt = (rows: Category[], index: number) => {
-  const { level, domain } = rows[index];
-  const depth = LEVEL_DEPTH[level];
-  let end = index + 1;
-  while (
-    end < rows.length &&
-    rows[end].domain === domain &&
-    LEVEL_DEPTH[rows[end].level] > depth
-  )
-    end += 1;
-  return end - index;
-};
-
-/** 같은 부모를 가진 형제들의 인덱스 (표시 순서) */
-const siblingIndexes = (rows: Category[], category: Category) =>
-  rows.reduce<number[]>((acc, row, index) => {
-    if (row.domain === category.domain && row.parentId === category.parentId)
-      acc.push(index);
-    return acc;
-  }, []);
-
-/** 형제 중 첫째인가 — ▲ 버튼을 잠그는 판정 (원본 `isFirst`) */
-export const isFirstSibling = (rows: Category[], category: Category) =>
-  siblingIndexes(rows, category)[0] === rows.indexOf(category);
-
-/** 형제 중 막내인가 — ▼ 버튼을 잠그는 판정 (원본 `isLast`) */
-export const isLastSibling = (rows: Category[], category: Category) => {
-  const siblings = siblingIndexes(rows, category);
-  return siblings[siblings.length - 1] === rows.indexOf(category);
-};
-
-/**
- * 형제 블록과 자리를 맞바꾼 새 배열. `delta` 는 `-1`(위) 또는 `1`(아래).
- * 옮길 수 없으면 **같은 배열을 그대로** 돌려준다.
- */
-export const moveCategory = (
-  rows: Category[],
-  id: string,
-  delta: -1 | 1,
-): Category[] => {
-  const index = rows.findIndex((row) => row.id === id);
-  if (index < 0) return rows;
-
-  const category = rows[index];
-  const siblings = siblingIndexes(rows, category);
-  const at = siblings.indexOf(index);
-  const partner = siblings[at + delta];
-  if (partner === undefined) return rows;
-
-  const length = blockLengthAt(rows, index);
-  const partnerLength = blockLengthAt(rows, partner);
-  const block = rows.slice(index, index + length);
-  const partnerBlock = rows.slice(partner, partner + partnerLength);
-
-  return delta < 0
-    ? [
-        ...rows.slice(0, partner),
-        ...block,
-        ...partnerBlock,
-        ...rows.slice(index + length),
-      ]
-    : [
-        ...rows.slice(0, index),
-        ...partnerBlock,
-        ...block,
-        ...rows.slice(partner + partnerLength),
-      ];
-};
-
-/** 이름만 바꾼 새 배열 */
-export const renameCategory = (rows: Category[], id: string, name: string) =>
-  rows.map((row) => (row.id === id ? { ...row, name } : row));
-
-/** 그 행 하나만 뺀 새 배열. 삭제는 **빈 카테고리만** 되므로 블록 길이는 언제나 1 */
-export const removeCategory = (rows: Category[], id: string) =>
-  rows.filter((row) => row.id !== id);
-
-/** 도메인 마지막에 대분류를 붙인 새 배열 */
-export const addRootCategory = (
+export const isDuplicateName = (
   rows: Category[],
   domain: CategoryDomain,
-  id: string,
   name: string,
-): Category[] => {
-  const lastIndex = rows.reduce(
-    (found, row, index) => (row.domain === domain ? index : found),
-    -1,
+  exceptId?: string,
+) =>
+  rows.some(
+    (row) => row.domain === domain && row.name === name && row.id !== exceptId,
   );
-  const created: Category = {
-    id,
-    domain,
-    level: "major",
-    name,
-    parentId: null,
-    productCount: 0,
-    icon: null,
-  };
-  return [
-    ...rows.slice(0, lastIndex + 1),
-    created,
-    ...rows.slice(lastIndex + 1),
-  ];
+
+/* ▲▼ 잠금 판정 — 같은 부모를 가진 형제 안에서 첫째·막내인가 (원본 `isFirst`·`isLast`) */
+const siblingsOf = (rows: Category[], category: Category) =>
+  rows.filter(
+    (row) =>
+      row.domain === category.domain && row.parentId === category.parentId,
+  );
+
+export const isFirstSibling = (rows: Category[], category: Category) =>
+  siblingsOf(rows, category)[0] === category;
+
+export const isLastSibling = (rows: Category[], category: Category) => {
+  const siblings = siblingsOf(rows, category);
+  return siblings[siblings.length - 1] === category;
 };
-
-/** 부모 블록의 **끝**에 자식을 넣은 새 배열 (막내로 붙는다) */
-export const addChildCategory = (
-  rows: Category[],
-  parent: Category,
-  id: string,
-  name: string,
-): Category[] => {
-  const level = childLevelOf(parent);
-  if (!level) return rows;
-
-  const index = rows.indexOf(parent);
-  const at = index + blockLengthAt(rows, index);
-  const created: Category = {
-    id,
-    domain: parent.domain,
-    level,
-    name,
-    parentId: parent.id,
-    productCount: 0,
-    icon: null,
-  };
-  return [...rows.slice(0, at), created, ...rows.slice(at)];
-};
-
-/** 아이콘만 바꾼 새 배열. `null` 이면 삭제 */
-export const setCategoryIcon = (
-  rows: Category[],
-  id: string,
-  icon: LucideIcon | null,
-) => rows.map((row) => (row.id === id ? { ...row, icon } : row));
 
 /* =========================================================================
  * 문구 — 전부 원본 어드민에서 그대로 옮긴 것이다
@@ -592,8 +271,9 @@ export const DELETE_NOTICE =
   "하위 카테고리와 등록 상품이 없는 빈 카테고리만 삭제됩니다.";
 export const DELETE_WARNING = "삭제 후에는 되돌릴 수 없습니다.";
 
-/** 이름 입력 검증 */
+/** 이름 입력 검증 — 중복 문구는 원본 토스트 문구를 칸 아래 오류로 옮긴 것이다 */
 export const NAME_ERROR = "카테고리명을 입력해 주세요.";
+export const DUPLICATE_ERROR = "이미 존재하는 카테고리명입니다.";
 
 /**
  * 아이콘 규격 안내 3줄 (원본 `pimg-help`).
@@ -607,14 +287,16 @@ export const ICON_GUIDE = [
 ];
 
 /** 처리 결과 문구 — 원본은 무엇이 무엇으로 바뀌었는지를 **이름째** 알린다 */
-export const addedRootMessage = (domain: CategoryDomain, name: string) =>
-  `'${name}' ${domainLabel(domain)} 대분류가 추가되었습니다.`;
+export const addedRootMessage = (name: string) =>
+  `'${name}' 대분류가 추가되었습니다.`;
 export const addedChildMessage = (parent: string, name: string) =>
   `'${parent}' 하위에 '${name}' 추가되었습니다.`;
 export const renamedMessage = (before: string, after: string) =>
   `'${before}' → '${after}'(으)로 변경되었습니다.`;
 export const deletedMessage = (name: string) =>
   `'${name}' 카테고리가 삭제되었습니다.`;
+/** ⚠️ 원본에는 없다 — 원본은 실제로 옮기기만 하고 알리지 않는다. 퍼블은 옮기지 않으므로 알림으로 대신한다 */
+export const MOVED_MESSAGE = "카테고리 순서가 변경되었습니다.";
 export const ICON_SAVED = "카테고리 아이콘을 등록했습니다.";
 export const ICON_REMOVED = "카테고리 아이콘을 삭제했습니다.";
 
