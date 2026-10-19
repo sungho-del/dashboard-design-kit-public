@@ -34,6 +34,7 @@ import { ScriptSettingsPage } from "./pages/babycube/ScriptSettingsPage";
 import { SellerDetailPage } from "./pages/babycube/SellerDetailPage";
 import { SellerListPage } from "./pages/babycube/SellerListPage";
 import { SellerReviewDetailPage } from "./pages/babycube/SellerReviewDetailPage";
+import { ProductDetailPage } from "./pages/babycube/ProductDetailPage";
 import { SellerReviewPage } from "./pages/babycube/SellerReviewPage";
 import { SellerSettlementPage } from "./pages/babycube/SellerSettlementPage";
 import { SettingsPage } from "./pages/babycube/SettingsPage";
@@ -155,6 +156,7 @@ const DETAIL_ROUTES: {
     parent: "/seller-review",
     screen: SellerReviewDetailPage,
   },
+  { prefix: "/products/", parent: "/products", screen: ProductDetailPage },
 ];
 
 /** 없는 경로에서 보여줄 화면 — 저장소 색인이 가장 덜 당황스럽다 */

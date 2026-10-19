@@ -34,7 +34,6 @@ import {
   TableTd,
   TableTh,
   Tag,
-  Textarea,
   TextButton,
   useToast,
   type DateRange,
@@ -65,9 +64,6 @@ import {
   PAGE_SIZE,
   PAGE_SIZES,
   REJECT_EMPTY,
-  REJECT_ERROR,
-  REJECT_NOTICE,
-  REJECT_PLACEHOLDER,
   REREVIEW_NOTE,
   SEARCH_FIELDS,
   SEARCH_PLACEHOLDER,
@@ -79,7 +75,6 @@ import {
   categoryPathOf,
   hasRejectReason,
   rejectMessage,
-  rejectTitle,
   rentPriceText,
   salePriceOf,
   won,
@@ -95,6 +90,7 @@ import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
 import { PERIOD_PRESETS } from "../../lib/periodPresets";
 import { useSearchParams } from "../../lib/router";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
+import { ProductRejectModal } from "./shared/ProductRejectModal";
 
 /* =========================================================================
  * 상품 관리 (S05) — 목록형 · 뼈대
@@ -314,8 +310,6 @@ export function ProductListPage({
   const [selected, setSelected] = useState<string[]>([]);
   /** 반려 사유 입력 대상. 자격 판정은 이미 거친 것만 담는다 */
   const [rejectTargets, setRejectTargets] = useState<Product[]>([]);
-  const [rejectReason, setRejectReason] = useState("");
-  const [rejectTouched, setRejectTouched] = useState(false);
   /** 반려 사유 보기 대상 */
   const [reasonTarget, setReasonTarget] = useState<Product | null>(null);
 
@@ -508,26 +502,11 @@ export function ProductListPage({
     );
   };
 
-  const openReject = (targets: Product[]) => {
-    setRejectTargets(targets);
-    setRejectReason("");
-    setRejectTouched(false);
-  };
-
-  const closeReject = () => {
-    setRejectTargets([]);
-    setRejectReason("");
-    setRejectTouched(false);
-  };
-
   /** 퍼블은 저장하지 않는다 — 알림을 띄우고 선택만 푼다. 행의 상태·건수는 그대로다 */
-  const submitReject = () => {
-    setRejectTouched(true);
-    if (rejectReason.trim() === "") return;
-
+  const confirmReject = () => {
     toast({ message: rejectMessage(rejectTargets.length), tone: "critical" });
     setSelected([]);
-    closeReject();
+    setRejectTargets([]);
   };
 
   const approve = () => {
@@ -539,8 +518,6 @@ export function ProductListPage({
     );
     setSelected([]);
   };
-
-  const rejectInvalid = rejectTouched && rejectReason.trim() === "";
 
   return (
     <AppShell
@@ -1029,7 +1006,7 @@ export function ProductListPage({
         {rejectable.length > 0 && (
           <SelectionBarButton
             icon={<Ban size={16} strokeWidth={1.2} aria-hidden />}
-            onClick={() => openReject(rejectable)}
+            onClick={() => setRejectTargets(rejectable)}
           >
             반려 처리
           </SelectionBarButton>
@@ -1037,45 +1014,15 @@ export function ProductListPage({
       </SelectionBar>
 
       {/*
-        반려 사유 입력 — 원본 `_MODAL_CFG.prodreject`.
+        반려 사유 입력 — 상품 상세와 같은 창(`shared/ProductRejectModal`).
         제목의 건수는 **자격 있는 수**다. 대상 줄은 두지 않는다(원본 판정 ⑪ⓑ — 건수는 제목이 진다).
       */}
-      <Modal
+      <ProductRejectModal
+        count={rejectTargets.length}
         open={rejectTargets.length > 0}
-        onClose={closeReject}
-        size="medium"
-      >
-        <ModalHeader
-          /* 푸터에도 "취소"가 있어 헤더 X 의 기본 라벨과 겹친다 — 이름을 갈라 준다 */
-          closeLabel="대화상자 닫기"
-          title={rejectTitle(rejectTargets.length)}
-        />
-        <ModalBody>
-          <Textarea
-            value={rejectReason}
-            onChange={(event) => setRejectReason(event.target.value)}
-            placeholder={REJECT_PLACEHOLDER}
-            minRows={4}
-            invalid={rejectInvalid}
-            aria-label="반려 사유"
-          />
-          {rejectInvalid ? (
-            <p role="alert" className="body-small text-text-critical">
-              {REJECT_ERROR}
-            </p>
-          ) : (
-            <p className="body-small text-text-minimal">{REJECT_NOTICE}</p>
-          )}
-        </ModalBody>
-        <ModalFooter>
-          <Button variant="secondary" size="large" onClick={closeReject}>
-            취소
-          </Button>
-          <Button variant="critical" size="large" onClick={submitReject}>
-            반려 처리
-          </Button>
-        </ModalFooter>
-      </Modal>
+        onClose={() => setRejectTargets([])}
+        onConfirm={confirmReject}
+      />
 
       {/* 반려 사유 보기 — 원본 `prodReason`: 상태 태그 · 상품 · 사유 · 처리 시각 · [확인] */}
       <Modal

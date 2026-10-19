@@ -43,9 +43,6 @@ import { CATEGORIES, type Category } from "./CategoryListPage.data";
 /** 상품이 나가는 방식. 렌트는 보증금·기간 단가가, 판매는 판매가가 붙는다 */
 export type ProductMode = "rent" | "sale";
 
-/** 렌트 단가의 기간 단위 */
-export type RentUnit = "day" | "week" | "month";
-
 /**
  * 판매 상태 5종.
  *
@@ -89,12 +86,14 @@ export interface Product {
   name: string;
   /** 소분류 카테고리 코드 — `CATEGORIES`(카테고리 관리)의 `id`. 대·중분류는 거기서 따라 올라간다 */
   category: string;
-  /** 렌트 원가 — 판매 건은 `null` */
+  /**
+   * 렌트 원가 **원/일** — 판매 건은 `null`.
+   * 렌트 단위는 **일 고정**이다(원본 v0.4 「렌트 단위 드롭다운 폐지 → 일 단위 고정」).
+   * 한때 주·월 단가가 섞여 있었는데, 상세의 「렌트가 × 기본 렌트일」 계산이 일 단가를 전제한다.
+   */
   rentBase: number | null;
   /** 렌트 할인 금액 — 판매 건은 `null` */
   rentDiscount: number | null;
-  /** 렌트 단가의 기간 단위 — 판매 건은 `null` */
-  rentUnit: RentUnit | null;
   /** 보증금 — 판매 건은 `null` */
   deposit: number | null;
   /** 판매 원가 — 렌트 건은 `null` */
@@ -307,9 +306,8 @@ const DETAILED: Product[] = [
     seller: "베이비루",
     name: "회전형 카시트 스핀 360",
     category: "carseat-infant-swivel",
-    rentBase: 39000,
-    rentDiscount: 4000,
-    rentUnit: "month",
+    rentBase: 1500,
+    rentDiscount: 200,
     deposit: 120000,
     saleBase: null,
     saleDiscount: null,
@@ -332,9 +330,8 @@ const DETAILED: Product[] = [
     seller: "맘스케어",
     name: "디럭스 유모차 스톨라 프로",
     category: "stroller-deluxe-4wheel",
-    rentBase: 52000,
-    rentDiscount: 7000,
-    rentUnit: "month",
+    rentBase: 2200,
+    rentDiscount: 300,
     deposit: 180000,
     saleBase: null,
     saleDiscount: null,
@@ -364,7 +361,6 @@ const DETAILED: Product[] = [
     category: "sale-feeding-sterilizer-uv",
     rentBase: null,
     rentDiscount: null,
-    rentUnit: null,
     deposit: null,
     saleBase: 129000,
     saleDiscount: 20000,
@@ -387,9 +383,8 @@ const DETAILED: Product[] = [
     seller: "리틀스텝",
     name: "베드사이드 아기침대 슬립온",
     category: "sleep-bed-side",
-    rentBase: 28000,
+    rentBase: 1200,
     rentDiscount: 0,
-    rentUnit: "month",
     deposit: 90000,
     saleBase: null,
     saleDiscount: null,
@@ -420,7 +415,6 @@ const DETAILED: Product[] = [
     category: "sale-sleep-mat-folding",
     rentBase: null,
     rentDiscount: null,
-    rentUnit: null,
     deposit: null,
     saleBase: 189000,
     saleDiscount: 30000,
@@ -445,7 +439,6 @@ const DETAILED: Product[] = [
     category: "sale-stroller-light-cabin",
     rentBase: null,
     rentDiscount: null,
-    rentUnit: null,
     deposit: null,
     saleBase: 249000,
     saleDiscount: 0,
@@ -468,9 +461,8 @@ const DETAILED: Product[] = [
     seller: "아이랑",
     name: "바구니형 카시트 코지",
     category: "carseat-infant-basket",
-    rentBase: 24000,
-    rentDiscount: 2000,
-    rentUnit: "week",
+    rentBase: 1300,
+    rentDiscount: 100,
     deposit: 80000,
     saleBase: null,
     saleDiscount: null,
@@ -495,7 +487,6 @@ const DETAILED: Product[] = [
     category: "sale-carseat-junior-booster",
     rentBase: null,
     rentDiscount: null,
-    rentUnit: null,
     deposit: null,
     saleBase: 98000,
     saleDiscount: 8000,
@@ -516,36 +507,36 @@ const DETAILED: Product[] = [
 /*
  * 간이 샘플 23건 — 판매중이 10건을 넘어 **페이지 넘김이 보이도록** 채운다.
  * 한 줄 = 한 상품, `|` 로 나눈 칸:
- *   상품코드 | 유형 | 셀러 | 상품명 | 소분류 | 원가 | 할인 | 보증금 | 렌트 단위 |
+ *   상품코드 | 유형 | 셀러 | 상품명 | 소분류 | 원가(렌트는 원/일) | 할인 | 보증금 |
  *   배송비 | 반품배송비 | 교환배송비 | KC | 이미지 | 판매 상태 | 전시 | 등록일 | 수정일 |
  *   반려 사유 | 반려일
- * 판매 건은 보증금·렌트 단위가 비고, 원가·할인이 판매 원가·판매 할인이 된다.
+ * 판매 건은 보증금이 비고, 원가·할인이 판매 원가·판매 할인이 된다.
  * 판매기간은 **시작 = 등록일 · 종료 무기한**으로 단순화했다.
  */
 const BRIEF_ROWS = [
-  "GJ811204|rent|리틀베이비|휴대용 유모차 에어 라이트|stroller-light-cabin|32000|3000|100000|month|0|6000|6000|O|O|onSale|shown|2026-08-20 10:14:22|2026-08-21 09:30:11",
-  "KB820417|sale|코지베이비|UV 젖병소독기 미니|sale-feeding-sterilizer-uv|69000|5000|||3000|3000|6000|O|△|onSale|shown|2026-08-19 15:02:48|2026-08-20 11:12:05",
-  "AS730125|rent|아기별상사|신생아 바구니 카시트 클라우드|carseat-infant-basket|26000|0|85000|week|0|6000|6000|△|O|onSale|shown|2026-08-18 09:41:10|2026-08-18 09:41:10",
-  "BH612093|sale|베베하우스|폴딩 놀이매트 사계절 대형 (240×140, 양면 방수, 층간소음 완화형)|sale-sleep-mat-folding|159000|20000|||0|12000|12000|O|O|onSale|shown|2026-08-17 14:25:37|2026-08-19 16:40:02",
-  "LB905531|rent|리틀베이비|주니어 부스터 카시트 세이프|carseat-junior-booster|18000|2000|60000|month|0|6000|6000|O|O|onSale|shown|2026-08-16 11:08:54|2026-08-17 10:00:31",
-  "MC447210|rent|맘스케어|롤매트 소프트 220|sleep-mat-roll|15000|0|40000|month|0|6000|6000|O|X|onSale|shown|2026-08-15 17:33:19|2026-08-16 08:22:47",
-  "KB119374|rent|코지베이비|휴대용 유모차 스냅|stroller-light-cabin|29000|2000|90000|month|0|6000|6000|X|△|rejected|hidden|2026-08-14 10:03:27|2026-08-18 15:20:00",
-  "KB338806|rent|코지베이비|디럭스 유모차 오로라|stroller-deluxe-4wheel|48000|5000|160000|month|0|8000|8000|O|O|onSale|hidden|2026-08-13 13:47:02|2026-08-15 12:05:58",
-  "AR408861|sale|아이랑|폴딩매트 키즈 플레이|sale-sleep-mat-folding|129000|10000|||0|12000|12000|△|O|rereview|hidden|2026-08-11 13:15:44|2026-08-20 17:42:09|성분·재질 표기 누락 — 매트 소재(PE·TPU)와 두께를 상세 설명에 적어 주세요.|2026-08-15 10:30:12",
-  "AR271948|sale|아이랑|부스터 시트 그로우 미니|sale-carseat-junior-booster|79000|0|||3000|3000|6000|O|O|onSale|shown|2026-08-10 10:20:41|2026-08-11 09:12:30",
-  "BL560372|rent|베이비루|UV 소독기 렌탈 플러스|feeding-sterilizer-uv|12000|1000|30000|month|0|4000|4000|O|O|onSale|shown|2026-08-08 16:55:13|2026-08-10 14:31:09",
-  "KB781520|sale|코지베이비|폴딩 놀이매트 슬림|sale-sleep-mat-folding|139000|10000|||0|12000|12000|O|O|soldout|shown|2026-08-07 10:28:31|2026-08-19 08:15:44",
-  "LS184620|rent|리틀스텝|회전형 카시트 360 프라임|carseat-infant-swivel|42000|4000|130000|month|0|6000|6000|O|△|onSale|shown|2026-08-05 09:12:36|2026-08-07 18:02:44",
-  "AS902715|sale|아기별상사|기내반입 유모차 포켓|sale-stroller-light-cabin|219000|19000|||0|8000|8000|O|O|onSale|shown|2026-08-02 14:48:27|2026-08-04 10:19:55",
-  "GJ994106|sale|리틀베이비|휴대용 유모차 미니 폴드|sale-stroller-light-cabin|189000|9000|||0|8000|8000|O|O|soldout|shown|2026-07-31 15:12:09|2026-08-16 12:58:27",
-  "BH731058|rent|베베하우스|베드사이드 침대 코모|sleep-bed-side|25000|0|80000|month|0|6000|6000|O|O|onSale|shown|2026-07-30 11:26:03|2026-08-01 13:44:21",
-  "GJ650283|sale|리틀베이비|젖병소독기 스팀 클린|sale-feeding-sterilizer-uv|99000|10000|||3000|3000|6000|O|O|onSale|shown|2026-07-27 15:37:50|2026-07-29 09:05:16",
-  "BL377415|rent|베이비루|아기침대 슬립 베이직|sleep-bed-side|20000|0|70000|month|0|6000|6000|O|O|stopped|hidden|2026-07-25 10:44:08|2026-08-02 09:00:41",
-  "MC209836|sale|맘스케어|주니어 카시트 부스터 라이트|sale-carseat-junior-booster|59000|4000|||3000|3000|6000|O|O|stopped|hidden|2026-07-22 14:09:33|2026-07-31 16:28:15",
-  "LB846102|rent|리틀베이비|디럭스 유모차 클래식|stroller-deluxe-4wheel|45000|5000|150000|month|0|8000|8000|O|O|stopped|hidden|2026-07-20 09:51:20|2026-07-28 11:37:52",
-  "AS563019|rent|아기별상사|롤매트 베이직 200|sleep-mat-roll|12000|0|30000|month|0|6000|6000|O|△|stopped|hidden|2026-07-18 16:22:47|2026-07-26 10:05:33",
-  "BH295740|sale|베베하우스|UV 소독기 컴팩트|sale-feeding-sterilizer-uv|59000|0|||3000|3000|6000|O|O|stopped|hidden|2026-07-15 11:38:02|2026-07-24 14:50:19",
-  "LS672384|rent|리틀스텝|바구니 카시트 라이트|carseat-infant-basket|22000|2000|70000|week|0|6000|6000|O|O|stopped|hidden|2026-07-12 13:04:55|2026-07-21 09:46:08",
+  "GJ811204|rent|리틀베이비|휴대용 유모차 에어 라이트|stroller-light-cabin|1400|100|100000|0|6000|6000|O|O|onSale|shown|2026-08-20 10:14:22|2026-08-21 09:30:11",
+  "KB820417|sale|코지베이비|UV 젖병소독기 미니|sale-feeding-sterilizer-uv|69000|5000||3000|3000|6000|O|△|onSale|shown|2026-08-19 15:02:48|2026-08-20 11:12:05",
+  "AS730125|rent|아기별상사|신생아 바구니 카시트 클라우드|carseat-infant-basket|1200|0|85000|0|6000|6000|△|O|onSale|shown|2026-08-18 09:41:10|2026-08-18 09:41:10",
+  "BH612093|sale|베베하우스|폴딩 놀이매트 사계절 대형 (240×140, 양면 방수, 층간소음 완화형)|sale-sleep-mat-folding|159000|20000||0|12000|12000|O|O|onSale|shown|2026-08-17 14:25:37|2026-08-19 16:40:02",
+  "LB905531|rent|리틀베이비|주니어 부스터 카시트 세이프|carseat-junior-booster|900|100|60000|0|6000|6000|O|O|onSale|shown|2026-08-16 11:08:54|2026-08-17 10:00:31",
+  "MC447210|rent|맘스케어|롤매트 소프트 220|sleep-mat-roll|700|0|40000|0|6000|6000|O|X|onSale|shown|2026-08-15 17:33:19|2026-08-16 08:22:47",
+  "KB119374|rent|코지베이비|휴대용 유모차 스냅|stroller-light-cabin|1300|100|90000|0|6000|6000|X|△|rejected|hidden|2026-08-14 10:03:27|2026-08-18 15:20:00",
+  "KB338806|rent|코지베이비|디럭스 유모차 오로라|stroller-deluxe-4wheel|2000|200|160000|0|8000|8000|O|O|onSale|hidden|2026-08-13 13:47:02|2026-08-15 12:05:58",
+  "AR408861|sale|아이랑|폴딩매트 키즈 플레이|sale-sleep-mat-folding|129000|10000||0|12000|12000|△|O|rereview|hidden|2026-08-11 13:15:44|2026-08-20 17:42:09|성분·재질 표기 누락 — 매트 소재(PE·TPU)와 두께를 상세 설명에 적어 주세요.|2026-08-15 10:30:12",
+  "AR271948|sale|아이랑|부스터 시트 그로우 미니|sale-carseat-junior-booster|79000|0||3000|3000|6000|O|O|onSale|shown|2026-08-10 10:20:41|2026-08-11 09:12:30",
+  "BL560372|rent|베이비루|UV 소독기 렌탈 플러스|feeding-sterilizer-uv|600|100|30000|0|4000|4000|O|O|onSale|shown|2026-08-08 16:55:13|2026-08-10 14:31:09",
+  "KB781520|sale|코지베이비|폴딩 놀이매트 슬림|sale-sleep-mat-folding|139000|10000||0|12000|12000|O|O|soldout|shown|2026-08-07 10:28:31|2026-08-19 08:15:44",
+  "LS184620|rent|리틀스텝|회전형 카시트 360 프라임|carseat-infant-swivel|1600|200|130000|0|6000|6000|O|△|onSale|shown|2026-08-05 09:12:36|2026-08-07 18:02:44",
+  "AS902715|sale|아기별상사|기내반입 유모차 포켓|sale-stroller-light-cabin|219000|19000||0|8000|8000|O|O|onSale|shown|2026-08-02 14:48:27|2026-08-04 10:19:55",
+  "GJ994106|sale|리틀베이비|휴대용 유모차 미니 폴드|sale-stroller-light-cabin|189000|9000||0|8000|8000|O|O|soldout|shown|2026-07-31 15:12:09|2026-08-16 12:58:27",
+  "BH731058|rent|베베하우스|베드사이드 침대 코모|sleep-bed-side|1100|0|80000|0|6000|6000|O|O|onSale|shown|2026-07-30 11:26:03|2026-08-01 13:44:21",
+  "GJ650283|sale|리틀베이비|젖병소독기 스팀 클린|sale-feeding-sterilizer-uv|99000|10000||3000|3000|6000|O|O|onSale|shown|2026-07-27 15:37:50|2026-07-29 09:05:16",
+  "BL377415|rent|베이비루|아기침대 슬립 베이직|sleep-bed-side|1000|0|70000|0|6000|6000|O|O|stopped|hidden|2026-07-25 10:44:08|2026-08-02 09:00:41",
+  "MC209836|sale|맘스케어|주니어 카시트 부스터 라이트|sale-carseat-junior-booster|59000|4000||3000|3000|6000|O|O|stopped|hidden|2026-07-22 14:09:33|2026-07-31 16:28:15",
+  "LB846102|rent|리틀베이비|디럭스 유모차 클래식|stroller-deluxe-4wheel|1900|200|150000|0|8000|8000|O|O|stopped|hidden|2026-07-20 09:51:20|2026-07-28 11:37:52",
+  "AS563019|rent|아기별상사|롤매트 베이직 200|sleep-mat-roll|500|0|30000|0|6000|6000|O|△|stopped|hidden|2026-07-18 16:22:47|2026-07-26 10:05:33",
+  "BH295740|sale|베베하우스|UV 소독기 컴팩트|sale-feeding-sterilizer-uv|59000|0||3000|3000|6000|O|O|stopped|hidden|2026-07-15 11:38:02|2026-07-24 14:50:19",
+  "LS672384|rent|리틀스텝|바구니 카시트 라이트|carseat-infant-basket|1000|100|70000|0|6000|6000|O|O|stopped|hidden|2026-07-12 13:04:55|2026-07-21 09:46:08",
 ];
 
 const MARK: Record<string, CheckMark> = {
@@ -564,7 +555,6 @@ const toProduct = (row: string): Product => {
     base,
     discount,
     deposit,
-    unit,
     ship,
     returnFee,
     exchangeFee,
@@ -588,7 +578,6 @@ const toProduct = (row: string): Product => {
     category,
     rentBase: isRent ? Number(base) : null,
     rentDiscount: isRent ? Number(discount) : null,
-    rentUnit: isRent ? (unit as RentUnit) : null,
     deposit: isRent ? Number(deposit) : null,
     saleBase: isRent ? null : Number(base),
     saleDiscount: isRent ? null : Number(discount),
@@ -702,13 +691,6 @@ export const SEARCH_FIELDS: { value: ProductSearchField; label: string }[] = [
 /** 검색어 입력 placeholder (원본 `ph`) */
 export const SEARCH_PLACEHOLDER = "검색어 입력";
 
-/** 렌트 단가의 기간 단위 표기 */
-export const RENT_UNIT_LABEL: Record<RentUnit, string> = {
-  day: "일",
-  week: "주",
-  month: "월",
-};
-
 /** 표의 금액 포맷. 단위가 도메인이라 여기 둔다 (원 · 개 · 건) */
 export const won = (value: number) => value.toLocaleString("ko-KR") + "원";
 
@@ -730,11 +712,9 @@ export const rentPriceOf = (product: Product) =>
 export const salePriceOf = (product: Product) =>
   Math.max(0, (product.saleBase ?? 0) - (product.saleDiscount ?? 0));
 
-/** "35,000원/월" · 판매 건이면 "-" 자리를 뼈대가 채우므로 여기서는 렌트만 다룬다 */
+/** "1,300원/일" — 렌트 단위는 일 고정. 판매 건이면 "-" 자리를 뼈대가 채우므로 렌트만 다룬다 */
 export const rentPriceText = (product: Product) =>
-  won(rentPriceOf(product)) +
-  "/" +
-  (product.rentUnit ? RENT_UNIT_LABEL[product.rentUnit] : "");
+  won(rentPriceOf(product)) + "/일";
 
 /**
  * 화면 상단 **상시 안내 배너**(원본 `data-area="products.note"`).
