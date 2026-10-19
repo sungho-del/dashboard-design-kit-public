@@ -366,6 +366,14 @@ const pick = <T>(code: string, choices: T[]): T =>
   ];
 
 /**
+ * 상품의 성장단계 id — 상품코드로 정해지는 **예시 배정**이다(상품 데이터에 단계 필드가 없다).
+ * 상세의 처음 값과 성장단계 관리의 등록 상품수가 **이 함수 하나**를 같이 쓴다 —
+ * 따로 고르면 두 화면의 숫자가 어긋난다. 단계가 하나도 없으면 빈 값.
+ */
+export const stageOf = (product: Product): string =>
+  STAGES.length === 0 ? "" : pick(product.id, STAGES).id;
+
+/**
  * 상품 → 처음 값. 목록에 있는 값은 그대로 옮기고, 없는 값은 상품코드로 정해지는 예시다.
  * - 품절 상품은 재고 0 (품절은 재고에서 정해진다)
  * - 렌트 할인이 있는 상품은 [설정함] 으로 연다
@@ -432,7 +440,7 @@ export const draftOf = (product: Product): ProductDraft => {
     extraImages: product.image === "ok" ? 2 : 0,
     detail: `${product.name} — 안전하고 실용적인 육아 필수품입니다.\n· KC 안전인증 완료 · 유해물질 검사 통과\n· 친환경 소재로 아이 피부에 안심\n· 세척·관리가 간편한 분리형 구조`,
     seller: product.seller,
-    stage: pick(product.id, STAGES).id,
+    stage: stageOf(product),
     /* 목록 「KC 인증」 과 맞춘다 — X 는 빈 행, △ 는 번호 빈 행(보완 필요), O 는 번호까지 */
     certs: [
       {

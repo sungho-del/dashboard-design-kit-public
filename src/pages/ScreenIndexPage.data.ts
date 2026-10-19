@@ -169,7 +169,7 @@ export const SCREENS: ScreenEntry[] = [
     name: "성장단계 관리",
     type: "목록형",
     origin: "babycube",
-    summary: "월령 구간별 단계 · 구간 겹침 검증이 붙은 등록 모달",
+    summary: "월령 구간별 단계 · 등록·수정 모달 · 삭제 시 '없음' 대체 안내",
     file: "babycube/GrowthStageListPage.tsx",
     icon: Ruler,
   },

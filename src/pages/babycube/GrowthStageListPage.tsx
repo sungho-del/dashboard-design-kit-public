@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Plus } from "lucide-react";
 import {
   AppShell,
@@ -41,22 +41,22 @@ import {
   NOTE_PLACEHOLDER,
   STAGES,
   UPDATED_MESSAGE,
-  addStage,
   count,
   deletedMessage,
   monthRangeText,
   parseMonth,
-  removeStage,
-  updateStage,
+  stageCountsOf,
   type GrowthStage,
 } from "./GrowthStageListPage.data";
+import { stageOf } from "./ProductDetailPage.data";
+import { PRODUCTS } from "./ProductListPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
 /* =========================================================================
  * 성장단계 관리 (S07) — 목록형 · 뼈대
  *
  * ## 화면 유형: 목록형
- * 아이 월령 구간별 성장단계를 등록·수정·삭제한다. 행이 5개뿐인 설정 화면이라
+ * 아이 월령 구간별 성장단계를 등록·수정·삭제한다. 행이 4개뿐인 설정 화면이라
  * 표보다 **모달**이 화면의 무게중심이다.
  *
  * ## 이 파일은 도메인을 모른다 — 도메인은 `./GrowthStageListPage.data.ts` 에 있다
@@ -64,18 +64,21 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * | 갈아끼울 것           | 위치                                           |
  * | --------------------- | ---------------------------------------------- |
  * | 데이터·타입·라벨·단위 | `GrowthStageListPage.data.ts` **전체**         |
- * | 목록 조작 규칙        | `.data.ts` 의 `addStage`·`updateStage`(월령 정렬) |
+ * | 등록 상품수 계산      | `.data.ts` 의 `stageCountsOf` + 상품 단계 배정 `stageOf` |
  * | 표 컬럼 구성          | 이 파일의 `<colgroup>` + `TableHead` + 본문 셀 |
  * | 행 액션               | `관리` 셀의 Button 2개 (수정·삭제)             |
  *
  * ## 검증은 **둘뿐이다**
- * 저장 전에 보는 것은 `명칭이 비었는가` · `시작 개월이 비었는가` 두 가지고,
- * 나머지(구간 겹침·빈틈)는 **서버가 판정한다**. 화면이 앞질러 막으면 서버 규칙이
- * 바뀔 때 화면만 옛 규칙으로 남는다.
+ * 저장 전에 보는 것은 `명칭이 비었는가` · `시작 개월이 비었는가` 두 가지다(원본 `stageSave`).
+ * 구간 겹침·빈틈·이름 중복은 원본에 없어 보지 않는다 — 누가 막을지는 서버 정책으로 남아 있다.
+ *
+ * ## 편집은 알림만 띄운다 (퍼블 범위 · 2026-10-19 사용자 결정)
+ * 등록·수정·삭제를 확정하면 원본 문구의 알림만 띄우고 표·`STAGES`·상품 배정은 그대로 둔다.
+ * 처리 결과로 데이터를 바꾸는 것은 개발 영역이다(카테고리 관리와 같은 기준).
  *
  * ## 템플릿(`OrderListPage`)과 갈라지는 지점
  * 1. **요약 카드가 없다.** 성장단계 수에는 추세라는 것이 없다
- * 2. **세그먼트 필터·검색이 없다.** 5건짜리 목록이라 조작만 늘린다.
+ * 2. **세그먼트 필터·검색이 없다.** 4건짜리 목록이라 조작만 늘린다.
  *    빈 상태(`isEmpty`)는 남겨 둔다 — 성장단계를 아직 만들지 않은 서비스가 있다
  *
  * ## ⚠️ 원본에 없어서 걷어낸 것 — 되살리지 말 것
@@ -105,7 +108,7 @@ const SKELETON_WIDTHS = ["w-12", "w-16", "w-56", "w-10", "w-24"];
 /**
  * 로딩 뼈대. **헤더는 실제 글자 그대로** 두고 본문만 가린다 —
  * 고정 텍스트는 어차피 바뀌지 않으므로 스켈레톤으로 만들지 않는다(§D8-1).
- * 행 수는 샘플과 같은 4줄이다(원본도 4단계다).
+ * 행 수는 샘플(원본 4단계)과 같은 4줄이다.
  */
 const loadingTable = (
   <Table>
@@ -135,6 +138,15 @@ const loadingTable = (
   </Table>
 );
 
+/**
+ * 등록 상품수 — **상품 목록과 같은 샘플**(본사 직영 포함)에서 센다.
+ * 상품의 단계는 상품 상세의 처음 값과 같은 `stageOf` 로 정해진다.
+ * 상품 데이터가 `.data.ts` 를 import 하므로 계산은 순환이 없는 이 뼈대에서 묶는다.
+ */
+const PRODUCT_COUNTS = stageCountsOf(STAGES, PRODUCTS.map(stageOf));
+const productCountOf = (stage: GrowthStage) =>
+  PRODUCT_COUNTS.get(stage.id) ?? 0;
+
 export interface GrowthStageListPageProps {
   navOpen: boolean;
   onNavOpenChange: (open: boolean) => void;
@@ -156,7 +168,8 @@ export function GrowthStageListPage({
 }: GrowthStageListPageProps) {
   const { toast } = useToast();
 
-  const [stages, setStages] = useState<GrowthStage[]>(STAGES);
+  /* 편집은 알림만이라 표는 시드 그대로다 — 실 API 를 붙이면 그 자리에서 다시 받는다 */
+  const stages = STAGES;
 
   /*
     실 API 를 붙이면 이 한 줄을 fetch 상태로 바꾼다 — 지금은 `?preview=` 로 미리 본다
@@ -171,10 +184,6 @@ export function GrowthStageListPage({
   const [note, setNote] = useState("");
   const [touched, setTouched] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<GrowthStage | null>(null);
-
-  /** 새 행의 키. 도메인 값이 아니라 **기술 키**다 */
-  const seq = useRef(0);
-  const makeId = () => `stage-new-${(seq.current += 1)}`;
 
   const openCreate = () => {
     setEditTarget({ mode: "create", stage: null });
@@ -206,41 +215,27 @@ export function GrowthStageListPage({
    * 입력 단계에서 숫자만 받으므로 "숫자가 아니다" 라는 오류도 생기지 않는다.
    */
   const fromValue = parseMonth(monthFrom);
-  const toValue = monthTo.trim() === "" ? null : parseMonth(monthTo);
 
   const nameError = name.trim() === "" ? NAME_ERROR : undefined;
   const fromError = fromValue === null ? MONTH_FROM_ERROR : undefined;
 
+  /* 통과하면 알림만 — 입력한 값은 어디에도 남지 않는다(퍼블 범위) */
   const submitEdit = () => {
     setTouched(true);
-    if (nameError || fromValue === null) return;
+    if (nameError || fromError) return;
 
-    const patch = {
-      name: name.trim(),
-      monthFrom: fromValue,
-      monthTo: toValue,
-      note: note.trim(),
-    };
-
-    if (editTarget?.mode === "edit" && editTarget.stage) {
-      const { id } = editTarget.stage;
-      setStages((prev) => updateStage(prev, id, patch));
-      toast(UPDATED_MESSAGE);
-    } else {
-      setStages((prev) => addStage(prev, { id: makeId(), ...patch }));
-      toast(CREATED_MESSAGE);
-    }
+    toast(editTarget?.mode === "edit" ? UPDATED_MESSAGE : CREATED_MESSAGE);
     closeEdit();
   };
 
   /**
    * 삭제. 결과 문구가 **'없음'으로 밀려난 상품 수**까지 말한다 —
    * 그 상품들이 방치되면 앱의 성장단계 추천에서 통째로 빠진다.
+   * 쓰는 상품이 있어도 막지 않는다(원본과 같다). 알림만 띄우고 표는 그대로다.
    */
   const confirmDelete = () => {
     if (!deleteTarget) return;
-    setStages((prev) => removeStage(prev, deleteTarget.id));
-    toast(deletedMessage(deleteTarget.name, deleteTarget.productCount));
+    toast(deletedMessage(deleteTarget.name, productCountOf(deleteTarget)));
     setDeleteTarget(null);
   };
 
@@ -299,7 +294,7 @@ export function GrowthStageListPage({
           {COLGROUP}
           <TableHead>
             <TableRow>
-              {/* 크기를 비교하는 수치만 우측, 나머지는 좌측 (DESIGN.md §7-2) */}
+              {/* 우측 정렬은 쓰지 않는다 — 전부 좌측 (DESIGN.md §7-2) */}
               <TableTh>단계 명칭</TableTh>
               <TableTh>월령 구간</TableTh>
               <TableTh>내용 (사용자 안내 문구)</TableTh>
@@ -310,7 +305,8 @@ export function GrowthStageListPage({
           <TableBody>
             {stages.map((stage) => (
               <TableRow key={stage.id}>
-                <TableTd>{stage.name}</TableTd>
+                {/* 원본도 단계 명칭을 굵게 낸다 — 카테고리 관리의 이름 열과 같다 */}
+                <TableTd className="body-medium-bold">{stage.name}</TableTd>
                 {/* 월령·상품수는 **등폭**이다(§D6-2) — 비례폭이면 자릿수가 세로로 어긋난다 */}
                 <TableTd className="tabular-nums">
                   {monthRangeText(stage)}
@@ -324,7 +320,7 @@ export function GrowthStageListPage({
                   )}
                 </TableTd>
                 <TableTd className="tabular-nums">
-                  {count(stage.productCount)}
+                  {count(productCountOf(stage))}
                 </TableTd>
                 <TableTd>
                   {/*
@@ -449,22 +445,16 @@ export function GrowthStageListPage({
         onClose={() => setDeleteTarget(null)}
         size="small"
       >
-        <ModalHeader
-          closeLabel="대화상자 닫기"
-          title="성장단계 삭제"
-          description={
-            deleteTarget
-              ? `${deleteTarget.name} · ${monthRangeText(deleteTarget)}`
-              : undefined
-          }
-        />
+        <ModalHeader closeLabel="대화상자 닫기" title="성장단계 삭제" />
         <ModalBody>
           {/*
             위험 안내는 **한 문단에 묻지 않는다.** "'없음'으로 바뀐다"(되돌릴 수 있는 결과)와
             "되돌릴 수 없다"는 무게가 다른 말이라, 이어 붙이면 뒤엣것이 읽히지 않는다.
           */}
           <p className="body-medium text-text-sub">{DELETE_NOTICE}</p>
-          <p className="body-medium text-text-critical">{DELETE_WARNING}</p>
+          <p className="body-medium-bold text-text-critical">
+            {DELETE_WARNING}
+          </p>
         </ModalBody>
         <ModalFooter>
           <Button

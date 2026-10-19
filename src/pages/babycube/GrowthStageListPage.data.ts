@@ -11,20 +11,27 @@
  * ## 뼈대가 이 파일에 기대하는 계약
  * - 행 타입은 `id`(고유 키)를 갖는다.
  *   ⚠️ **`date` 는 없다.** 기간 조회가 없는 화면이라 날짜 필드를 만들지 않는다
- * - 표시 순서는 **월령 오름차순**이다 — 구간이 뒤섞이면 표가 읽히지 않는다.
- *   추가·수정 뒤에도 그 순서를 유지하는 것이 `sortStages` 의 일이다
+ * - 표시 순서는 **월령 오름차순**이다 — 구간이 뒤섞이면 표가 읽히지 않는다
+ * - 등록 상품수는 행이 들고 있지 않다 — 뼈대가 상품마다 배정된 단계 id 를
+ *   `stageCountsOf` 에 넘겨 센다(상품 데이터가 이 파일을 import 하므로 여기서 상품을
+ *   import 하면 순환이 된다)
  * - `STATS`(요약 카드) · `FILTERS`(세그먼트) · `PAGE_SIZE` 는 **없다** — 원본에 없다
  *
  * ## 원본 어드민에서 가져온 것 / 버린 것
  * 가져온 것은 도메인뿐이다 — 컬럼명("내용 (사용자 안내 문구)"), 월령 표기 규칙
  * (`36개월~`), 검증 문구 2종, 삭제 안내, 종료 개월 힌트("종료 비우면 '이상'"),
- * 저장·삭제 결과 문구. 색·레이아웃은 쓰지 않는다.
+ * 저장·삭제 결과 문구, 4단계 시드. 색·레이아웃은 쓰지 않는다.
+ *
+ * ## 편집은 알림만 띄운다 (퍼블 범위 · 2026-10-19 사용자 결정)
+ * 추가·수정·삭제는 입력·검증까지만 화면에서 하고, 확정하면 원본 문구의 알림만 띄운다 —
+ * 표·`STAGES`·상품 배정은 바뀌지 않는다(카테고리 관리와 같은 기준).
  *
  * ⚠️ **원본에 없어서 걷어낸 것 — 되살리지 말 것**
  * - **월령 구간 겹침 검사**(`rangeOverlaps` · `findOverlappingStage` ·
  *   `overlapErrorOf`). 그럴듯했지만 **원본에 없는 규칙**이었다 — 원본이 저장 전에
- *   보는 것은 `명칭이 비었는가` · `시작 개월이 비었는가` 둘뿐이고, 나머지는 서버가
- *   판정해 그 메시지를 그대로 띄운다. 겹침 금지는 우리가 만든 도메인 규칙이었다
+ *   보는 것은 `명칭이 비었는가` · `시작 개월이 비었는가` 둘뿐이다. 겹침·빈틈을
+ *   누가 막을지(서버 정책)는 정해지지 않았다 — 이 화면은 검사하지 않는다
+ * - **이름 중복 검사** — 원본에 없다
  * - `종료 개월은 시작 개월보다 크거나 같아야 합니다.` · `종료 개월은 숫자만…` 문구
  * - 페이지네이션(`PAGE_SIZE`) · 요약 카드 · 도움말 툴팁 · `monthSpanOf`(쓰이지 않았다)
  * ---------------------------------------------------------------------- */
@@ -40,17 +47,14 @@ export interface GrowthStage {
   monthTo: number | null;
   /** 사용자 안내 문구 — 앱의 성장단계 팝업·추천 레일 소개에 그대로 나간다 (30자 이내) */
   note: string;
-  /** 이 단계로 등록된 상품 수. 삭제하면 이 상품들의 성장단계가 '없음'이 된다 */
-  productCount: number;
 }
 
 /**
- * 성장단계 5종 — **월령 오름차순**.
+ * 성장단계 4종 — **원본 `STAGES` 그대로**(이름·구간·안내 문구), 월령 오름차순.
  *
- * 구간 정합: 0~3 · 4~11 · 12~23 · 24~35 · 36 이상.
- * 서로 겹치지 않고 빈틈도 없다. 이 성질이 깨지면 앱이 아이 월령으로 단계를
- * 찾을 때 둘이 걸리거나 아무것도 안 걸린다 —
- * 다만 **그것을 막는 것은 서버의 일**이라 이 화면은 검사하지 않는다(위 주석).
+ * ⚠️ **24개월이 걸음마(13~24)와 유아(24~) 두 단계에 겹친다** — 원본 데이터 그대로다.
+ * 기획 확인이 필요한 사항으로 인계 문서에 남겼다(2026-10-19 사용자 결정: 임의로 고치지 않는다).
+ * 단계 id 는 상품 상세의 성장단계 값으로 쓰인다.
  */
 export const STAGES: GrowthStage[] = [
   {
@@ -58,41 +62,28 @@ export const STAGES: GrowthStage[] = [
     name: "신생아",
     monthFrom: 0,
     monthTo: 3,
-    note: "목을 못 가누는 시기예요",
-    productCount: 42,
+    note: "갓 태어난 아기를 위한 필수템",
   },
   {
     id: "infant",
     name: "영아",
     monthFrom: 4,
-    monthTo: 11,
-    note: "뒤집고 혼자 앉기 시작해요",
-    productCount: 96,
+    monthTo: 12,
+    note: "뒤집기부터 첫 걸음 준비까지",
   },
   {
     id: "toddler",
     name: "걸음마",
-    monthFrom: 12,
-    monthTo: 23,
-    note: "붙잡고 서다 혼자 걸어요",
-    productCount: 118,
+    monthFrom: 13,
+    monthTo: 24,
+    note: "아장아장 걸음마 시기 용품",
   },
   {
     id: "preschool",
     name: "유아",
     monthFrom: 24,
-    monthTo: 35,
-    note: "뛰고 계단을 오르내려요",
-    productCount: 87,
-  },
-  {
-    id: "kinder",
-    name: "취학 전",
-    monthFrom: 36,
     monthTo: null,
-    /** 안내 문구는 비울 수 있다 — 표에서는 `-` 로 나간다(원본과 같다) */
-    note: "",
-    productCount: 64,
+    note: "놀이와 배움이 커지는 시기",
   },
 ];
 
@@ -128,39 +119,27 @@ export const count = (value: number) => value.toLocaleString("ko-KR") + "개";
 export const NAME_MAX = 10;
 export const NOTE_MAX = 30;
 
-/* =========================================================================
- * 목록 다루기 — 추가·수정·삭제가 **표에 그대로 보여야** 한다
- * ====================================================================== */
-
-/** 표시 순서를 되찾는다. 월령 오름차순이 이 표의 유일한 순서다 */
-const sortStages = (rows: GrowthStage[]) =>
-  [...rows].sort((a, b) => a.monthFrom - b.monthFrom);
-
-/** 새 단계를 넣고 월령 순서로 다시 세운 배열 */
-export const addStage = (
-  rows: GrowthStage[],
-  stage: Omit<GrowthStage, "productCount">,
-) => sortStages([...rows, { ...stage, productCount: 0 }]);
-
-/** 한 단계를 고치고 월령 순서로 다시 세운 배열 */
-export const updateStage = (
-  rows: GrowthStage[],
-  id: string,
-  patch: Omit<GrowthStage, "id" | "productCount">,
-) =>
-  sortStages(rows.map((row) => (row.id === id ? { ...row, ...patch } : row)));
-
-/** 한 단계를 뺀 배열 */
-export const removeStage = (rows: GrowthStage[], id: string) =>
-  rows.filter((row) => row.id !== id);
+/**
+ * 단계별 등록 상품수. `assigned` 는 상품마다 배정된 단계 id 다(원본 `stageUseCnt` —
+ * 임시저장만 빼고 본사 직영도 센다). 표와 삭제 알림의 "상품 N개"가 이 결과 하나를 같이 쓴다.
+ */
+export const stageCountsOf = (
+  stages: GrowthStage[],
+  assigned: readonly string[],
+): Map<string, number> =>
+  new Map(
+    stages.map((stage) => [
+      stage.id,
+      assigned.filter((id) => id === stage.id).length,
+    ]),
+  );
 
 /* =========================================================================
  * 문구 — 전부 원본 어드민에서 그대로 옮긴 것이다
  * ====================================================================== */
 
 /**
- * 저장 전에 보는 것은 이 둘뿐이다 (원본 `A()` 의 두 가드).
- * 나머지는 서버가 판정해 그 메시지를 그대로 띄운다.
+ * 저장 전에 보는 것은 이 둘뿐이다 (원본 `stageSave` 의 두 가드).
  */
 export const NAME_ERROR = "단계 명칭을 입력해주세요.";
 export const MONTH_FROM_ERROR = "시작 개월을 입력해주세요.";
@@ -171,7 +150,7 @@ export const NOTE_PLACEHOLDER = "30자 이내 — 사용자 안내 팝업·레�
 /** 원본 `개월 (종료 비우면 '이상')` 에서 필드 옆으로 옮긴 힌트 */
 export const MONTH_TO_HINT = "종료 비우면 '이상'";
 
-/** 표의 안내 문구가 비었을 때 (원본도 `-`) */
+/** 표의 안내 문구가 비었을 때 (원본도 `-`) — 원본 시드는 모두 문구가 있어 수정으로 비울 때의 모습이다 */
 export const NOTE_EMPTY = "-";
 
 export const DELETE_NOTICE =
