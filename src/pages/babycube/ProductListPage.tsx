@@ -11,8 +11,6 @@ import {
   EmptyState,
   FilterBar,
   Gnb,
-  InfoItem,
-  InfoList,
   Input,
   Modal,
   ModalBody,
@@ -45,15 +43,18 @@ import {
 import { cn } from "../../lib/cn";
 import {
   CATEGORY_ALL_LABEL,
-  CATEGORY_TREE,
+  CATEGORY_HINT,
+  CATEGORY_TREES,
   CHECK_LABEL,
   DASH_UNIT,
   DATE_FIELDS,
+  DETAIL_PENDING,
   DISPLAY_FILTERS,
   DISPLAY_META,
   EMPTY_DESCRIPTION,
   EMPTY_TITLE,
   FILTERS,
+  LISTED_PRODUCTS,
   MODE_FILTERS,
   MODE_META,
   NOTICE_BODY,
@@ -63,7 +64,6 @@ import {
   filterSummary,
   PAGE_SIZE,
   PAGE_SIZES,
-  PRODUCTS,
   REJECT_EMPTY,
   REJECT_ERROR,
   REJECT_NOTICE,
@@ -72,20 +72,22 @@ import {
   SEARCH_FIELDS,
   SEARCH_PLACEHOLDER,
   STATUS_META,
-  STATUS_TIPS,
   approveMessage,
   canApprove,
   canReject,
   categoryNameOf,
-  priceText,
+  categoryPathOf,
+  hasRejectReason,
   rejectMessage,
+  rejectTitle,
   rentPriceText,
   salePriceOf,
   won,
-  ymdhm,
+  ymdhms,
   type CheckMark,
   type Product,
   type ProductDateField,
+  type ProductMode,
   type ProductSearchField,
   type SaleStatus,
 } from "./ProductListPage.data";
@@ -101,6 +103,9 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * 렌트·판매 상품을 한 표에서 조회하고, 입점사 상품을 **반려/승인**한다.
  * 이 어드민에서 컬럼이 가장 많은 화면이다(선택 + 22열).
  *
+ * [ 안내 배너 | 상태 카드 5장 | 검색조건(접힘+요약) |
+ *   목록 (총 N건) · 엑셀 다운로드 | 표 | 페이지네이션 ]       ← 원본 v0.4 와 같은 순서
+ *
  * ## 이 파일은 도메인을 모른다 — 도메인은 `./ProductListPage.data.ts` 에 있다
  *
  * | 갈아끼울 것            | 위치                                           |
@@ -108,65 +113,70 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * | 데이터·타입·라벨·단위  | `ProductListPage.data.ts` **전체**             |
  * | 표 컬럼 구성           | 이 파일의 `<colgroup>` + `TableHead` + 본문 셀 |
  * | 상태 대시 구성         | `FILTERS` (카드가 곧 상태 필터다)              |
- * | 툴바 필터 구성         | `toolbarStart` / `toolbarEnd` 슬롯             |
- * | 행 액션                | 관리 열의 `수정` 버튼                          |
+ * | 검색조건 구성          | `FilterBar` 의 자식 (원본 순서: 기간→전시→유형→카테고리→검색) |
+ * | 행 액션                | 상품명 링크 · 관리 열의 `수정` 버튼            |
  * | 일괄 액션              | `SelectionBar` 버튼 2개(자격에 따라 나타난다)  |
  *
  * ## 그대로 두는 것 (도메인 무관)
  * `DataTableShell` 셸 구조 · 페이지 범위 클램프 · `inPeriod` 날짜 필터 ·
- * 행클릭→Modal 미리보기 · 선택→SelectionBar→Modal 확인 흐름
+ * 선택→SelectionBar→Modal 확인 흐름
  *
  * ## 뼈대가 데이터에 기대하는 계약
- * - `FILTERS[0].value === "all"` — 나머지는 `SaleStatus` 어휘 그대로
+ * - 행은 `LISTED_PRODUCTS` 에서만 읽는다(본사 직영 제외) — 건수·조회·선택·엑셀·일괄이 같은 집합
  * - `canApprove`/`canReject` 가 **처분 자격**을 판정한다(원본 `productDispositionActions`).
- *   버튼을 보일지 말지도, 결과 문구의 제외 건수도 전부 이 둘에서 나온다
- * - `approveMessage`/`rejectMessage` 가 처리·제외 건수를 함께 알린다
+ *   버튼을 보일지 말지도, 승인 알림의 제외 건수도 이 둘에서 나온다
+ * - `CATEGORY_TREES[유형]` — 카테고리는 **유형을 고른 뒤에만** 열린다(원본 `catSelectHint`)
  * - 상태별 건수는 **뼈대가 지금 행에서 직접 센다** — 상수로 박으면 필터를 걸었을 때
  *   조용히 거짓말한다
  *
+ * ## 퍼블 범위
+ * 승인·반려·엑셀은 **알림만** 띄운다. 행의 상태·건수는 바뀌지 않는다(저장은 개발 영역).
+ * 상품명·[수정]의 목적지(상품 상세)는 아직 없어 알림만 띄운다(`DETAIL_PENDING`).
+ *
+ * ## 원본과 일부러 다른 것
+ * - **조건을 바꾸면 선택이 풀린다**(상태 카드·유형·카테고리·기간·검색). 원본은 선택을 남겨
+ *   안 보이는 행까지 다음 처리 대상에 섞인다. 처리 대상은 늘 지금 조회 결과 안에서만 정해진다
+ * - 일괄 처리는 툴바 셀렉트가 아니라 §25 `SelectionBar` 다(고르면 나타난다)
+ * - 반려 사유는 밑줄 태그가 아니라 태그 아래 [사유 보기] 다(`Tag` 는 표시 전용 span)
+ *
  * ⚠️ **원본에 없어서 걷어낸 것 — 되살리지 말 것.**
- * - 상단 요약 카드 3장(`전체 상품 1,284개` · `반려 상품 -4개` · `재심사 대기 +2건`)과
- *   증감 화살표·비교 기준 문구. 원본이 그 자리에 두는 것은 `StatDash`
- *   (**판매 상태별 건수**)이고 카드가 곧 상태 필터다.
- * - 툴바의 판매 상태 세그먼트. 상태 축의 입구는 대시 하나뿐이다 — 같은 축을 두 군데
- *   두면 어느 쪽이 진짜인지 알 수 없다.
+ * - 상단 요약 카드 3장(`전체 상품 1,284개` · `반려 상품 -4개` · `재심사 대기 +2건`).
+ *   원본이 그 자리에 두는 것은 `StatDash`(**판매 상태별 건수**)이고 카드가 곧 상태 필터다.
+ * - 툴바의 판매 상태 세그먼트. 상태 축의 입구는 대시 하나뿐이다.
  * - 관리 열의 드롭다운(상품 수정·상품코드 복사·반려 처리). 원본 관리 열은 `수정` 하나다.
+ * - 행 클릭 「상품 미리보기」 모달과 그 안의 승인/반려. 원본에 없는 우회 처리 통로였다.
  *
  * ## 이 화면만의 구조 — 좌우 고정 열
- * 표 전체 폭이 **2,720px** 라 가로 스크롤이 전제다. 스크롤은 `DataTableShell` 의
- * 본문 래퍼(`overflow-auto`) 안에서만 일어나고 페이지 본문은 밀리지 않는다
- * (`AppShell` 콘텐츠 컬럼이 `min-w-0` 이라 넓은 자식이 셸을 밀어내지 못한다).
+ * 표 전체 폭이 **2,776px** 라 가로 스크롤이 전제다. 스크롤은 `DataTableShell` 의
+ * 본문 래퍼(`overflow-auto`) 안에서만 일어나고 페이지 본문은 밀리지 않는다.
  *
  * - 좌측 5열(선택·유형·셀러·상품코드·상품명)과 우측 1열(관리)이 `position: sticky`.
  *   ⚠️ `FROZEN_LEFT` 의 `left` 값은 **앞 열 폭의 누적합**이다 —
  *   `<colgroup>` 의 폭을 고치면 여기도 같이 고쳐야 한다. 어긋나면 열이 겹쳐 보인다.
- * - 고정 셀의 배경은 `bg-inherit` 다. 행(`<tr>`)이 zebra 배경을 갖고 있어서
- *   고정 셀이 그 값을 그대로 물려받아야 hover 까지 따라간다. 특정 색을 칠하면
- *   짝수 행에서 줄무늬가 끊긴다.
+ * - 고정 셀의 배경은 `bg-inherit` 다. 행(`<tr>`)의 zebra·hover 배경을 그대로 물려받는다.
  * - 헤더 셀(`TableTh`)은 이미 `bg-surface` 를 갖고 있으므로 **배경 클래스를 더하지 않는다**
  *   (`cn()` 은 클래스를 병합하지 않아 같은 속성을 두 번 방출하면 순서가 승자를 정한다).
  * ====================================================================== */
 
 /**
  * 좌측 고정 5열의 `left` 오프셋 — **`<colgroup>` 폭의 누적합**이다.
- * 40 / 72 / 112 / 112 / 232 → 0 · 40 · 112 · 224 · 336 (합 568)
+ * 52 / 72 / 112 / 112 / 232 → 0 · 52 · 124 · 236 · 348 (합 580)
+ *
+ * ⚠️ 첫 열은 **52** 다(40 아님). 체크박스 16 + 셀 여백(`first:pl-6` 24 · 오른쪽 12)이라
+ * 40 을 주어도 브라우저가 52 로 늘린다 — 40 기준으로 오프셋을 잡았을 때 가로 스크롤하면
+ * 「유형」 열이 체크박스 열을 12px 덮었다. 같은 이유로 관리 열은 84(수정 버튼 + 여백 12·24)다.
  *
  * ⚠️ 파생값이라 `<colgroup>` 을 고치면 **반드시 여기도 함께** 고쳐야 한다.
- * 어긋나면 고정 열이 서로 겹쳐 글자가 포개진다 — 가로 스크롤을 해 봐야 보이므로
- * 렌더 테스트로는 잡히지 않는다.
  */
-const FROZEN_LEFT = ["left-0", "left-10", "left-28", "left-56", "left-84"];
+const FROZEN_LEFT = ["left-0", "left-13", "left-31", "left-59", "left-87"];
 
 /**
  * 고정 구간의 폭 — `DataTableShell` 이 가로 스크롤바를 이만큼 **비켜서** 그린다.
- *
- * 안 그러면 바가 표 전체 폭에 깔려 "당기면 고정 열도 움직이겠지"로 읽히는데
- * 실제로는 안 움직인다. 이 화면은 **양쪽에 고정 열이 있어** 두 값을 다 준다.
- *   좌측 5열 40+72+112+112+232 = 568 · 우측 `관리` 80
+ *   좌측 5열 52+72+112+112+232 = 580 · 우측 `관리` 84
  * ⚠️ `<colgroup>` 폭·`FROZEN_LEFT` 와 **함께 고쳐야 한다.**
  */
-const FROZEN_LEAD_WIDTH = 568;
-const FROZEN_TRAIL_WIDTH = 80;
+const FROZEN_LEAD_WIDTH = 580;
+const FROZEN_TRAIL_WIDTH = 84;
 
 /** 고정 구간의 오른쪽 끝을 알리는 1px. `border` 는 collapse 표에서 함께 스크롤돼 사라진다 */
 const FROZEN_EDGE_RIGHT =
@@ -189,10 +199,8 @@ const frozenTd = (index: number) =>
   );
 
 /**
- * KC 인증 · 등록 이미지 표기 — 원본과 같은 `O`/`X`.
- *
- * 색은 **`X` 쪽만** 준다. 비대칭이 의도다(§3-1 "플래그") — 미인증 상품 노출은
- * 본사에 연대책임이 발생하는 사안이라 22열을 훑을 때 걸려야 한다.
+ * KC 인증 · 등록 이미지 표기 — 원본과 같은 `O`/`△`/`X`.
+ * 색은 **`X`(미제출) 쪽만** 준다. △ 는 보완 필요일 뿐 미제출이 아니다.
  */
 const checkMark = (value: CheckMark) =>
   value === "missing" ? (
@@ -206,12 +214,11 @@ const checkMark = (value: CheckMark) =>
 /**
  * 선택한 기간 안에 드는지.
  *
- * `YYYY-MM-DD HH:mm` 의 공백 구분자는 브라우저별 파싱이 갈려 `T` 로 바꿔 넘긴다.
+ * `YYYY-MM-DD HH:mm:ss` 의 공백 구분자는 브라우저별 파싱이 갈려 `T` 로 바꿔 넘긴다.
  * 시작일은 00:00, 종료일은 23:59:59 까지 포함한다.
  *
  * ⚠️ **값 자체가 없으면 기간 조회에서 뺀다.** 판매종료일이 빈 상품은 "무기한"이라
- * 어떤 기간에도 속하지 않는다 — 이걸 통과시키면 "9월에 끝나는 상품"을 찾을 때
- * 끝나지 않는 상품이 전부 섞여 나온다.
+ * 어떤 기간에도 속하지 않는다.
  */
 const inPeriod = (dateText: string, range?: DateRange) => {
   if (!range?.from) return true;
@@ -249,10 +256,7 @@ interface SortState {
   direction: TableSortDirection;
 }
 
-/**
- * 둘 다 `"YYYY-MM-DD HH:mm"` 이라 **문자열 비교로 시간 순서가 맞는다**
- * (자리수가 고정이고 큰 단위가 앞이다). `Date` 로 바꾸면 파싱 비용만 든다.
- */
+/** 둘 다 `"YYYY-MM-DD HH:mm:ss"` 라 **문자열 비교로 시간 순서가 맞는다** */
 const COMPARATORS: Record<SortKey, (a: Product, b: Product) => number> = {
   date: (a, b) => a.date.localeCompare(b.date),
   updatedAt: (a, b) => a.updatedAt.localeCompare(b.updatedAt),
@@ -308,25 +312,30 @@ export function ProductListPage({
   const [page, setPage] = useState(1);
 
   const [selected, setSelected] = useState<string[]>([]);
-  const [detail, setDetail] = useState<Product | null>(null);
-  /**
-   * 반려 사유 입력 대상의 **원본 선택**. 일괄(선택 행)과 단건(행·모달)이 같은 모달을 쓴다.
-   * 자격 판정은 아래에서 하므로 여기에는 고른 것을 그대로 담는다 —
-   * 처리한 수와 제외한 수를 둘 다 알리려면 원본이 있어야 한다.
-   */
-  const [rejectSource, setRejectSource] = useState<Product[]>([]);
+  /** 반려 사유 입력 대상. 자격 판정은 이미 거친 것만 담는다 */
+  const [rejectTargets, setRejectTargets] = useState<Product[]>([]);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectTouched, setRejectTouched] = useState(false);
   /** 반려 사유 보기 대상 */
   const [reasonTarget, setReasonTarget] = useState<Product | null>(null);
 
-  /* 카테고리 3단 연쇄 — 상위가 풀리면 하위 선택지도 사라진다 */
-  const majorNode = CATEGORY_TREE.find((node) => node.value === major);
+  /*
+    카테고리 — **유형마다 트리가 따로다**(원본 `RENT_CATTREE`·`SALE_CATTREE`).
+    유형이 "전체"면 고를 트리가 없어 셀렉트 3개가 잠기고 안내가 붙는다.
+    3단 연쇄 — 상위가 풀리면 하위 선택지도 사라진다.
+  */
+  const categoryTree =
+    mode === "all" ? [] : CATEGORY_TREES[mode as ProductMode];
+  const majorNode = categoryTree.find((node) => node.value === major);
   const middleNode = majorNode?.children?.find((node) => node.value === middle);
 
   const majorOptions = [
-    { value: "all", label: CATEGORY_ALL_LABEL.major },
-    ...CATEGORY_TREE.map((node) => ({ value: node.value, label: node.label })),
+    /* 잠긴 동안에는 "왜 잠겼는지"를 셀렉트 자신이 말한다 — 옆에 따로 적으면 줄바꿈 뒤 다른 칸의 설명으로 읽힌다 */
+    {
+      value: "all",
+      label: mode === "all" ? CATEGORY_HINT : CATEGORY_ALL_LABEL.major,
+    },
+    ...categoryTree.map((node) => ({ value: node.value, label: node.label })),
   ];
   const middleOptions = [
     { value: "all", label: CATEGORY_ALL_LABEL.middle },
@@ -343,17 +352,19 @@ export function ProductListPage({
     })),
   ];
 
+  /** 가장 깊이 고른 카테고리 — 그 코드가 상품의 [대, 중, 소] 경로에 있으면 통과 */
+  const category =
+    [minor, middle, major].find((value) => value !== "all") ?? "all";
+
   /*
    * 상태를 **뺀** 나머지 조건까지만 좁힌 집합.
    * 상태 대시의 건수는 여기서 세야 "렌트만 보는 중"일 때 건수도 함께 줄어든다.
-   * (`filtered` 로 세면 고른 상태의 카드만 숫자가 남고 나머지는 전부 0이 된다)
    */
-  const scoped = PRODUCTS.filter((product) => {
+  const scoped = LISTED_PRODUCTS.filter((product) => {
     const matchMode = mode === "all" || product.mode === mode;
     const matchDisplay = display === "all" || product.display === display;
-    const matchMajor = major === "all" || product.major === major;
-    const matchMiddle = middle === "all" || product.middle === middle;
-    const matchMinor = minor === "all" || product.minor === minor;
+    const matchCategory =
+      category === "all" || categoryPathOf(product).includes(category);
     /* 검색은 **고른 대상 한 곳만** 훑는다(원본 `_searchfield`) */
     const matchKeyword =
       keyword.trim() === "" || product[searchField].includes(keyword.trim());
@@ -361,9 +372,7 @@ export function ProductListPage({
     return (
       matchMode &&
       matchDisplay &&
-      matchMajor &&
-      matchMiddle &&
-      matchMinor &&
+      matchCategory &&
       matchKeyword &&
       inPeriod(product[dateField], period)
     );
@@ -373,8 +382,7 @@ export function ProductListPage({
   const matched = scoped.filter((product) => product.status === status);
 
   /*
-    정렬은 **페이지를 나누기 전에** 한다. 페이지 안에서만 정렬하면 2페이지의 첫 값이
-    1페이지의 마지막보다 앞서는 일이 생긴다.
+    정렬은 **페이지를 나누기 전에** 한다.
     ⚠️ **복사한 뒤 정렬한다** — `sort` 는 제자리 정렬이라 모듈 상수의 순서를 영구히 바꾼다.
   */
   const filtered = sort
@@ -398,14 +406,11 @@ export function ProductListPage({
     value: item.value,
     label: item.label,
     count: scoped.filter((product) => product.status === item.value).length,
-    /* 원본은 상태마다 전이 설명을 달아 둔다 */
-    tip: STATUS_TIPS[item.value as SaleStatus],
+    /* 원본 `STAT_TIP` — 뜻과 다음 단계 */
+    tip: STATUS_META[item.value as SaleStatus].description,
   }));
 
-  /*
-   * 필터로 결과가 줄면 현재 페이지가 범위를 벗어날 수 있다. 그대로 두면 빈 표가
-   * 그려지므로 마지막 페이지로 당긴다.
-   */
+  /* 필터로 결과가 줄면 현재 페이지가 범위를 벗어날 수 있다 — 마지막 페이지로 당긴다 */
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const paged = filtered.slice(
@@ -413,14 +418,15 @@ export function ProductListPage({
     currentPage * pageSize,
   );
 
-  /** 선택은 **보이는 페이지 단위**다. 페이지를 넘기면 헤더 체크박스도 그 페이지를 가리킨다 */
+  /** 머리 체크박스는 **보이는 페이지 단위**다 */
   const pageIds = paged.map((product) => product.id);
   const allPageSelected =
     pageIds.length > 0 && pageIds.every((id) => selected.includes(id));
   const somePageSelected =
     pageIds.some((id) => selected.includes(id)) && !allPageSelected;
 
-  const selectedProducts = PRODUCTS.filter((product) =>
+  /** 고른 행 — **지금 조회 결과 안에서만** 센다 */
+  const selectedProducts = filtered.filter((product) =>
     selected.includes(product.id),
   );
 
@@ -431,11 +437,32 @@ export function ProductListPage({
   const approvable = selectedProducts.filter(canApprove);
   const rejectable = selectedProducts.filter(canReject);
 
-  /** 반려 모달이 실제로 처리할 대상과, 자격이 없어 빠진 수 */
-  const rejectTargets = rejectSource.filter(canReject);
-  const rejectSkipped = rejectSource.length - rejectTargets.length;
+  /**
+   * 조건을 바꾸면 1페이지로, **선택도 풀린다**. 보던 페이지가 새 결과에 없을 수 있고,
+   * 결과 밖으로 나간 선택이 남으면 보이지 않는 상품이 다음 처리 대상에 섞인다.
+   */
+  const refilter = () => {
+    setPage(1);
+    setSelected([]);
+  };
 
-  /** 초기화는 한 곳에서만 정의한다 — 되돌릴 항목이 늘어도 여기만 고치면 된다 */
+  /** 상태 카드를 바꾸면 **정렬·선택·페이지가 함께 풀린다** — 다른 목록과 같다 */
+  const selectStatus = (value: string) => {
+    setStatus(value);
+    setSort(null);
+    refilter();
+  };
+
+  /** 유형을 바꾸면 트리가 바뀌므로 카테고리 3단을 모두 비운다(원본 `setRadio`) */
+  const selectMode = (value: string) => {
+    setMode(value);
+    setMajor("all");
+    setMiddle("all");
+    setMinor("all");
+    refilter();
+  };
+
+  /** 초기화는 한 곳에서만 정의한다 — 검색조건과 빈 상태가 서로 다르게 되돌리면 안 된다 */
   const resetFilters = () => {
     setStatus(DEFAULT_FILTER);
     setMode("all");
@@ -447,7 +474,7 @@ export function ProductListPage({
     setPeriod(undefined);
     setSearchField(SEARCH_FIELDS[0].value);
     setKeyword("");
-    setPage(1);
+    refilter();
   };
 
   const toggleRow = (id: string) => {
@@ -464,33 +491,52 @@ export function ProductListPage({
     );
   };
 
+  /*
+    엑셀 다운로드 — 원본 `exportCsv`. **지금 조회 결과 안에서 고른 행**이 있으면 그것만,
+    없으면 조회 결과 전체(페이지로 자르기 전). 퍼블은 대상 건수만 알린다 — 파일 생성은 개발 영역.
+  */
+  const exportCsv = () => {
+    const rows = selectedProducts.length > 0 ? selectedProducts : filtered;
+    if (rows.length === 0) {
+      toast("다운로드할 데이터가 없습니다");
+      return;
+    }
+    toast(
+      selectedProducts.length > 0
+        ? `선택한 ${rows.length}건을 내려받았습니다`
+        : `조회 결과 ${rows.length}건을 내려받았습니다`,
+    );
+  };
+
   const openReject = (targets: Product[]) => {
-    setRejectSource(targets);
+    setRejectTargets(targets);
     setRejectReason("");
     setRejectTouched(false);
   };
 
   const closeReject = () => {
-    setRejectSource([]);
+    setRejectTargets([]);
     setRejectReason("");
     setRejectTouched(false);
   };
 
+  /** 퍼블은 저장하지 않는다 — 알림을 띄우고 선택만 푼다. 행의 상태·건수는 그대로다 */
   const submitReject = () => {
     setRejectTouched(true);
     if (rejectReason.trim() === "") return;
 
-    toast({
-      message: rejectMessage(rejectTargets.length, rejectSkipped),
-      tone: "critical",
-    });
+    toast({ message: rejectMessage(rejectTargets.length), tone: "critical" });
     setSelected([]);
     closeReject();
   };
 
-  const approve = (targets: Product[]) => {
-    const done = targets.filter(canApprove).length;
-    toast(approveMessage(done, targets.length - done));
+  const approve = () => {
+    toast(
+      approveMessage(
+        approvable.length,
+        selectedProducts.length - approvable.length,
+      ),
+    );
     setSelected([]);
   };
 
@@ -509,25 +555,11 @@ export function ProductListPage({
           collapsedLogo={GNB_LOGO_SLOTS.collapsed}
         />
       }
-      header={
-        <PageHeader
-          title="상품 관리"
-          actions={
-            <Button
-              variant="secondary"
-              onClick={() => toast("엑셀 파일을 내려받았습니다")}
-            >
-              <ArrowDownToLine size={16} strokeWidth={1.2} aria-hidden />
-              엑셀 다운로드
-            </Button>
-          }
-        />
-      }
+      header={<PageHeader title="상품 관리" />}
     >
       {/*
         상시 안내 배너 (원본 `data-area="products.note"`).
         ⚠️ 도움말 툴팁으로 접지 말 것 — 마지막 줄(연대책임) 때문에 배너다.
-        호버해야 보이는 자리에 두면 읽지 않은 채 미인증 상품을 노출시킬 수 있다.
         칠하는 것은 **마지막 줄 하나**다. 셋 다 칠하면 초점이 사라진다.
       */}
       <Card>
@@ -541,17 +573,11 @@ export function ProductListPage({
       </Card>
 
       {/*
-        판매 상태별 건수 대시 — 원본 `StatDash`.
-        건수를 보여주면서 **그 자체가 상태 필터**다(원본 `chips[0].dash = true` 라
-        필터바에서 빠지고 대시가 그 역할을 가져간다).
+        판매 상태별 건수 대시 — 원본 `StatDash`. 건수를 보여주면서 **그 자체가 상태 필터**다.
+        상자의 시각 규격·선택/hover·접근가능 이름·툴팁은 `StatGrid` 가 맡는다(§D4).
       */}
       <Card>
         <CardBody>
-          {/*
-            건수 대시 = 필터. 상자의 시각 규격 · 선택/hover 축 분리 · 접근가능 이름
-            조립 · 툴팁 분기는 전부 `StatGrid` 가 맡는다 (docs/DESIGN-dashboard.md §D4).
-            여기서는 **무엇을 세는지**만 말한다.
-          */}
           <StatGrid
             items={dash.map((item) => ({
               value: item.value,
@@ -561,10 +587,7 @@ export function ProductListPage({
               tip: item.tip,
             }))}
             selected={status}
-            onSelect={(value) => {
-              setStatus(value);
-              setPage(1);
-            }}
+            onSelect={selectStatus}
             ariaLabel="판매 상태별 건수"
             columns={5}
           />
@@ -573,10 +596,9 @@ export function ProductListPage({
 
       {/*
         검색조건 — 원본 `products.filter`. **접힌 채로 열리고** 걸린 조건은 요약이 말한다.
-        컨트롤이 8개라 늘 펼쳐 두면 표가 첫 화면에서 통째로 밀려난다.
+        순서는 원본 그대로: 기간 → 전시 상태 → 유형 → 카테고리 → 검색어.
 
-        ⚠️ 판매 상태는 여기 없다 — 그 축의 입구는 위의 건수 대시 하나뿐이다
-        (원본 `chips[0].dash = true`). 같은 축을 두 군데 두면 어느 쪽이 진짜인지 모른다.
+        ⚠️ 판매 상태는 여기 없다 — 그 축의 입구는 위의 건수 대시 하나뿐이다.
       */}
       <FilterBar
         open={filterOpen}
@@ -584,9 +606,7 @@ export function ProductListPage({
         summary={filterSummary({
           mode,
           display,
-          major,
-          middle,
-          minor,
+          category,
           dateField,
           from: period?.from,
           to: period?.to,
@@ -595,13 +615,42 @@ export function ProductListPage({
         })}
         onReset={resetFilters}
       >
-        /* 상태 축의 입구는 위의 대시 하나뿐이다 — 여기에는 유형만 둔다 */
+        <Select
+          className="w-32"
+          aria-label="기간 종류"
+          options={DATE_FIELDS}
+          value={dateField}
+          onValueChange={(value) => {
+            setDateField(value as ProductDateField);
+            refilter();
+          }}
+        />
+        <DatePicker
+          mode="range"
+          /* 원본 "기간 빠른 버튼(오늘~전체)" — 어휘·계산은 `PERIOD_PRESETS` 가 든다 */
+          presets={PERIOD_PRESETS}
+          value={period}
+          onChange={(next) => {
+            setPeriod(next);
+            refilter();
+          }}
+          startPlaceholder="시작일"
+          endPlaceholder="종료일"
+        />
+        {/* 전시 상태는 판매 상태와 **다른 축**이다(원본 `showStat`) */}
+        <Select
+          className="w-36"
+          aria-label="전시 상태"
+          options={DISPLAY_FILTERS}
+          value={display}
+          onValueChange={(value) => {
+            setDisplay(value);
+            refilter();
+          }}
+        />
         <RadioGroup
           value={mode}
-          onValueChange={(value) => {
-            setMode(value);
-            setPage(1);
-          }}
+          onValueChange={selectMode}
           orientation="horizontal"
           aria-label="유형"
         >
@@ -614,27 +663,17 @@ export function ProductListPage({
             />
           ))}
         </RadioGroup>
-        {/* 전시 상태는 판매 상태와 **다른 축**이다(원본 `showStat`) */}
-        <Select
-          className="w-36"
-          aria-label="전시 상태"
-          options={DISPLAY_FILTERS}
-          value={display}
-          onValueChange={(value) => {
-            setDisplay(value);
-            setPage(1);
-          }}
-        />
         <Select
           className="w-36"
           aria-label="카테고리 대분류"
           options={majorOptions}
           value={major}
+          disabled={mode === "all"}
           onValueChange={(value) => {
             setMajor(value);
             setMiddle("all");
             setMinor("all");
-            setPage(1);
+            refilter();
           }}
         />
         <Select
@@ -646,7 +685,7 @@ export function ProductListPage({
           onValueChange={(value) => {
             setMiddle(value);
             setMinor("all");
-            setPage(1);
+            refilter();
           }}
         />
         <Select
@@ -657,36 +696,13 @@ export function ProductListPage({
           disabled={middle === "all"}
           onValueChange={(value) => {
             setMinor(value);
-            setPage(1);
+            refilter();
           }}
-        />
-        <Select
-          className="w-32"
-          aria-label="기간 종류"
-          options={DATE_FIELDS}
-          value={dateField}
-          onValueChange={(value) => {
-            setDateField(value as ProductDateField);
-            setPage(1);
-          }}
-        />
-        <DatePicker
-          mode="range"
-          /* 원본 "기간 빠른 버튼(오늘~전체)" — 어휘·계산은 `PERIOD_PRESETS` 가 든다 */
-          presets={PERIOD_PRESETS}
-          value={period}
-          onChange={(next) => {
-            setPeriod(next);
-            setPage(1);
-          }}
-          startPlaceholder="시작일"
-          endPlaceholder="종료일"
         />
         {/*
-              검색 대상 셀렉트 — 한 번에 하나만 훑는다.
-              세 필드를 동시에 훑으면 "맘스케어"가 셀러명에서 걸린 것인지
-              상품명에 들어간 것인지 결과만 보고는 구별할 수 없다.
-            */}
+          검색 대상 셀렉트 — 한 번에 하나만 훑는다.
+          세 필드를 동시에 훑으면 어디서 걸린 것인지 결과만 보고는 구별할 수 없다.
+        */}
         <Select
           className="w-28"
           aria-label="검색 대상"
@@ -694,7 +710,7 @@ export function ProductListPage({
           value={searchField}
           onValueChange={(value) => {
             setSearchField(value as ProductSearchField);
-            setPage(1);
+            refilter();
           }}
         />
         <Input
@@ -702,7 +718,7 @@ export function ProductListPage({
           value={keyword}
           onChange={(event) => {
             setKeyword(event.target.value);
-            setPage(1);
+            refilter();
           }}
           leftIcon={<Search size={16} strokeWidth={1.2} aria-hidden />}
         />
@@ -718,6 +734,18 @@ export function ProductListPage({
         className="flex-1"
         bodyClassName={dimWhile(dataStatus)}
         aria-busy={isBusy(dataStatus)}
+        toolbarStart={
+          /* 원본 `ListHead` 의 "목록 (총 N건)" — 회원·셀러 목록과 같은 자리·같은 글자 */
+          <h2 className="heading-medium-bold text-text">
+            목록 (총 {filtered.length}건)
+          </h2>
+        }
+        toolbarEnd={
+          <Button variant="secondary" onClick={exportCsv}>
+            <ArrowDownToLine size={16} strokeWidth={1.2} aria-hidden />
+            엑셀 다운로드
+          </Button>
+        }
         isEmpty={dataStatus === "empty" || filtered.length === 0}
         empty={
           <EmptyState
@@ -737,11 +765,6 @@ export function ProductListPage({
             page={currentPage}
             totalPages={totalPages}
             onPageChange={setPage}
-            start={
-              <span className="body-small text-text-sub">
-                총 {filtered.length}건
-              </span>
-            }
             end={
               /* 원본 표 하단의 페이지당 개수 셀렉트. 바꾸면 1페이지로 돌아간다 */
               <PaginationSizeSelect
@@ -759,11 +782,11 @@ export function ProductListPage({
         <Table>
           {/*
             table-fixed 라 폭 지정 필수.
-            좌측 고정 5열 = 64+80+112+112+208 = 576 (FROZEN_LEFT 와 짝을 이룬다)
-            나머지 18열 = 2,144 → 표 전체 2,720
+            좌측 고정 5열 = 52+72+112+112+232 = 580 (FROZEN_LEFT 와 짝을 이룬다)
+            날짜 2열은 초까지 들어가도록 160 — 표 전체 2,776
           */}
           <colgroup>
-            <col className="w-10" />
+            <col className="w-13" />
             <col className="w-18" />
             <col className="w-28" />
             <col className="w-28" />
@@ -783,9 +806,9 @@ export function ProductListPage({
             <col className="w-28" />
             <col className="w-33" />
             <col className="w-25" />
-            <col className="w-35" />
-            <col className="w-35" />
-            <col className="w-20" />
+            <col className="w-40" />
+            <col className="w-40" />
+            <col className="w-21" />
           </colgroup>
           <TableHead>
             <TableRow>
@@ -843,12 +866,8 @@ export function ProductListPage({
           <TableBody>
             {/*
               ⚠️ 이 화면만 `DataTableShell` 의 `isLoading`/`loading`(표 통째로 교체)을
-              쓰지 않고 **본문 행만** 스켈레톤으로 바꾼다.
-
-              열이 23개이고 좌우 고정열 클래스(`frozenTh`/`frozenTd`)와 정렬 헤더가
-              얽혀 있어, 뼈대용 표를 한 벌 더 두면 **헤더를 두 곳에서 관리**하게 된다.
-              그러면 열을 하나 고칠 때 한쪽만 고쳐 로딩이 끝나는 순간 열이 밀린다.
-              본문만 바꾸면 colgroup·헤더가 애초에 하나뿐이라 어긋날 수 없다.
+              쓰지 않고 **본문 행만** 스켈레톤으로 바꾼다. 열이 23개이고 고정열 클래스와
+              정렬 헤더가 얽혀 있어, 뼈대용 표를 한 벌 더 두면 헤더를 두 곳에서 관리하게 된다.
             */}
             {dataStatus === "loading"
               ? Array.from({ length: pageSize }, (_, row) => (
@@ -862,36 +881,21 @@ export function ProductListPage({
                     ))}
                   </TableRow>
                 ))
-              : null}
-            {dataStatus === "loading"
-              ? null
               : paged.map((product) => {
                   const statusMeta = STATUS_META[product.status];
                   const modeMeta = MODE_META[product.mode];
                   const displayMeta = DISPLAY_META[product.display];
                   const isRent = product.mode === "rent";
-                  const hasReason =
-                    product.status === "rejected" ||
-                    product.status === "rereview";
 
                   return (
-                    <TableRow
-                      key={product.id}
-                      clickable
-                      onClick={() => setDetail(product)}
-                    >
+                    <TableRow key={product.id}>
                       <TableTd className={frozenTd(0)}>
-                        <div
-                          role="presentation"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          <Checkbox
-                            size="small"
-                            aria-label={product.name + " 선택"}
-                            checked={selected.includes(product.id)}
-                            onChange={() => toggleRow(product.id)}
-                          />
-                        </div>
+                        <Checkbox
+                          size="small"
+                          aria-label={product.name + " 선택"}
+                          checked={selected.includes(product.id)}
+                          onChange={() => toggleRow(product.id)}
+                        />
                       </TableTd>
                       <TableTd align="center" className={frozenTd(1)}>
                         <Tag tone={modeMeta.tone} size="small">
@@ -902,8 +906,21 @@ export function ProductListPage({
                         {product.seller}
                       </TableTd>
                       <TableTd className={frozenTd(3)}>{product.id}</TableTd>
-                      <TableTd ellipsis className={frozenTd(4)}>
-                        {product.name}
+                      {/* 원본: 상품명은 상품 상세(수정 폼)로 가는 링크 — 화면이 생기기 전까지 알림 */}
+                      <TableTd className={frozenTd(4)}>
+                        {/*
+                          ⚠️ 글자가 **줄바꿈될 수 있어야** 열 폭(232)이 지켜진다. 표가 `w-max` 라
+                          칸의 최소 폭이 곧 열 폭이 되는데, `TextButton` 은 `nowrap` 이라 긴 상품명이
+                          열을 394px 까지 밀어냈다. 안쪽 글자만 풀어 주고 두 줄에서 자른다(`ellipsis` 셀과 같은 규칙).
+                        */}
+                        <TextButton
+                          className="max-w-full"
+                          onClick={() => toast(DETAIL_PENDING)}
+                        >
+                          <span className="line-clamp-2 text-left whitespace-normal">
+                            {product.name}
+                          </span>
+                        </TextButton>
                       </TableTd>
                       <TableTd>
                         {isRent ? won(product.rentBase ?? 0) : DASH}
@@ -935,26 +952,22 @@ export function ProductListPage({
                       <TableTd>{checkMark(product.image)}</TableTd>
                       <TableTd align="center">
                         {/*
-                      반려·재심사요청 건은 **왜 내려갔는지**가 이 화면의 핵심 정보다.
-                      Tag 는 표시 전용(span)이라 클릭 대상을 따로 둔다.
-                    */}
+                          반려·재심사요청 건은 **왜 내려갔는지**가 이 화면의 핵심 정보다.
+                          원본은 상태 태그에 밑줄을 그어 누르게 하지만, `Tag` 는 표시 전용(span)이라
+                          클릭 대상을 따로 둔다.
+                        */}
                         <div className="flex flex-col items-center gap-1">
                           <Tag tone={statusMeta.tone} dot size="small">
                             {statusMeta.label}
                           </Tag>
-                          {hasReason && (
-                            <div
-                              role="presentation"
-                              onClick={(event) => event.stopPropagation()}
+                          {hasRejectReason(product) && (
+                            <TextButton
+                              size="small"
+                              tone="secondary"
+                              onClick={() => setReasonTarget(product)}
                             >
-                              <TextButton
-                                size="small"
-                                tone="secondary"
-                                onClick={() => setReasonTarget(product)}
-                              >
-                                사유 보기
-                              </TextButton>
-                            </div>
+                              사유 보기
+                            </TextButton>
                           )}
                         </div>
                       </TableTd>
@@ -964,28 +977,23 @@ export function ProductListPage({
                         </Tag>
                       </TableTd>
                       {/* 저장은 하이픈, 화면은 점 — 날것을 그대로 흘리지 않는다 */}
-                      <TableTd>{ymdhm(product.date)}</TableTd>
-                      <TableTd>{ymdhm(product.updatedAt)}</TableTd>
+                      <TableTd>{ymdhms(product.date)}</TableTd>
+                      <TableTd>{ymdhms(product.updatedAt)}</TableTd>
                       <TableTd
                         className={cn(
                           "sticky right-0 z-1 bg-inherit",
                           FROZEN_EDGE_LEFT,
                         )}
                       >
-                        <div
-                          role="presentation"
-                          onClick={(event) => event.stopPropagation()}
+                        {/* 원본 관리 열도 `수정` 하나뿐이고, 상품명과 같은 상세로 간다 */}
+                        <Button
+                          size="small"
+                          variant="secondary"
+                          aria-label={product.name + " 수정"}
+                          onClick={() => toast(DETAIL_PENDING)}
                         >
-                          {/* 원본 관리 열도 `수정` 하나뿐이다 */}
-                          <Button
-                            size="small"
-                            variant="secondary"
-                            aria-label={product.name + " 수정"}
-                            onClick={() => toast("상품 수정 화면을 엽니다")}
-                          >
-                            수정
-                          </Button>
-                        </div>
+                          수정
+                        </Button>
                       </TableTd>
                     </TableRow>
                   );
@@ -996,10 +1004,11 @@ export function ProductListPage({
 
       {/*
         일괄 처리 바.
-        기획서는 승인/반려 버튼을 목록 헤더에 두지만, 이 디자인 시스템에서 여러 행을
+        원본은 승인/반려를 목록 머리의 셀렉트에 두지만, 이 디자인 시스템에서 여러 행을
         골라 한꺼번에 처리하는 규격은 §25 SelectionBar 다.
         ⚠️ 버튼은 **고른 행의 자격**이 있을 때만 나온다 — 이미 반려된 상품에
-        '반려 처리'가 뜨면 화면이 거짓말을 한다.
+        '반려 처리'가 뜨면 화면이 거짓말을 한다. 상품 승인은 내린 처분을 푸는 것이라
+        확인 창 없이 처리한다(원본 `prodApprove`).
       */}
       <SelectionBar
         open={selected.length > 0}
@@ -1009,7 +1018,7 @@ export function ProductListPage({
         {approvable.length > 0 && (
           <SelectionBarButton
             icon={<Check size={16} strokeWidth={1.2} aria-hidden />}
-            onClick={() => approve(selectedProducts)}
+            onClick={approve}
           >
             승인 처리
           </SelectionBarButton>
@@ -1020,7 +1029,7 @@ export function ProductListPage({
         {rejectable.length > 0 && (
           <SelectionBarButton
             icon={<Ban size={16} strokeWidth={1.2} aria-hidden />}
-            onClick={() => openReject(selectedProducts)}
+            onClick={() => openReject(rejectable)}
           >
             반려 처리
           </SelectionBarButton>
@@ -1028,58 +1037,8 @@ export function ProductListPage({
       </SelectionBar>
 
       {/*
-        상품 미리보기 — 4항목짜리 빠른 확인용이다.
-        상품 상세 화면은 이 배치에 없으므로 푸터는 "전체 상세 보기" 대신
-        이 화면의 도메인 액션(승인/반려)을 놓는다. 자격 규칙은 SelectionBar 와 같다 —
-        둘이 어긋나면 같은 상품에 대해 화면이 두 가지 말을 한다.
-      */}
-      <Modal open={detail !== null} onClose={() => setDetail(null)}>
-        <ModalHeader title="상품 미리보기" description={detail?.id} />
-        <ModalBody>
-          <InfoList>
-            <InfoItem label="셀러">{detail?.seller}</InfoItem>
-            <InfoItem label="상품명">{detail?.name}</InfoItem>
-            <InfoItem label="가격">{detail ? priceText(detail) : ""}</InfoItem>
-            <InfoItem label="판매 상태">
-              {detail && (
-                <Tag tone={STATUS_META[detail.status].tone} dot size="small">
-                  {STATUS_META[detail.status].label}
-                </Tag>
-              )}
-            </InfoItem>
-          </InfoList>
-        </ModalBody>
-        <ModalFooter>
-          {detail && canReject(detail) && (
-            <Button
-              size="large"
-              variant="secondary"
-              onClick={() => {
-                openReject([detail]);
-                setDetail(null);
-              }}
-            >
-              반려 처리
-            </Button>
-          )}
-          {detail && canApprove(detail) && (
-            <Button
-              size="large"
-              onClick={() => {
-                approve([detail]);
-                setDetail(null);
-              }}
-            >
-              승인 처리
-            </Button>
-          )}
-        </ModalFooter>
-      </Modal>
-
-      {/*
-        반려 사유 입력 — 일괄·단건이 같은 모달을 쓴다.
-        ⚠️ 제목의 건수는 **자격 있는 수**다. 고른 수를 그대로 쓰면 모달이 4건이라
-        말하고 결과는 3건이 되어 화면이 스스로 모순된다.
+        반려 사유 입력 — 원본 `_MODAL_CFG.prodreject`.
+        제목의 건수는 **자격 있는 수**다. 대상 줄은 두지 않는다(원본 판정 ⑪ⓑ — 건수는 제목이 진다).
       */}
       <Modal
         open={rejectTargets.length > 0}
@@ -1087,15 +1046,9 @@ export function ProductListPage({
         size="medium"
       >
         <ModalHeader
+          /* 푸터에도 "취소"가 있어 헤더 X 의 기본 라벨과 겹친다 — 이름을 갈라 준다 */
           closeLabel="대화상자 닫기"
-          title={
-            rejectTargets.length > 1
-              ? "상품 반려 사유 입력 (" + rejectTargets.length + "건)"
-              : "상품 반려 사유 입력"
-          }
-          description={
-            rejectTargets.length === 1 ? rejectTargets[0].name : undefined
-          }
+          title={rejectTitle(rejectTargets.length)}
         />
         <ModalBody>
           <Textarea
@@ -1116,7 +1069,7 @@ export function ProductListPage({
         </ModalBody>
         <ModalFooter>
           <Button variant="secondary" size="large" onClick={closeReject}>
-            닫기
+            취소
           </Button>
           <Button variant="critical" size="large" onClick={submitReject}>
             반려 처리
@@ -1124,38 +1077,40 @@ export function ProductListPage({
         </ModalFooter>
       </Modal>
 
-      {/* 반려 사유 보기 */}
+      {/* 반려 사유 보기 — 원본 `prodReason`: 상태 태그 · 상품 · 사유 · 처리 시각 · [확인] */}
       <Modal
         open={reasonTarget !== null}
         onClose={() => setReasonTarget(null)}
         size="small"
       >
-        <ModalHeader
-          closeLabel="대화상자 닫기"
-          title="반려 사유"
-          description={reasonTarget?.name}
-        />
+        <ModalHeader closeLabel="대화상자 닫기" title="반려 사유" />
         <ModalBody>
           {reasonTarget && (
-            <Tag tone={STATUS_META[reasonTarget.status].tone} dot>
-              {STATUS_META[reasonTarget.status].label}
-            </Tag>
+            <>
+              <Tag tone={STATUS_META[reasonTarget.status].tone} dot>
+                {STATUS_META[reasonTarget.status].label}
+              </Tag>
+              <p className="body-medium text-text">
+                상품:{" "}
+                <span className="label-medium-bold">{reasonTarget.name}</span>
+              </p>
+              <p className="body-medium text-text">
+                {reasonTarget.reject?.reason ?? REJECT_EMPTY}
+              </p>
+              <p className="body-small text-text-minimal">
+                {reasonTarget.reject
+                  ? ymdhms(reasonTarget.reject.at) + " 처리"
+                  : ""}
+                {reasonTarget.status === "rereview"
+                  ? (reasonTarget.reject ? " · " : "") + REREVIEW_NOTE
+                  : ""}
+              </p>
+            </>
           )}
-          <p className="body-medium text-text">
-            {reasonTarget?.reject?.reason ?? REJECT_EMPTY}
-          </p>
-          <p className="body-small text-text-minimal">
-            {reasonTarget?.reject ? reasonTarget.reject.at + " 처리" : ""}
-            {reasonTarget?.status === "rereview" ? " · " + REREVIEW_NOTE : ""}
-          </p>
         </ModalBody>
         <ModalFooter>
-          <Button
-            variant="secondary"
-            size="large"
-            onClick={() => setReasonTarget(null)}
-          >
-            닫기
+          <Button size="large" onClick={() => setReasonTarget(null)}>
+            확인
           </Button>
         </ModalFooter>
       </Modal>
