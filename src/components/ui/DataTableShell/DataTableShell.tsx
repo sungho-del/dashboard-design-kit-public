@@ -62,8 +62,8 @@ export interface DataTableShellProps extends HTMLAttributes<HTMLElement> {
    *
    * ⚠️ `<TableHead sticky>` 를 쓸 거면 **여기에 `max-h-*` 를 반드시 준다.**
    * 이 래퍼가 곧 sticky 의 스크롤포트인데, 높이 제한이 없으면 세로로 스크롤할 것이
-   * 없어 헤더가 붙지 않는다. 바깥 `<section>` 이 `overflow-hidden` 이라
-   * 페이지 스크롤이 대신 걸려 주지도 않는다 — 아무 일도 일어나지 않는다.
+   * 없어 헤더가 붙지 않는다. 이 래퍼가 `overflow-auto` 라 페이지 스크롤이
+   * 대신 걸려 주지도 않는다 — 아무 일도 일어나지 않는다.
    */
   bodyClassName?: string;
   /**
@@ -180,9 +180,12 @@ export function DataTableShell({
   /**
    * 두 스크롤러를 서로 물린다.
    *
-   * 무한 되돌림은 **값이 이미 같으면 아무것도 하지 않는 것**으로 끊는다 —
-   * A 가 B 를 밀면 B 의 scroll 이벤트가 뒤따르는데, 그때는 두 값이 같으므로
-   * B 의 핸들러가 A 를 다시 밀지 않는다. 잠금 변수도 타이머도 필요 없다.
+   * ⚠️ **되돌아오는 메아리를 버린다.** A 가 B 를 밀면 B 의 scroll 이벤트가 **한 박자 뒤에**
+   * 온다. 휠·터치패드·바 끌기는 그 사이에도 A 를 계속 밀고 있으므로, 메아리 때 "값이
+   * 다르면 맞춘다"로 처리하면 **앞서 나간 A 를 방금 전 위치로 끌어당긴다** — 표가 뚝뚝
+   * 끊기며 나아간다(사용자 보고 2026-10-19). 그래서 내가 민 값을 기억해 두고, 그 값으로
+   * 돌아온 이벤트는 건너뛴다. 1px 미만 차이도 같은 값으로 본다 — 배율 125% 같은 화면은
+   * 두 요소가 소수점을 서로 다르게 반올림해 영영 같아지지 않는다.
    * (한때 `requestAnimationFrame` 으로 푸는 잠금을 뒀는데, 프레임이 돌기 전에는
    *  반대 방향이 통째로 막혀 동기 코드에서 한쪽만 동작했다.)
    *
@@ -196,8 +199,16 @@ export function DataTableShell({
     const proxy = proxyRef.current;
     if (!proxyOn || !body || !proxy) return;
 
+    /** 우리가 밀어 넣은 값 — 그 요소의 다음 scroll 이벤트가 이 값이면 메아리다 */
+    const pushed = new Map<HTMLElement, number>();
+    const same = (a: number, b: number) => Math.abs(a - b) < 1;
+
     const follow = (from: HTMLElement, to: HTMLElement) => () => {
-      if (to.scrollLeft === from.scrollLeft) return;
+      const echo = pushed.get(from);
+      pushed.delete(from);
+      if (echo !== undefined && same(from.scrollLeft, echo)) return;
+      if (same(to.scrollLeft, from.scrollLeft)) return;
+      pushed.set(to, from.scrollLeft);
       to.scrollLeft = from.scrollLeft;
     };
 
@@ -229,7 +240,12 @@ export function DataTableShell({
       data-table-shell
       data-variant={variant === "flat" ? undefined : variant}
       className={cn(
-        "relative overflow-hidden bg-surface",
+        /*
+          `overflow-clip` 이지 `hidden` 이 아니다 — radius 밖을 자르는 일은 같지만
+          `hidden` 은 스크롤 컨테이너가 되어, 아래 프록시 바의 `sticky bottom-0` 이
+          화면이 아니라 이 상자에 붙어 버린다(행이 많으면 바가 화면 밖에 묻힌다).
+        */
+        "relative overflow-clip bg-surface",
         /*
           radius 와 그림자는 **분기마다 한 번씩만** 방출한다 — `cn()` 은 병합하지
           않으므로 `rounded-medium` 과 `rounded-large` 가 함께 나가면 승자를
@@ -318,7 +334,12 @@ export function DataTableShell({
           ref={proxyRef}
           data-table-shell-scrollbar
           aria-hidden
-          className="overflow-x-auto overflow-y-hidden"
+          /*
+            표가 화면보다 길면 바가 페이지 아래에 묻힌다(주문 목록 10행에서 사용자 보고).
+            `sticky bottom-0` 으로 표가 보이는 동안 화면 하단에 붙여 둔다. 아래로 지나가는
+            행을 가리므로 배경을 칠하고, 고정 열(z-1)보다 위에 둔다.
+          */
+          className="sticky bottom-0 z-2 overflow-x-auto overflow-y-hidden bg-surface"
           style={{ marginLeft: scrollLeadWidth, marginRight: scrollTrailWidth }}
         >
           {/*

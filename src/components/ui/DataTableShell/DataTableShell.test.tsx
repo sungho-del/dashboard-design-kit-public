@@ -51,9 +51,11 @@ describe("DataTableShell", () => {
       expect(shellOf(container).className).not.toContain("shadow-");
     });
 
-    it("radius 밖으로 표가 삐져나오지 않도록 overflow-hidden이다", () => {
+    /* `hidden` 이면 스크롤 컨테이너가 되어 프록시 바의 sticky 가 화면에 붙지 못한다 */
+    it("radius 밖으로 표가 삐져나오지 않도록 overflow-clip이다 (hidden 아님)", () => {
       const { container } = render(<DataTableShell />);
-      expect(shellOf(container).className).toContain("overflow-hidden");
+      expect(shellOf(container).className).toContain("overflow-clip");
+      expect(shellOf(container).className).not.toContain("overflow-hidden");
     });
 
     it("전달한 className이 마지막에 붙어 오버라이드된다", () => {
@@ -434,6 +436,44 @@ describe("DataTableShell", () => {
       body.scrollLeft = 120;
       body.dispatchEvent(new Event("scroll"));
       expect(bar.scrollLeft).toBe(120);
+    });
+
+    /*
+      휠·바 끌기는 메아리가 돌아오기 전에 이미 더 나가 있다. 메아리를 "맞추기"로
+      처리하면 표가 방금 전 위치로 끌려가 뚝뚝 끊긴다(사용자 보고 2026-10-19).
+    */
+    it("되돌아온 메아리가 앞서 나간 표를 뒤로 끌어당기지 않는다", () => {
+      const { container } = render(
+        <DataTableShell scrollLeadWidth={696}>
+          <table />
+        </DataTableShell>,
+      );
+      const body = slot(container, "body")!;
+      const bar = slot(container, "scrollbar")!;
+
+      body.scrollLeft = 100;
+      body.dispatchEvent(new Event("scroll"));
+      expect(bar.scrollLeft).toBe(100);
+
+      // 바의 메아리가 오기 전에 표는 이미 140 까지 나갔다
+      body.scrollLeft = 140;
+      bar.dispatchEvent(new Event("scroll"));
+      expect(body.scrollLeft).toBe(140);
+
+      // 그 뒤 표의 이벤트가 바를 마저 데려온다
+      body.dispatchEvent(new Event("scroll"));
+      expect(bar.scrollLeft).toBe(140);
+    });
+
+    it("가로 스크롤바는 화면 하단에 붙어 있다 (표가 길어도 묻히지 않게)", () => {
+      const { container } = render(
+        <DataTableShell scrollLeadWidth={696}>
+          <table />
+        </DataTableShell>,
+      );
+      expect(slot(container, "scrollbar")?.className).toContain(
+        "sticky bottom-0",
+      );
     });
   });
 
