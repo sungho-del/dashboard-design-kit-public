@@ -183,14 +183,6 @@ const pickStatus = async (user: User, label: string) =>
     ),
   );
 
-/** 유형 라디오. 조건 영역 안에 있으므로 **먼저 펼쳐 둔 상태에서** 부른다 */
-function modeFilter(name: string): HTMLElement {
-  return within(screen.getByRole("radiogroup", { name: "유형" })).getByRole(
-    "radio",
-    { name },
-  );
-}
-
 /**
  * 검색조건을 펼친다. 조건 영역(`FilterBar`)은 **접힌 채로 열리고**, 닫혀 있는 동안은
  * 안의 컨트롤이 DOM 에 아예 없다.
@@ -217,6 +209,10 @@ async function chooseOption(
   const listbox = await screen.findByRole("listbox");
   await user.click(within(listbox).getByRole("option", { name: optionLabel }));
 }
+
+/** 유형 셀렉트(원본은 라디오 — 사용자 결정으로 셀렉트). 조건 영역을 펼쳐서 고른다 */
+const pickMode = (user: User, name: string) =>
+  chooseOption(user, "유형", name === "전체" ? "유형 전체" : name);
 
 /** 페이지 버튼의 접근가능 이름은 숫자뿐이라 페이지네이션 안에서 찾는다 */
 async function gotoPage(user: User, page: number) {
@@ -412,7 +408,7 @@ describe("ProductListPage", () => {
       const { user } = renderPage();
 
       await openFilters(user);
-      await user.click(modeFilter("렌트"));
+      await pickMode(user, "렌트");
 
       // 렌트 16건 = 판매중 10 · 반려 2 · 재심사요청 1 · 판매중지 4 · 품절 0 (품절은 판매 상품에만)
       expect(statusCard("판매중 10개")).toBeVisible();
@@ -422,12 +418,13 @@ describe("ProductListPage", () => {
       expect(bodyRows()).toHaveLength(10);
     });
 
-    it("조건 영역에는 상태 필터가 없다 (radiogroup 은 유형 하나뿐)", async () => {
+    it("조건 영역에는 상태 필터가 없다 (유형은 셀렉트, 라디오 없음)", async () => {
       const { user } = renderPage();
       await openFilters(user);
 
-      expect(screen.getAllByRole("radiogroup")).toHaveLength(1);
-      expect(screen.getByRole("radiogroup")).toHaveAccessibleName("유형");
+      expect(screen.queryByRole("radiogroup")).toBeNull();
+      expect(screen.queryByRole("combobox", { name: /판매 상태/ })).toBeNull();
+      expect(selectTrigger("유형")).toHaveTextContent("유형 전체");
     });
 
     /** 다른 상태의 목록에서 고른 행·정렬이 남으면 보이지 않는 행이 처리 대상에 섞인다 */
@@ -517,7 +514,7 @@ describe("ProductListPage", () => {
       const { user } = renderPage();
 
       await openFilters(user);
-      await user.click(modeFilter("판매"));
+      await pickMode(user, "판매");
 
       expect(visibleCodes()).toEqual([
         "BL240811",
@@ -553,7 +550,7 @@ describe("ProductListPage", () => {
         "유형 먼저 선택",
       );
 
-      await user.click(modeFilter("렌트"));
+      await pickMode(user, "렌트");
       expect(selectTrigger("카테고리 대분류")).toBeEnabled();
       expect(selectTrigger("카테고리 대분류")).toHaveTextContent(
         "카테고리 전체",
@@ -563,7 +560,7 @@ describe("ProductListPage", () => {
     it("대분류 → 중분류로 좁히면 그 아래 상품만 남고, 하위 선택지는 그 대분류의 것뿐이다", async () => {
       const { user } = renderPage();
       await openFilters(user);
-      await user.click(modeFilter("렌트"));
+      await pickMode(user, "렌트");
 
       await chooseOption(user, "카테고리 대분류", "카시트");
       expect(visibleCodes()).toEqual([
@@ -594,7 +591,7 @@ describe("ProductListPage", () => {
     it("대분류를 바꾸면 중분류 선택이 풀린다 (남아 있으면 결과가 0건이 된다)", async () => {
       const { user } = renderPage();
       await openFilters(user);
-      await user.click(modeFilter("렌트"));
+      await pickMode(user, "렌트");
 
       await chooseOption(user, "카테고리 대분류", "카시트");
       await chooseOption(user, "카테고리 중분류", "신생아 카시트");
@@ -608,10 +605,10 @@ describe("ProductListPage", () => {
     it("유형을 바꾸면 카테고리가 비워지고 그 유형의 트리로 바뀐다", async () => {
       const { user } = renderPage();
       await openFilters(user);
-      await user.click(modeFilter("렌트"));
+      await pickMode(user, "렌트");
       await chooseOption(user, "카테고리 대분류", "카시트");
 
-      await user.click(modeFilter("판매"));
+      await pickMode(user, "판매");
 
       expect(selectTrigger("카테고리 대분류")).toHaveTextContent(
         "카테고리 전체",
@@ -649,14 +646,14 @@ describe("ProductListPage", () => {
       const { user } = renderPage();
 
       await openFilters(user);
-      await user.click(modeFilter("렌트"));
+      await pickMode(user, "렌트");
       await pickStatus(user, "반려");
       await chooseOption(user, "카테고리 대분류", "유모차");
       expect(visibleCodes()).toEqual(["MC240812", "KB119374"]);
 
       await user.click(screen.getByRole("button", { name: "초기화" }));
 
-      expect(modeFilter("전체")).toBeChecked();
+      expect(selectTrigger("유형")).toHaveTextContent("유형 전체");
       expect(statusCard("판매중 17개")).toHaveAttribute("aria-pressed", "true");
       expect(selectTrigger("카테고리 대분류")).toBeDisabled();
     });
@@ -685,7 +682,7 @@ describe("ProductListPage", () => {
       const { user } = renderPage();
 
       await openFilters(user);
-      await user.click(modeFilter("렌트"));
+      await pickMode(user, "렌트");
       await chooseOption(user, "전시 상태", "전시중");
       await chooseOption(user, "카테고리 대분류", "카시트");
       /* 요약은 접힌 머리에 뜬다 */

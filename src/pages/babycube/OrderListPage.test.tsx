@@ -131,12 +131,6 @@ async function search(user: User, field: string, keyword: string) {
   await user.type(screen.getByPlaceholderText("검색어 입력"), keyword);
 }
 
-const sellerRadio = (name: string) =>
-  within(screen.getByRole("radiogroup", { name: "판매자" })).getByRole(
-    "radio",
-    { name },
-  );
-
 async function gotoPage(user: User, page: number) {
   const nav = screen.getByRole("navigation", { name: "페이지네이션" });
   await user.click(within(nav).getByRole("button", { name: String(page) }));
@@ -321,22 +315,22 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
       expect(screen.getByText("상태 대여중")).toBeVisible();
     });
 
-    it("셀러 셀렉트는 판매자가 '셀러'일 때만 열리고, 옮기면 지정이 풀린다", async () => {
+    /** 원본의 판매자 라디오 + 셀러 지정을 셀렉트 하나로 합쳤다(사용자 결정) — 라디오가 없다 */
+    it("판매자 셀렉트 하나로 전체·본사·셀러 전체·개별 셀러를 고른다", async () => {
       const { user } = renderPage();
       await openFilters(user);
 
-      expect(screen.getByRole("combobox", { name: "셀러" })).toBeDisabled();
+      expect(screen.queryByRole("radiogroup")).toBeNull();
+      expect(
+        screen.getByRole("combobox", { name: "판매자" }),
+      ).toHaveTextContent("판매자 전체");
 
-      await user.click(sellerRadio("셀러"));
-      await chooseOption(user, "셀러", "리틀베이비");
+      await chooseOption(user, "판매자", "리틀베이비");
       expect(new Set(column(CELL.seller))).toEqual(new Set(["리틀베이비"]));
       expect(screen.getByText("목록 (총 5건)")).toBeVisible();
+      expect(screen.getByText("셀러 리틀베이비")).toBeVisible();
 
-      await user.click(sellerRadio("전체"));
-      expect(screen.getByRole("combobox", { name: "셀러" })).toBeDisabled();
-      expect(screen.getByRole("combobox", { name: "셀러" })).toHaveTextContent(
-        "셀러 전체",
-      );
+      await chooseOption(user, "판매자", "셀러 전체");
       expect(screen.getByText("목록 (총 22건)")).toBeVisible();
     });
 
@@ -344,8 +338,7 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
       const { user } = renderPage();
 
       await user.click(typeCard("판매"));
-      await openFilters(user);
-      await user.click(sellerRadio("본사"));
+      await chooseOption(user, "판매자", "본사");
 
       expect(column(CELL.seller)).toEqual(["본사"]);
       /* 렌트에는 본사 상품이 없다 — 카드가 0 을 말한다 */

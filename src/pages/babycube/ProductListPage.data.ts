@@ -639,9 +639,9 @@ export const PAGE_SIZES = [10, 20, 50, 100];
 /** 한 페이지에 보여줄 행 수 — 원본 기본값 */
 export const PAGE_SIZE = 10;
 
-/** 유형 라디오 필터. 첫 항목은 `"all"` */
+/** 유형 셀렉트(원본은 라디오 — 2026-10-19 사용자 결정으로 셀렉트). 첫 항목은 `"all"` */
 export const MODE_FILTERS = [
-  { value: "all", label: "전체" },
+  { value: "all", label: "유형 전체" },
   { value: "rent", label: "렌트" },
   { value: "sale", label: "판매" },
 ];

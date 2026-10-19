@@ -15,8 +15,6 @@ import {
   PageHeader,
   Pagination,
   PaginationSizeSelect,
-  Radio,
-  RadioGroup,
   Select,
   Skeleton,
   StatGrid,
@@ -47,14 +45,14 @@ import {
   PAGE_SIZES,
   SEARCH_FIELDS,
   SEARCH_PLACEHOLDER,
-  SELLER_KINDS,
-  SELLERS,
+  SELLER_OPTIONS,
   STATUS_META,
   STATUS_OPTIONS_BY_TYPE,
   TYPE_FILTERS,
   TYPE_META,
   filterSummary,
   filtersFromQuery,
+  matchesSeller,
   periodText,
   rentPriceOf,
   searchValueOf,
@@ -85,7 +83,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * | 데이터·타입·라벨·단위  | `OrderListPage.data.ts` **전체**               |
  * | 표 컬럼 구성           | 이 파일의 `<colgroup>` + `TableHead` + 본문 셀 |
  * | 유형 대시 구성         | `TYPE_FILTERS` (카드가 곧 유형 필터다)         |
- * | 검색조건 구성          | `FilterBar` 의 자식 (원본 순서: 기간→판매자→셀러→상태→검색) |
+ * | 검색조건 구성          | `FilterBar` 의 자식 (원본 순서: 기간→판매자→상태→검색) |
  *
  * ## 공통 목록 규칙 (상품·회원 목록과 같다)
  * - 유형 카드를 바꾸면 **상태·정렬·선택·페이지가 함께 풀린다**(상태 선택지가 통째로 갈린다)
@@ -244,13 +242,6 @@ export function OrderListPage({
     setSort(null);
   };
 
-  /** 판매자를 "셀러"에서 다른 값으로 옮기면 셀러 지정도 푼다 — 잠긴 셀렉트에 값이 남지 않게 */
-  const selectSellerKind = (value: string) =>
-    patch({
-      sellerKind: value,
-      seller: value === "seller" ? filters.seller : "all",
-    });
-
   /** 초기화는 한 곳에서만 — 검색조건과 빈 상태가 서로 다르게 되돌리면 안 된다 */
   const resetFilters = () => {
     patch(EMPTY_FILTERS);
@@ -264,9 +255,7 @@ export function OrderListPage({
   const keyword = filters.keyword.trim().toLowerCase();
   const scoped = ORDERS.filter(
     (order) =>
-      (filters.sellerKind === "all" ||
-        order.sellerKind === filters.sellerKind) &&
-      (filters.seller === "all" || order.seller === filters.seller) &&
+      matchesSeller(order, filters.seller) &&
       (filters.status === "all" || order.status === filters.status) &&
       (keyword === "" ||
         searchValueOf(order, filters.searchField)
@@ -373,7 +362,8 @@ export function OrderListPage({
 
       {/*
         검색조건 — **접힌 채로 열리고** 걸린 조건은 요약이 말한다.
-        순서는 원본 그대로: 기간(결제일) → 판매자 → 셀러 → 상태 → 검색.
+        순서는 원본 그대로: 기간(결제일) → 판매자 → 상태 → 검색.
+        판매자는 원본의 라디오 + 셀러 지정을 셀렉트 하나로 합쳤다(사용자 결정 2026-10-19).
         ⚠️ 유형은 여기 없다 — 그 축의 입구는 위의 건수 카드 하나뿐이다.
       */}
       <FilterBar
@@ -391,28 +381,12 @@ export function OrderListPage({
           startPlaceholder="결제일 시작"
           endPlaceholder="결제일 종료"
         />
-        <RadioGroup
-          value={filters.sellerKind}
-          onValueChange={selectSellerKind}
-          orientation="horizontal"
-          aria-label="판매자"
-        >
-          {SELLER_KINDS.map((item) => (
-            <Radio
-              key={item.value}
-              value={item.value}
-              label={item.label}
-              size="small"
-            />
-          ))}
-        </RadioGroup>
-        {/* 판매자가 '셀러'일 때만 열린다 — 잠긴 동안은 "셀러 전체"가 자리를 지킨다 */}
+        {/* 원본 판매자 라디오 + 셀러 지정을 셀렉트 하나로 합쳤다(사용자 결정) */}
         <Select
           className="w-36"
-          aria-label="셀러"
-          options={SELLERS}
+          aria-label="판매자"
+          options={SELLER_OPTIONS}
           value={filters.seller}
-          disabled={filters.sellerKind !== "seller"}
           onValueChange={(value) => patch({ seller: value })}
         />
         <Select

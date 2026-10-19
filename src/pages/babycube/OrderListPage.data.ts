@@ -319,29 +319,39 @@ export const DEFAULT_TYPE: OrderType = "rent";
 /** 카드 건수의 단위 */
 export const DASH_UNIT = "건";
 
-/** 판매자 라디오. 셀러를 고를 때만 셀러 셀렉트가 열린다 (원본 `radio.key = "owner"`) */
-export const SELLER_KINDS = [
-  { value: "all", label: "전체" },
-  { value: "hq", label: "본사" },
-  { value: "seller", label: "셀러" },
+/**
+ * 판매자 셀렉트 — 원본의 판매자 라디오(전체·본사·셀러)와 셀러 지정을 **셀렉트 하나로 합쳤다**
+ * (사용자 결정 2026-10-19 — 검색조건 줄에서 라디오만 모양이 달라 튀고, 잠긴 셀러 칸이 하나 더
+ * 끼었다). 값: `all` 전체 · `hq` 본사 · `seller` 셀러 전체 · 그 밖은 **셀러명**.
+ * 셀러명은 **주문 샘플에 나오는 셀러에서 뽑는다**(손으로 적으면 샘플과 어긋난다).
+ */
+export const SELLER_ALL = "all";
+export const SELLER_HQ = "hq";
+export const SELLER_ANY = "seller";
+
+const SELLER_NAMES = [
+  ...new Set(
+    ORDERS.filter((order) => order.sellerKind === "seller").map(
+      (order) => order.seller,
+    ),
+  ),
+].sort((a, b) => a.localeCompare(b, "ko"));
+
+export const SELLER_OPTIONS: SelectOption[] = [
+  { value: SELLER_ALL, label: "판매자 전체" },
+  { value: SELLER_HQ, label: "본사" },
+  { value: SELLER_ANY, label: "셀러 전체" },
+  ...SELLER_NAMES.map((name) => ({ value: name, label: name })),
 ];
 
-/**
- * 셀러 셀렉트 — **주문 샘플에 나오는 셀러에서 뽑는다**(손으로 적으면 샘플과 어긋난다).
- * 원본은 입력 + 목록 검색(부분 일치)이지만 우리는 셀렉트다(의도된 차이).
- */
-export const SELLERS: SelectOption[] = [
-  { value: "all", label: "셀러 전체" },
-  ...[
-    ...new Set(
-      ORDERS.filter((order) => order.sellerKind === "seller").map(
-        (order) => order.seller,
-      ),
-    ),
-  ]
-    .sort((a, b) => a.localeCompare(b, "ko"))
-    .map((name) => ({ value: name, label: name })),
-];
+/** 판매자 셀렉트 값에 이 행이 드는가 */
+export const matchesSeller = (order: Order, value: string) =>
+  value === SELLER_ALL ||
+  (value === SELLER_HQ
+    ? order.sellerKind === "hq"
+    : value === SELLER_ANY
+      ? order.sellerKind === "seller"
+      : order.seller === value);
 
 /**
  * 상태 셀렉트 — **유형별로 갈린다**(원본 `FLOW_STEPS` 판매 5 · 렌트 11).
@@ -422,18 +432,10 @@ const STATUS_BY_LABEL: Record<string, string> = Object.fromEntries(
   Object.entries(STATUS_META).map(([value, meta]) => [meta.label, value]),
 );
 
-const SELLER_KIND_BY_LABEL: Record<string, string> = Object.fromEntries(
-  SELLER_KINDS.filter((item) => item.value !== "all").map((item) => [
-    item.label,
-    item.value,
-  ]),
-);
-
 /** 뼈대가 들고 있는 조회 조건 한 덩어리 */
 export interface OrderFilters {
   type: OrderType;
-  sellerKind: string;
-  /** 셀러명. `"all"` 이면 해제 */
+  /** 판매자 셀렉트 값 — `SELLER_OPTIONS` 참고 */
   seller: string;
   status: string;
   searchField: OrderSearchField;
@@ -444,8 +446,7 @@ export interface OrderFilters {
 /** "초기화"가 되돌아가는 자리 — 렌트, 나머지는 전부 해제 */
 export const EMPTY_FILTERS: OrderFilters = {
   type: DEFAULT_TYPE,
-  sellerKind: "all",
-  seller: "all",
+  seller: SELLER_ALL,
   status: "all",
   searchField: "orderNo",
   keyword: "",
@@ -478,11 +479,17 @@ export function filtersFromQuery(params: URLSearchParams): OrderFilters {
     ? status
     : "all";
 
-  const sellerKind = SELLER_KIND_BY_LABEL[params.get("owner") ?? ""] ?? "all";
+  /* `owner=셀러` 일 때만 셀러명을 본다 — 모르는 셀러명이면 "셀러 전체"로 */
+  const owner = params.get("owner");
   const sellerName = params.get("sellerName") ?? "";
-  const seller = SELLERS.some((option) => option.value === sellerName)
-    ? sellerName
-    : "all";
+  const seller =
+    owner === "본사"
+      ? SELLER_HQ
+      : owner === "셀러"
+        ? SELLER_NAMES.includes(sellerName)
+          ? sellerName
+          : SELLER_ANY
+        : SELLER_ALL;
 
   const from = parseDay(params.get("paidAt_from"));
   const to = parseDay(params.get("paidAt_to"));
@@ -490,8 +497,7 @@ export function filtersFromQuery(params: URLSearchParams): OrderFilters {
   return {
     type,
     status: validStatus,
-    sellerKind,
-    seller: sellerKind === "seller" ? seller : "all",
+    seller,
     searchField: "orderNo",
     keyword: params.get("q") ?? "",
     period: from ? { from, to } : undefined,
@@ -516,11 +522,11 @@ export const filterSummary = (filters: OrderFilters): string => {
       `결제일 ${dotDay(period.from)}${period.to ? `~${dotDay(period.to)}` : ""}`,
     );
   }
-  if (filters.sellerKind !== "all") {
+  if (filters.seller !== SELLER_ALL) {
     parts.push(
-      filters.sellerKind === "seller" && filters.seller !== "all"
+      SELLER_NAMES.includes(filters.seller)
         ? `셀러 ${filters.seller}`
-        : labelOf(SELLER_KINDS, filters.sellerKind),
+        : labelOf(SELLER_OPTIONS, filters.seller),
     );
   }
   if (filters.status !== "all") {

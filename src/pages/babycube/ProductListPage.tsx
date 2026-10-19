@@ -19,8 +19,6 @@ import {
   PageHeader,
   Pagination,
   PaginationSizeSelect,
-  Radio,
-  RadioGroup,
   Select,
   SelectionBar,
   SelectionBarButton,
@@ -624,21 +622,14 @@ export function ProductListPage({
             refilter();
           }}
         />
-        <RadioGroup
+        {/* 원본은 라디오지만 검색조건 줄의 다른 칸과 모양을 맞춰 셀렉트로 둔다(사용자 결정 2026-10-19) */}
+        <Select
+          className="w-28"
+          aria-label="유형"
+          options={MODE_FILTERS}
           value={mode}
           onValueChange={selectMode}
-          orientation="horizontal"
-          aria-label="유형"
-        >
-          {MODE_FILTERS.map((item) => (
-            <Radio
-              key={item.value}
-              value={item.value}
-              label={item.label}
-              size="small"
-            />
-          ))}
-        </RadioGroup>
+        />
         <Select
           className="w-36"
           aria-label="카테고리 대분류"
