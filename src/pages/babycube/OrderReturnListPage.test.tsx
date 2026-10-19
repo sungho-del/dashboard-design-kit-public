@@ -7,7 +7,7 @@ import { OrderReturnListPage } from "./OrderReturnListPage";
  * S10 반품 목록 (BabyCube) — 목록형
  *
  * 렌더 여부가 아니라 **동작**을 본다: 유형 대시(건수 카드가 곧 필터) ·
- * 상태 셀렉트 10종 · 판매자 라디오가 셀러 셀렉트를 잠그는 것 · 검색조건 7종 ·
+ * 상태 셀렉트 10종 · 판매자 셀렉트 하나(본사 · 셀러 전체 · 특정 셀러) · 검색조건 7종 ·
  * 빈 상태 · 페이지네이션 · 미리보기 모달.
  *
  * ## ⭐ URL 쿼리 계약을 여기서 지킨다
@@ -91,12 +91,6 @@ function visibleIds(): string[] {
   );
 }
 
-/** 판매자 라디오. 그룹으로 좁혀 찾는다 */
-const groupRadio = (group: string, name: string) =>
-  within(screen.getByRole("radiogroup", { name: group })).getByRole("radio", {
-    name,
-  });
-
 /**
  * 유형 대시 카드. 이름은 `aria-label` 로 붙인 `"렌트 6건"` 형식이라
  * 건수와 무관하게 집으려면 정규식이어야 한다.
@@ -112,11 +106,18 @@ const pageButton = (label: string) =>
   );
 
 /** 셀렉트를 열고 옵션 하나를 고른다 */
+/** 검색조건은 **접힌 채로 열린다** — 닫혀 있으면 안의 컨트롤이 DOM 에 없다 */
+async function openFilters(user: ReturnType<typeof userEvent.setup>) {
+  const toggle = screen.queryByRole("button", { name: /검색 열기/ });
+  if (toggle) await user.click(toggle);
+}
+
 async function pickOption(
   user: ReturnType<typeof userEvent.setup>,
   selectName: string | RegExp,
   optionName: string,
 ) {
+  await openFilters(user);
   await user.click(screen.getByRole("combobox", { name: selectName }));
   await user.click(
     within(await screen.findByRole("listbox")).getByRole("option", {
@@ -308,7 +309,8 @@ describe("OrderReturnListPage (BabyCube S10 반품 목록)", () => {
     */
     it("카드 건수는 다른 조건을 따라 줄고 전체 = 렌트 + 판매 다", async () => {
       const { user } = renderPage();
-      await user.click(groupRadio("판매자", "본사"));
+      await openFilters(user);
+      await pickOption(user, /^판매자/, "본사");
 
       expect(typeCard("전체")).toHaveAccessibleName("전체 3건");
       expect(typeCard("렌트")).toHaveAccessibleName("렌트 2건");
@@ -340,6 +342,7 @@ describe("OrderReturnListPage (BabyCube S10 반품 목록)", () => {
   describe("상태 어휘는 원본 flow 셀렉트의 열 값뿐이다", () => {
     it("선택지가 값·순서까지 원본과 같다", async () => {
       const { user } = renderPage();
+      await openFilters(user);
       await user.click(screen.getByRole("combobox", { name: /^상태/ }));
 
       expect(
@@ -363,26 +366,82 @@ describe("OrderReturnListPage (BabyCube S10 반품 목록)", () => {
 
     it("상태로 좁힌다", async () => {
       const { user } = renderPage();
+      await openFilters(user);
       await pickOption(user, /^상태/, "반품 검수");
 
       expect(visibleIds()).toEqual(["R-20260814-0122"]);
     });
   });
 
-  describe("판매자 라디오가 셀러 셀렉트를 연다·잠근다", () => {
-    it("기본(전체)에서는 셀러 셀렉트가 잠겨 있다", () => {
+  describe("검색조건은 접힌 바로 열린다 (목록 공통 형식)", () => {
+    it("처음에는 접혀 있고 조건이 없다고 요약한다", () => {
       renderPage();
-      expect(screen.getByRole("combobox", { name: /셀러/ })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /검색 열기/ })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+      expect(
+        screen.queryByRole("combobox", { name: /^상태/ }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("조건 없음 (전체)")).toBeVisible();
+    });
+
+    it("링크로 걸린 조건은 접힌 채로 요약에 보인다", () => {
+      renderPage("?owner=셀러&sellerName=맘스케어&q=010");
+      expect(screen.getByText("셀러 맘스케어 · «010»")).toBeVisible();
+    });
+
+    it("열면 기간 · 판매자 · 상태 · 검색 대상 · 검색어가 한 줄로 나온다", async () => {
+      const { user } = renderPage();
+      await openFilters(user);
+      for (const name of ["판매자", "상태", "검색 대상"]) {
+        expect(screen.getByRole("combobox", { name })).toBeVisible();
+      }
+      expect(screen.getByRole("textbox", { name: "검색어" })).toBeVisible();
+    });
+  });
+
+  /* 원본 판매자 라디오 + 셀러 셀렉트를 셀렉트 하나로 합쳤다(사용자 결정 2026-10-19) */
+  describe("판매자는 셀렉트 하나다 — 본사 · 셀러 전체 · 특정 셀러", () => {
+    it("라디오 없이 판매자 전체 · 본사 · 셀러 전체 · 셀러명 순으로 고른다", async () => {
+      const { user } = renderPage();
+      await openFilters(user);
+      expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("combobox", { name: /^판매자/ }));
+      expect(
+        within(await screen.findByRole("listbox"))
+          .getAllByRole("option")
+          .map((option) => option.textContent),
+      ).toEqual([
+        "판매자 전체",
+        "본사",
+        "셀러 전체",
+        "아기별상사",
+        "코코베베",
+        "리틀홈",
+        "맘스케어",
+      ]);
+    });
+
+    it("셀러 전체는 본사 건만 뺀다", async () => {
+      const { user } = renderPage();
+      await openFilters(user);
+      await pickOption(user, /^판매자/, "셀러 전체");
+
+      expect(
+        screen.getByRole("heading", { name: "목록 (총 7건)" }),
+      ).toBeVisible();
     });
 
     it("셀러를 지정한 뒤 본사로 옮기면 셀러 지정이 함께 풀린다", async () => {
       const { user } = renderPage();
+      await openFilters(user);
 
-      await user.click(groupRadio("판매자", "셀러"));
-      await pickOption(user, /셀러/, "맘스케어");
+      await pickOption(user, /^판매자/, "맘스케어");
       expect(visibleIds()).toEqual(["S-20260813-0098"]);
 
-      await user.click(groupRadio("판매자", "본사"));
+      await pickOption(user, /^판매자/, "본사");
 
       // 셀러 지정이 남아 있었다면 본사 × 맘스케어 = 0건이 됐을 것이다
       expect(visibleIds()).toEqual([
@@ -396,18 +455,20 @@ describe("OrderReturnListPage (BabyCube S10 반품 목록)", () => {
   describe("검색조건 7종", () => {
     it("조건 없음은 여러 필드를 함께 훑는다", async () => {
       const { user } = renderPage();
+      await openFilters(user);
       await user.type(screen.getByRole("textbox"), "맘스케어");
       expect(visibleIds()).toEqual(["S-20260813-0098"]);
     });
 
     it("조건을 고르면 그 필드만 본다", async () => {
       const { user } = renderPage();
+      await openFilters(user);
 
-      await pickOption(user, "검색조건", "구매자명");
+      await pickOption(user, "검색 대상", "구매자명");
       await user.type(screen.getByRole("textbox"), "윤가람");
       expect(visibleIds()).toEqual(["R-20260812-0077"]);
 
-      await pickOption(user, "검색조건", "상품명");
+      await pickOption(user, "검색 대상", "상품명");
       expect(bodyRows()).toHaveLength(0);
     });
 
@@ -417,14 +478,16 @@ describe("OrderReturnListPage (BabyCube S10 반품 목록)", () => {
     */
     it("연락처는 **구매자** 연락처를 본다 (표의 '연락처' 열과 같은 값)", async () => {
       const { user } = renderPage();
-      await pickOption(user, "검색조건", "연락처");
+      await openFilters(user);
+      await pickOption(user, "검색 대상", "연락처");
       await user.type(screen.getByRole("textbox"), "010-8820");
       expect(visibleIds()).toEqual(["R-20260816-0208"]);
     });
 
     it("수령인 번호로는 걸리지 않는다 (열 이름과 검색 대상이 어긋나지 않게)", async () => {
       const { user } = renderPage();
-      await pickOption(user, "검색조건", "연락처");
+      await openFilters(user);
+      await pickOption(user, "검색 대상", "연락처");
       // 010-3310-7765 는 R-20260816-0208 의 **수령인** 번호다
       await user.type(screen.getByRole("textbox"), "010-3310");
       expect(bodyRows()).toHaveLength(0);
@@ -434,6 +497,7 @@ describe("OrderReturnListPage (BabyCube S10 반품 목록)", () => {
   describe("빈 상태와 초기화", () => {
     it("결과가 없으면 도메인 문구의 빈 상태가 뜬다", async () => {
       const { user } = renderPage();
+      await openFilters(user);
       await user.type(screen.getByRole("textbox"), "존재하지않는값");
 
       expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
@@ -442,6 +506,7 @@ describe("OrderReturnListPage (BabyCube S10 반품 목록)", () => {
 
     it("빈 상태의 초기화 버튼이 조건을 모두 되돌린다", async () => {
       const { user } = renderPage();
+      await openFilters(user);
 
       await user.click(typeCard("렌트"));
       await pickOption(user, /^상태/, "반품 검수");
@@ -469,6 +534,7 @@ describe("OrderReturnListPage (BabyCube S10 반품 목록)", () => {
 
     it("2페이지에서 필터를 좁히면 남은 범위로 당겨진다 (빈 표 방지)", async () => {
       const { user } = renderPage();
+      await openFilters(user);
       await user.click(pageButton("2"));
       await pickOption(user, /^상태/, "반품 신청");
 
@@ -528,8 +594,9 @@ describe("OrderReturnListPage (BabyCube S10 반품 목록)", () => {
       ).toBeVisible();
     });
 
-    it("flow 는 상태다", () => {
-      renderPage("?flow=반품 거부");
+    it("flow 는 상태다", async () => {
+      const { user } = renderPage("?flow=반품 거부");
+      await openFilters(user);
 
       expect(screen.getByRole("combobox", { name: /^상태/ })).toHaveTextContent(
         "반품 거부",
@@ -537,16 +604,19 @@ describe("OrderReturnListPage (BabyCube S10 반품 목록)", () => {
       expect(visibleIds()).toEqual(["R-20260812-0077"]);
     });
 
-    it("owner 는 판매자, sellerName 은 셀러다", () => {
-      renderPage("?owner=셀러&sellerName=맘스케어");
+    it("owner 는 판매자, sellerName 은 셀러다", async () => {
+      const { user } = renderPage("?owner=셀러&sellerName=맘스케어");
+      await openFilters(user);
 
-      expect(groupRadio("판매자", "셀러")).toBeChecked();
-      expect(screen.getByRole("combobox", { name: /셀러/ })).toBeEnabled();
+      expect(
+        screen.getByRole("combobox", { name: /^판매자/ }),
+      ).toHaveTextContent("맘스케어");
       expect(visibleIds()).toEqual(["S-20260813-0098"]);
     });
 
-    it("q 는 검색어다", () => {
-      renderPage("?q=맘스케어");
+    it("q 는 검색어다", async () => {
+      const { user } = renderPage("?q=맘스케어");
+      await openFilters(user);
 
       expect(screen.getByRole("textbox")).toHaveValue("맘스케어");
       expect(visibleIds()).toEqual(["S-20260813-0098"]);
@@ -559,10 +629,13 @@ describe("OrderReturnListPage (BabyCube S10 반품 목록)", () => {
     });
 
     /* 원본이 useEffect 로 하는 정합성 보정 */
-    it("본사인데 셀러가 지정돼 들어오면 셀러 지정을 버린다 (손댈 수 없는 필터 방지)", () => {
-      renderPage("?owner=본사&sellerName=맘스케어");
+    it("본사인데 셀러가 지정돼 들어오면 셀러 지정을 버린다 (손댈 수 없는 필터 방지)", async () => {
+      const { user } = renderPage("?owner=본사&sellerName=맘스케어");
+      await openFilters(user);
 
-      expect(screen.getByRole("combobox", { name: /셀러/ })).toBeDisabled();
+      expect(
+        screen.getByRole("combobox", { name: /^판매자/ }),
+      ).toHaveTextContent("본사");
       expect(visibleIds()).toEqual([
         "S-20260817-0140",
         "R-20260815-0155",

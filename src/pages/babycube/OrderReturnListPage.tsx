@@ -5,11 +5,10 @@ import {
   Button,
   Card,
   CardBody,
-  CardHeader,
   DataTableShell,
   DatePicker,
   EmptyState,
-  FormField,
+  FilterBar,
   Gnb,
   IconButton,
   InfoItem,
@@ -20,8 +19,6 @@ import {
   ModalHeader,
   PageHeader,
   Pagination,
-  Radio,
-  RadioGroup,
   Select,
   StatGrid,
   Table,
@@ -31,7 +28,6 @@ import {
   TableTd,
   TableTh,
   Tag,
-  TextButton,
   Tooltip,
   useToast,
   type DateRange,
@@ -43,8 +39,7 @@ import {
   FILTERS,
   PAGE_SIZE,
   RETURNS,
-  SELLER_KINDS,
-  SELLERS,
+  SELLER_OPTIONS,
   SEARCH_FIELDS,
   STATUS_META,
   STATUS_OPTIONS,
@@ -53,12 +48,16 @@ import {
   filtersFromQuery,
   rentPriceOf,
   searchHaystack,
+  filterSummary,
   sellerLabel,
+  sellerPatchOf,
+  sellerValueOf,
   won,
   ymdhm,
   type Return,
   type ReturnFilters,
 } from "./OrderReturnListPage.data";
+import { PERIOD_PRESETS } from "../../lib/periodPresets";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
 /* =========================================================================
@@ -76,7 +75,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * | --------------------- | ---------------------------------------------- |
  * | 데이터·타입·라벨·단위 | `OrderReturnListPage.data.ts` **전체**         |
  * | 표 컬럼 구성          | 이 파일의 `<colgroup>` + `TableHead` + 본문 셀 |
- * | 조회 조건 구성        | "조회 조건" 카드                                |
+ * | 검색조건 구성         | `FilterBar` 의 자식 (원본 순서: 기간→판매자→상태→검색) |
  * | 화면 제목·도움말      | `PageHeader` 의 `title` · `badges`             |
  *
  * ## 형제 화면과 같은 뼈대를 **복사해서** 쓴다 (공용화하지 않는다)
@@ -187,6 +186,8 @@ export function OrderReturnListPage({
     filtersFromQuery(new URLSearchParams(window.location.search)),
   );
   const [page, setPage] = useState(1);
+  /* 검색조건은 접힌 채로 연다 — 걸린 조건은 요약 줄이 말한다 */
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const [preview, setPreview] = useState<Return | null>(null);
 
@@ -194,17 +195,6 @@ export function OrderReturnListPage({
   const patch = (next: Partial<ReturnFilters>) => {
     setFilters((prev) => ({ ...prev, ...next }));
     setPage(1);
-  };
-
-  /*
-   * 판매자를 "셀러"에서 옮기면 셀러 지정도 함께 푼다.
-   * 셀렉트가 잠기는데 값은 남아 있으면 손댈 수 없는 필터가 걸린 셈이 된다.
-   */
-  const handleSellerKindChange = (next: string) => {
-    patch({
-      sellerKind: next,
-      sellerId: next === "seller" ? filters.sellerId : "all",
-    });
   };
 
   /*
@@ -321,91 +311,52 @@ export function OrderReturnListPage({
         </CardBody>
       </Card>
 
-      {/* 조회 조건 — 필터 6종. 라벨이 필요한 컨트롤이라 툴바가 아니라 카드에 담는다 */}
-      <Card>
-        <CardHeader
-          title="조회 조건"
-          action={
-            <TextButton tone="secondary" onClick={resetFilters}>
-              초기화
-            </TextButton>
-          }
+      {/* 검색조건 — 접힌 채로 열고, 걸린 조건은 요약 한 줄로 보인다(목록 공통 형식) */}
+      <FilterBar
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        summary={filterSummary(filters)}
+        onReset={resetFilters}
+      >
+        <DatePicker
+          mode="range"
+          aria-label="결제일"
+          presets={PERIOD_PRESETS}
+          value={filters.period}
+          onChange={(next) => patch({ period: next })}
+          startPlaceholder="결제일 시작"
+          endPlaceholder="결제일 종료"
         />
-        <CardBody>
-          {/* §29-4 균등 분할 — 래퍼 flex + 각 항목 flex-1 min-w-0 (2열 grid 금지) */}
-          <div className="flex flex-wrap items-start gap-2">
-            <FormField label="기간 (결제일)" className="flex-1 min-w-0">
-              <DatePicker
-                mode="range"
-                value={filters.period}
-                onChange={(next) => patch({ period: next })}
-                startPlaceholder="시작일"
-                endPlaceholder="종료일"
-              />
-            </FormField>
-            {/* 그룹 컨트롤은 `group` 이 없으면 접근가능 이름이 아예 없다 (§29-6b) */}
-            <FormField label="판매자" group className="flex-1 min-w-0">
-              <RadioGroup
-                orientation="horizontal"
-                value={filters.sellerKind}
-                onValueChange={handleSellerKindChange}
-              >
-                {SELLER_KINDS.map((item) => (
-                  <Radio
-                    key={item.value}
-                    value={item.value}
-                    label={item.label}
-                  />
-                ))}
-              </RadioGroup>
-            </FormField>
-            <FormField
-              label="셀러"
-              className="flex-1 min-w-0"
-              description="판매자에서 '셀러'를 선택하면 특정 셀러를 지정할 수 있습니다."
-            >
-              <Select
-                options={SELLERS}
-                value={filters.sellerId}
-                onValueChange={(next) => patch({ sellerId: next })}
-                disabled={filters.sellerKind !== "seller"}
-                placeholder="셀러 전체"
-              />
-            </FormField>
-          </div>
-
-          <div className="flex flex-wrap items-start gap-2">
-            <FormField
-              label="상태"
-              className="flex-1 min-w-0"
-              description="반품 흐름은 렌트·판매가 같습니다."
-            >
-              <Select
-                options={STATUS_OPTIONS}
-                value={filters.status}
-                onValueChange={(next) => patch({ status: next })}
-                placeholder="상태 전체"
-              />
-            </FormField>
-            <FormField label="검색조건" className="flex-1 min-w-0">
-              <Select
-                options={SEARCH_FIELDS}
-                value={filters.searchField}
-                onValueChange={(next) => patch({ searchField: next })}
-                placeholder="조건 없음 (전체)"
-              />
-            </FormField>
-            <FormField label="검색어" className="flex-1 min-w-0">
-              <Input
-                placeholder="검색어 입력"
-                value={filters.keyword}
-                onChange={(event) => patch({ keyword: event.target.value })}
-                leftIcon={<Search size={16} strokeWidth={1.2} aria-hidden />}
-              />
-            </FormField>
-          </div>
-        </CardBody>
-      </Card>
+        {/* 원본 판매자 라디오 + 셀러 지정을 셀렉트 하나로 합쳤다(사용자 결정) */}
+        <Select
+          className="w-36"
+          aria-label="판매자"
+          options={SELLER_OPTIONS}
+          value={sellerValueOf(filters)}
+          onValueChange={(next) => patch(sellerPatchOf(next))}
+        />
+        <Select
+          className="w-36"
+          aria-label="상태"
+          options={STATUS_OPTIONS}
+          value={filters.status}
+          onValueChange={(next) => patch({ status: next })}
+        />
+        <Select
+          className="w-28"
+          aria-label="검색 대상"
+          options={SEARCH_FIELDS}
+          value={filters.searchField}
+          onValueChange={(next) => patch({ searchField: next })}
+        />
+        <Input
+          aria-label="검색어"
+          placeholder="검색어 입력"
+          value={filters.keyword}
+          onChange={(event) => patch({ keyword: event.target.value })}
+          leftIcon={<Search size={16} strokeWidth={1.2} aria-hidden />}
+        />
+      </FilterBar>
 
       {/* 목록 — 툴바에는 기획서가 정한 "목록 헤더"(총 N건 · 엑셀 다운로드)만 둔다 */}
       <DataTableShell

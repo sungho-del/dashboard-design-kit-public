@@ -469,14 +469,14 @@ export const EXCHANGES: Exchange[] = [
   },
 ];
 
-/** 판매자 라디오 (원본 `radio.key = "owner"`) */
+/** 원본 판매자 라디오(`owner`) 값 — 화면에는 없고 URL 해석에만 쓴다 */
 export const SELLER_KINDS = [
   { value: "all", label: "전체" },
   { value: "hq", label: "본사" },
   { value: "seller", label: "셀러" },
 ];
 
-/** 셀러 셀렉트. 첫 항목은 필터 해제 */
+/** 셀러 목록. 첫 항목은 필터 해제 — 판매자 셀렉트와 URL `sellerName` 해석이 쓴다 */
 export const SELLERS: SelectOption[] = [
   { value: "all", label: "셀러 전체" },
   { value: "SLR-001", label: "아기별상사" },
@@ -484,6 +484,32 @@ export const SELLERS: SelectOption[] = [
   { value: "SLR-003", label: "리틀홈" },
   { value: "SLR-004", label: "맘스케어" },
 ];
+
+/**
+ * 판매자 셀렉트 하나 — 원본 판매자 라디오(`owner`) + 셀러 셀렉트(`sellerName`)를
+ * 합쳤다(사용자 결정 2026-10-19). 조회 조건은 그대로 `sellerKind`·`sellerId` 둘이고,
+ * 셀렉트 값과는 `sellerValueOf`·`sellerPatchOf` 로 오간다.
+ * 특정 셀러를 고르면 판매자도 셀러가 되므로 "본사 × 셀러" 같은 빈 조합이 생기지 않는다.
+ */
+export const SELLER_OPTIONS: SelectOption[] = [
+  { value: "all", label: "판매자 전체" },
+  { value: "hq", label: "본사" },
+  { value: "seller", label: "셀러 전체" },
+  ...SELLERS.filter((option) => option.value !== "all"),
+];
+
+/** 조회 조건 → 판매자 셀렉트 값 */
+export const sellerValueOf = (
+  filters: Pick<ExchangeFilters, "sellerKind" | "sellerId">,
+) => (filters.sellerId === "all" ? filters.sellerKind : filters.sellerId);
+
+/** 판매자 셀렉트 값 → 조회 조건 */
+export const sellerPatchOf = (
+  value: string,
+): Pick<ExchangeFilters, "sellerKind" | "sellerId"> =>
+  value === "all" || value === "hq" || value === "seller"
+    ? { sellerKind: value, sellerId: "all" }
+    : { sellerKind: "seller", sellerId: value };
 
 /**
  * 상태 셀렉트 — 원본 `stat` 옵션 10개와 값·순서가 같다.
@@ -505,10 +531,10 @@ export const STATUS_OPTIONS: SelectOption[] = [
 
 /**
  * 검색조건 — 원본 `search.fieldOpts` 7종과 이름·순서가 같다.
- * 첫 항목 `"조건 없음 (전체)"` 만 우리가 더한 것이다(원본 기본값은 "주문번호").
+ * 첫 항목 `"전체 항목"` 만 우리가 더한 것이다(원본 기본값은 "주문번호").
  */
 export const SEARCH_FIELDS: SelectOption[] = [
-  { value: "all", label: "조건 없음 (전체)" },
+  { value: "all", label: "전체 항목" },
   { value: "id", label: "주문번호" },
   { value: "seller", label: "셀러명" },
   { value: "productCode", label: "상품코드" },
@@ -687,3 +713,40 @@ export const ymdhm = (dateText: string | null) =>
  * **샘플이 10건뿐이라 페이징이 동작하는 것이 보이도록** 작게 잡았다.
  */
 export const PAGE_SIZE = 4;
+
+/** 접힌 검색조건의 요약 — 걸린 조건이 없으면 이 글자 */
+export const NO_FILTER_TEXT = "조건 없음 (전체)";
+
+const labelOf = (options: SelectOption[], value: string) =>
+  options.find((option) => option.value === value)?.label ?? value;
+
+const dotDay = (value: Date) =>
+  `${value.getFullYear()}.${String(value.getMonth() + 1).padStart(2, "0")}.${String(value.getDate()).padStart(2, "0")}`;
+
+/** 접힌 검색조건의 요약. 유형은 위의 카드가 말하므로 넣지 않는다 */
+export const filterSummary = (filters: ExchangeFilters): string => {
+  const parts: string[] = [];
+  const { period } = filters;
+  if (period?.from) {
+    parts.push(
+      `결제일 ${dotDay(period.from)}${period.to ? `~${dotDay(period.to)}` : ""}`,
+    );
+  }
+  const seller = sellerValueOf(filters);
+  if (seller !== "all") {
+    const label = labelOf(SELLER_OPTIONS, seller);
+    parts.push(filters.sellerId === "all" ? label : `셀러 ${label}`);
+  }
+  if (filters.status !== "all") {
+    parts.push(`상태 ${labelOf(STATUS_OPTIONS, filters.status)}`);
+  }
+  const keyword = filters.keyword.trim();
+  if (keyword !== "") {
+    parts.push(
+      filters.searchField === "all"
+        ? `«${keyword}»`
+        : `${labelOf(SEARCH_FIELDS, filters.searchField)} «${keyword}»`,
+    );
+  }
+  return parts.length > 0 ? parts.join(" · ") : NO_FILTER_TEXT;
+};
