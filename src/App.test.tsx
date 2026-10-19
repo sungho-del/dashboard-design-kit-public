@@ -100,4 +100,19 @@ describe("App (전달본)", () => {
       screen.getByText("회전형 카시트 스핀 360 · BL240814 · 베이비루"),
     ).toBeVisible();
   });
+
+  /** 같은 주문번호의 두 처리단위(U-R03 렌트 · U-S03 판매)는 서로 다른 상세로 간다 */
+  it("주문 목록의 주문번호를 누르면 그 처리단위의 주문 상세에 도착한다", async () => {
+    renderAt("/orders-all");
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "20261018143205" }),
+    );
+
+    expect(window.location.pathname).toBe("/orders-all/U-R01");
+    expect(pageTitle()).toBe("주문 상세(렌트)");
+
+    await userEvent.click(screen.getByRole("button", { name: "목록" }));
+    expect(window.location.pathname).toBe("/orders-all");
+  });
 });

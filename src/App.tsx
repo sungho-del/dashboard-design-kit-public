@@ -22,7 +22,8 @@ import { MemberListPage } from "./pages/babycube/MemberListPage";
 import { NoticeListPage } from "./pages/babycube/NoticeListPage";
 import { OrderCancelListPage } from "./pages/babycube/OrderCancelListPage";
 import { OrderExchangeListPage } from "./pages/babycube/OrderExchangeListPage";
-/* ⚠️ 이름이 템플릿의 `OrderListPage` 와 겹친다 — 유일한 충돌이라 여기서만 별칭을 준다 */
+/* ⚠️ 이름이 템플릿의 `OrderListPage`·`OrderDetailPage` 와 겹친다 — 그 둘만 별칭을 준다 */
+import { OrderDetailPage as BcOrderDetailPage } from "./pages/babycube/OrderDetailPage";
 import { OrderListPage as BcOrderListPage } from "./pages/babycube/OrderListPage";
 import { OrderReturnListPage } from "./pages/babycube/OrderReturnListPage";
 import { PointListPage } from "./pages/babycube/PointListPage";
@@ -157,6 +158,7 @@ const DETAIL_ROUTES: {
     screen: SellerReviewDetailPage,
   },
   { prefix: "/products/", parent: "/products", screen: ProductDetailPage },
+  { prefix: "/orders-all/", parent: "/orders-all", screen: BcOrderDetailPage },
 ];
 
 /** 없는 경로에서 보여줄 화면 — 저장소 색인이 가장 덜 당황스럽다 */

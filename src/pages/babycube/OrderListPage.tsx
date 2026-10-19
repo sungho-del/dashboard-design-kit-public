@@ -36,7 +36,6 @@ import { PERIOD_PRESETS } from "../../lib/periodPresets";
 import { useSearchParams } from "../../lib/router";
 import {
   DASH_UNIT,
-  DETAIL_PENDING,
   EMPTY_DESCRIPTION,
   EMPTY_FILTERS,
   EMPTY_TITLE,
@@ -53,6 +52,7 @@ import {
   filterSummary,
   filtersFromQuery,
   matchesSeller,
+  perDay,
   periodText,
   rentPriceOf,
   searchValueOf,
@@ -92,8 +92,9 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * - 엑셀은 **지금 조회 결과 안에서 고른 행**, 없으면 조회 결과 전체 — 알림만(파일 생성은 개발 영역)
  * - No 는 **조회 결과의 역순 순번**(원본 `total-(start+i)`) — 레코드 번호가 아니다
  *
- * ## 퍼블 범위
- * 주문번호 링크는 상세 화면을 만들기 전까지 알림만 띄운다(`DETAIL_PENDING`).
+ * ## 상세 연결
+ * 주문번호를 누르면 **그 처리단위의** 주문 상세(`/orders-all/{처리단위}`)로 간다(원본 `orderRowDetail`).
+ * 같은 주문번호의 두 행은 서로 다른 상세로 간다.
  *
  * ## ⚠️ 원본에 없어서 걷어낸 것 — 되살리지 말 것
  * - 유형 카드의 **[전체]** — v0.4 는 렌트·판매 2장, 들어오면 렌트
@@ -596,7 +597,9 @@ export function OrderListPage({
                       </TableTd>
                       {/* 원본: 주문번호를 누르면 처리단위별 주문 상세로 간다 */}
                       <TableTd className={frozenTd(3)}>
-                        <TextButton onClick={() => toast(DETAIL_PENDING)}>
+                        <TextButton
+                          onClick={() => onNavSelect(`/orders-all/${order.id}`)}
+                        >
                           {order.orderNo}
                         </TextButton>
                       </TableTd>
@@ -621,9 +624,12 @@ export function OrderListPage({
                       <TableTd>{order.productCode}</TableTd>
                       <TableTd ellipsis>{order.productName}</TableTd>
                       {/* 판매 건은 렌트 금액 세 열이 **모두** 비어 있다(원본 `hasRent`) */}
+                      {/* 렌트 금액은 **원/일 단가**다(원본) — 렌트일을 곱한 총액은 상세의 주문 명세가 보인다 */}
                       <TableTd>{money(order.rentBasePrice)}</TableTd>
                       <TableTd>{money(order.rentDiscount)}</TableTd>
-                      <TableTd>{money(rentPriceOf(order))}</TableTd>
+                      <TableTd>
+                        {isRent ? perDay(rentPriceOf(order) ?? 0) : DASH}
+                      </TableTd>
                       <TableTd>{order.buyerName}</TableTd>
                       <TableTd ellipsis>{order.buyerId}</TableTd>
                       <TableTd>{order.buyerPhone}</TableTd>

@@ -203,14 +203,17 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
       expect(screen.queryByRole("dialog")).toBeNull();
     });
 
-    it("주문번호를 누르면 상세 준비 중 알림이 뜬다 (상세는 다음 단계)", async () => {
-      const { user } = renderPage();
+    /** 원본 `orderRowDetail` — 주문번호가 **그 처리단위의** 상세로 간다(도착은 App 테스트가 본다) */
+    it("주문번호를 누르면 그 처리단위의 상세 경로로 간다", async () => {
+      const { user, onNavSelect } = renderPage("?q=20261017200511");
 
-      await user.click(screen.getByRole("button", { name: R01 }));
+      /* 같은 주문번호의 렌트(U-R03)·판매(U-S03)는 서로 다른 상세로 간다 */
+      await user.click(screen.getByRole("button", { name: "20261017200511" }));
+      expect(onNavSelect).toHaveBeenLastCalledWith("/orders-all/U-R03");
 
-      expect(
-        await screen.findByText("주문 상세 화면은 준비 중입니다"),
-      ).toBeVisible();
+      await user.click(typeCard("판매"));
+      await user.click(screen.getByRole("button", { name: "20261017200511" }));
+      expect(onNavSelect).toHaveBeenLastCalledWith("/orders-all/U-S03");
     });
   });
 
@@ -609,14 +612,15 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
   });
 
   describe("의미 2. 렌트 금액", () => {
-    it("렌트가 = 원가 − 할인 (일 단가 × 렌트일)", () => {
+    /** 원본 목록의 렌트 금액은 **원/일 단가**다 — 렌트일을 곱한 총액은 상세의 주문 명세가 보인다 */
+    it("렌트가 = 원가 − 할인 (원/일 단가)", () => {
       renderPage();
 
-      /* BL240814 1,500 − 200 원/일 × 14일 */
+      /* BL240814 1,500 − 200 = 1,300원/일 */
       const cells = cellsOf(rowOf(R01));
-      expect(cells[CELL.rentBase]).toHaveTextContent("21,000원");
-      expect(cells[CELL.rentDiscount]).toHaveTextContent("2,800원");
-      expect(cells[CELL.rentPrice]).toHaveTextContent("18,200원");
+      expect(cells[CELL.rentBase]).toHaveTextContent("1,500원");
+      expect(cells[CELL.rentDiscount]).toHaveTextContent("200원");
+      expect(cells[CELL.rentPrice]).toHaveTextContent("1,300원/일");
     });
 
     it("판매 건은 렌트 금액 세 열과 이용 기간이 모두 비어 있다 (원본 hasRent)", async () => {

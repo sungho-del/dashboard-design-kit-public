@@ -1,6 +1,6 @@
 import type { DateRange, SelectOption, TagTone } from "../../components/ui";
 import { MEMBERS } from "./MemberListPage.data";
-import { PRODUCTS, salePriceOf } from "./ProductListPage.data";
+import { PRODUCTS } from "./ProductListPage.data";
 
 /* -------------------------------------------------------------------------
  * S08 주문 목록 — **도메인 층** (BabyCube 본사 운영 어드민)
@@ -61,11 +61,17 @@ export type OrderStatus =
   | "exchangeRequested";
 
 export interface Order {
-  /** 처리단위 코드 — **고유 키**. 행 key·선택·엑셀 선택분·(다음 단계의) 상세 경로 */
+  /** 처리단위 코드 — **고유 키**. 행 key·선택·엑셀 선택분·상세 경로(`/orders-all/{id}`) */
   id: string;
   /** 주문번호 14자리. 한 결제에 처리단위가 여럿이면 **같은 번호를 공유한다** */
   orderNo: string;
   status: OrderStatus;
+  /**
+   * 클레임·지연이 없었다면 있었을 **진행 단계** — 처리 이력이 여기까지 쌓인다.
+   * 클레임 건(취소 요청·반품 수거중·교환 신청)은 샘플이 원래 단계를 직접 적는다(추측하지 않는다).
+   * 나머지는 `status` 와 같다
+   */
+  baseStatus: OrderStatus;
   type: OrderType;
   sellerKind: SellerKind;
   /** 셀러명 — 본사 건은 `"본사"`. 판매자 열·셀러 필터·검색이 이 값을 본다 */
@@ -75,8 +81,6 @@ export interface Order {
   payMethod: string;
   /** ⚠️ **결제 일시** `YYYY-MM-DD HH:mm`. 기간 필터·정렬이 이 값을 본다 */
   date: string;
-  /** 결제금액 — **엑셀 전용**(표에는 없다) */
-  payAmount: number;
   shipMethod: string;
   carrier: string;
   trackingNo: string;
@@ -85,10 +89,21 @@ export interface Order {
   pickupTrackingNo: string;
   productCode: string;
   productName: string;
-  /** 렌트 원가(일 단가 × 렌트일) — 판매 건은 `null` */
+  /** 렌트 원가 **원/일**(주문 당시 단가) — 판매 건은 `null` */
   rentBasePrice: number | null;
-  /** 렌트 할인 — 판매 건은 `null`(판매 건의 렌트 금액 세 열은 모두 비어 있다) */
+  /** 렌트 할인 **원/일** — 판매 건은 `null`(판매 건의 렌트 금액 세 열은 모두 비어 있다) */
   rentDiscount: number | null;
+  /** 렌트일 — 판매 건은 `null` */
+  rentDays: number | null;
+  /** 보증금(고정액) — 판매 건은 `null`. 결제금액에 들지 않는다(원본 명세) */
+  deposit: number | null;
+  /** 판매 단가(원가 · 할인) — 렌트 건은 `null` */
+  saleBasePrice: number | null;
+  saleDiscount: number | null;
+  /** 수량 — 렌트는 1 */
+  qty: number;
+  /** 배송비 — 상품의 배송비(0 이면 무료) */
+  shipFee: number;
   buyerName: string;
   /** 구매자 ID — 회원 샘플의 아이디(이메일) */
   buyerId: string;
@@ -98,11 +113,11 @@ export interface Order {
   receiverPhone: string;
   address: string;
   shipMemo: string;
-  /** 주문일시 — **엑셀 전용** */
+  /** 주문일시 `YYYY-MM-DD HH:mm` — 같은 주문번호면 같다 */
   orderedAt: string;
 }
 
-/** 렌트가 = 원가 − 할인 (음수 방지). 저장하지 않고 계산한다 — 셋이 어긋날 수 없게 */
+/** 렌트가(원/일) = 원가 − 할인 (음수 방지). 저장하지 않고 계산한다 — 셋이 어긋날 수 없게 */
 export const rentPriceOf = (order: Order): number | null =>
   order.rentBasePrice === null
     ? null
@@ -157,7 +172,7 @@ export const TYPE_META: Record<OrderType, { label: string; tone: TagTone }> = {
 };
 
 /* =========================================================================
- * 샘플 — `처리단위|결제 일시(초)|상품코드|구매자 ID|상태|배송 방법|렌트일|배송 메모|수령인/연락처`
+ * 샘플 — `처리단위|결제 일시(초)|상품코드|구매자 ID|상태|배송 방법|렌트일|배송 메모|수령인/연락처|원래 단계|수량`
  *
  * 주문번호는 결제 일시의 숫자 14자리다 — **결제 일시가 같은 행은 같은 주문**이다
  * (U-R03·U-S03 = 렌트+판매 한 결제, U-R09·U-R22 = 렌트 두 건 한 결제).
@@ -185,8 +200,8 @@ const SEED_ROWS = [
   "U-R17|2026-09-22 17:33:49|LS672384|siwoo.jang@example.com|inspected|택배|14||",
   "U-R18|2026-09-18 11:20:08|BL377415|doyoon.baek@example.com|returned|택배|14||",
   "U-R19|2026-09-15 08:47:55|LB846102|harin.noh@example.com|returned|방문 수령|21||",
-  "U-R20|2026-10-17 22:10:14|MC447210|junseo.ma@example.com|cancelRequested|택배|14||",
-  "U-R21|2026-10-06 13:05:27|AS730125|sujin.park@example.com|returnPicking|택배|14||",
+  "U-R20|2026-10-17 22:10:14|MC447210|junseo.ma@example.com|cancelRequested|택배|14|||ready",
+  "U-R21|2026-10-06 13:05:27|AS730125|sujin.park@example.com|returnPicking|택배|14|||renting",
   "U-R22|2026-10-12 13:17:44|MC447210|chaewon.lim@example.com|renting|택배|30||",
   /* ── 판매 12 ── */
   "U-S01|2026-10-18 16:20:44|BL240811|yerin.song@example.com|new|택배|||",
@@ -195,12 +210,12 @@ const SEED_ROWS = [
   "U-S04|2026-10-15 13:36:58|BH612093|serin.oh@example.com|delayed|택배|||",
   "U-S05|2026-10-16 09:45:03|AR271948|jiho.moon@example.com|shipping|택배|||",
   "U-S06|2026-10-15 17:58:26|AS902715|haeun.bae@example.com|shipping|택배|경비실 옆 무인택배함||",
-  "U-S07|2026-10-13 11:24:37|GJ650283|chaewon.lim@example.com|delivered|택배|||",
+  "U-S07|2026-10-13 11:24:37|GJ650283|chaewon.lim@example.com|delivered|택배|||||2",
   "U-S08|2026-10-12 19:02:15|BL240811|bora.hwang@example.com|delivered|방문 수령|||",
   "U-S09|2026-10-05 14:48:09|LS240724|jisung.ahn@example.com|confirmed|택배|||",
   "U-S10|2026-09-25 10:30:52|HQ240806|dain.hong@example.com|confirmed|택배|||",
-  "U-S11|2026-10-17 08:14:33|AS902715|yoon.namgung@example.com|cancelRequested|택배|||",
-  "U-S12|2026-10-11 21:37:46|BH612093|hajun.seo@example.com|exchangeRequested|택배|||",
+  "U-S11|2026-10-17 08:14:33|AS902715|yoon.namgung@example.com|cancelRequested|택배||||ready",
+  "U-S12|2026-10-11 21:37:46|BH612093|hajun.seo@example.com|exchangeRequested|택배||||delivered",
 ];
 
 /** 상품을 받아 보낸 뒤의 상태 — 송장이 붙는다 */
@@ -228,6 +243,10 @@ const PICKED_UP: OrderStatus[] = [
 ];
 
 const PAY_METHODS = ["신용카드", "카드(국민)", "체크카드", "카드(신한)"];
+
+/** 주문번호의 숫자 합 — 한 결제의 처리단위들이 **같은 결제수단·주문일시**를 갖게 주문번호로 고른다 */
+const orderSeed = (orderNo: string) =>
+  [...orderNo].reduce((sum, digit) => sum + Number(digit), 0);
 const CARRIERS = ["CJ대한통운", "롯데택배", "한진택배"];
 
 /** `YYYY-MM-DD` 에 일수를 더한다 */
@@ -238,8 +257,19 @@ const addDays = (day: string, days: number) => {
 };
 
 const toOrder = (row: string, index: number): Order => {
-  const [id, paidAt, productId, buyerId, status, shipMethod, days, memo, to] =
-    row.split("|");
+  const [
+    id,
+    paidAt,
+    productId,
+    buyerId,
+    status,
+    shipMethod,
+    days,
+    memo,
+    to,
+    base,
+    qty,
+  ] = row.split("|");
   const product = PRODUCTS.find((item) => item.id === productId);
   const buyer = MEMBERS.find((member) => member.id === buyerId);
   if (!product || !buyer) throw new Error(`주문 샘플 연결 실패: ${row}`);
@@ -254,15 +284,11 @@ const toOrder = (row: string, index: number): Order => {
     ? to.split("/")
     : [buyer.name, buyer.phone];
 
-  const rentBasePrice = isRent ? (product.rentBase ?? 0) * rentDays : null;
-  const rentDiscount = isRent ? (product.rentDiscount ?? 0) * rentDays : null;
-  const goods = isRent
-    ? (rentBasePrice ?? 0) - (rentDiscount ?? 0) + (product.deposit ?? 0)
-    : salePriceOf(product);
+  const seed = orderSeed(orderNo);
 
-  /* 주문일시는 결제보다 몇 분 앞선다(장바구니 → 결제) */
+  /* 주문일시는 결제보다 몇 분 앞선다(장바구니 → 결제) — 같은 주문이면 같은 값 */
   const ordered = new Date(paidAt.replace(" ", "T"));
-  ordered.setMinutes(ordered.getMinutes() - (3 + (index % 5)));
+  ordered.setMinutes(ordered.getMinutes() - (3 + (seed % 5)));
   const orderedAt = `${paidAt.slice(0, 10)} ${String(ordered.getHours()).padStart(2, "0")}:${String(ordered.getMinutes()).padStart(2, "0")}`;
 
   const shipped = parcel && SHIPPED.includes(status as OrderStatus);
@@ -273,13 +299,13 @@ const toOrder = (row: string, index: number): Order => {
     id,
     orderNo,
     status: status as OrderStatus,
+    baseStatus: (base || status) as OrderStatus,
     type: product.mode,
     sellerKind: product.source === "hq" ? "hq" : "seller",
     seller: product.seller,
     period: isRent ? `${start} ~ ${addDays(start, rentDays - 1)}` : "",
-    payMethod: PAY_METHODS[index % PAY_METHODS.length],
+    payMethod: PAY_METHODS[seed % PAY_METHODS.length],
     date: paidAt.slice(0, 16),
-    payAmount: goods + product.shipFee,
     shipMethod,
     carrier: shipped ? carrier : "",
     trackingNo: shipped ? "5" + orderNo.slice(1, 12) : "",
@@ -287,8 +313,14 @@ const toOrder = (row: string, index: number): Order => {
     pickupTrackingNo: pickedUp ? "6" + orderNo.slice(2, 13) : "",
     productCode: product.id,
     productName: product.name,
-    rentBasePrice,
-    rentDiscount,
+    rentBasePrice: isRent ? (product.rentBase ?? 0) : null,
+    rentDiscount: isRent ? (product.rentDiscount ?? 0) : null,
+    rentDays: isRent ? rentDays : null,
+    deposit: isRent ? (product.deposit ?? 0) : null,
+    saleBasePrice: isRent ? null : (product.saleBase ?? 0),
+    saleDiscount: isRent ? null : (product.saleDiscount ?? 0),
+    qty: Number(qty) || 1,
+    shipFee: product.shipFee,
     buyerName: buyer.name,
     buyerId: buyer.id,
     buyerPhone: buyer.phone,
@@ -545,14 +577,14 @@ export const EMPTY_TITLE = "해당 조건의 항목이 없습니다";
 export const EMPTY_DESCRIPTION =
   "조건을 변경하거나 필터를 초기화한 뒤 다시 조회해 주세요.";
 
-/** 주문번호 링크 — 상세 화면을 만들기 전까지의 알림 */
-export const DETAIL_PENDING = "주문 상세 화면은 준비 중입니다";
-
 /**
  * 금액 포맷. 단위가 도메인이라 여기 둔다.
  * ⚠️ 천 단위 구분자는 **쉼표 고정**.
  */
 export const won = (value: number) => value.toLocaleString("ko-KR") + "원";
+
+/** 렌트 단가 표기 — 상품 관리 목록과 같은 `원/일` */
+export const perDay = (value: number) => won(value) + "/일";
 
 /** 결제 일시 표기 — 점 표기, 분까지 (`2026.10.18 14:32`) */
 export const ymdhm = (dateText: string) =>
