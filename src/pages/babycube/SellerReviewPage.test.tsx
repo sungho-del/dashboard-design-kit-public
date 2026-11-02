@@ -746,6 +746,15 @@ describe("SellerReviewPage (S04 입점 심사)", () => {
       expect(onNavSelect).toHaveBeenCalledWith("/seller-review/SR-318");
     });
 
+    /** 링크 글자만 눌려 「못 들어가는 곳인가」 헷갈리던 것 — 행 어디를 눌러도 간다(사용자 결정 2026-11-02) */
+    it("행의 다른 칸을 눌러도 같은 상세로 간다", async () => {
+      const { user, onNavSelect } = renderPage();
+      const row = rowOf("코지베이비");
+
+      await user.click(within(row).getAllByRole("cell")[1]);
+      expect(onNavSelect).toHaveBeenLastCalledWith("/seller-review/SR-318");
+    });
+
     it("목록에 단건 심사 버튼을 두지 않는다", () => {
       renderPage();
 

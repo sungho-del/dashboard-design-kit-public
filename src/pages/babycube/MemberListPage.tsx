@@ -830,7 +830,11 @@ export function MemberListPage({
             {paged.map((member, index) => {
               const status = STATUS_META[member.status];
               return (
-                <TableRow key={member.id}>
+                <TableRow
+                  key={member.id}
+                  clickable
+                  onClick={() => openDetail(member)}
+                >
                   <TableTd align="center">
                     <Checkbox
                       size="small"
@@ -845,7 +849,8 @@ export function MemberListPage({
                   </TableTd>
                   {/*
                     원본에서 이름은 `/members/{id}` 로 가는 링크다(`className: "linkish"`).
-                    행 전체를 누르게 만들지 않는다 — 원본에 없는 어포던스다.
+                    행 전체도 누를 수 있게 했다(원본과 다름 — 사용자 결정 2026-11-02: 이름만 눌려
+                    「못 들어가는 곳인가」 헷갈린다). 키보드는 여전히 이 이름 링크로 들어간다.
                   */}
                   <TableTd>
                     <TextButton onClick={() => openDetail(member)}>

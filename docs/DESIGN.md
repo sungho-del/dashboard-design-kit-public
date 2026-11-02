@@ -190,21 +190,21 @@ Variant 8종·상태 전이는 **Button과 완전히 동일**. 사이즈만 다�
 
 ## §7. Table
 
-| 요소             | 스펙                                                                                                          |
-| ---------------- | ------------------------------------------------------------------------------------------------------------- |
-| table            | **`width: max-content`**; `min-width: 100%` · `border-collapse: collapse` · `table-layout: fixed` (⚠️ §7-1-1) |
-| thead            | `position: relative` · `bg: surface` · 하단 `border-bottom: 1px solid divide`                                 |
-| thead sticky     | `position: sticky; top: 0; z-index: 2` + `::after`로 1px `divide`                                             |
-| **행 높이**      | **48** (`--size-table-row`)                                                                                   |
-| th               | padding **좌우 12 · 상하 8** · `text-align: left` · `bg: surface` · **13 / 500** [레거시 기준]                |
-| td               | padding **좌우 12 · 상하 8** · 상하 border 없음                                                               |
-| **첫/마지막 셀** | `padding-left: 24` / `padding-right: 24`                                                                      |
-| **zebra**        | 홀수 행 `surface`(흰색) · 짝수 행 `surface-sub`. 마지막 행이 홀수면 `border-bottom: 1px divide` 보정          |
-| row hover        | `bg: surface-sub` · `transition: background-color 0.2s` · `cursor: pointer` (clickable 행만)                  |
-| 링크 셀          | td padding 0, 내부 `<a>`가 `padding: 8; width/height: 100%` flex                                              |
-| 세로 구분선      | `border-right: 1px solid divide` (sticky 셀은 `::after`로 대체)                                               |
-| noBackground     | zebra 해제 + td `border-bottom: 1px divide`                                                                   |
-| ellipsis         | `-webkit-line-clamp: 2`                                                                                       |
+| 요소             | 스펙                                                                                                                                                                                                                                                                                                        |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| table            | **`width: max-content`**; `min-width: 100%` · `border-collapse: collapse` · `table-layout: fixed` (⚠️ §7-1-1)                                                                                                                                                                                               |
+| thead            | `position: relative` · `bg: surface` · 하단 `border-bottom: 1px solid divide`                                                                                                                                                                                                                               |
+| thead sticky     | `position: sticky; top: 0; z-index: 2` + `::after`로 1px `divide`                                                                                                                                                                                                                                           |
+| **행 높이**      | **48** (`--size-table-row`)                                                                                                                                                                                                                                                                                 |
+| th               | padding **좌우 12 · 상하 8** · `text-align: left` · `bg: surface` · **13 / 500** [레거시 기준]                                                                                                                                                                                                              |
+| td               | padding **좌우 12 · 상하 8** · 상하 border 없음                                                                                                                                                                                                                                                             |
+| **첫/마지막 셀** | `padding-left: 24` / `padding-right: 24`                                                                                                                                                                                                                                                                    |
+| **zebra**        | 홀수 행 `surface`(흰색) · 짝수 행 `surface-sub`. 마지막 행이 홀수면 `border-bottom: 1px divide` 보정                                                                                                                                                                                                        |
+| row hover        | 셀마다 `box-shadow: inset 0 0 0 100vmax layer-hover`(배경 위 덧칠) · `transition: box-shadow 0.2s` · `cursor: pointer` (clickable 행만). ⚠️ `surface-sub` 로 칠하면 줄무늬 짝수 행에서 안 보인다 · 반투명을 배경색으로 주면 고정 열이 비친다 · 셀 안 체크박스·링크·버튼 클릭과 글자 선택은 행 클릭이 아니다 |
+| 링크 셀          | td padding 0, 내부 `<a>`가 `padding: 8; width/height: 100%` flex                                                                                                                                                                                                                                            |
+| 세로 구분선      | `border-right: 1px solid divide` (sticky 셀은 `::after`로 대체)                                                                                                                                                                                                                                             |
+| noBackground     | zebra 해제 + td `border-bottom: 1px divide`                                                                                                                                                                                                                                                                 |
+| ellipsis         | `-webkit-line-clamp: 2`                                                                                                                                                                                                                                                                                     |
 
 ### 7-1. 테이블 셸
 

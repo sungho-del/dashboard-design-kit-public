@@ -608,6 +608,19 @@ describe("SellerListPage (S03 셀러 관리)", () => {
       expect(onNavSelect).toHaveBeenCalledWith("/sellers/S-1155");
     });
 
+    /** 링크 글자만 눌려 「못 들어가는 곳인가」 헷갈리던 것 — 행 어디를 눌러도 간다(사용자 결정 2026-11-02) */
+    it("행의 다른 칸을 눌러도 같은 상세로 간다 — 체크박스는 이동하지 않는다", async () => {
+      const { user, onNavSelect } = renderPage();
+      await user.click(statusBox(EXITING));
+      const row = rowOf("튼튼주니어");
+
+      await user.click(within(row).getByRole("checkbox"));
+      expect(onNavSelect).not.toHaveBeenCalled();
+
+      await user.click(within(row).getAllByRole("cell")[1]);
+      expect(onNavSelect).toHaveBeenLastCalledWith("/sellers/S-1155");
+    });
+
     /**
      * ⚠️ 원본에 없어서 걷어낸 것 — 되살리지 말 것.
      * 원본 행의 컨트롤은 **체크박스 · 셀러명 링크 · 수수료율 [수정]** 뿐이다.

@@ -855,7 +855,11 @@ export function ProductListPage({
                   const isRent = product.mode === "rent";
 
                   return (
-                    <TableRow key={product.id}>
+                    <TableRow
+                      key={product.id}
+                      clickable
+                      onClick={() => onNavSelect(`/products/${product.id}`)}
+                    >
                       <TableTd className={frozenTd(0)}>
                         <Checkbox
                           size="small"

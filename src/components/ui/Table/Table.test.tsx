@@ -161,19 +161,21 @@ describe("Table", () => {
       );
     });
 
-    it("clickable이면 pointer 커서와 0.2s 배경 전환을 준다", () => {
+    it("clickable이면 pointer 커서와 셀의 0.2s 전환을 준다", () => {
       renderTable({ clickable: true });
       const className = screen.getByTestId("row-1").className;
       expect(className).toContain("cursor-pointer");
-      expect(className).toContain("transition-[background-color]");
-      expect(className).toContain("duration-200");
+      expect(className).toContain("[&>td]:transition-shadow");
+      expect(className).toContain("[&>td]:duration-200");
     });
 
-    it("clickable hover는 zebra를 이기도록 odd/even에 겹쳐 방출한다", () => {
+    it("clickable hover는 배경색이 아니라 셀 위 layer-hover 덧칠이다 — 짝수 줄(surface-sub)에서도 보이고 고정 열이 비치지 않는다", () => {
       renderTable({ clickable: true });
       const className = screen.getByTestId("row-1").className;
-      expect(className).toContain("odd:hover:bg-surface-sub");
-      expect(className).toContain("even:hover:bg-surface-sub");
+      expect(className).toContain(
+        "hover:[&>td]:shadow-[inset_0_0_0_100vmax_var(--color-layer-hover)]",
+      );
+      expect(className).not.toContain("hover:bg-surface-sub");
     });
 
     it("clickable이 아니면 hover 배경을 주지 않는다", () => {
@@ -186,6 +188,47 @@ describe("Table", () => {
       renderTable({ clickable: true, onRowClick });
       await userEvent.click(screen.getByText("20250814-0001"));
       expect(onRowClick).toHaveBeenCalledTimes(1);
+    });
+
+    it("셀 안의 체크박스·버튼을 누르면 행 클릭이 아니다 — 그 컨트롤만 동작한다", async () => {
+      const onRowClick = vi.fn();
+      const onButton = vi.fn();
+      render(
+        <Table>
+          <TableBody>
+            <TableRow clickable onClick={onRowClick}>
+              <TableTd>
+                <input type="checkbox" aria-label="선택" />
+              </TableTd>
+              <TableTd>
+                <button type="button" onClick={onButton}>
+                  <span>주문번호</span>
+                </button>
+              </TableTd>
+              <TableTd>39,000원</TableTd>
+            </TableRow>
+          </TableBody>
+        </Table>,
+      );
+
+      await userEvent.click(screen.getByRole("checkbox", { name: "선택" }));
+      await userEvent.click(screen.getByText("주문번호"));
+      expect(onButton).toHaveBeenCalledTimes(1);
+      expect(onRowClick).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByText("39,000원"));
+      expect(onRowClick).toHaveBeenCalledTimes(1);
+    });
+
+    it("글자를 끌어 선택한 채 놓으면 행 클릭이 아니다 (주문번호 복사)", async () => {
+      const onRowClick = vi.fn();
+      renderTable({ clickable: true, onRowClick });
+      const cell = screen.getByText("20250814-0001");
+      window.getSelection()?.selectAllChildren(cell);
+
+      cell.click();
+      expect(onRowClick).not.toHaveBeenCalled();
+      window.getSelection()?.removeAllRanges();
     });
   });
 

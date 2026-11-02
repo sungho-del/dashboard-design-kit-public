@@ -233,12 +233,23 @@ export interface TableRowProps extends HTMLAttributes<HTMLTableRowElement> {
   ref?: Ref<HTMLTableRowElement>;
 }
 
+/** 행 클릭으로 치지 않는 곳 — 셀 안의 컨트롤은 제 할 일만 한다(체크박스·링크·버튼) */
+const ROW_CLICK_IGNORE =
+  "a, button, input, label, select, textarea, [role='button'], [role='checkbox']";
+
 /**
  * 행 높이는 48 고정(`--size-table-row`).
  *
- * zebra와 hover는 둘 다 background-color라 명시도 싸움이 난다.
- * `odd:bg-surface`(0,2,0)를 이기려고 hover도 `odd:hover:`/`even:hover:`로
- * 겹쳐서 (0,3,0)으로 올린다 — 스타일시트 순서에 기대지 않기 위함이다.
+ * ## clickable hover — 배경색이 아니라 **덧칠**이다
+ * 줄무늬의 짝수 행은 이미 `surface-sub` 라 hover 를 `surface-sub` 로 칠하면 두 줄에 한 줄은
+ * 바뀌지 않는다. 그렇다고 반투명 `layer-hover` 를 배경색으로 주면 고정 열(`bg-inherit`)이
+ * 비쳐 뒤로 스크롤되는 칸이 보인다. 그래서 각 셀의 **원래 배경색 위에** `layer-hover` 를
+ * 안쪽 그림자(`inset`)로 한 겹 얹는다 — 홀짝 모두 한 단계 진해지고 셀은 불투명하게 남는다.
+ * (그라데이션 덧칠은 전환이 안 된다. 그림자는 0.2s 전환 규격을 지킨다)
+ *
+ * ## clickable 클릭 — 셀 안 컨트롤과 글자 선택은 행 클릭이 아니다
+ * 체크박스·링크·버튼을 누르면 그 컨트롤만 동작한다(행 `onClick` 을 부르지 않는다).
+ * 글자를 끌어 선택한 뒤 손을 떼도 행 클릭이 아니다(주문번호 복사).
  */
 export function TableRow({
   clickable = false,
@@ -246,10 +257,20 @@ export function TableRow({
   className = "",
   children,
   ref,
+  onClick,
   ...props
 }: TableRowProps) {
   const { zebra: zebraFromTable } = useContext(TableContext);
   const zebra = zebraProp ?? zebraFromTable;
+
+  const handleClick: typeof onClick = (event) => {
+    if (clickable) {
+      const hit = (event.target as Element).closest(ROW_CLICK_IGNORE);
+      if (hit && event.currentTarget.contains(hit)) return;
+      if (window.getSelection()?.toString()) return;
+    }
+    onClick?.(event);
+  };
 
   return (
     <tr
@@ -258,21 +279,18 @@ export function TableRow({
       className={cn(
         "h-(--size-table-row)",
         clickable &&
-          "cursor-pointer transition-[background-color] duration-200",
+          "cursor-pointer [&>td]:transition-shadow [&>td]:duration-200 hover:[&>td]:shadow-[inset_0_0_0_100vmax_var(--color-layer-hover)]",
         zebra
           ? cn(
               "odd:bg-surface even:bg-surface-sub",
               // 마지막 행이 홀수(흰색)면 바닥 경계가 사라지므로 1px 보정
               "last:odd:border-b last:odd:border-divide",
-              clickable && "odd:hover:bg-surface-sub even:hover:bg-surface-sub",
             )
-          : cn(
-              // noBackground 모드 — 줄무늬 대신 td 하단 구분선
-              "[&>td]:border-b [&>td]:border-divide",
-              clickable && "hover:bg-surface-sub",
-            ),
+          : // noBackground 모드 — 줄무늬 대신 td 하단 구분선
+            "[&>td]:border-b [&>td]:border-divide",
         className,
       )}
+      onClick={onClick && handleClick}
       {...props}
     >
       {children}

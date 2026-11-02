@@ -759,7 +759,11 @@ export function SellerListPage({
             {paged.map((seller, index) => {
               const status = STATUS_META[seller.status];
               return (
-                <TableRow key={seller.id}>
+                <TableRow
+                  key={seller.id}
+                  clickable
+                  onClick={() => openDetail(seller)}
+                >
                   <TableTd align="center">
                     <Checkbox
                       size="small"

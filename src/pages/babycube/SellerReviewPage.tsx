@@ -710,7 +710,11 @@ export function SellerReviewPage({
               const status = STATUS_META[item.status];
               const selectable = item.status === REVIEWABLE_STATUS;
               return (
-                <TableRow key={item.id}>
+                <TableRow
+                  key={item.id}
+                  clickable
+                  onClick={() => openDetail(item)}
+                >
                   <TableTd align="center">
                     <Checkbox
                       size="small"
