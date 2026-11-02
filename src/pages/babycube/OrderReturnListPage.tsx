@@ -1,25 +1,22 @@
 import { useState } from "react";
-import { ArrowDownToLine, HelpCircle, Search } from "lucide-react";
+import { ArrowDownToLine, Search } from "lucide-react";
 import {
   AppShell,
   Button,
   Card,
   CardBody,
+  Checkbox,
   DataTableShell,
   DatePicker,
   EmptyState,
   FilterBar,
   Gnb,
-  IconButton,
-  InfoItem,
-  InfoList,
   Input,
-  Modal,
-  ModalBody,
-  ModalHeader,
   PageHeader,
   Pagination,
+  PaginationSizeSelect,
   Select,
+  Skeleton,
   StatGrid,
   Table,
   TableBody,
@@ -28,139 +25,183 @@ import {
   TableTd,
   TableTh,
   Tag,
-  Tooltip,
+  TextButton,
   useToast,
   type DateRange,
+  type TableSortDirection,
 } from "../../components/ui";
+import { cn } from "../../lib/cn";
+import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
+import { PERIOD_PRESETS } from "../../lib/periodPresets";
+import { useSearchParams } from "../../lib/router";
 import {
+  DASH_UNIT,
+  EMPTY_DESCRIPTION,
   EMPTY_FILTERS,
-  EXPORT_EXTRA_COLUMNS,
-  EXPORT_NAME,
-  FILTERS,
+  EMPTY_TITLE,
   PAGE_SIZE,
+  PAGE_SIZES,
   RETURNS,
-  SELLER_OPTIONS,
+  RETURN_DETAIL_PATH,
   SEARCH_FIELDS,
+  SEARCH_PLACEHOLDER,
+  SELLER_OPTIONS,
   STATUS_META,
   STATUS_OPTIONS,
+  TYPE_FILTERS,
   TYPE_META,
-  TYPE_NOTICE,
-  filtersFromQuery,
-  rentPriceOf,
-  searchHaystack,
   filterSummary,
+  filtersFromQuery,
+  matchesSeller,
+  perDay,
+  periodText,
+  rentPriceOf,
+  searchValueOf,
   sellerLabel,
-  sellerPatchOf,
-  sellerValueOf,
   won,
   ymdhm,
-  type Return,
-  type ReturnFilters,
+  type Order,
+  type OrderFilters,
+  type OrderSearchField,
+  type OrderType,
 } from "./OrderReturnListPage.data";
-import { PERIOD_PRESETS } from "../../lib/periodPresets";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
 /* =========================================================================
- * S10 반품 목록 — 뼈대 (BabyCube 본사 운영 어드민)
+ * S10 반품 목록 — 목록형 · 뼈대 (BabyCube 본사 운영 어드민)
  *
- * ## 화면 유형: 목록형
- * 반품 요청이 걸린 **처리단위**를 조회한다.
+ * ## 화면 유형: 목록형 (조회 전용)
+ * 반품이 걸린 처리단위를 조회한다. 원본 v0.4 는 이 화면을 `ordersRmaScreen` 으로 그리는데,
+ * 그 안은 주문 목록과 **같은 함수**(`ordersFlatCard`/`ordersFlatHead`/`ordersFlatRow`)다.
+ * 그래서 이 뼈대도 주문 목록(`OrderListPage.tsx`)과 같고, 다른 것은 셋뿐이다:
+ *   ① 모집단 `RETURNS` ② 상태 선택지 `STATUS_OPTIONS`(유형과 무관한 10단계)
+ *   ③ 주문번호 링크 → 반품 상세 `RETURN_DETAIL_PATH`
  *
- * ⚠️ 원본 대조에서 밝혀진 사실: **반품 목록의 표는 주문 목록의 표와 같다.**
- * 컬럼 24개가 라벨·순서까지 동일하고 첫 열의 데이터만 반품 상태로 갈린다.
+ * [ 유형 카드 2장 | 검색조건(펼침+요약) | 목록 (총 N건) · 엑셀 다운로드 | 표 | 페이지네이션 ]
+ *                                                  ← 원본 v0.4 와 같은 순서
  *
  * ## 이 파일은 도메인을 모른다 — 도메인은 `./OrderReturnListPage.data.ts` 에 있다
  *
- * | 갈아끼울 것           | 위치                                           |
- * | --------------------- | ---------------------------------------------- |
- * | 데이터·타입·라벨·단위 | `OrderReturnListPage.data.ts` **전체**         |
- * | 표 컬럼 구성          | 이 파일의 `<colgroup>` + `TableHead` + 본문 셀 |
- * | 검색조건 구성         | `FilterBar` 의 자식 (원본 순서: 기간→판매자→상태→검색) |
- * | 화면 제목·도움말      | `PageHeader` 의 `title` · `badges`             |
+ * | 갈아끼울 것            | 위치                                           |
+ * | ---------------------- | ---------------------------------------------- |
+ * | 모집단·상태·판매자·URL | `OrderReturnListPage.data.ts`                  |
+ * | 타입·라벨·단위         | `OrderListPage.data.ts` (다시 내보낸다)        |
+ * | 표 컬럼 구성           | 이 파일의 `<colgroup>` + `TableHead` + 본문 셀 |
+ * | 유형 대시 구성         | `TYPE_FILTERS` (카드가 곧 유형 필터다)         |
+ * | 검색조건 구성          | `FilterBar` 의 자식 (원본 순서: 기간→판매자→상태→검색) |
  *
- * ## 형제 화면과 같은 뼈대를 **복사해서** 쓴다 (공용화하지 않는다)
- * S08·S09·S11 과 조회 조건 구성이 거의 같지만 각자 독립 파일이다.
- * 페이지는 템플릿이라, 공용 컴포넌트로 묶으면 서비스를 갈아끼울 때
- * **뼈대를 고쳐야** 한다. `.data.ts` 에 같은 도메인 상수가 반복되는 것도 의도된 것이다.
+ * ## 공통 목록 규칙 (주문 목록과 같다)
+ * - 유형 카드를 바꾸면 **상태·정렬·선택·페이지가 함께 풀린다**(원본 `setOrderType` — 반품은 상태
+ *   선택지가 유형과 무관하지만 원본 동작이 해제다)
+ * - 다른 조건을 바꾸면 1페이지로, **선택도 풀린다** — 결과 밖으로 나간 선택이 엑셀에 섞이지 않게
+ * - 정렬은 이용 기간·결제 일시 둘뿐, 필터 뒤·페이지 나누기 전. 정렬을 바꾸면 1페이지로
+ * - 엑셀은 **지금 조회 결과 안에서 고른 행**, 없으면 조회 결과 전체 — 알림만(파일 생성은 개발 영역)
+ * - No 는 **조회 결과의 역순 순번**(원본 `total-(start+i)`) — 레코드 번호가 아니다
+ *
+ * ## 상세 연결
+ * 주문번호를 누르면 **그 처리단위의** 반품 상세(`/orders-return/{처리단위}`)로 간다
+ * (원본 판매 `rmaReturn` / 렌트 `rentRmaReturn`). 상세 화면은 따로 만든다.
  *
  * ## ⚠️ 원본에 없어서 걷어낸 것 — 되살리지 말 것
- * - **원본에 없는 11열**: 검수 판정(`VERDICT_META`) · 반품 신청 일시 · 반품 사유 ·
- *   수거 완료 일시 · 검수 일시 · 차감 금액 · 환불 금액 · 결제금액 · 셀러 ·
- *   처리단위 · 주문일시. 검수 판정은 원본에 **상태 어휘로만** 있고 반품 목록의 열이 아니다
- * - **증감 요약 카드 3장**(`STATS` · "반품 대기 ↑ · 수거 지연 ↓"). 원본에 없는 지어낸
- *   숫자였다. 그 자리에 원본이 실제로 두는 유형 대시를 세웠다
- * - **`판매자`(본사/셀러 배지 · `SELLER_KIND_META`) + `셀러`(이름) 두 열**. 원본 `b()` 는
- *   `"자체" === owner ? "본사" : sellerName` 으로 **열 하나**로 끝낸다
- * - **행 액션(`반품 승인` 버튼 + 확인 모달 · 수거 송장 복사)**. 원본 반품 목록에는
- *   행 액션이 없다 — 주문번호 → 상세 링크뿐이다
- * - **유형 `SegmentedControl`**. 유형은 대시 카드가 맡는다(원본 `chip.dash`)
- *
- * ## 취소 목록(S09)과 다른 단 하나 — 유형별 안내 문구
- * 원본 반품 셸에는 `statusTips` 가 있어 유형마다 한 줄 설명이 붙는다.
- * (취소 목록에는 없다. 형제 화면이라고 같은 자리를 채우지 않는다.)
+ * - 유형 카드의 **[전체]** — v0.4 는 렌트·판매 2장, 들어오면 렌트
+ * - 제목 옆 「반품 상태 흐름」 도움말 툴팁 · 유형 안내 문구(`statusTips` 는 v0.4 에 없다)
+ * - **행 클릭 「반품 미리보기」 모달** — 원본은 주문번호 링크로 상세에 간다
+ * - 검색 대상 「전체 항목」 — 원본은 7종, 기본 주문번호
+ * - 엑셀 파일명·추가 열 안내 토스트 · 「n / m 페이지」 표기 · 이 화면만의 자체 샘플
  * ====================================================================== */
 
 /**
- * 결제 일시가 선택한 기간 안에 드는지.
- * 기획서가 기간 필터 기준을 **결제일**로 못박아 `item.date` 가 결제 일시다.
- * `"YYYY-MM-DD HH:mm"` 의 공백 구분자는 브라우저별 파싱이 갈리므로 `T` 로 바꿔 넘긴다.
+ * 좌측 고정 7열(원본 `frozenTable(…, 7)`: 선택·No·상태·주문번호·유형·판매자·이용 기간)의
+ * `left` 오프셋 — **`<colgroup>` 폭의 누적합**이다.
+ *   52 / 56 / 116 / 144 / 72 / 112 / 208 → 0 · 52 · 108 · 224 · 368 · 440 · 552 (합 760)
+ * ⚠️ 첫 열은 52 다 — 체크박스 16 + 셀 여백(왼쪽 24 · 오른쪽 12). 40 을 줘도 브라우저가 늘린다.
+ * ⚠️ 파생값이라 `<colgroup>` 을 고치면 **반드시 함께** 고친다. 어긋나면 열이 겹친다.
+ */
+const FROZEN_LEFT = [
+  "left-0",
+  "left-13",
+  "left-27",
+  "left-56",
+  "left-92",
+  "left-110",
+  "left-138",
+];
+const LAST_FROZEN = FROZEN_LEFT.length - 1;
+
+/** 고정 구간의 폭 — `DataTableShell` 이 가로 스크롤바를 이만큼 비켜서 그린다 */
+const FROZEN_LEAD_WIDTH = 760;
+
+/** 고정 구간의 오른쪽 끝 1px. `border` 는 collapse 표에서 함께 스크롤돼 사라진다 */
+const FROZEN_EDGE =
+  "after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-divide after:content-['']";
+
+/** 헤더 셀 — 배경을 더하지 않는다(TableTh 가 이미 `bg-surface`) */
+const frozenTh = (index: number) =>
+  index > LAST_FROZEN
+    ? undefined
+    : cn(
+        "sticky z-2",
+        FROZEN_LEFT[index],
+        index === LAST_FROZEN && FROZEN_EDGE,
+      );
+
+/** 본문 셀 — 배경은 행에서 물려받는다(zebra·hover 를 따라가려면 상속뿐) */
+const frozenTd = (index: number) =>
+  index > LAST_FROZEN
+    ? undefined
+    : cn(
+        "sticky z-1 bg-inherit",
+        FROZEN_LEFT[index],
+        index === LAST_FROZEN && FROZEN_EDGE,
+      );
+
+/** 표의 열 수 — 로딩 뼈대가 같은 수의 빈 칸을 그린다. `<col>` 수와 같아야 한다 */
+const COLUMN_COUNT = 26;
+
+/** 값이 없는 칸 — 데이터가 없는 것과 화면이 깨진 것을 구별한다 */
+const DASH = "—";
+const dash = (value: string) => (value.trim() === "" ? DASH : value);
+const money = (value: number | null) => (value === null ? DASH : won(value));
+
+/**
+ * 결제 일시가 선택한 기간 안에 드는지. 시작일 00:00 ~ 종료일 23:59:59 를 포함한다.
+ * 공백 구분자는 브라우저별 파싱이 갈려 `T` 로 바꿔 넘긴다.
  */
 const inPeriod = (dateText: string, range?: DateRange) => {
   if (!range?.from) return true;
-
   const at = new Date(dateText.replace(" ", "T"));
-  if (Number.isNaN(at.getTime())) return true;
-
   const from = new Date(range.from);
   from.setHours(0, 0, 0, 0);
-
   const to = new Date(range.to ?? range.from);
   to.setHours(23, 59, 59, 999);
-
   return at >= from && at <= to;
 };
 
-/** 값이 없는 칸은 빈칸이 아니라 `—` — 데이터가 없는 것과 화면이 깨진 것을 구별한다 */
-const dash = (value: string) => (value.trim() === "" ? "—" : value);
+/* -------------------------------------------------------------------------
+ * 정렬 — 원본 표 머리의 ↕ (이용 기간 · 결제 일시 **둘뿐이다**)
+ * 둘 다 `YYYY-MM-DD…` 라 문자열 비교가 곧 시간순이다. 판매의 빈 기간은 한쪽 끝에 모인다.
+ * ---------------------------------------------------------------------- */
+type SortKey = "period" | "date";
 
-/** 유형에 따라 존재하지 않는 금액(판매 건의 렌트가 등)은 `—` */
-const money = (value: number | null) => (value === null ? "—" : won(value));
+interface SortState {
+  key: SortKey;
+  direction: TableSortDirection;
+}
 
-/**
- * 좌측 고정 5열 (원본 frozen: 상태 · 주문번호 · 유형 · 판매자 · 이용 기간).
- *
- * 폭과 `left` 오프셋이 **짝**이다 — 앞 열들의 폭 합이 다음 열의 오프셋이 된다.
- *   w-34(136) · w-38(152) · w-22(88) · w-32(128) · w-51(204)
- *   →  left-0 · left-34 · left-72 · left-94 · left-126
- * `<colgroup>` 을 고치면 **여기도 함께 고친다.**
- */
-const FROZEN_TH = [
-  "sticky left-0 z-1",
-  "sticky left-34 z-1",
-  "sticky left-72 z-1",
-  "sticky left-94 z-1",
-  /*
-   * 마지막 고정 열만 오른쪽 경계선을 갖는다 — 고정 구간의 끝이라는 표시다.
-   * `border-collapse: collapse` 에서는 sticky 셀의 border 가 함께 스크롤돼 사라지므로
-   * `::after` 로 그린다. 배치 기준은 `sticky` 자신이 만든다(`relative` 를 더하지 않는다).
-   */
-  "sticky left-126 z-1 after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-divide after:content-['']",
-];
+const COMPARATORS: Record<SortKey, (a: Order, b: Order) => number> = {
+  period: (a, b) => a.period.localeCompare(b.period),
+  date: (a, b) => a.date.localeCompare(b.date),
+};
 
-/**
- * 고정 구간의 총 폭 — 좌측 고정 5열의 폭 합(136+152+88+128+204).
- *
- * `DataTableShell` 이 가로 스크롤바를 이만큼 **들여서** 그린다. 안 그러면 바가 표 전체
- * 폭에 깔려 "당기면 고정 열도 움직이겠지"로 읽히는데 실제로는 안 움직인다.
- * ⚠️ `<colgroup>` 폭·`left` 오프셋과 **함께 고쳐야 하는 세 번째 값**이다.
- */
-const FROZEN_LEAD_WIDTH = 708;
-
-/**
- * 본문 쪽 고정 열은 배경을 **행에서 물려받는다**(`bg-inherit`).
- * zebra 는 `<tr>` 이 칠하므로, 색을 새로 지정하면 홀짝·hover 세 상태를 따라가지 못한다.
- */
-const FROZEN_TD = FROZEN_TH.map((cls) => cls + " bg-inherit");
+/** **오름 → 내림 → 해제** 3단. 해제하면 기본 순서(결제 최신순)로 돌아간다 */
+const nextSort = (
+  current: SortState | null,
+  key: SortKey,
+): SortState | null => {
+  if (current?.key !== key) return { key, direction: "asc" };
+  if (current.direction === "asc") return { key, direction: "desc" };
+  return null;
+};
 
 export interface OrderReturnListPageProps {
   navOpen: boolean;
@@ -178,73 +219,114 @@ export function OrderReturnListPage({
   const { toast } = useToast();
 
   /*
-   * 원본 반품 목록도 주문 목록과 **같은 셸**을 써서 `stat`·`flow`·`owner`·
-   * `sellerName`·`q`·`paidAt_from/to` 를 읽는다. 받는 쪽이 없으면
-   * **링크는 열리고 필터만 안 걸린다** — 화면은 멀쩡해 보여서 타입·린트로는 안 잡힌다.
+   * URL 쿼리(`/orders-return?stat=판매&flow=재반송`)를 초기 조건으로 읽는다(주문 목록과 같은 파라미터).
+   * 쿼리 → 필터 변환과 정합성 보정은 도메인이라 `filtersFromQuery` 가 하고,
+   * 뼈대는 그 결과를 초기값으로 받기만 한다.
    */
-  const [filters, setFilters] = useState<ReturnFilters>(() =>
+  const [filters, setFilters] = useState<OrderFilters>(() =>
     filtersFromQuery(new URLSearchParams(window.location.search)),
   );
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  const [sort, setSort] = useState<SortState | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
   /** 검색조건 펼침. **기본은 펼침**이다(사용자 결정 2026-10-19 — 원본은 접힘) */
   const [filterOpen, setFilterOpen] = useState(true);
 
-  const [preview, setPreview] = useState<Return | null>(null);
+  /* `?preview=loading|empty|refreshing` 으로 데이터 상태를 미리 본다 */
+  const dataStatus = asStatus(useSearchParams().get("preview"));
 
-  /** 조건 하나를 갈아끼운다. **조건이 바뀌면 페이지는 언제나 1로 되돌아간다** */
-  const patch = (next: Partial<ReturnFilters>) => {
+  /** 조건 하나를 바꾼다 — 1페이지로, 선택도 풀린다 */
+  const patch = (next: Partial<OrderFilters>) => {
     setFilters((prev) => ({ ...prev, ...next }));
     setPage(1);
+    setSelected([]);
+  };
+
+  /** 유형을 바꾸면 **상태·정렬·선택·페이지가 함께 풀린다**(원본 `setOrderType`) */
+  const selectType = (value: string) => {
+    patch({ type: value as OrderType, status: "all" });
+    setSort(null);
+  };
+
+  /** 초기화는 한 곳에서만 — 검색조건과 빈 상태가 서로 다르게 되돌리면 안 된다 */
+  const resetFilters = () => {
+    patch(EMPTY_FILTERS);
+    setSort(null);
   };
 
   /*
-   * 유형을 **뺀** 나머지 조건까지 적용한 결과. 대시 카드의 건수를 여기서 센다.
-   * 전체 데이터에서 세면 검색을 좁혀도 숫자가 안 변해 **표와 모순된 건수**가 남는다.
+   * 유형을 **뺀** 나머지 조건까지 적용한 결과. 유형 카드의 건수를 여기서 센다
+   * (원본 `orderTypeDash` skipType) — 전체 데이터에서 세면 검색을 좁혀도 숫자가 안 변한다.
    */
-  const base = RETURNS.filter((item) => {
-    const matchSellerKind =
-      filters.sellerKind === "all" || item.sellerKind === filters.sellerKind;
-    const matchSeller =
-      filters.sellerId === "all" || item.sellerId === filters.sellerId;
-    const matchStatus =
-      filters.status === "all" || item.status === filters.status;
-    const matchKeyword =
-      filters.keyword.trim() === "" ||
-      searchHaystack(item, filters.searchField).includes(
-        filters.keyword.trim(),
-      );
-    return (
-      matchSellerKind &&
-      matchSeller &&
-      matchStatus &&
-      matchKeyword &&
-      inPeriod(item.date, filters.period)
-    );
-  });
-
-  /** 카드마다 붙는 건수. `전체 = 렌트 + 판매` 가 언제나 성립한다 */
-  const countOf = (value: string) =>
-    value === "all"
-      ? base.length
-      : base.filter((item) => item.type === value).length;
-
-  const filtered =
-    filters.type === "all"
-      ? base
-      : base.filter((item) => item.type === filters.type);
-
-  /* 필터로 결과가 줄면 현재 페이지가 범위를 벗어날 수 있다 — 빈 표 대신 마지막 페이지로 당긴다 */
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const paged = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
+  const keyword = filters.keyword.trim().toLowerCase();
+  const scoped = RETURNS.filter(
+    (order) =>
+      matchesSeller(order, filters.seller) &&
+      (filters.status === "all" || order.status === filters.status) &&
+      (keyword === "" ||
+        searchValueOf(order, filters.searchField)
+          .toLowerCase()
+          .includes(keyword)) &&
+      inPeriod(order.date, filters.period),
   );
 
-  /* 초기화는 한 곳에서만 정의한다 — 카드와 빈 상태 두 곳에서 부른다 */
-  const resetFilters = () => {
-    setFilters(EMPTY_FILTERS);
+  const matched = scoped.filter((order) => order.type === filters.type);
+
+  /* 정렬은 **페이지를 나누기 전에**, 복사한 뒤 한다(제자리 정렬은 모듈 상수를 바꾼다) */
+  const filtered = sort
+    ? [...matched].sort((a, b) => {
+        const order = COMPARATORS[sort.key](a, b);
+        return sort.direction === "asc" ? order : -order;
+      })
+    : matched;
+
+  const toggleSort = (key: SortKey) => {
+    setSort((current) => nextSort(current, key));
     setPage(1);
+  };
+  const directionOf = (key: SortKey) =>
+    sort?.key === key ? sort.direction : undefined;
+
+  /* 결과가 줄어 현재 페이지가 범위를 벗어나면 마지막 페이지로 당긴다 */
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const paged = filtered.slice(start, start + pageSize);
+
+  /** 머리 체크박스는 **보이는 페이지 단위**다 */
+  const pageIds = paged.map((order) => order.id);
+  const allPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selected.includes(id));
+  const somePageSelected =
+    pageIds.some((id) => selected.includes(id)) && !allPageSelected;
+  const selectedOrders = filtered.filter((order) =>
+    selected.includes(order.id),
+  );
+
+  const toggleRow = (id: string) =>
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id],
+    );
+  const togglePage = () =>
+    setSelected((prev) =>
+      allPageSelected
+        ? prev.filter((id) => !pageIds.includes(id))
+        : [...prev, ...pageIds.filter((id) => !prev.includes(id))],
+    );
+
+  /* 엑셀 — 상품 목록과 같은 규칙·문구. 퍼블은 대상 건수만 알린다 */
+  const exportCsv = () => {
+    const rows = selectedOrders.length > 0 ? selectedOrders : filtered;
+    if (rows.length === 0) {
+      toast("다운로드할 데이터가 없습니다");
+      return;
+    }
+    toast(
+      selectedOrders.length > 0
+        ? `선택한 ${rows.length}건을 내려받았습니다`
+        : `조회 결과 ${rows.length}건을 내려받았습니다`,
+    );
   };
 
   return (
@@ -260,58 +342,37 @@ export function OrderReturnListPage({
           collapsedLogo={GNB_LOGO_SLOTS.collapsed}
         />
       }
-      header={
-        <PageHeader
-          title="반품 목록"
-          badges={
-            <Tooltip
-              title="반품 상태 흐름"
-              content="반품 신청 → 반품 승인 → 수거중 → 수거완료 → 반품 검수 → 환불 처리중 → 반품 완료 순으로 진행됩니다. 반품 반려는 접수 단계의 거절, 반품 거부는 검수 뒤의 거절이며 두 경우 모두 재반송으로 이어집니다."
-            >
-              <IconButton
-                size="small"
-                label="반품 상태 도움말"
-                icon={<HelpCircle strokeWidth={1.2} aria-hidden />}
-              />
-            </Tooltip>
-          }
-        />
-      }
+      header={<PageHeader title="반품 목록" />}
     >
       {/*
-        유형 대시 — 원본 `chip.dash: !0`. 건수를 보여주면서 그 자체가 유형 필터다.
-        ⚠️ 증감(±)·반품률은 두지 않는다 — 원본에 없는 숫자다.
+        유형 대시 — 원본 `chip.dash`. 건수를 보여주면서 그 자체가 유형 필터다.
+        **항상 하나가 선택돼 있다**([전체] 없음 · 기본 렌트).
       */}
       <Card>
         <CardBody>
-          {/*
-            건수 대시 = 필터. 상자의 시각 규격 · 선택/hover 축 분리 · 접근가능 이름
-            조립 · 툴팁 분기는 전부 `StatGrid` 가 맡는다 (docs/DESIGN-dashboard.md §D4).
-            여기서는 **무엇을 세는지**만 말한다.
-          */}
           <StatGrid
-            items={FILTERS.map((item) => ({
+            items={TYPE_FILTERS.map((item) => ({
               value: item.value,
               label: item.label,
-              count: String(countOf(item.value)),
-              unit: "건",
+              count: String(
+                scoped.filter((order) => order.type === item.value).length,
+              ),
+              unit: DASH_UNIT,
             }))}
             selected={filters.type}
-            onSelect={(value) => patch({ type: value })}
-            ariaLabel="유형"
-            columns={3}
+            onSelect={selectType}
+            ariaLabel="유형별 건수"
+            columns={2}
           />
-          {/*
-            유형별 안내 — 원본 `statusTips` 문구다. 유형을 고르는 자리 바로 아래에
-            둔다(조회 조건 카드로 내리면 무엇에 대한 설명인지가 끊긴다).
-          */}
-          <p className="body-small text-text-sub">
-            {TYPE_NOTICE[filters.type]}
-          </p>
         </CardBody>
       </Card>
 
-      {/* 검색조건 — 접힌 채로 열고, 걸린 조건은 요약 한 줄로 보인다(목록 공통 형식) */}
+      {/*
+        검색조건 — **펼친 채로 열리고**(사용자 결정) 접으면 걸린 조건을 요약이 말한다.
+        순서는 원본 그대로: 기간(결제일) → 판매자 → 상태 → 검색.
+        판매자는 원본의 라디오 + 셀러 지정을 셀렉트 하나로 합쳤다(사용자 결정 2026-10-19).
+        ⚠️ 유형은 여기 없다 — 그 축의 입구는 위의 건수 카드 하나뿐이다.
+      */}
       <FilterBar
         open={filterOpen}
         onOpenChange={setFilterOpen}
@@ -332,67 +393,65 @@ export function OrderReturnListPage({
           className="w-36"
           aria-label="판매자"
           options={SELLER_OPTIONS}
-          value={sellerValueOf(filters)}
-          onValueChange={(next) => patch(sellerPatchOf(next))}
+          value={filters.seller}
+          onValueChange={(value) => patch({ seller: value })}
         />
         <Select
           className="w-36"
           aria-label="상태"
           options={STATUS_OPTIONS}
           value={filters.status}
-          onValueChange={(next) => patch({ status: next })}
+          onValueChange={(value) => patch({ status: value })}
         />
+        {/* 검색 대상은 한 번에 하나만 훑는다 — 어디서 걸렸는지 결과만 보고 구별할 수 있게 */}
         <Select
           className="w-28"
           aria-label="검색 대상"
           options={SEARCH_FIELDS}
           value={filters.searchField}
-          onValueChange={(next) => patch({ searchField: next })}
+          onValueChange={(value) =>
+            patch({ searchField: value as OrderSearchField })
+          }
         />
         <Input
-          aria-label="검색어"
-          placeholder="검색어 입력"
+          placeholder={SEARCH_PLACEHOLDER}
           value={filters.keyword}
           onChange={(event) => patch({ keyword: event.target.value })}
           leftIcon={<Search size={16} strokeWidth={1.2} aria-hidden />}
         />
       </FilterBar>
 
-      {/* 목록 — 툴바에는 기획서가 정한 "목록 헤더"(총 N건 · 엑셀 다운로드)만 둔다 */}
       <DataTableShell
-        /* 가로 스크롤바를 고정 구간만큼 들여서 그린다 — 바의 범위 = 실제 스크롤 범위 */
+        /* 고정 구간을 비켜서 스크롤바를 그린다 — 바의 범위 = 실제 스크롤 범위 */
         scrollLeadWidth={FROZEN_LEAD_WIDTH}
+        /* 다른 목록 화면과 같은 층(§Card soft) */
+        variant="soft"
+        /*
+          ⚠️ `fill`(남는 높이만큼 표를 늘리기)을 쓰지 않는다 — 큰 화면에서 행 아래가
+          비고 가로 스크롤바가 그 빈칸 밑으로 밀려난다(사용자 보고 2026-10-19).
+          스크롤바는 마지막 행 바로 아래가 자리다(주문 목록과 같다).
+        */
+        bodyClassName={dimWhile(dataStatus)}
+        aria-busy={isBusy(dataStatus)}
         toolbarStart={
           <h2 className="heading-medium-bold text-text">
             목록 (총 {filtered.length}건)
           </h2>
         }
         toolbarEnd={
-          <Button
-            variant="secondary"
-            /*
-              표에 없는 열 셋(처리단위·결제금액·주문일시)이 파일에는 들어간다.
-              파일을 열어 봐야 아는 것보다 내려받는 순간 알리는 편이 낫다.
-            */
-            onClick={() =>
-              toast(
-                `${EXPORT_NAME}_${filtered.length}건.csv 를 내려받았습니다 (${EXPORT_EXTRA_COLUMNS.map(
-                  (column) => column.label,
-                ).join("·")} 포함)`,
-              )
-            }
-          >
+          <Button variant="secondary" onClick={exportCsv}>
             <ArrowDownToLine size={16} strokeWidth={1.2} aria-hidden />
             엑셀 다운로드
           </Button>
         }
-        isEmpty={filtered.length === 0}
+        isEmpty={dataStatus === "empty" || filtered.length === 0}
         empty={
           <EmptyState
             size="table"
+            sticky
             icon={<Search strokeWidth={1.2} aria-hidden />}
-            title="해당 조건의 항목이 없습니다"
-            description="조건을 변경하거나 필터를 초기화한 뒤 다시 조회해 주세요."
+            title={EMPTY_TITLE}
+            description={EMPTY_DESCRIPTION}
           >
             <Button variant="secondary" onClick={resetFilters}>
               필터 초기화
@@ -404,34 +463,40 @@ export function OrderReturnListPage({
             page={currentPage}
             totalPages={totalPages}
             onPageChange={setPage}
-            start={
-              <span className="body-small text-text-sub">
-                {currentPage} / {totalPages} 페이지
-              </span>
+            end={
+              <PaginationSizeSelect
+                sizes={PAGE_SIZES}
+                value={pageSize}
+                onSizeChange={(size) => {
+                  setPageSize(size);
+                  setPage(1);
+                }}
+              />
             }
           />
         }
       >
         <Table>
           {/*
-            `table-fixed` 라 폭 지정이 필수다. 24열이라 %가 아니라 px 로 준다 —
-            합계가 곧 표 폭이 되고, 그만큼 셸의 표 래퍼가 가로로 스크롤한다.
-            ⚠️ 앞 5개는 `FROZEN_TH` 의 left 오프셋과 **짝**이다. 함께 고칠 것.
+            table-fixed 라 폭 지정 필수. 26열이라 px(4px 그리드 유틸)로 준다.
+            ⚠️ 앞 7개는 `FROZEN_LEFT` 의 오프셋과 **짝**이다(합 760). 함께 고칠 것.
           */}
           <colgroup>
-            <col className="w-34" />
-            <col className="w-38" />
-            <col className="w-22" />
-            <col className="w-32" />
-            <col className="w-51" />
+            <col className="w-13" />
+            <col className="w-14" />
+            <col className="w-29" />
+            <col className="w-36" />
+            <col className="w-18" />
+            <col className="w-28" />
+            <col className="w-52" />
             <col className="w-27" />
             <col className="w-39" />
             <col className="w-27" />
             <col className="w-29" />
-            <col className="w-42" />
-            <col className="w-29" />
-            <col className="w-42" />
-            <col className="w-29" />
+            <col className="w-37" />
+            <col className="w-32" />
+            <col className="w-37" />
+            <col className="w-27" />
             <col className="w-54" />
             <col className="w-29" />
             <col className="w-29" />
@@ -446,18 +511,42 @@ export function OrderReturnListPage({
           </colgroup>
           <TableHead>
             <TableRow>
-              {/* 배지만 들어가는 열은 가운데 (§7-2) — th·td 를 반드시 함께 바꾼다 */}
-              <TableTh align="center" className={FROZEN_TH[0]}>
+              <TableTh className={frozenTh(0)}>
+                <Checkbox
+                  size="small"
+                  aria-label="이 페이지 전체 선택"
+                  checked={allPageSelected}
+                  indeterminate={somePageSelected}
+                  onChange={togglePage}
+                />
+              </TableTh>
+              <TableTh className={frozenTh(1)}>No</TableTh>
+              {/* 배지만 들어가는 열은 가운데 (§7-2) — th·td 를 함께 바꾼다 */}
+              <TableTh align="center" className={frozenTh(2)}>
                 상태
               </TableTh>
-              <TableTh className={FROZEN_TH[1]}>주문번호</TableTh>
-              <TableTh align="center" className={FROZEN_TH[2]}>
+              <TableTh className={frozenTh(3)}>주문번호</TableTh>
+              <TableTh align="center" className={frozenTh(4)}>
                 유형
               </TableTh>
-              <TableTh className={FROZEN_TH[3]}>판매자</TableTh>
-              <TableTh className={FROZEN_TH[4]}>이용 기간</TableTh>
+              <TableTh className={frozenTh(5)}>판매자</TableTh>
+              {/* 원본 표 머리에서 ↕ 가 붙은 것은 이용 기간·결제 일시 둘뿐이다 */}
+              <TableTh
+                className={frozenTh(6)}
+                sortable
+                sortDirection={directionOf("period")}
+                onSort={() => toggleSort("period")}
+              >
+                이용 기간
+              </TableTh>
               <TableTh>결제수단</TableTh>
-              <TableTh>결제 일시</TableTh>
+              <TableTh
+                sortable
+                sortDirection={directionOf("date")}
+                onSort={() => toggleSort("date")}
+              >
+                결제 일시
+              </TableTh>
               <TableTh>배송 방법</TableTh>
               <TableTh>택배사</TableTh>
               <TableTh>송장번호</TableTh>
@@ -465,7 +554,6 @@ export function OrderReturnListPage({
               <TableTh>수거 송장번호</TableTh>
               <TableTh>상품코드</TableTh>
               <TableTh>상품명</TableTh>
-              {/* 크기를 비교하는 수치는 우측 (§7-2) */}
               <TableTh>렌트 원가</TableTh>
               <TableTh>할인 금액</TableTh>
               <TableTh>렌트가</TableTh>
@@ -479,82 +567,99 @@ export function OrderReturnListPage({
             </TableRow>
           </TableHead>
           <TableBody>
-            {paged.map((item) => {
-              const statusMeta = STATUS_META[item.status];
-              const typeMeta = TYPE_META[item.type];
-              return (
-                <TableRow
-                  key={item.id}
-                  clickable
-                  onClick={() => setPreview(item)}
-                >
-                  <TableTd align="center" className={FROZEN_TD[0]}>
-                    <Tag tone={statusMeta.tone} dot>
-                      {statusMeta.label}
-                    </Tag>
-                  </TableTd>
-                  <TableTd className={FROZEN_TD[1]}>{item.id}</TableTd>
-                  <TableTd align="center" className={FROZEN_TD[2]}>
-                    <Tag tone={typeMeta.tone} size="small">
-                      {typeMeta.label}
-                    </Tag>
-                  </TableTd>
-                  {/* 원본 `b()` — 본사면 "본사", 아니면 셀러명. 열 하나로 끝낸다 */}
-                  <TableTd className={FROZEN_TD[3]}>
-                    {sellerLabel(item)}
-                  </TableTd>
-                  <TableTd className={FROZEN_TD[4]}>
-                    {dash(item.usagePeriod)}
-                  </TableTd>
-                  <TableTd>{item.payMethod}</TableTd>
-                  {/* 저장은 하이픈, 화면은 점 — 날것을 그대로 흘리지 않는다 */}
-                  <TableTd>{ymdhm(item.date)}</TableTd>
-                  <TableTd>{item.shipMethod}</TableTd>
-                  <TableTd>{dash(item.carrier)}</TableTd>
-                  <TableTd>{dash(item.trackingNo)}</TableTd>
-                  <TableTd>{dash(item.pickupCarrier)}</TableTd>
-                  <TableTd>{dash(item.pickupTrackingNo)}</TableTd>
-                  <TableTd>{item.productCode}</TableTd>
-                  <TableTd ellipsis>{item.productName}</TableTd>
-                  <TableTd>{money(item.rentBasePrice)}</TableTd>
-                  <TableTd>{won(item.discount)}</TableTd>
-                  {/* 렌트가는 저장값이 아니라 원가−할인 파생값이다 */}
-                  <TableTd>{money(rentPriceOf(item))}</TableTd>
-                  <TableTd>{item.buyerName}</TableTd>
-                  <TableTd ellipsis>{item.buyerId}</TableTd>
-                  <TableTd>{item.buyerPhone}</TableTd>
-                  <TableTd>{item.receiver}</TableTd>
-                  <TableTd>{item.receiverPhone}</TableTd>
-                  <TableTd ellipsis>{item.address}</TableTd>
-                  <TableTd ellipsis>{dash(item.shipMemo)}</TableTd>
-                </TableRow>
-              );
-            })}
+            {/* 로딩은 본문 행만 스켈레톤으로 — 정렬 머리·고정 열을 두 벌로 관리하지 않는다 */}
+            {dataStatus === "loading"
+              ? Array.from({ length: pageSize }, (_, row) => (
+                  <TableRow key={`skeleton-${row}`}>
+                    {Array.from({ length: COLUMN_COUNT }, (_, cell) => (
+                      <TableTd key={cell} className={frozenTd(cell)}>
+                        <span className="body-small block">
+                          <Skeleton />
+                        </span>
+                      </TableTd>
+                    ))}
+                  </TableRow>
+                ))
+              : paged.map((order, index) => {
+                  const statusMeta = STATUS_META[order.status];
+                  const typeMeta = TYPE_META[order.type];
+                  const isRent = order.type === "rent";
+                  return (
+                    <TableRow
+                      key={order.id}
+                      clickable
+                      onClick={() =>
+                        onNavSelect(`${RETURN_DETAIL_PATH}/${order.id}`)
+                      }
+                    >
+                      <TableTd className={frozenTd(0)}>
+                        {/* 같은 주문번호에 처리단위가 여럿일 수 있어 상품명까지 이름에 넣는다 */}
+                        <Checkbox
+                          size="small"
+                          aria-label={`${order.orderNo} ${order.productName} 선택`}
+                          checked={selected.includes(order.id)}
+                          onChange={() => toggleRow(order.id)}
+                        />
+                      </TableTd>
+                      {/* 조회 결과의 역순 순번 — 필터·정렬을 바꾸면 다시 센다 */}
+                      <TableTd className={cn("tabular-nums", frozenTd(1))}>
+                        {filtered.length - (start + index)}
+                      </TableTd>
+                      <TableTd align="center" className={frozenTd(2)}>
+                        <Tag tone={statusMeta.tone} dot size="small">
+                          {statusMeta.label}
+                        </Tag>
+                      </TableTd>
+                      {/* 원본: 주문번호를 누르면 처리단위별 반품 상세로 간다 */}
+                      <TableTd className={frozenTd(3)}>
+                        <TextButton
+                          onClick={() =>
+                            onNavSelect(`${RETURN_DETAIL_PATH}/${order.id}`)
+                          }
+                        >
+                          {order.orderNo}
+                        </TextButton>
+                      </TableTd>
+                      <TableTd align="center" className={frozenTd(4)}>
+                        <Tag tone={typeMeta.tone} size="small">
+                          {typeMeta.label}
+                        </Tag>
+                      </TableTd>
+                      <TableTd className={frozenTd(5)}>
+                        {sellerLabel(order)}
+                      </TableTd>
+                      <TableTd className={frozenTd(6)}>
+                        {isRent ? periodText(order.period) : DASH}
+                      </TableTd>
+                      <TableTd>{order.payMethod}</TableTd>
+                      <TableTd>{ymdhm(order.date)}</TableTd>
+                      <TableTd>{order.shipMethod}</TableTd>
+                      <TableTd>{dash(order.carrier)}</TableTd>
+                      <TableTd>{dash(order.trackingNo)}</TableTd>
+                      <TableTd>{dash(order.pickupCarrier)}</TableTd>
+                      <TableTd>{dash(order.pickupTrackingNo)}</TableTd>
+                      <TableTd>{order.productCode}</TableTd>
+                      <TableTd ellipsis>{order.productName}</TableTd>
+                      {/* 판매 건은 렌트 금액 세 열이 **모두** 비어 있다(원본 `hasRent`) */}
+                      {/* 렌트 금액은 **원/일 단가**다(원본) — 렌트일을 곱한 총액은 상세의 주문 명세가 보인다 */}
+                      <TableTd>{money(order.rentBasePrice)}</TableTd>
+                      <TableTd>{money(order.rentDiscount)}</TableTd>
+                      <TableTd>
+                        {isRent ? perDay(rentPriceOf(order) ?? 0) : DASH}
+                      </TableTd>
+                      <TableTd>{order.buyerName}</TableTd>
+                      <TableTd ellipsis>{order.buyerId}</TableTd>
+                      <TableTd>{order.buyerPhone}</TableTd>
+                      <TableTd>{order.receiver}</TableTd>
+                      <TableTd>{order.receiverPhone}</TableTd>
+                      <TableTd ellipsis>{order.address}</TableTd>
+                      <TableTd ellipsis>{dash(order.shipMemo)}</TableTd>
+                    </TableRow>
+                  );
+                })}
           </TableBody>
         </Table>
       </DataTableShell>
-
-      {/*
-        반품 미리보기 — 4항목짜리 빠른 확인용이다.
-        제목을 "반품 상세"로 두지 않는다. 24열짜리 표의 전체 정보는 모달에 들어가지 않는다.
-        ⚠️ 푸터(도메인 액션)를 두지 않는다 — 원본 반품 목록에는 행 액션이 없다.
-      */}
-      <Modal open={preview !== null} onClose={() => setPreview(null)}>
-        <ModalHeader title="반품 미리보기" description={preview?.id} />
-        <ModalBody>
-          <InfoList>
-            <InfoItem label="상품">{preview?.productName}</InfoItem>
-            <InfoItem label="구매자">{preview?.buyerName}</InfoItem>
-            <InfoItem label="결제금액">
-              {preview ? won(preview.payAmount) : ""}
-            </InfoItem>
-            {/* 라벨이 4글자라 기본 폭 80 에 들어간다 — `labelWidth` 를 주지 않는다 */}
-            <InfoItem label="결제 일시">
-              {preview ? ymdhm(preview.date) : ""}
-            </InfoItem>
-          </InfoList>
-        </ModalBody>
-      </Modal>
     </AppShell>
   );
 }

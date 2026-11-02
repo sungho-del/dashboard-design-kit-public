@@ -37,12 +37,10 @@ export type OrderType = "rent" | "sale";
 export type SellerKind = "hq" | "seller";
 
 /**
- * 처리단위의 진행 상태.
- * 앞 12개는 원본 `FLOW_STEPS` 의 판매(5)·렌트(11) 흐름이다(앞 4단계 공유).
- * 뒤 4개는 **목록에 보이기만 하는** 상태다 — 원본도 클레임 진행 건과 배송 지연을 주문
- * 목록에 섞어 보여 주지만 상태 선택지에는 없어 골라 볼 수 없다(기획 확인 사항).
+ * 정상 흐름의 단계 — 원본 `FLOW_STEPS` 의 판매(5)·렌트(11) 흐름(앞 4단계 공유)과 배송 지연.
+ * 클레임이 없었다면 있었을 단계(`baseStatus`)는 늘 이 중 하나다.
  */
-export type OrderStatus =
+export type FlowStatus =
   | "new"
   | "ready"
   | "shipping"
@@ -55,23 +53,83 @@ export type OrderStatus =
   | "inspected"
   | "returned"
   | "confirmed"
-  | "delayed"
-  | "cancelRequested"
+  | "delayed";
+
+/** 클레임 종류 — 취소·반품·교환 목록이 각자 이 값으로 모집단을 거른다 */
+export type ClaimType = "cancel" | "return" | "exchange";
+
+/**
+ * 클레임 진행 상태 — 원본 `FLOW_STEPS['취소'|'반품'|'교환']`.
+ * ⚠️ **키는 유형마다 따로**다. 「환불 처리중」(취소·반품)과 「재반송」(반품·교환)은 글자가 같지만
+ * 다른 흐름의 단계라, 키 하나로 합치면 어느 클레임의 단계인지 잃는다.
+ */
+export type CancelStatus = "cancelRequested" | "cancelRefunding" | "canceled";
+export type ReturnStatus =
+  | "returnRequested"
+  | "returnApproved"
+  | "returnRejected"
   | "returnPicking"
-  | "exchangeRequested";
+  | "returnPicked"
+  | "returnInspecting"
+  | "returnRefunding"
+  | "returnDone"
+  | "returnRefused"
+  | "returnResend";
+export type ExchangeStatus =
+  | "exchangeRequested"
+  | "exchangeApproved"
+  | "exchangeRejected"
+  | "exchangePicking"
+  | "exchangePicked"
+  | "exchangeInspecting"
+  | "exchangeReshipping"
+  | "exchangeDone"
+  | "exchangeRefused"
+  | "exchangeResend";
+export type ClaimStatus = CancelStatus | ReturnStatus | ExchangeStatus;
+
+/**
+ * 처리단위의 진행 상태 = 정상 흐름 + 클레임.
+ * 클레임 건은 주문 목록에도 **클레임 상태로** 보인다(원본 `flowStat`) — 상태 선택지에는 없어
+ * 주문 목록에서 골라 볼 수는 없다(원본 그대로 · 기획 확인 사항). 고르는 곳은 각 클레임 목록이다.
+ */
+export type OrderStatus = FlowStatus | ClaimStatus;
+
+/** 귀책 — 판매자(하자·배송 문제) / 고객(단순 변심 등). 원본 정책 문구 그대로 */
+export type ClaimFault = "seller" | "customer";
+
+export interface ClaimEvent {
+  status: ClaimStatus;
+  /** `YYYY-MM-DD HH:mm` — **예시** 시각. 시간순이고 시연 기준일을 넘지 않는다 */
+  at: string;
+}
+
+export interface Claim {
+  type: ClaimType;
+  /** 지금 단계 = `events` 의 마지막 */
+  status: ClaimStatus;
+  /** 신청 사유(고객이 고른 문구) */
+  reason: string;
+  /** 귀책 — 사유에서 **한 번만** 정한다(`faultOf`). 배지·배송비 부담·명세가 모두 이 값을 본다 */
+  fault: ClaimFault;
+  /** 실제로 거친 단계만, 시간순 — 처리 이력이 이것을 그대로 쌓는다 */
+  events: ClaimEvent[];
+}
 
 export interface Order {
   /** 처리단위 코드 — **고유 키**. 행 key·선택·엑셀 선택분·상세 경로(`/orders-all/{id}`) */
   id: string;
   /** 주문번호 14자리. 한 결제에 처리단위가 여럿이면 **같은 번호를 공유한다** */
   orderNo: string;
+  /** 목록 배지 — 클레임 건은 `claim.status`, 나머지는 `baseStatus` 와 같다(따로 적지 않고 만든다) */
   status: OrderStatus;
   /**
-   * 클레임·지연이 없었다면 있었을 **진행 단계** — 처리 이력이 여기까지 쌓인다.
-   * 클레임 건(취소 요청·반품 수거중·교환 신청)은 샘플이 원래 단계를 직접 적는다(추측하지 않는다).
-   * 나머지는 `status` 와 같다
+   * 클레임이 없었다면 있었을 **진행 단계** — 처리 이력의 정상 흐름이 여기까지 쌓이고,
+   * 원래 배송 송장도 이 값으로 정한다. 클레임 건은 샘플이 원래 단계를 직접 적는다(추측하지 않는다)
    */
-  baseStatus: OrderStatus;
+  baseStatus: FlowStatus;
+  /** 취소·반품·교환 — 없으면 `null` */
+  claim: Claim | null;
   type: OrderType;
   sellerKind: SellerKind;
   /** 셀러명 — 본사 건은 `"본사"`. 판매자 열·셀러 필터·검색이 이 값을 본다 */
@@ -84,7 +142,7 @@ export interface Order {
   shipMethod: string;
   carrier: string;
   trackingNo: string;
-  /** 수거 택배사 — 렌트의 반납 회수에만 채워진다 */
+  /** 수거 택배사 — 렌트의 반납 회수, 그리고 반품·교환 수거(렌트·판매 모두)에 채워진다 */
   pickupCarrier: string;
   pickupTrackingNo: string;
   productCode: string;
@@ -104,6 +162,9 @@ export interface Order {
   qty: number;
   /** 배송비 — 상품의 배송비(0 이면 무료) */
   shipFee: number;
+  /** 반품 배송비(편도) · 교환 배송비(왕복) — 상품의 값. **0 은 무료**다(값 없음이 아니다) */
+  returnFee: number;
+  exchangeFee: number;
   buyerName: string;
   /** 구매자 ID — 회원 샘플의 아이디(이메일) */
   buyerId: string;
@@ -132,13 +193,15 @@ export const sellerLabel = (order: Order): string =>
  *
  * | tone       | 뜻                                   | 여기서 |
  * | ---------- | ------------------------------------ | ------ |
- * | `warning`  | **지금 사람이 무언가를 해야 끝난다** | 신규 주문 · 수거 신청 · 검수중 · 검수완료 · 취소 요청 · 교환 신청 |
- * | `critical` | 비정상 — 즉시 조치                   | 연체중 · 배송 지연 |
- * | `success`  | 진행 중이고 정상 (돈이 도는 상태)    | 대여중 · 대여중(연장) |
- * | `default`  | 정상 종료 + 조용한 중간 단계         | 배송 3종 · 반납완료 · 구매확정 · 반품 수거중 |
+ * | `warning`  | **지금 사람이 무언가를 해야 끝난다** | 신규 주문 · 수거 신청 · 검수중 · 검수완료 · 클레임 신청 · 수거완료 · 검수 |
+ * | `critical` | 비정상 — 즉시 조치 또는 비정상 종결  | 연체중 · 배송 지연 · 반려 · 거부 · 재반송 |
+ * | `success`  | 진행 중이고 정상 (돈이 도는 상태)    | 대여중 · 대여중(연장) · 환불 처리중 |
+ * | `default`  | 정상 종료 + 조용한 중간 단계         | 배송 3종 · 반납완료 · 구매확정 · 승인 · 수거중 · 재배송 · 완료 |
  *
  * ⚠️ 검수완료가 `warning` 인 이유 — 이름은 "완료"지만 보증금 처리가 남아 흐름의 끝이 아니다.
- * 클레임 상태의 tone 은 취소·반품·교환 목록과 같다(같은 글자가 화면마다 다른 색이면 안 된다).
+ * ⚠️ 재반송은 `critical` 이다 — 원본이 반려·거부와 같은 예외색으로 두고 **종결 상태**로 못 박았다
+ * (더 진행할 단계가 없다). 한때 「할 일이 남음」(`warning`)으로 칠했는데 뜻이 틀렸다.
+ * 클레임 목록 셋도 이 표를 그대로 쓴다(같은 글자가 화면마다 다른 색이면 안 된다).
  */
 export const STATUS_META: Record<
   OrderStatus,
@@ -158,8 +221,144 @@ export const STATUS_META: Record<
   confirmed: { label: "구매확정", tone: "default" },
   delayed: { label: "배송 지연", tone: "critical" },
   cancelRequested: { label: "취소 요청", tone: "warning" },
+  cancelRefunding: { label: "환불 처리중", tone: "success" },
+  canceled: { label: "취소 완료", tone: "default" },
+  returnRequested: { label: "반품 신청", tone: "warning" },
+  returnApproved: { label: "반품 승인", tone: "default" },
+  returnRejected: { label: "반품 반려", tone: "critical" },
   returnPicking: { label: "반품 수거중", tone: "default" },
+  returnPicked: { label: "반품 수거완료", tone: "warning" },
+  returnInspecting: { label: "반품 검수", tone: "warning" },
+  returnRefunding: { label: "환불 처리중", tone: "success" },
+  returnDone: { label: "반품 완료", tone: "default" },
+  returnRefused: { label: "반품 거부", tone: "critical" },
+  returnResend: { label: "재반송", tone: "critical" },
   exchangeRequested: { label: "교환 신청", tone: "warning" },
+  exchangeApproved: { label: "교환 승인", tone: "default" },
+  exchangeRejected: { label: "교환 반려", tone: "critical" },
+  exchangePicking: { label: "교환 수거중", tone: "default" },
+  exchangePicked: { label: "교환 수거완료", tone: "warning" },
+  exchangeInspecting: { label: "교환 검수", tone: "warning" },
+  exchangeReshipping: { label: "교환 재배송", tone: "default" },
+  exchangeDone: { label: "교환 완료", tone: "default" },
+  exchangeRefused: { label: "교환 거부", tone: "critical" },
+  exchangeResend: { label: "재반송", tone: "critical" },
+};
+
+/** 클레임 종류 이름 — 상세의 「신청 구분」 배지·제목에 쓴다 */
+export const CLAIM_TYPE_LABEL: Record<ClaimType, string> = {
+  cancel: "취소",
+  return: "반품",
+  exchange: "교환",
+};
+
+/**
+ * 클레임 목록의 상태 선택지 순서 — 원본 `FLOW_STEPS['취소'|'반품'|'교환']` 그대로.
+ * 취소 3 · 반품 10 · 교환 10. 유형(렌트·판매)과 무관하게 하나다.
+ */
+export const CLAIM_FLOW: Record<ClaimType, ClaimStatus[]> = {
+  cancel: ["cancelRequested", "cancelRefunding", "canceled"],
+  return: [
+    "returnRequested",
+    "returnApproved",
+    "returnRejected",
+    "returnPicking",
+    "returnPicked",
+    "returnInspecting",
+    "returnRefunding",
+    "returnDone",
+    "returnRefused",
+    "returnResend",
+  ],
+  exchange: [
+    "exchangeRequested",
+    "exchangeApproved",
+    "exchangeRejected",
+    "exchangePicking",
+    "exchangePicked",
+    "exchangeInspecting",
+    "exchangeReshipping",
+    "exchangeDone",
+    "exchangeRefused",
+    "exchangeResend",
+  ],
+};
+
+/** 클레임 상태 → 종류 (`CLAIM_FLOW` 를 뒤집어 만든다 — 손으로 적으면 한쪽만 고친다) */
+export const claimTypeOf = (status: ClaimStatus): ClaimType =>
+  (Object.keys(CLAIM_FLOW) as ClaimType[]).find((type) =>
+    CLAIM_FLOW[type].includes(status),
+  )!;
+
+/**
+ * 클레임이 **실제로 거친 단계** — 지금 단계에서 거꾸로 정한다. 추측이 아니라 흐름의 정의다.
+ *   · 정상: 신청 → 승인 → 수거중 → 수거완료 → 검수 → (환불 처리중 | 재배송) → 완료 — 지금 단계까지
+ *   · 반려: 신청 → 반려 — **수거 전** 거절이라 승인·수거가 없다
+ *   · 거부: 정상 흐름의 검수까지 → 거부 — **검수 뒤** 거절이다
+ *   · 재반송: 거부 흐름 → 재반송 — 돌려보낼 물건이 우리 손에 있어야 하므로 반려 뒤에는 오지 않는다
+ * ⚠️ 원본은 예외 종결을 모두 「반려」 한 줄로 찍고(거부·재반송 건도), 지연을 모든 건에 끼웠다.
+ */
+const CLAIM_MAIN: Record<ClaimType, ClaimStatus[]> = {
+  cancel: ["cancelRequested", "cancelRefunding", "canceled"],
+  return: [
+    "returnRequested",
+    "returnApproved",
+    "returnPicking",
+    "returnPicked",
+    "returnInspecting",
+    "returnRefunding",
+    "returnDone",
+  ],
+  exchange: [
+    "exchangeRequested",
+    "exchangeApproved",
+    "exchangePicking",
+    "exchangePicked",
+    "exchangeInspecting",
+    "exchangeReshipping",
+    "exchangeDone",
+  ],
+};
+
+const claimPathOf = (status: ClaimStatus): ClaimStatus[] => {
+  const type = claimTypeOf(status);
+  const main = CLAIM_MAIN[type];
+  const upTo = (step: ClaimStatus) => main.slice(0, main.indexOf(step) + 1);
+  const ret = type === "return";
+  switch (status) {
+    case "returnRejected":
+    case "exchangeRejected":
+      return [main[0], status];
+    case "returnRefused":
+    case "exchangeRefused":
+      return [...upTo(ret ? "returnInspecting" : "exchangeInspecting"), status];
+    case "returnResend":
+    case "exchangeResend":
+      return [
+        ...upTo(ret ? "returnInspecting" : "exchangeInspecting"),
+        ret ? "returnRefused" : "exchangeRefused",
+        status,
+      ];
+    default:
+      return upTo(status);
+  }
+};
+
+/** 수거가 시작된 클레임인가 — 수거 택배사·송장이 붙는다(렌트·판매 모두) */
+const PICKUP_STARTED: ClaimStatus[] = ["returnPicking", "exchangePicking"];
+
+/**
+ * 귀책 판정 — 원본 `faultOf` 의 사유 낱말(하자·배송 문제 → 판매자, 그 밖 → 고객).
+ * ⚠️ 실제 귀책 판단 엔진이 아니다 — **샘플을 만들 때 한 번** 정해 `claim.fault` 에 넣는다.
+ */
+const SELLER_FAULT =
+  /불량|하자|파손|손상|오배송|오발송|누락|결함|배송 (문제|지연|오류)/;
+const faultOf = (reason: string): ClaimFault =>
+  SELLER_FAULT.test(reason) ? "seller" : "customer";
+
+export const FAULT_LABEL: Record<ClaimFault, string> = {
+  seller: "판매자 귀책",
+  customer: "고객 귀책",
 };
 
 /**
@@ -172,13 +371,18 @@ export const TYPE_META: Record<OrderType, { label: string; tone: TagTone }> = {
 };
 
 /* =========================================================================
- * 샘플 — `처리단위|결제 일시(초)|상품코드|구매자 ID|상태|배송 방법|렌트일|배송 메모|수령인/연락처|원래 단계|수량`
+ * 샘플 — `처리단위|결제 일시(초)|상품코드|구매자 ID|단계|배송 방법|렌트일|배송 메모|수령인/연락처|수량`
  *
  * 주문번호는 결제 일시의 숫자 14자리다 — **결제 일시가 같은 행은 같은 주문**이다
  * (U-R03·U-S03 = 렌트+판매 한 결제, U-R09·U-R22 = 렌트 두 건 한 결제).
- * 이용 기간은 결제 4일 뒤 시작한다. 상태는 오늘(2026-10-19) 기준으로 기간과 맞춰 두었다
+ * 이용 기간은 결제 4일 뒤 시작한다. 단계는 **시연 기준일(2026-10-19)** 기준으로 기간과 맞춰 두었다
  * (대여중은 기간 안, 연체중·검수·반납은 기간이 끝난 뒤).
+ * 「단계」는 정상 흐름의 단계(`baseStatus`)다 — 클레임 건은 아래 `CLAIM_SEEDS` 가 상태를 덮는다.
  * ====================================================================== */
+
+/** 시연 기준일 — 샘플의 모든 사건 시각이 이 날을 넘지 않는다(오늘 날짜가 아니다) */
+export const DEMO_TODAY = "2026-10-19";
+
 const SEED_ROWS = [
   /* ── 렌트 22 ── */
   "U-R01|2026-10-18 14:32:05|BL240814|sujin.park@example.com|new|택배|14|부재 시 경비실에 맡겨주세요|",
@@ -200,9 +404,15 @@ const SEED_ROWS = [
   "U-R17|2026-09-22 17:33:49|LS672384|siwoo.jang@example.com|inspected|택배|14||",
   "U-R18|2026-09-18 11:20:08|BL377415|doyoon.baek@example.com|returned|택배|14||",
   "U-R19|2026-09-15 08:47:55|LB846102|harin.noh@example.com|returned|방문 수령|21||",
-  "U-R20|2026-10-17 22:10:14|MC447210|junseo.ma@example.com|cancelRequested|택배|14|||ready",
-  "U-R21|2026-10-06 13:05:27|AS730125|sujin.park@example.com|returnPicking|택배|14|||renting",
+  "U-R20|2026-10-17 22:10:14|MC447210|junseo.ma@example.com|ready|택배|14||",
+  "U-R21|2026-10-06 13:05:27|AS730125|sujin.park@example.com|renting|택배|14||",
   "U-R22|2026-10-12 13:17:44|MC447210|chaewon.lim@example.com|renting|택배|30||",
+  /* ── 렌트 클레임 (취소 2 · 반품 3) — 렌트 교환은 없다(원본: 교환은 판매 전용) ── */
+  "U-R23|2026-10-16 10:12:30|LS240809|haneul.lee@example.com|ready|택배|14||",
+  "U-R24|2026-10-13 15:05:41|KB119374|minseo.jung@example.com|new|방문 수령|7||",
+  "U-R25|2026-10-09 11:02:16|BL377415|soyul.jeon@example.com|renting|택배|30||",
+  "U-R26|2026-10-05 09:40:51|LB846102|eunchan.ko@example.com|renting|택배|30||",
+  "U-R27|2026-09-28 16:22:09|LS184620|minjae.koo@example.com|renting|택배|21||",
   /* ── 판매 12 ── */
   "U-S01|2026-10-18 16:20:44|BL240811|yerin.song@example.com|new|택배|||",
   "U-S02|2026-10-18 10:02:19|LS240724|taeho.ryu@example.com|new|택배|||",
@@ -210,16 +420,104 @@ const SEED_ROWS = [
   "U-S04|2026-10-15 13:36:58|BH612093|serin.oh@example.com|delayed|택배|||",
   "U-S05|2026-10-16 09:45:03|AR271948|jiho.moon@example.com|shipping|택배|||",
   "U-S06|2026-10-15 17:58:26|AS902715|haeun.bae@example.com|shipping|택배|경비실 옆 무인택배함||",
-  "U-S07|2026-10-13 11:24:37|GJ650283|chaewon.lim@example.com|delivered|택배|||||2",
+  "U-S07|2026-10-13 11:24:37|GJ650283|chaewon.lim@example.com|delivered|택배||||2",
   "U-S08|2026-10-12 19:02:15|BL240811|bora.hwang@example.com|delivered|방문 수령|||",
   "U-S09|2026-10-05 14:48:09|LS240724|jisung.ahn@example.com|confirmed|택배|||",
   "U-S10|2026-09-25 10:30:52|HQ240806|dain.hong@example.com|confirmed|택배|||",
-  "U-S11|2026-10-17 08:14:33|AS902715|yoon.namgung@example.com|cancelRequested|택배||||ready",
-  "U-S12|2026-10-11 21:37:46|BH612093|hajun.seo@example.com|exchangeRequested|택배||||delivered",
+  "U-S11|2026-10-17 08:14:33|AS902715|yoon.namgung@example.com|ready|택배|||",
+  "U-S12|2026-10-11 21:37:46|BH612093|hajun.seo@example.com|delivered|택배|||",
+  /* ── 판매 클레임 (취소 2 · 반품 6 · 교환 9) — 취소 U-S13 · 반품 U-S15 · 교환 U-S24 는 본사 상품 ── */
+  "U-S13|2026-10-16 12:44:18|HQ240806|jiwoo.han@example.com|ready|택배|||",
+  "U-S14|2026-10-09 20:31:07|KB781520|woojin.shin@example.com|new|택배|||",
+  "U-S15|2026-10-10 18:22:37|HQ240806|eunwoo.cho@example.com|delivered|택배|||",
+  "U-S16|2026-10-08 13:15:20|LS240724|seoa.yoon@example.com|delivered|택배|||",
+  "U-S17|2026-10-06 20:48:33|GJ994106|yejun.cha@example.com|delivered|택배|||",
+  "U-S18|2026-10-04 10:05:12|AR408861|minjae.koo@example.com|delivered|택배|||",
+  "U-S19|2026-10-02 15:30:44|MC209836|dohyun.kim@example.com|delivered|택배|||",
+  "U-S20|2026-09-29 11:11:11|BH295740|gaeun.yoo@example.com|delivered|택배|||",
+  "U-S21|2026-10-12 09:20:05|KB820417|jiwoo.han@example.com|delivered|택배|||",
+  "U-S22|2026-10-08 17:44:51|AR271948|haneul.lee@example.com|delivered|택배|||",
+  "U-S23|2026-10-09 08:31:26|GJ650283|minseo.jung@example.com|delivered|택배|||",
+  "U-S24|2026-10-05 14:02:47|HQ240806|eunchan.ko@example.com|delivered|택배|||",
+  "U-S25|2026-10-03 19:25:08|AS902715|soyul.jeon@example.com|delivered|택배|||",
+  "U-S26|2026-10-01 10:40:15|BL240811|woojin.shin@example.com|delivered|택배|||",
+  "U-S27|2026-09-24 16:08:39|LS240724|eunwoo.cho@example.com|delivered|택배|||",
+  "U-S28|2026-09-27 12:12:12|KB781520|seoa.yoon@example.com|delivered|택배|||",
+  "U-S29|2026-09-21 18:30:30|BH612093|yejun.cha@example.com|delivered|택배|||",
 ];
 
-/** 상품을 받아 보낸 뒤의 상태 — 송장이 붙는다 */
-const SHIPPED: OrderStatus[] = [
+/**
+ * 클레임 — `처리단위 → [지금 단계, 신청 일시, 신청 사유]`.
+ * 거친 단계는 `claimPathOf` 가 지금 단계에서 정하고, 시각은 신청부터 **25시간 간격**의 예시다.
+ *
+ * - 취소: 모두 **출고 전**이다(송장 없음) — 원본 정책 「발송 후 취소 불가, 반품으로 전환」.
+ *   렌트 취소는 **무료 취소 사례만** 둔다(사용자 결정 2026-11-02 — 위약금 20/30%·출고 후 배송비
+ *   차감은 원본 FAQ 에만 있고 화면이 계산하지 않는다. 기획 확인 사항)
+ * - 반품·교환: 수령 뒤에만 생긴다(원래 단계 = 배송 완료 · 대여중). 교환은 **판매 전용**
+ * - 상태마다 최소 한 건 — 클레임 목록의 상태 선택지가 0건으로 끝나지 않게(원본 결함: 환불 처리중 0건)
+ */
+const CLAIM_SEEDS: Record<string, [ClaimStatus, string, string]> = {
+  /* 취소 6 — 렌트·판매 × 3단계 */
+  "U-R20": ["cancelRequested", "2026-10-18 09:20", "배송 전 단순변심"],
+  "U-R23": ["cancelRefunding", "2026-10-16 18:40", "이용 일정 변경"],
+  "U-R24": ["canceled", "2026-10-13 19:10", "주문 실수"],
+  "U-S11": ["cancelRequested", "2026-10-17 21:30", "옵션 잘못 선택"],
+  "U-S13": ["cancelRefunding", "2026-10-16 16:05", "배송 전 단순변심"],
+  "U-S14": ["canceled", "2026-10-10 08:15", "중복 주문"],
+  /* 반품 10 — 10단계 각 한 건 (렌트 4 · 판매 6) */
+  "U-R25": ["returnRequested", "2026-10-18 15:20", "사이즈 안맞음"],
+  "U-S15": ["returnApproved", "2026-10-14 09:30", "단순변심 (청약철회)"],
+  "U-S16": ["returnRejected", "2026-10-16 10:00", "단순변심 (수령 7일 경과)"],
+  "U-R21": [
+    "returnPicking",
+    "2026-10-15 10:30",
+    "제품 불량 (등받이 고정 불량)",
+  ],
+  "U-R26": [
+    "returnPicked",
+    "2026-10-14 11:00",
+    "아이가 사용을 거부해 조기 반납",
+  ],
+  "U-S17": ["returnInspecting", "2026-10-11 10:00", "파손 배송 (프레임 휨)"],
+  "U-S18": ["returnRefunding", "2026-10-08 09:00", "사이즈 안맞음"],
+  "U-R27": ["returnDone", "2026-10-08 09:00", "제품 불량 (회전 잠금 고장)"],
+  "U-S19": [
+    "returnRefused",
+    "2026-10-07 10:00",
+    "단순변심 (검수 결과 사용 흔적)",
+  ],
+  "U-S20": [
+    "returnResend",
+    "2026-10-04 10:00",
+    "단순변심 (검수 결과 구성품 훼손)",
+  ],
+  /* 교환 10 — 판매만, 10단계 각 한 건 */
+  "U-S12": [
+    "exchangeRequested",
+    "2026-10-15 10:00",
+    "사이즈 교환 (대형 → 중형)",
+  ],
+  "U-S21": ["exchangeApproved", "2026-10-16 10:00", "제품 불량 (램프 미점등)"],
+  "U-S22": [
+    "exchangeRejected",
+    "2026-10-13 11:00",
+    "단순변심 (교환 불가 상품)",
+  ],
+  "U-S23": ["exchangePicking", "2026-10-14 10:00", "오배송 (주문과 다른 색상)"],
+  "U-S24": ["exchangePicked", "2026-10-10 10:00", "제품 불량 (지퍼 파손)"],
+  "U-S25": ["exchangeInspecting", "2026-10-08 10:00", "옵션 변경 요청 (색상)"],
+  "U-S26": ["exchangeReshipping", "2026-10-06 09:00", "제품 불량 (전원 불량)"],
+  "U-S27": ["exchangeDone", "2026-09-29 09:00", "사이즈 교환"],
+  "U-S28": [
+    "exchangeRefused",
+    "2026-10-02 10:00",
+    "단순변심 (검수 결과 사용 흔적)",
+  ],
+  "U-S29": ["exchangeResend", "2026-09-26 10:00", "단순변심 (검수 결과 오염)"],
+};
+
+/** 상품을 받아 보낸 뒤의 단계 — 원래 배송 송장이 붙는다(클레임 건도 원래 단계로 본다) */
+const SHIPPED: FlowStatus[] = [
   "shipping",
   "delivered",
   "renting",
@@ -230,17 +528,35 @@ const SHIPPED: OrderStatus[] = [
   "inspected",
   "returned",
   "confirmed",
-  "returnPicking",
-  "exchangeRequested",
 ];
 
-/** 회수가 시작된 렌트 상태 — 수거 송장이 붙는다 */
-const PICKED_UP: OrderStatus[] = [
-  "inspecting",
-  "inspected",
-  "returned",
-  "returnPicking",
-];
+/** 회수가 시작된 렌트 단계 — 수거 송장이 붙는다 */
+const PICKED_UP: FlowStatus[] = ["inspecting", "inspected", "returned"];
+
+/** `YYYY-MM-DD HH:mm` 에 시간을 더한다 */
+const plusHoursText = (at: string, hours: number) => {
+  const time = new Date(at.replace(" ", "T"));
+  time.setHours(time.getHours() + hours);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${time.getFullYear()}-${pad(time.getMonth() + 1)}-${pad(time.getDate())} ${pad(time.getHours())}:${pad(time.getMinutes())}`;
+};
+
+/** 클레임 한 건 — 지금 단계에서 거친 단계를 정하고, 신청부터 25시간 간격으로 시각을 붙인다 */
+const claimOf = (id: string): Claim | null => {
+  const seed = CLAIM_SEEDS[id];
+  if (!seed) return null;
+  const [status, requestedAt, reason] = seed;
+  return {
+    type: claimTypeOf(status),
+    status,
+    reason,
+    fault: faultOf(reason),
+    events: claimPathOf(status).map((step, index) => ({
+      status: step,
+      at: plusHoursText(requestedAt, index * 25),
+    })),
+  };
+};
 
 const PAY_METHODS = ["신용카드", "카드(국민)", "체크카드", "카드(신한)"];
 
@@ -267,7 +583,6 @@ const toOrder = (row: string, index: number): Order => {
     days,
     memo,
     to,
-    base,
     qty,
   ] = row.split("|");
   const product = PRODUCTS.find((item) => item.id === productId);
@@ -291,15 +606,23 @@ const toOrder = (row: string, index: number): Order => {
   ordered.setMinutes(ordered.getMinutes() - (3 + (seed % 5)));
   const orderedAt = `${paidAt.slice(0, 10)} ${String(ordered.getHours()).padStart(2, "0")}:${String(ordered.getMinutes()).padStart(2, "0")}`;
 
-  const shipped = parcel && SHIPPED.includes(status as OrderStatus);
+  const baseStatus = status as FlowStatus;
+  const claim = claimOf(id);
+  /* 원래 배송 송장은 **원래 단계**로 정한다 — 클레임 상태로 정하면 반품 건의 송장이 사라진다 */
+  const shipped = parcel && SHIPPED.includes(baseStatus);
+  /* 수거: 렌트의 반납 회수 + 반품·교환 수거(렌트·판매 모두) */
   const pickedUp =
-    parcel && isRent && PICKED_UP.includes(status as OrderStatus);
+    parcel &&
+    ((isRent && PICKED_UP.includes(baseStatus)) ||
+      (claim?.events.some((event) => PICKUP_STARTED.includes(event.status)) ??
+        false));
 
   return {
     id,
     orderNo,
-    status: status as OrderStatus,
-    baseStatus: (base || status) as OrderStatus,
+    status: claim?.status ?? baseStatus,
+    baseStatus,
+    claim,
     type: product.mode,
     sellerKind: product.source === "hq" ? "hq" : "seller",
     seller: product.seller,
@@ -321,6 +644,8 @@ const toOrder = (row: string, index: number): Order => {
     saleDiscount: isRent ? null : (product.saleDiscount ?? 0),
     qty: Number(qty) || 1,
     shipFee: product.shipFee,
+    returnFee: product.returnFee,
+    exchangeFee: product.exchangeFee,
     buyerName: buyer.name,
     buyerId: buyer.id,
     buyerPhone: buyer.phone,
@@ -460,8 +785,15 @@ const TYPE_BY_LABEL: Record<string, OrderType> = Object.fromEntries(
   TYPE_FILTERS.map((item) => [item.label, item.value]),
 );
 
+/**
+ * `대여중` → `renting`. **정상 흐름의 선택지에서만** 뒤집는다 — 클레임 라벨(환불 처리중·재반송)은
+ * 유형마다 키가 달라 한데 뒤집으면 덮이고, 주문 목록에서 고를 수도 없는 숨은 필터가 된다.
+ */
 const STATUS_BY_LABEL: Record<string, string> = Object.fromEntries(
-  Object.entries(STATUS_META).map(([value, meta]) => [meta.label, value]),
+  Object.values(STATUS_OPTIONS_BY_TYPE)
+    .flat()
+    .filter((option) => option.value !== "all")
+    .map((option) => [option.label, option.value]),
 );
 
 /** 뼈대가 들고 있는 조회 조건 한 덩어리 */

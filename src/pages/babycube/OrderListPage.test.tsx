@@ -1,8 +1,19 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { OrderListPage } from "./OrderListPage";
-import { ORDERS } from "./OrderListPage.data";
+import {
+  CLAIM_FLOW,
+  DEMO_TODAY,
+  ORDERS,
+  type ClaimType,
+} from "./OrderListPage.data";
 import { MEMBERS } from "./MemberListPage.data";
 import { PRODUCTS } from "./ProductListPage.data";
 
@@ -159,10 +170,10 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
         expect.stringContaining("렌트"),
         expect.stringContaining("판매"),
       ]);
-      expect(typeCard("렌트")).toHaveAccessibleName("렌트 22건");
+      expect(typeCard("렌트")).toHaveAccessibleName("렌트 27건");
       expect(typeCard("렌트")).toHaveAttribute("aria-pressed", "true");
-      expect(typeCard("판매")).toHaveAccessibleName("판매 12건");
-      expect(screen.getByText("목록 (총 22건)")).toBeVisible();
+      expect(typeCard("판매")).toHaveAccessibleName("판매 29건");
+      expect(screen.getByText("목록 (총 27건)")).toBeVisible();
     });
 
     it("첫 페이지는 10건이고 No 는 조회 결과의 역순 순번이다", () => {
@@ -170,16 +181,16 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
 
       expect(bodyRows()).toHaveLength(10);
       expect(column(CELL.no)).toEqual([
+        "27",
+        "26",
+        "25",
+        "24",
+        "23",
         "22",
         "21",
         "20",
         "19",
         "18",
-        "17",
-        "16",
-        "15",
-        "14",
-        "13",
       ]);
       /* 기본 순서는 결제 최신순 */
       expect(column(CELL.orderNo).slice(0, 2)).toEqual([R01, R02]);
@@ -215,6 +226,18 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
       await user.click(screen.getByRole("button", { name: "20261017200511" }));
       expect(onNavSelect).toHaveBeenLastCalledWith("/orders-all/U-S03");
     });
+
+    /** 링크 글자만 눌려 「못 들어가는 곳인가」 헷갈리던 것 — 행 어디를 눌러도 간다(사용자 결정 2026-11-02) */
+    it("행의 다른 칸을 눌러도 같은 상세로 간다 — 체크박스는 이동하지 않는다", async () => {
+      const { user, onNavSelect } = renderPage();
+      const row = rowOf(R01);
+
+      await user.click(within(row).getByRole("checkbox"));
+      expect(onNavSelect).not.toHaveBeenCalled();
+
+      await user.click(within(row).getAllByRole("cell")[1]);
+      expect(onNavSelect).toHaveBeenLastCalledWith("/orders-all/U-R01");
+    });
   });
 
   describe("유형 카드 = 유형 필터", () => {
@@ -223,7 +246,7 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
 
       await user.click(typeCard("판매"));
 
-      expect(screen.getByText("목록 (총 12건)")).toBeVisible();
+      expect(screen.getByText("목록 (총 29건)")).toBeVisible();
       expect(new Set(column(CELL.type))).toEqual(new Set(["판매"]));
 
       await openFilters(user);
@@ -296,7 +319,7 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
           .getAllByRole("checkbox", { name: /선택$/ })
           .filter((box) => (box as HTMLInputElement).checked),
       ).toHaveLength(0);
-      expect(screen.getByText("목록 (총 22건)")).toBeVisible();
+      expect(screen.getByText("목록 (총 27건)")).toBeVisible();
     });
   });
 
@@ -333,11 +356,11 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
 
       await chooseOption(user, "판매자", "리틀베이비");
       expect(new Set(column(CELL.seller))).toEqual(new Set(["리틀베이비"]));
-      expect(screen.getByText("목록 (총 5건)")).toBeVisible();
+      expect(screen.getByText("목록 (총 6건)")).toBeVisible();
       expect(screen.getByText("셀러 리틀베이비")).toBeVisible();
 
       await chooseOption(user, "판매자", "셀러 전체");
-      expect(screen.getByText("목록 (총 22건)")).toBeVisible();
+      expect(screen.getByText("목록 (총 27건)")).toBeVisible();
     });
 
     it("판매자 열은 본사면 '본사', 셀러면 셀러명이다 (원본 owner)", async () => {
@@ -346,7 +369,8 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
       await user.click(typeCard("판매"));
       await chooseOption(user, "판매자", "본사");
 
-      expect(column(CELL.seller)).toEqual(["본사"]);
+      /* U-S10 · U-S24 + 클레임 건 U-S13(취소) · U-S15(반품) */
+      expect(column(CELL.seller)).toEqual(["본사", "본사", "본사", "본사"]);
       /* 렌트에는 본사 상품이 없다 — 카드가 0 을 말한다 */
       expect(typeCard("렌트")).toHaveAccessibleName("렌트 0건");
     });
@@ -391,7 +415,7 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
 
       await user.click(screen.getByRole("button", { name: "필터 초기화" }));
 
-      expect(screen.getByText("목록 (총 22건)")).toBeVisible();
+      expect(screen.getByText("목록 (총 27건)")).toBeVisible();
       expect(screen.getByText("조건 없음 (전체)")).toBeVisible();
     });
   });
@@ -403,7 +427,7 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
       await user.click(excel());
 
       expect(
-        await screen.findByText("조회 결과 22건을 내려받았습니다"),
+        await screen.findByText("조회 결과 27건을 내려받았습니다"),
       ).toBeVisible();
     });
 
@@ -478,7 +502,7 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
       await user.click(sortButton("결제 일시"));
       expect(column(CELL.paidAt)[0]).toBe("2026.09.15 08:47");
       /* No 는 정렬해도 역순 순번이다 */
-      expect(column(CELL.no)[0]).toBe("22");
+      expect(column(CELL.no)[0]).toBe("27");
 
       await user.click(sortButton("결제 일시"));
       expect(column(CELL.paidAt)[0]).toBe("2026.10.18 14:32");
@@ -503,7 +527,7 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
       await gotoPage(user, 2);
       await user.click(sortButton("결제 일시"));
 
-      expect(column(CELL.no)[0]).toBe("22");
+      expect(column(CELL.no)[0]).toBe("27");
     });
   });
 
@@ -512,11 +536,11 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
       const { user } = renderPage();
 
       await gotoPage(user, 3);
-      expect(column(CELL.no)).toEqual(["2", "1"]);
+      expect(column(CELL.no)).toEqual(["7", "6", "5", "4", "3", "2", "1"]);
 
       await chooseOption(user, "페이지당 개수", "20개씩 보기");
       expect(bodyRows()).toHaveLength(20);
-      expect(column(CELL.no)[0]).toBe("22");
+      expect(column(CELL.no)[0]).toBe("27");
     });
 
     it("판매도 11건이 넘어 두 페이지로 나뉜다", async () => {
@@ -541,7 +565,7 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
     it("stat 은 유형이다 — ?stat=판매", () => {
       renderPage("?stat=판매");
       expect(typeCard("판매")).toHaveAttribute("aria-pressed", "true");
-      expect(screen.getByText("목록 (총 12건)")).toBeVisible();
+      expect(screen.getByText("목록 (총 29건)")).toBeVisible();
     });
 
     it("flow 는 상태다 — ?stat=렌트&flow=연체중", () => {
@@ -551,17 +575,17 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
 
     it("판매에 없는 상태로 들어오면 상태를 버린다 (늘 0건인 화면 방지)", () => {
       renderPage("?stat=판매&flow=대여중");
-      expect(screen.getByText("목록 (총 12건)")).toBeVisible();
+      expect(screen.getByText("목록 (총 29건)")).toBeVisible();
     });
 
     it("owner 는 판매자, sellerName 은 셀러다", () => {
       renderPage("?owner=셀러&sellerName=리틀베이비");
-      expect(screen.getByText("목록 (총 5건)")).toBeVisible();
+      expect(screen.getByText("목록 (총 6건)")).toBeVisible();
     });
 
     it("본사인데 셀러가 지정돼 들어오면 셀러 지정을 버린다", () => {
       renderPage("?stat=판매&owner=본사&sellerName=리틀베이비");
-      expect(column(CELL.seller)).toEqual(["본사"]);
+      expect(column(CELL.seller)).toEqual(["본사", "본사", "본사", "본사"]);
     });
 
     it("q 는 주문번호 검색어다", () => {
@@ -571,7 +595,7 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
 
     it("paidAt_from·paidAt_to 는 결제일 구간이다 (양끝 포함)", () => {
       renderPage("?paidAt_from=2026-10-16&paidAt_to=2026-10-17");
-      expect(screen.getByText("목록 (총 6건)")).toBeVisible();
+      expect(screen.getByText("목록 (총 7건)")).toBeVisible();
     });
   });
 
@@ -594,6 +618,21 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
       expect(toneOf("20261017221014", "취소 요청")).toContain(
         "text-text-warning",
       );
+    });
+
+    /*
+      클레임 건은 주문 목록에도 **클레임 상태로** 섞여 보인다(원본 flowStat). 재반송은 반려·거부와
+      같은 비정상 종결이다 — 한때 「할 일이 남음」(warning)으로 칠했다.
+    */
+    it("클레임 상태도 목록에 보인다 — 재반송·거부는 critical, 환불 처리중은 success", () => {
+      const check = (orderNo: string, label: string, tone: string) => {
+        renderPage(`?stat=판매&q=${orderNo}`);
+        expect(toneOf(orderNo, label)).toContain(tone);
+        cleanup();
+      };
+      check("20260929111111", "재반송", "text-text-critical");
+      check("20261002153044", "반품 거부", "text-text-critical");
+      check("20261004100512", "환불 처리중", "text-text-success");
     });
 
     it("검수완료는 이름과 달리 warning — 보증금 처리가 남았다", () => {
@@ -732,5 +771,111 @@ describe("데이터 상태 미리보기 (?preview=)", () => {
         document.body.querySelector("[data-table-shell-body]")?.className,
       ).toContain("opacity-50"),
     );
+  });
+});
+
+/* ---------------------------------------------------------------------------
+ * 클레임 샘플의 계약 — 취소·반품·교환 목록과 클레임 상세가 이 샘플을 그대로 쓴다.
+ * 원본의 결함(발송 후 취소 · 0건 상태 · 판매 교환이 렌트 상품 · 지연 상시 삽입 ·
+ * 거부가 반려로)을 샘플이 다시 갖지 않게 못을 박는다.
+ * ------------------------------------------------------------------------ */
+describe("클레임 샘플의 계약", () => {
+  const claims = ORDERS.filter((order) => order.claim);
+  const ofType = (type: ClaimType) =>
+    claims.filter((order) => order.claim?.type === type);
+
+  it("상태마다 최소 한 건 — 클레임 목록의 상태 선택지가 0건으로 끝나지 않는다", () => {
+    for (const type of ["cancel", "return", "exchange"] as ClaimType[]) {
+      for (const status of CLAIM_FLOW[type]) {
+        expect(
+          ofType(type).some((order) => order.status === status),
+          status,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("목록 배지는 클레임의 지금 단계, 지금 단계는 거친 단계의 마지막이다", () => {
+    for (const order of claims) {
+      const events = order.claim!.events;
+      expect(order.status).toBe(order.claim!.status);
+      expect(events[events.length - 1].status).toBe(order.claim!.status);
+    }
+  });
+
+  it("교환은 판매 전용이다 (원본 FAQ · 렌트 교환 상세 없음)", () => {
+    expect(ofType("exchange").every((order) => order.type === "sale")).toBe(
+      true,
+    );
+  });
+
+  it("취소는 모두 출고 전이다 — 송장이 없다 (발송 후 취소는 반품으로 전환)", () => {
+    for (const order of ofType("cancel")) {
+      expect(["new", "ready"]).toContain(order.baseStatus);
+      expect(order.trackingNo).toBe("");
+    }
+  });
+
+  it("반품·교환은 받은 뒤에만 생기고, 원래 배송 송장이 남는다", () => {
+    for (const order of [...ofType("return"), ...ofType("exchange")]) {
+      expect(["delivered", "renting"]).toContain(order.baseStatus);
+      expect(order.trackingNo).not.toBe("");
+    }
+  });
+
+  it("수거가 시작된 반품·교환은 판매 건도 수거 송장이 있다", () => {
+    const picked = (order: (typeof claims)[number]) =>
+      order.claim!.events.some((event) =>
+        ["returnPicking", "exchangePicking"].includes(event.status),
+      );
+    for (const order of [...ofType("return"), ...ofType("exchange")]) {
+      expect(order.pickupTrackingNo !== "").toBe(picked(order));
+    }
+    expect(
+      ofType("exchange").some((order) => order.pickupTrackingNo !== ""),
+    ).toBe(true);
+  });
+
+  it("반려는 수거 전, 거부는 검수 뒤, 재반송은 거부 뒤다 (원본은 모두 「반려」로 찍었다)", () => {
+    const steps = (status: string) =>
+      claims
+        .find((order) => order.status === status)!
+        .claim!.events.map((event) => event.status);
+    expect(steps("returnRejected")).toEqual([
+      "returnRequested",
+      "returnRejected",
+    ]);
+    expect(steps("exchangeRefused").slice(-2)).toEqual([
+      "exchangeInspecting",
+      "exchangeRefused",
+    ]);
+    expect(steps("returnResend").slice(-3)).toEqual([
+      "returnInspecting",
+      "returnRefused",
+      "returnResend",
+    ]);
+    /* 지연은 정상 단계가 아니다 — 어느 건에도 끼지 않는다 */
+    expect(
+      claims.some((order) =>
+        order.claim!.events.some((event) => /delay/i.test(event.status)),
+      ),
+    ).toBe(false);
+  });
+
+  it("귀책은 사유에서 한 번 정한다 — 하자·배송 문제는 판매자, 그 밖은 고객", () => {
+    const fault = (id: string) =>
+      ORDERS.find((order) => order.id === id)!.claim!.fault;
+    expect(fault("U-S17")).toBe("seller"); // 파손 배송
+    expect(fault("U-S23")).toBe("seller"); // 오배송
+    expect(fault("U-S16")).toBe("customer"); // 단순변심
+  });
+
+  it("클레임 시각은 시간순이고 시연 기준일을 넘지 않는다", () => {
+    for (const order of claims) {
+      const times = order.claim!.events.map((event) => event.at);
+      expect([...times].sort()).toEqual(times);
+      expect(times[times.length - 1] <= `${DEMO_TODAY} 23:59`).toBe(true);
+      expect(times[0] > order.date).toBe(true);
+    }
   });
 });

@@ -36,24 +36,33 @@ import {
 import { STATUS_META, won, type Order } from "./OrderListPage.data";
 import {
   DEPOSIT_STATUS_META,
+  MODES,
   NONE,
   SECTIONS,
   UNREGISTERED,
+  claimStatementOf,
+  claimTypeTextOf,
   delayReasonOf,
   depositStatusOf,
+  faultTextOf,
+  feeBurdenOf,
   feeText,
   findOrder,
   headlineOf,
   historyOf,
   isParcel,
+  modeOfPath,
   paidAtText,
   placeOf,
   reachedAt,
+  requestedAtText,
+  shippedTextOf,
   stageTextOf,
   stamp,
   statementOf,
   statementTitleOf,
   titleOf,
+  type DetailMode,
 } from "./OrderDetailPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
@@ -67,6 +76,12 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * ```
  * 주문 목록의 주문번호가 이 화면으로 온다(`/orders-all/{처리단위}`). 렌트·판매는 한 화면에서 갈린다 —
  * 렌트만 렌트일·보증금·회수 배송비·대여 시작일이, 판매만 수량·구매확정일이 있다.
+ *
+ * ## 클레임 모드 — 취소·반품·교환 상세도 이 화면이다 (원본 `hqOrderDetailPage(u, {rma})`)
+ * `/orders-cancel|return|exchange/{처리단위}` 로 들어오면 경로가 모드를 정한다(`.data.ts` `MODES`).
+ * 주문정보에 신청 구분·신청일시·발송 여부·귀책·사유·배송비 부담, 상품정보에 상태 두 칸,
+ * 명세 끝에 환불·반환 줄, 처리 이력에 클레임이 **실제로 거친 단계**가 붙는다. [목록]은 그 클레임 목록으로.
+ * 모드와 맞지 않는 처리단위(취소 경로로 반품 건 · 렌트 교환)는 「찾을 수 없음」이다.
  *
  * ## 퍼블 범위
  * 고치는 값이 없다 — 접기·명세 팝업·[목록] 이동뿐이다. 처리단위가 바뀌면 `key` 로 처음부터.
@@ -85,9 +100,6 @@ export interface OrderDetailPageProps {
   activeNav: string;
   onNavSelect: (id: string) => void;
 }
-
-/** 목록 경로 — 돌아가는 곳이자, 없는 주문일 때 돌려보내는 곳 */
-const LIST_PATH = "/orders-all";
 
 /**
  * 라벨 폭 — 가장 긴 라벨(「보증금 (고정액)」·「수령인 연락처」)이 기본 80 에서 두 줄로 쪼개진다.
@@ -156,11 +168,14 @@ const Item = ({ label, children }: { label: string; children: ReactNode }) => (
 export function OrderDetailPage(props: OrderDetailPageProps) {
   const { navOpen, onNavOpenChange, activeNav, onNavSelect } = props;
   const pathname = usePathname();
-  /* 경로는 `/orders-all/{처리단위}` **한 조각**이어야 한다 */
-  const rest = pathname.slice(LIST_PATH.length + 1);
+  /* 경로가 모드를 정한다 — 목록 경로가 돌아가는 곳이자 없는 건일 때 돌려보내는 곳이다 */
+  const mode = modeOfPath(pathname);
+  const { listPath, listLabel, noun } = MODES[mode];
+  /* 경로는 `{목록}/{처리단위}` **한 조각**이어야 한다 */
+  const rest = pathname.slice(listPath.length + 1);
   const order = rest.includes("/")
     ? undefined
-    : findOrder(lastPathSegment(pathname));
+    : findOrder(lastPathSegment(pathname), mode);
 
   if (!order) {
     return (
@@ -176,7 +191,7 @@ export function OrderDetailPage(props: OrderDetailPageProps) {
             collapsedLogo={GNB_LOGO_SLOTS.collapsed}
           />
         }
-        header={<PageHeader title="주문 상세" />}
+        header={<PageHeader title={`${noun} 상세`} />}
       >
         <Card variant="soft">
           <CardBody>
@@ -184,14 +199,15 @@ export function OrderDetailPage(props: OrderDetailPageProps) {
             <EmptyState
               size="page"
               icon={<ShoppingCart strokeWidth={1.2} aria-hidden />}
-              title="찾을 수 없는 주문입니다"
-              description="주소가 잘못되었거나 삭제된 주문일 수 있습니다."
+              title={
+                mode === "order"
+                  ? "찾을 수 없는 주문입니다"
+                  : `찾을 수 없는 ${noun} 건입니다`
+              }
+              description={`주소가 잘못되었거나 삭제된 ${noun} 건일 수 있습니다.`}
             >
-              <Button
-                variant="secondary"
-                onClick={() => onNavSelect(LIST_PATH)}
-              >
-                주문 목록으로
+              <Button variant="secondary" onClick={() => onNavSelect(listPath)}>
+                {listLabel}으로
               </Button>
             </EmptyState>
           </CardBody>
@@ -200,17 +216,28 @@ export function OrderDetailPage(props: OrderDetailPageProps) {
     );
   }
 
-  /* 처리단위마다 처음부터 — 접힘·열린 명세가 다음 주문에 묻어가지 않게 */
-  return <OrderDetailBody key={order.id} order={order} {...props} />;
+  /*
+    처리단위·모드마다 처음부터 — 접힘·열린 명세가 다음 건에 묻어가지 않게.
+    같은 처리단위라도 주문 상세 ↔ 클레임 상세는 다른 화면이라 모드까지 key 에 넣는다
+  */
+  return (
+    <OrderDetailBody
+      key={`${mode}:${order.id}`}
+      order={order}
+      mode={mode}
+      {...props}
+    />
+  );
 }
 
 function OrderDetailBody({
   order,
+  mode,
   navOpen,
   onNavOpenChange,
   activeNav,
   onNavSelect,
-}: OrderDetailPageProps & { order: Order }) {
+}: OrderDetailPageProps & { order: Order; mode: DetailMode }) {
   const status = asStatus(useSearchParams().get("preview"));
   const busy = isBusy(status);
   const dim = dimWhile(status);
@@ -221,7 +248,15 @@ function OrderDetailBody({
   const parcel = isParcel(order);
   const meta = STATUS_META[order.status];
   const deposit = DEPOSIT_STATUS_META[depositStatusOf(order)];
-  const history = historyOf(order);
+  /* 클레임 모드 — 경로가 클레임이고 그 클레임이 있다(`findOrder` 가 이미 맞춰 봤다) */
+  const claimMode = mode !== "order" && order.claim !== null;
+  const { listPath, noun } = MODES[mode];
+  /* 상품주문상태 — 클레임 모드는 주문 자체의 단계(원래 단계), 클레임 상태는 옆 칸이 말한다 */
+  const orderMeta = claimMode ? STATUS_META[order.baseStatus] : meta;
+  const history = historyOf(order, claimMode ? "all" : "last");
+  const statement = claimMode
+    ? [...statementOf(order), ...claimStatementOf(order)]
+    : statementOf(order);
 
   return (
     <AppShell
@@ -238,7 +273,7 @@ function OrderDetailBody({
       }
       header={
         <PageHeader
-          title={titleOf(order)}
+          title={titleOf(order, mode)}
           description={headlineOf(order)}
           badges={
             <Tag tone={meta.tone} dot>
@@ -262,6 +297,20 @@ function OrderDetailBody({
               <Item label="구매자명">{order.buyerName}</Item>
               <Item label="구매자 ID">{order.buyerId}</Item>
               <Item label="연락처">{order.buyerPhone}</Item>
+              {claimMode && (
+                <>
+                  <Item label="신청 구분">
+                    <Tag tone="default" size="small">
+                      {claimTypeTextOf(order)}
+                    </Tag>
+                  </Item>
+                  <Item label="신청일시">{requestedAtText(order)}</Item>
+                  <Item label="발송 여부">{shippedTextOf(order)}</Item>
+                  <Item label="귀책 판정">{faultTextOf(order)}</Item>
+                  <Item label="신청 사유">{order.claim?.reason}</Item>
+                  <Item label="배송비 부담">{feeBurdenOf(order)}</Item>
+                </>
+              )}
             </InfoList>
             {/* 원본 [상세보기] — 결제 금액이 어떻게 나왔는지 명세 팝업으로 */}
             <div>
@@ -289,10 +338,17 @@ function OrderDetailBody({
             <Item label="성장단계">{stageTextOf(order)}</Item>
             {/* 본사는 조회 전용 — 배지만(원본) */}
             <Item label="상품주문상태">
-              <Tag tone={meta.tone} dot size="small">
-                {meta.label}
+              <Tag tone={orderMeta.tone} dot size="small">
+                {orderMeta.label}
               </Tag>
             </Item>
+            {claimMode && (
+              <Item label={`${noun}상태`}>
+                <Tag tone={meta.tone} dot size="small">
+                  {meta.label}
+                </Tag>
+              </Item>
+            )}
             {rent ? (
               <>
                 <Item label="렌트일">{order.rentDays}일</Item>
@@ -409,7 +465,7 @@ function OrderDetailBody({
       {/* 하단 바 — 본사는 조회 전용이라 [목록] 하나뿐이다(원본 `noSave`) */}
       <Card variant="soft" className="sticky bottom-6 z-10">
         <div className="flex items-center justify-between gap-2">
-          <Button variant="secondary" onClick={() => onNavSelect(LIST_PATH)}>
+          <Button variant="secondary" onClick={() => onNavSelect(listPath)}>
             목록
           </Button>
         </div>
@@ -427,7 +483,7 @@ function OrderDetailBody({
         />
         <ModalBody>
           <dl className="flex flex-col gap-2">
-            {statementOf(order).map((item) => (
+            {statement.map((item) => (
               <div key={item.label} className="flex flex-col gap-2">
                 {item.tone === "total" && <Divider />}
                 <div className="flex items-center justify-between gap-4">

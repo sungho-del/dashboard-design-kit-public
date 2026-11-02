@@ -115,4 +115,24 @@ describe("App (전달본)", () => {
     await userEvent.click(screen.getByRole("button", { name: "목록" }));
     expect(window.location.pathname).toBe("/orders-all");
   });
+
+  /** 클레임 상세도 주문 상세 화면 하나가 맡는다 — 경로가 모드를 정하고 [목록]은 그 클레임 목록으로 */
+  it.each([
+    ["/orders-cancel", "20261017221014", "U-R20", "취소 상세(렌트)"],
+    ["/orders-return", "20261009110216", "U-R25", "반품 상세(렌트)"],
+    ["/orders-exchange", "20261011213746", "U-S12", "교환 상세(판매)"],
+  ])(
+    "%s 의 주문번호를 누르면 그 클레임 상세에 도착하고 [목록]으로 돌아온다",
+    async (list, orderNo, id, title) => {
+      renderAt(list);
+
+      await userEvent.click(screen.getByRole("button", { name: orderNo }));
+
+      expect(window.location.pathname).toBe(`${list}/${id}`);
+      expect(pageTitle()).toBe(title);
+
+      await userEvent.click(screen.getByRole("button", { name: "목록" }));
+      expect(window.location.pathname).toBe(list);
+    },
+  );
 });

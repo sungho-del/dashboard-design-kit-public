@@ -1,29 +1,25 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { OrderReturnListPage } from "./OrderReturnListPage";
+import { CLAIM_FLOW, ORDERS, STATUS_META } from "./OrderListPage.data";
+import { RETURNS } from "./OrderReturnListPage.data";
 
 /* -------------------------------------------------------------------------
- * S10 반품 목록 (BabyCube) — 목록형
+ * S10 반품 목록 (BabyCube) — 목록형 · 기획 v0.4 대조
  *
- * 렌더 여부가 아니라 **동작**을 본다: 유형 대시(건수 카드가 곧 필터) ·
- * 상태 셀렉트 10종 · 판매자 셀렉트 하나(본사 · 셀러 전체 · 특정 셀러) · 검색조건 7종 ·
- * 빈 상태 · 페이지네이션 · 미리보기 모달.
+ * 원본은 반품 목록을 주문 목록과 **같은 함수**(`ordersRmaScreen` → `ordersFlatRow`)로 그린다.
+ * 그래서 주문 목록 테스트와 같은 동작을 보고, 다른 셋을 따로 못박는다 —
+ *   ① 모집단 = `ORDERS` 의 반품 부분집합 ② 상태 선택지 = `CLAIM_FLOW.return`(유형 무관)
+ *   ③ 주문번호 → `/orders-return/{처리단위}`
  *
- * ## ⭐ URL 쿼리 계약을 여기서 지킨다
- * 원본 반품 목록도 주문 목록과 같은 셸을 써서 `stat`·`flow`·`owner`·`sellerName`·
- * `q`·`paidAt_from/to` 를 읽는다. 받는 쪽이 없으면 **링크는 열리고 필터만 안 걸린다**.
- *
- * ## 원본 대조 계약 (2026-08 정돈)
- * 원본 `/orders-return` 청크(`3ax7j8sg636zl.js`)의 컬럼 배열 24개가 정본이고
- * **주문 목록의 배열과 같다**. 상태 어휘는 `flow` 셀렉트의 열 값이 정본이다.
- *
- * ## ⚠️ 의미 검증의 핵심 — **종료 상태를 한 톤으로 묶지 않는다**
- * `반품 완료`(정상 종료)와 `반품 반려`·`반품 거부`(비정상 종료)는 둘 다 "끝난 건"이지만
- * 뜻이 정반대다. 같은 색이면 목록에서 문제 건이 사라진다 — 타입·린트가 못 잡는 자리다.
- *
- * jsdom 에는 레이아웃도 `ResizeObserver`/`IntersectionObserver` 도 없다.
- * Select·DatePicker 가 쓰는 floating-ui `autoUpdate` 가 둘을 요구하므로 no-op 으로 채운다.
+ * jsdom 에는 `ResizeObserver`/`IntersectionObserver` 가 없다 — 부유 요소가 요구한다.
  * ---------------------------------------------------------------------- */
 class ObserverStub {
   observe() {}
@@ -43,706 +39,578 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-/**
- * ⚠️ jsdom 의 `location` 은 테스트 사이에 초기화되지 않는다.
- * 쿼리 테스트가 남긴 `?stat=…` 이 다음 테스트의 초기 필터가 되어 버리므로 매번 되돌린다.
- */
+/** jsdom 의 `location` 은 테스트 사이에 초기화되지 않는다 — 매번 되돌린다 */
 beforeEach(() => {
   window.history.replaceState(null, "", "/orders-return");
 });
+
+type User = ReturnType<typeof userEvent.setup>;
 
 /** 클래스 검사는 반드시 배열로 — 문자열 `toContain` 은 부분 일치로 버그를 놓친다 */
 const classList = (el: Element | null | undefined) =>
   (el?.className ?? "").split(/\s+/);
 
-/** @param search 이 화면을 여는 쿼리스트링 (`"?stat=렌트&flow=반품 검수"`) */
 function renderPage(search = "") {
   if (search) window.history.replaceState(null, "", `/orders-return${search}`);
-
   const onNavSelect = vi.fn();
-  const onNavOpenChange = vi.fn();
   const user = userEvent.setup();
-
   render(
     <ToastProvider position="bottom">
       <OrderReturnListPage
         navOpen
-        onNavOpenChange={onNavOpenChange}
+        onNavOpenChange={vi.fn()}
         activeNav="/orders-return"
         onNavSelect={onNavSelect}
       />
     </ToastProvider>,
   );
-
-  return { user, onNavSelect, onNavOpenChange };
+  return { user, onNavSelect };
 }
 
-/** 헤더 행을 뺀 데이터 행. 빈 상태에서는 표가 통째로 사라지므로 빈 배열이 된다 */
+/** 셀 인덱스 — 컬럼 순서가 바뀌면 여기부터 깨지도록 이름을 붙여 둔다 */
+const CELL = {
+  no: 1,
+  status: 2,
+  orderNo: 3,
+  type: 4,
+  seller: 5,
+  period: 6,
+  paidAt: 8,
+  productName: 15,
+  rentBase: 16,
+  rentDiscount: 17,
+  rentPrice: 18,
+} as const;
+
 function bodyRows(): HTMLElement[] {
   const table = screen.queryByRole("table");
   if (!table) return [];
   return within(table).getAllByRole("row").slice(1);
 }
 
-/** 남아 있는 건의 **주문번호**(2번째 열) */
-function visibleIds(): string[] {
-  return bodyRows().map(
-    (row) => within(row).getAllByRole("cell")[1].textContent ?? "",
+const cellsOf = (row: HTMLElement) => within(row).getAllByRole("cell");
+
+const column = (index: number) =>
+  bodyRows().map((row) => cellsOf(row)[index].textContent ?? "");
+
+function rowOf(orderNo: string): HTMLElement {
+  const row = bodyRows().find(
+    (candidate) => cellsOf(candidate)[CELL.orderNo].textContent === orderNo,
   );
+  if (!row) throw new Error(`행을 찾지 못했습니다: ${orderNo}`);
+  return row;
 }
 
-/**
- * 유형 대시 카드. 이름은 `aria-label` 로 붙인 `"렌트 6건"` 형식이라
- * 건수와 무관하게 집으려면 정규식이어야 한다.
- */
+/** 유형 카드 — 접근가능 이름은 `${라벨} ${건수}건` 이다 */
 const typeCard = (label: string) =>
-  screen.getByRole("button", { name: new RegExp(`^${label} \\d+건$`) });
-
-/** 페이지 버튼은 **숫자만** 렌더한다 — 페이지네이션 안으로 좁혀 숫자로 찾는다 */
-const pageButton = (label: string) =>
-  within(screen.getByRole("navigation", { name: "페이지네이션" })).getByRole(
+  within(screen.getByRole("group", { name: "유형별 건수" })).getByRole(
     "button",
-    { name: label },
+    { name: new RegExp(`^${label} \\d+건$`) },
   );
 
-/** 셀렉트를 열고 옵션 하나를 고른다 */
-/** 검색조건은 **접힌 채로 열린다** — 닫혀 있으면 안의 컨트롤이 DOM 에 없다 */
-async function openFilters(user: ReturnType<typeof userEvent.setup>) {
+/** 검색조건은 기본 펼침이다 — 「검색 열기」가 있을 때만 누른다 */
+const openFilters = async (user: User) => {
   const toggle = screen.queryByRole("button", { name: /검색 열기/ });
   if (toggle) await user.click(toggle);
+};
+
+async function optionsOf(user: User, selectLabel: string) {
+  await openFilters(user);
+  await user.click(screen.getByRole("combobox", { name: selectLabel }));
+  return within(await screen.findByRole("listbox"))
+    .getAllByRole("option")
+    .map((option) => option.textContent);
 }
 
-async function pickOption(
-  user: ReturnType<typeof userEvent.setup>,
-  selectName: string | RegExp,
-  optionName: string,
-) {
-  await openFilters(user);
-  await user.click(screen.getByRole("combobox", { name: selectName }));
-  await user.click(
-    within(await screen.findByRole("listbox")).getByRole("option", {
-      name: optionName,
-    }),
-  );
+async function chooseOption(user: User, selectLabel: string, option: string) {
+  if (selectLabel !== "페이지당 개수") await openFilters(user);
+  await user.click(screen.getByRole("combobox", { name: selectLabel }));
+  const listbox = await screen.findByRole("listbox");
+  await user.click(within(listbox).getByRole("option", { name: option }));
 }
+
+async function search(user: User, field: string, keyword: string) {
+  await chooseOption(user, "검색 대상", field);
+  await user.type(screen.getByPlaceholderText("검색어 입력"), keyword);
+}
+
+const sortButton = (label: string) =>
+  screen
+    .getByRole("columnheader", { name: new RegExp(label) })
+    .querySelector("button")!;
+
+const excel = () => screen.getByRole("button", { name: "엑셀 다운로드" });
+
+/* 반품 렌트 4건(결제 최신순) — U-R25 · U-R21 · U-R26 · U-R27 */
+const R25 = "20261009110216";
+const R21 = "20261006130527";
+const R26 = "20261005094051";
+const R27 = "20260928162209";
+/* 반품 판매 — 반려 U-S16 · 환불 처리중 U-S18 · 거부 U-S19 · 재반송 U-S20 */
+const S15 = "20261010182237";
+const S16 = "20261008131520";
+const S18 = "20261004100512";
+const S19 = "20261002153044";
+const S20 = "20260929111111";
 
 describe("OrderReturnListPage (BabyCube S10 반품 목록)", () => {
-  describe("화면 제목·기본 표시", () => {
-    it("원본 메뉴 이름을 그대로 제목으로 쓴다", () => {
+  describe("화면 골격 (v0.4)", () => {
+    it("유형 카드는 렌트·판매 2장이고 렌트가 눌린 채 열린다 ([전체] 없음)", () => {
       renderPage();
-      expect(
-        screen.getByRole("heading", { level: 1, name: "반품 목록" }),
-      ).toBeVisible();
+
+      const cards = within(
+        screen.getByRole("group", { name: "유형별 건수" }),
+      ).getAllByRole("button");
+      expect(cards).toHaveLength(2);
+      expect(typeCard("렌트")).toHaveAccessibleName("렌트 4건");
+      expect(typeCard("렌트")).toHaveAttribute("aria-pressed", "true");
+      expect(typeCard("판매")).toHaveAccessibleName("판매 6건");
+      expect(screen.getByText("목록 (총 4건)")).toBeVisible();
     });
 
-    it("첫 페이지에 PAGE_SIZE(4)건만 그린다", () => {
+    it("No 는 조회 결과의 역순 순번이고 기본 순서는 결제 최신순이다", () => {
       renderPage();
-      expect(bodyRows()).toHaveLength(4);
+
+      expect(column(CELL.no)).toEqual(["4", "3", "2", "1"]);
+      expect(column(CELL.orderNo)).toEqual([R25, R21, R26, R27]);
     });
 
-    it("총 건수는 필터 결과를 따라간다", () => {
+    it("이용 기간·결제 일시는 점 표기다", () => {
       renderPage();
-      expect(
-        screen.getByRole("heading", { name: "목록 (총 10건)" }),
-      ).toBeVisible();
+
+      const cells = cellsOf(rowOf(R21));
+      expect(cells[CELL.paidAt]).toHaveTextContent("2026.10.06 13:05");
+      expect(cells[CELL.period]).toHaveTextContent("2026.10.10 ~ 2026.10.23");
     });
 
-    it("판매자 열은 본사면 '본사', 셀러면 셀러명을 직접 보여준다", () => {
-      renderPage();
-      expect(within(bodyRows()[0]).getAllByRole("cell")[3]).toHaveTextContent(
-        "아기별상사",
-      );
-      expect(within(bodyRows()[1]).getAllByRole("cell")[3]).toHaveTextContent(
-        "본사",
-      );
-    });
+    it("주문번호를 누르면 그 처리단위의 반품 상세 경로로 간다", async () => {
+      const { user, onNavSelect } = renderPage();
 
-    it("판매 건은 이용 기간이 —로 그려진다 (빈 칸과 구별)", async () => {
-      const { user } = renderPage();
+      await user.click(screen.getByRole("button", { name: R21 }));
+      expect(onNavSelect).toHaveBeenLastCalledWith("/orders-return/U-R21");
+
       await user.click(typeCard("판매"));
-
-      const cells = within(bodyRows()[0]).getAllByRole("cell");
-      expect(cells[4]).toHaveTextContent("—");
+      await user.click(screen.getByRole("button", { name: S20 }));
+      expect(onNavSelect).toHaveBeenLastCalledWith("/orders-return/U-S20");
     });
-  });
 
-  /* ── 원본 대조: 표가 정본과 같은가 ── */
+    /** 링크 글자만 눌려 「못 들어가는 곳인가」 헷갈리던 것 — 행 어디를 눌러도 간다(사용자 결정 2026-11-02) */
+    it("행의 다른 칸을 눌러도 같은 상세로 간다 — 체크박스는 이동하지 않는다", async () => {
+      const { user, onNavSelect } = renderPage();
+      const row = rowOf(R21);
 
-  describe("표 컬럼 (원본 24열 · frozen 5열)", () => {
-    it("컬럼 이름·순서가 원본 배열과 같다", () => {
-      renderPage();
-      const headers = within(screen.getByRole("table")).getAllByRole(
-        "columnheader",
-      );
+      await user.click(within(row).getByRole("checkbox"));
+      expect(onNavSelect).not.toHaveBeenCalled();
 
-      expect(headers.map((th) => th.textContent)).toEqual([
-        "상태",
+      await user.click(within(row).getAllByRole("cell")[1]);
+      expect(onNavSelect).toHaveBeenLastCalledWith("/orders-return/U-R21");
+    });
+
+    it("원본에 없는 도움말·행 클릭 미리보기·검색 「전체 항목」이 없다", async () => {
+      const { user } = renderPage();
+
+      expect(screen.queryByRole("button", { name: /도움말/ })).toBeNull();
+      expect(screen.queryByText(/상태 흐름/)).toBeNull();
+
+      await user.click(cellsOf(rowOf(R21))[CELL.productName]);
+      expect(screen.queryByRole("dialog")).toBeNull();
+
+      expect(await optionsOf(user, "검색 대상")).toEqual([
         "주문번호",
-        "유형",
-        "판매자",
-        "이용 기간",
-        "결제수단",
-        "결제 일시",
-        "배송 방법",
-        "택배사",
-        "송장번호",
-        "수거 택배사",
-        "수거 송장번호",
+        "셀러명",
         "상품코드",
         "상품명",
-        "렌트 원가",
-        "할인 금액",
-        "렌트가",
         "구매자명",
         "구매자 ID",
         "연락처",
-        "수령인",
-        "수령인 연락처",
-        "배송지",
-        "배송 메모",
       ]);
-    });
-
-    /*
-      우리 표에는 한때 원본에 없는 11열이 있었다. 이름을 하나씩 짚어 두어야
-      "설명이 붙은 그럴듯한 열"이 다시 들어오는 것을 막을 수 있다.
-    */
-    it("원본에 없던 열은 하나도 남아 있지 않다", () => {
-      renderPage();
-      const table = screen.getByRole("table");
-      for (const label of [
-        "검수 판정",
-        "반품 신청 일시",
-        "반품 사유",
-        "수거 완료 일시",
-        "검수 일시",
-        "차감 금액",
-        "환불 금액",
-        "결제금액",
-        "셀러",
-        "처리단위",
-        "주문일시",
-      ]) {
-        expect(
-          within(table).queryByRole("columnheader", { name: label }),
-        ).not.toBeInTheDocument();
-      }
-    });
-
-    /**
-     * 오프셋은 **`<colgroup>` 폭의 누적합**이라는 파생 관계를 검사한다.
-     *
-     * 리터럴을 적어 두면 폭을 고칠 때 테스트가 조용히 낡는다 — 제목이
-     * "폭과 짝을 이룬다" 인데 정작 폭을 보지 않게 된다.
-     * `w-<n>` 과 `left-<n>` 이 같은 4px 스케일이라 단위 그대로 더하면 된다.
-     */
-    it("앞 5열이 sticky 이고 오프셋이 폭의 누적합과 같다", () => {
-      renderPage();
-
-      const table = screen.getByRole("table");
-      const units = [...table.querySelectorAll("colgroup > col")].map((col) => {
-        const found = /(?:^|\s)w-(\d+)(?:\s|$)/.exec(col.className);
-        expect(found).not.toBeNull();
-        return Number(found![1]);
-      });
-
-      const headers = within(table).getAllByRole("columnheader");
-      for (let index = 0; index < 5; index++) {
-        const offset =
-          "left-" + units.slice(0, index).reduce((sum, unit) => sum + unit, 0);
-        expect(classList(headers[index])).toEqual(
-          expect.arrayContaining(["sticky", offset]),
-        );
-      }
-      // 6번째부터는 함께 스크롤된다
-      expect(classList(headers[5])).not.toContain("sticky");
-    });
-
-    it("본문 고정 셀은 배경을 행에서 물려받는다 (zebra·hover를 따라가려면 상속뿐)", () => {
-      renderPage();
-      const cells = within(bodyRows()[0]).getAllByRole("cell");
-
-      expect(classList(cells[0])).toEqual(
-        expect.arrayContaining(["sticky", "bg-inherit"]),
-      );
-      expect(classList(cells[4])).toContain("bg-inherit");
-      expect(classList(cells[5])).not.toContain("bg-inherit");
-    });
-
-    it("고정 구간의 끝에만 경계선을 그린다", () => {
-      renderPage();
-      const headers = within(screen.getByRole("table")).getAllByRole(
-        "columnheader",
-      );
-
-      expect(classList(headers[4])).toContain("after:bg-divide");
-      expect(classList(headers[3])).not.toContain("after:bg-divide");
     });
   });
 
-  /* ── 원본 `chip.dash: !0` — 건수 카드가 곧 유형 필터다 ── */
-
-  describe("유형 대시 (원본 StatDash)", () => {
-    it("기본은 전체가 눌린 상태이고 카드마다 건수가 붙는다", () => {
-      renderPage();
-      expect(typeCard("전체")).toHaveAttribute("aria-pressed", "true");
-      expect(typeCard("전체")).toHaveAccessibleName("전체 10건");
-      expect(typeCard("렌트")).toHaveAccessibleName("렌트 6건");
-      expect(typeCard("판매")).toHaveAccessibleName("판매 4건");
-    });
-
-    it("판매만 남긴다", async () => {
-      const { user } = renderPage();
-      await user.click(typeCard("판매"));
-
-      expect(visibleIds()).toEqual([
-        "S-20260817-0140",
-        "S-20260813-0098",
-        "S-20260811-0060",
-        "S-20260809-0021",
-      ]);
-    });
-
-    /*
-      대시 숫자가 전체 데이터에서 세어지면 검색을 좁혀도 안 변해 **표와 모순된 숫자**가
-      남는다. 카드는 유형을 뺀 나머지 조건까지 적용한 결과에서 세야 한다.
-    */
-    it("카드 건수는 다른 조건을 따라 줄고 전체 = 렌트 + 판매 다", async () => {
-      const { user } = renderPage();
-      await openFilters(user);
-      await pickOption(user, /^판매자/, "본사");
-
-      expect(typeCard("전체")).toHaveAccessibleName("전체 3건");
-      expect(typeCard("렌트")).toHaveAccessibleName("렌트 2건");
-      expect(typeCard("판매")).toHaveAccessibleName("판매 1건");
-    });
-
-    it("유형을 바꾸면 안내 문구도 바뀐다 (원본 statusTips)", async () => {
-      const { user } = renderPage();
-      await user.click(typeCard("렌트"));
-      expect(
-        screen.getByText("대여 계약으로 나간 처리단위의 반품 건입니다."),
-      ).toBeVisible();
-
-      await user.click(typeCard("판매"));
-      expect(
-        screen.getByText("판매(구매)로 나간 처리단위의 반품 건입니다."),
-      ).toBeVisible();
-    });
-
-    it("증감(±) 표시가 없다 — 원본에 없는 숫자를 만들지 않는다", () => {
-      renderPage();
-      expect(screen.queryByText(/^[+-]\d+건$/)).not.toBeInTheDocument();
-      expect(screen.queryByText(/대비$/)).not.toBeInTheDocument();
+  describe("모집단 = 주문 샘플의 반품 부분집합", () => {
+    it("ORDERS 에서 반품만 거른 것이고 주문 목록과 같은 처리단위다 (U-R21 포함)", () => {
+      expect(RETURNS).toEqual(
+        ORDERS.filter((order) => order.claim?.type === "return"),
+      );
+      expect(RETURNS).toHaveLength(10);
+      expect(RETURNS.map((order) => order.id)).toContain("U-R21");
+      expect(RETURNS.filter((order) => order.type === "rent")).toHaveLength(4);
     });
   });
 
-  /* ── 원본 대조: 상태 어휘 ── */
-
-  describe("상태 어휘는 원본 flow 셀렉트의 열 값뿐이다", () => {
-    it("선택지가 값·순서까지 원본과 같다", async () => {
-      const { user } = renderPage();
-      await openFilters(user);
-      await user.click(screen.getByRole("combobox", { name: /^상태/ }));
-
-      expect(
-        within(await screen.findByRole("listbox"))
-          .getAllByRole("option")
-          .map((option) => option.textContent),
-      ).toEqual([
+  describe("상태 선택지 (원본 FLOW_STEPS['반품'])", () => {
+    it("CLAIM_FLOW.return 과 값·순서까지 같고, 판매로 바꿔도 같다", async () => {
+      const expected = [
         "상태 전체",
-        "반품 신청",
-        "반품 승인",
-        "반품 반려",
-        "반품 수거중",
-        "반품 수거완료",
-        "반품 검수",
-        "환불 처리중",
-        "반품 완료",
-        "반품 거부",
-        "재반송",
-      ]);
+        ...CLAIM_FLOW.return.map((status) => STATUS_META[status].label),
+      ];
+      const { user } = renderPage();
+
+      expect(await optionsOf(user, "상태")).toEqual(expected);
+      await user.keyboard("{Escape}");
+
+      await user.click(typeCard("판매"));
+      expect(await optionsOf(user, "상태")).toEqual(expected);
     });
 
-    it("상태로 좁힌다", async () => {
+    it("상태를 고르면 그 상태만 남고 요약에 걸린다", async () => {
       const { user } = renderPage();
-      await openFilters(user);
-      await pickOption(user, /^상태/, "반품 검수");
 
-      expect(visibleIds()).toEqual(["R-20260814-0122"]);
+      await chooseOption(user, "상태", "반품 수거중");
+
+      expect(column(CELL.orderNo)).toEqual([R21]);
+      expect(column(CELL.status)).toEqual(["반품 수거중"]);
+      expect(screen.getByText("상태 반품 수거중")).toBeVisible();
+    });
+
+    it("유형을 바꾸면 상태·정렬·선택·페이지가 함께 풀린다", async () => {
+      const { user } = renderPage();
+
+      await chooseOption(user, "상태", "반품 신청");
+      await user.click(sortButton("결제 일시"));
+      await user.click(screen.getAllByRole("checkbox", { name: /선택$/ })[1]);
+
+      await user.click(typeCard("판매"));
+      await user.click(typeCard("렌트"));
+
+      expect(screen.getByRole("combobox", { name: "상태" })).toHaveTextContent(
+        "상태 전체",
+      );
+      expect(
+        screen.getByRole("columnheader", { name: /결제 일시/ }),
+      ).toHaveAttribute("aria-sort", "none");
+      expect(
+        screen
+          .getAllByRole("checkbox", { name: /선택$/ })
+          .filter((box) => (box as HTMLInputElement).checked),
+      ).toHaveLength(0);
+      expect(screen.getByText("목록 (총 4건)")).toBeVisible();
     });
   });
 
-  describe("검색조건 바 (목록 공통 형식)", () => {
-    /* 사용자 결정 2026-10-19 — 원본은 접힘이지만 펼친 채로 연다 */
-    it("처음에는 펼쳐져 있고, 접으면 조건이 없다고 요약한다", async () => {
+  describe("검색조건", () => {
+    it("펼친 채로 열리고, 접으면 걸린 조건이 없다고 요약한다", async () => {
       const { user } = renderPage();
-      expect(screen.getByRole("button", { name: /검색 닫기/ })).toHaveAttribute(
-        "aria-expanded",
-        "true",
-      );
-      expect(screen.getByRole("combobox", { name: /^상태/ })).toBeVisible();
+      expect(screen.getByPlaceholderText("검색어 입력")).toBeVisible();
 
       await user.click(screen.getByRole("button", { name: /검색 닫기/ }));
-      expect(
-        screen.queryByRole("combobox", { name: /^상태/ }),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByPlaceholderText("검색어 입력")).toBeNull();
       expect(screen.getByText("조건 없음 (전체)")).toBeVisible();
     });
 
-    it("링크로 걸린 조건은 접힌 채로 요약에 보인다", () => {
-      renderPage("?owner=셀러&sellerName=맘스케어&q=010");
-      expect(screen.getByText("셀러 맘스케어 · «010»")).toBeVisible();
-    });
-
-    it("열면 기간 · 판매자 · 상태 · 검색 대상 · 검색어가 한 줄로 나온다", async () => {
+    it("판매자 셀렉트 하나로 고른다 (라디오 없음) — 셀러명은 반품 모집단에서", async () => {
       const { user } = renderPage();
       await openFilters(user);
-      for (const name of ["판매자", "상태", "검색 대상"]) {
-        expect(screen.getByRole("combobox", { name })).toBeVisible();
-      }
-      expect(screen.getByRole("textbox", { name: "검색어" })).toBeVisible();
+
+      expect(screen.queryByRole("radiogroup")).toBeNull();
+      expect(await optionsOf(user, "판매자")).toEqual([
+        "판매자 전체",
+        "본사",
+        "셀러 전체",
+        "리틀베이비",
+        "리틀스텝",
+        "맘스케어",
+        "베베하우스",
+        "베이비루",
+        "아기별상사",
+        "아이랑",
+      ]);
+      await user.keyboard("{Escape}");
+
+      await chooseOption(user, "판매자", "리틀베이비");
+      expect(column(CELL.seller)).toEqual(["리틀베이비"]);
+      expect(typeCard("판매")).toHaveAccessibleName("판매 1건");
+      expect(screen.getByText("셀러 리틀베이비")).toBeVisible();
+    });
+
+    it("검색 대상 기본은 주문번호다", async () => {
+      const { user } = renderPage();
+
+      expect(
+        screen.getByRole("combobox", { name: "검색 대상" }),
+      ).toHaveTextContent("주문번호");
+      await user.type(screen.getByPlaceholderText("검색어 입력"), "202610");
+
+      expect(column(CELL.orderNo)).toEqual([R25, R21, R26]);
+    });
+
+    it("검색은 대소문자를 가리지 않고, 카드 건수도 따라 준다", async () => {
+      const { user } = renderPage();
+
+      await search(user, "구매자 ID", "MINJAE.KOO");
+
+      expect(column(CELL.orderNo)).toEqual([R27]);
+      expect(typeCard("렌트")).toHaveAccessibleName("렌트 1건");
+      expect(typeCard("판매")).toHaveAccessibleName("판매 1건");
+    });
+
+    it("결과가 없으면 빈 상태가 뜨고, 초기화가 조건을 모두 되돌린다", async () => {
+      const { user } = renderPage();
+
+      await search(user, "주문번호", "없는번호");
+      expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
+
+      await user.click(screen.getByRole("button", { name: "필터 초기화" }));
+
+      expect(screen.getByText("목록 (총 4건)")).toBeVisible();
+      expect(screen.getByText("조건 없음 (전체)")).toBeVisible();
     });
   });
 
-  /* 원본 판매자 라디오 + 셀러 셀렉트를 셀렉트 하나로 합쳤다(사용자 결정 2026-10-19) */
-  describe("판매자는 셀렉트 하나다 — 본사 · 셀러 전체 · 특정 셀러", () => {
-    it("라디오 없이 판매자 전체 · 본사 · 셀러 전체 · 셀러명 순으로 고른다", async () => {
+  describe("선택과 엑셀", () => {
+    it("고른 행이 없으면 조회 결과 전체가 대상이다", async () => {
       const { user } = renderPage();
-      await openFilters(user);
-      expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
 
-      await user.click(screen.getByRole("combobox", { name: /^판매자/ }));
+      await user.click(excel());
+
+      expect(
+        await screen.findByText("조회 결과 4건을 내려받았습니다"),
+      ).toBeVisible();
+    });
+
+    it("고른 행이 있으면 그것만 대상이다 — 머리 체크박스는 보이는 페이지 단위", async () => {
+      const { user } = renderPage();
+
+      await user.click(
+        screen.getByRole("checkbox", { name: "이 페이지 전체 선택" }),
+      );
+      await user.click(excel());
+
+      expect(
+        await screen.findByText("선택한 4건을 내려받았습니다"),
+      ).toBeVisible();
+    });
+
+    it("조회 결과가 없으면 내려받을 것이 없다고 알린다", async () => {
+      const { user } = renderPage();
+
+      await search(user, "주문번호", "없는번호");
+      await user.click(excel());
+
+      expect(
+        await screen.findByText("다운로드할 데이터가 없습니다"),
+      ).toBeVisible();
+    });
+
+    it("조건을 바꾸면 선택이 풀린다", async () => {
+      const { user } = renderPage();
+
+      await user.click(
+        screen.getByRole("checkbox", {
+          name: `${R25} 아기침대 슬립 베이직 선택`,
+        }),
+      );
+      await chooseOption(user, "상태", "반품 신청");
+      await user.click(excel());
+
+      expect(
+        await screen.findByText("조회 결과 1건을 내려받았습니다"),
+      ).toBeVisible();
+    });
+  });
+
+  describe("정렬 (이용 기간 · 결제 일시)", () => {
+    it("결제 일시를 누르면 오름 → 내림 → 해제 순으로 돈다", async () => {
+      const { user } = renderPage();
+
+      await user.click(sortButton("결제 일시"));
+      expect(column(CELL.orderNo)).toEqual([R27, R26, R21, R25]);
+      /* No 는 정렬해도 역순 순번이다 */
+      expect(column(CELL.no)[0]).toBe("4");
+
+      await user.click(sortButton("결제 일시"));
+      expect(column(CELL.orderNo)).toEqual([R25, R21, R26, R27]);
+
+      await user.click(sortButton("결제 일시"));
+      expect(
+        screen.getByRole("columnheader", { name: /결제 일시/ }),
+      ).toHaveAttribute("aria-sort", "none");
+    });
+
+    it("이용 기간 정렬은 시작일 순이다", async () => {
+      const { user } = renderPage();
+
+      await user.click(sortButton("이용 기간"));
+
+      expect(column(CELL.period)[0]).toBe("2026.10.02 ~ 2026.10.22");
+    });
+  });
+
+  describe("페이지", () => {
+    it("페이지당 10/20/50/100 을 고를 수 있고 바꾸면 1페이지부터 센다", async () => {
+      const { user } = renderPage();
+
+      await user.click(screen.getByRole("combobox", { name: "페이지당 개수" }));
       expect(
         within(await screen.findByRole("listbox"))
           .getAllByRole("option")
           .map((option) => option.textContent),
-      ).toEqual([
-        "판매자 전체",
-        "본사",
-        "셀러 전체",
-        "아기별상사",
-        "코코베베",
-        "리틀홈",
-        "맘스케어",
-      ]);
-    });
+      ).toEqual(["10개씩 보기", "20개씩 보기", "50개씩 보기", "100개씩 보기"]);
+      await user.keyboard("{Escape}");
 
-    it("셀러 전체는 본사 건만 뺀다", async () => {
-      const { user } = renderPage();
-      await openFilters(user);
-      await pickOption(user, /^판매자/, "셀러 전체");
-
-      expect(
-        screen.getByRole("heading", { name: "목록 (총 7건)" }),
-      ).toBeVisible();
-    });
-
-    it("셀러를 지정한 뒤 본사로 옮기면 셀러 지정이 함께 풀린다", async () => {
-      const { user } = renderPage();
-      await openFilters(user);
-
-      await pickOption(user, /^판매자/, "맘스케어");
-      expect(visibleIds()).toEqual(["S-20260813-0098"]);
-
-      await pickOption(user, /^판매자/, "본사");
-
-      // 셀러 지정이 남아 있었다면 본사 × 맘스케어 = 0건이 됐을 것이다
-      expect(visibleIds()).toEqual([
-        "S-20260817-0140",
-        "R-20260815-0155",
-        "R-20260810-0044",
-      ]);
+      await chooseOption(user, "페이지당 개수", "20개씩 보기");
+      expect(column(CELL.no)).toEqual(["4", "3", "2", "1"]);
     });
   });
-
-  describe("검색조건 7종", () => {
-    it("조건 없음은 여러 필드를 함께 훑는다", async () => {
-      const { user } = renderPage();
-      await openFilters(user);
-      await user.type(screen.getByRole("textbox"), "맘스케어");
-      expect(visibleIds()).toEqual(["S-20260813-0098"]);
-    });
-
-    it("조건을 고르면 그 필드만 본다", async () => {
-      const { user } = renderPage();
-      await openFilters(user);
-
-      await pickOption(user, "검색 대상", "구매자명");
-      await user.type(screen.getByRole("textbox"), "윤가람");
-      expect(visibleIds()).toEqual(["R-20260812-0077"]);
-
-      await pickOption(user, "검색 대상", "상품명");
-      expect(bodyRows()).toHaveLength(0);
-    });
-
-    /*
-      원본 `tel` 은 "연락처" 열(= 구매자 연락처)을 가리킨다.
-      수령인 번호를 보게 두면 표에 보이는 연락처로 검색해도 걸리지 않는다.
-    */
-    it("연락처는 **구매자** 연락처를 본다 (표의 '연락처' 열과 같은 값)", async () => {
-      const { user } = renderPage();
-      await openFilters(user);
-      await pickOption(user, "검색 대상", "연락처");
-      await user.type(screen.getByRole("textbox"), "010-8820");
-      expect(visibleIds()).toEqual(["R-20260816-0208"]);
-    });
-
-    it("수령인 번호로는 걸리지 않는다 (열 이름과 검색 대상이 어긋나지 않게)", async () => {
-      const { user } = renderPage();
-      await openFilters(user);
-      await pickOption(user, "검색 대상", "연락처");
-      // 010-3310-7765 는 R-20260816-0208 의 **수령인** 번호다
-      await user.type(screen.getByRole("textbox"), "010-3310");
-      expect(bodyRows()).toHaveLength(0);
-    });
-  });
-
-  describe("빈 상태와 초기화", () => {
-    it("결과가 없으면 도메인 문구의 빈 상태가 뜬다", async () => {
-      const { user } = renderPage();
-      await openFilters(user);
-      await user.type(screen.getByRole("textbox"), "존재하지않는값");
-
-      expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
-      expect(screen.queryByRole("table")).not.toBeInTheDocument();
-    });
-
-    it("빈 상태의 초기화 버튼이 조건을 모두 되돌린다", async () => {
-      const { user } = renderPage();
-      await openFilters(user);
-
-      await user.click(typeCard("렌트"));
-      await pickOption(user, /^상태/, "반품 검수");
-      await user.type(screen.getByRole("textbox"), "존재하지않는값");
-      expect(screen.queryByRole("table")).not.toBeInTheDocument();
-
-      await user.click(screen.getByRole("button", { name: "필터 초기화" }));
-
-      expect(bodyRows()).toHaveLength(4);
-      expect(typeCard("전체")).toHaveAttribute("aria-pressed", "true");
-      expect(screen.getByRole("textbox")).toHaveValue("");
-      expect(screen.getByRole("combobox", { name: /^상태/ })).toHaveTextContent(
-        "상태 전체",
-      );
-    });
-  });
-
-  describe("페이지네이션", () => {
-    it("3페이지에는 나머지 건이 온다", async () => {
-      const { user } = renderPage();
-      await user.click(pageButton("3"));
-
-      expect(visibleIds()).toEqual(["R-20260810-0044", "S-20260809-0021"]);
-    });
-
-    it("2페이지에서 필터를 좁히면 남은 범위로 당겨진다 (빈 표 방지)", async () => {
-      const { user } = renderPage();
-      await openFilters(user);
-      await user.click(pageButton("2"));
-      await pickOption(user, /^상태/, "반품 신청");
-
-      expect(bodyRows().length).toBeGreaterThan(0);
-      expect(visibleIds()).toEqual(["R-20260818-0311"]);
-    });
-  });
-
-  describe("미리보기 모달", () => {
-    it("행을 누르면 미리보기가 열린다 (제목이 '상세'가 아니다)", async () => {
-      const { user } = renderPage();
-      await user.click(bodyRows()[0]);
-
-      const sheet = await screen.findByRole("dialog", {
-        name: "반품 미리보기",
-      });
-      expect(within(sheet).getByText("회전형 카시트 아이소픽스")).toBeVisible();
-      expect(within(sheet).getByText("189,000원")).toBeVisible();
-    });
-
-    /* 원본 반품 목록에는 행 액션이 없다 — 주문번호 → 상세 링크뿐이다 */
-    it("모달에는 도메인 액션이 없다 — 원본에 행 액션이 없기 때문", async () => {
-      const { user } = renderPage();
-      await user.click(bodyRows()[0]);
-
-      const sheet = await screen.findByRole("dialog", {
-        name: "반품 미리보기",
-      });
-      expect(within(sheet).getAllByRole("button")).toHaveLength(1);
-    });
-  });
-
-  describe("엑셀 다운로드", () => {
-    it("파일 이름과 파일에만 들어가는 열을 토스트로 알린다", async () => {
-      const { user } = renderPage();
-      await user.click(screen.getByRole("button", { name: /엑셀 다운로드/ }));
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(
-            "반품목록_10건.csv 를 내려받았습니다 (처리단위·결제금액·주문일시 포함)",
-          ),
-        ).toBeVisible();
-      });
-    });
-  });
-
-  /* ── ⭐ URL 쿼리 → 초기 필터 ── */
 
   describe("URL 쿼리를 초기 필터로 읽는다", () => {
-    it("stat 은 유형이다", () => {
-      renderPage("?stat=렌트");
-
+    it("쿼리가 없거나 모르는 유형이면 렌트다", () => {
+      renderPage("?stat=전체");
       expect(typeCard("렌트")).toHaveAttribute("aria-pressed", "true");
-      expect(
-        screen.getByRole("heading", { name: "목록 (총 6건)" }),
-      ).toBeVisible();
     });
 
-    it("flow 는 상태다", async () => {
-      const { user } = renderPage("?flow=반품 거부");
-      await openFilters(user);
+    it("stat 은 유형, flow 는 상태다 — ?stat=판매&flow=재반송", () => {
+      renderPage("?stat=판매&flow=재반송");
+      expect(typeCard("판매")).toHaveAttribute("aria-pressed", "true");
+      expect(column(CELL.orderNo)).toEqual([S20]);
+    });
 
-      expect(screen.getByRole("combobox", { name: /^상태/ })).toHaveTextContent(
-        "반품 거부",
+    /* 「환불 처리중」은 취소에도, 「재반송」은 교환에도 있다 — 이 화면의 반품 상태로 풀려야 한다 */
+    it("겹치는 라벨(환불 처리중)은 이 화면의 반품 상태로 풀린다", () => {
+      renderPage("?stat=판매&flow=환불 처리중");
+      expect(column(CELL.orderNo)).toEqual([S18]);
+      expect(screen.getByRole("combobox", { name: "상태" })).toHaveTextContent(
+        "환불 처리중",
       );
-      expect(visibleIds()).toEqual(["R-20260812-0077"]);
     });
 
-    it("owner 는 판매자, sellerName 은 셀러다", async () => {
-      const { user } = renderPage("?owner=셀러&sellerName=맘스케어");
-      await openFilters(user);
+    it("반품에 없는 상태는 버린다 — ?flow=대여중", () => {
+      renderPage("?flow=대여중");
+      expect(screen.getByText("목록 (총 4건)")).toBeVisible();
+    });
 
+    it("owner 는 판매자, sellerName 은 셀러다 — 모르는 셀러면 셀러 전체", () => {
+      renderPage("?owner=셀러&sellerName=리틀스텝");
+      expect(column(CELL.orderNo)).toEqual([R27]);
+      cleanup();
+
+      renderPage("?owner=셀러&sellerName=없는셀러");
+      expect(screen.getByText("목록 (총 4건)")).toBeVisible();
+    });
+
+    it("본사인데 셀러가 지정돼 들어오면 셀러 지정을 버린다 (본사 반품은 판매 U-S15 하나)", () => {
+      renderPage("?owner=본사&sellerName=리틀스텝");
       expect(
-        screen.getByRole("combobox", { name: /^판매자/ }),
-      ).toHaveTextContent("맘스케어");
-      expect(visibleIds()).toEqual(["S-20260813-0098"]);
-    });
-
-    it("q 는 검색어다", async () => {
-      const { user } = renderPage("?q=맘스케어");
-      await openFilters(user);
-
-      expect(screen.getByRole("textbox")).toHaveValue("맘스케어");
-      expect(visibleIds()).toEqual(["S-20260813-0098"]);
-    });
-
-    it("paidAt_from·paidAt_to 는 결제일 구간이다", () => {
-      renderPage("?paidAt_from=2026-08-17&paidAt_to=2026-08-18");
-
-      expect(visibleIds()).toEqual(["R-20260818-0311", "S-20260817-0140"]);
-    });
-
-    /* 원본이 useEffect 로 하는 정합성 보정 */
-    it("본사인데 셀러가 지정돼 들어오면 셀러 지정을 버린다 (손댈 수 없는 필터 방지)", async () => {
-      const { user } = renderPage("?owner=본사&sellerName=맘스케어");
-      await openFilters(user);
-
-      expect(
-        screen.getByRole("combobox", { name: /^판매자/ }),
+        screen.getByRole("combobox", { name: "판매자" }),
       ).toHaveTextContent("본사");
-      expect(visibleIds()).toEqual([
-        "S-20260817-0140",
-        "R-20260815-0155",
-        "R-20260810-0044",
-      ]);
+      /* 렌트에는 본사 상품이 없다 */
+      expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
+      cleanup();
+
+      renderPage("?stat=판매&owner=본사&sellerName=리틀스텝");
+      expect(column(CELL.orderNo)).toEqual([S15]);
+      expect(column(CELL.seller)).toEqual(["본사"]);
     });
 
-    it("모르는 값은 조용히 무시한다 — 남이 만든 링크로 화면이 비면 안 된다", () => {
-      renderPage("?stat=구독&flow=없는상태&owner=외계인");
-
-      expect(typeCard("전체")).toHaveAttribute("aria-pressed", "true");
-      expect(
-        screen.getByRole("heading", { name: "목록 (총 10건)" }),
-      ).toBeVisible();
-    });
-  });
-
-  /* ── 의미 검증 — 타입·린트·렌더 테스트가 전부 통과시키는 자리 ── */
-
-  describe("의미 1. 종료 상태를 한 톤으로 묶지 않는다", () => {
-    it("정상 종료(반품 완료)는 default", () => {
-      renderPage("?flow=반품 완료");
-      const tag = within(bodyRows()[0]).getByText("반품 완료");
-
-      expect(classList(tag)).toContain("text-text-sub");
-      expect(classList(tag)).not.toContain("text-text-critical");
+    it("q 는 주문번호 검색어다", () => {
+      renderPage(`?q=${R26}`);
+      expect(column(CELL.orderNo)).toEqual([R26]);
     });
 
-    it("비정상 종료(반품 거부)는 critical", () => {
-      renderPage("?flow=반품 거부");
-      expect(classList(within(bodyRows()[0]).getByText("반품 거부"))).toContain(
-        "text-text-critical",
-      );
-    });
+    it("paidAt_from·paidAt_to 는 결제일 구간이다 — 형식이 틀리면 무시", () => {
+      renderPage("?paidAt_from=2026-10-05&paidAt_to=2026-10-06");
+      expect(column(CELL.orderNo)).toEqual([R21, R26]);
+      cleanup();
 
-    it("비정상 종료(반품 반려)도 critical — 거절 시점만 다르고 결과는 같다", () => {
-      renderPage("?flow=반품 반려");
-      expect(classList(within(bodyRows()[0]).getByText("반품 반려"))).toContain(
-        "text-text-critical",
-      );
+      renderPage("?paidAt_from=2026/10/05");
+      expect(screen.getByText("목록 (총 4건)")).toBeVisible();
     });
   });
 
-  describe("의미 2. 진행 상태의 색이 뜻과 맞는다", () => {
-    it("반품 신청은 warning — 사람이 승인·반려를 판단해야 끝난다", () => {
-      renderPage("?flow=반품 신청");
-      expect(classList(within(bodyRows()[0]).getByText("반품 신청"))).toContain(
-        "text-text-warning",
-      );
+  describe("의미 — 상태 색 · 렌트 금액 · 고정 열", () => {
+    it("반려·거부·재반송은 critical — 비정상 종결이다", () => {
+      renderPage("?stat=판매");
+      const toneOf = (orderNo: string, label: string) =>
+        classList(within(rowOf(orderNo)).getByText(label));
+      expect(toneOf(S16, "반품 반려")).toContain("text-text-critical");
+      expect(toneOf(S19, "반품 거부")).toContain("text-text-critical");
+      expect(toneOf(S20, "재반송")).toContain("text-text-critical");
     });
 
-    /*
-      이름은 "완료"지만 흐름의 끝이 아니다 — 물건이 도착했으니 사람이 검수를 시작해야
-      다음으로 간다. `default` 로 묻으면 검수 대기 건이 화면에서 조용해진다.
-    */
-    it("반품 수거완료는 이름과 달리 warning — 검수가 남았다", () => {
-      renderPage("?flow=반품 수거완료");
-      expect(
-        classList(within(bodyRows()[0]).getByText("반품 수거완료")),
-      ).toContain("text-text-warning");
-    });
-
-    it("조용한 중간 단계(반품 수거중)는 default — 택배사가 옮기는 중이다", () => {
-      renderPage("?flow=반품 수거중");
-      const tag = within(bodyRows()[0]).getByText("반품 수거중");
-
-      expect(classList(tag)).toContain("text-text-sub");
-      expect(classList(tag)).not.toContain("text-text-warning");
-    });
-
-    it("환불 처리중은 success — 돈이 정상적으로 도는 중이다", () => {
-      renderPage("?flow=환불 처리중");
-      expect(
-        classList(within(bodyRows()[0]).getByText("환불 처리중")),
-      ).toContain("text-text-success");
-    });
-
-    it("유형은 분류라 상태색을 쓰지 않는다", () => {
+    it("렌트 금액은 원/일 단가 — 렌트가 = 원가 − 할인", () => {
       renderPage();
-      const typeTag = within(bodyRows()[0]).getByText("렌트");
-      expect(classList(typeTag)).toContain("text-text-sub");
-      expect(classList(typeTag)).not.toContain("text-text-success");
-    });
-  });
 
-  describe("의미 3. 렌트가는 저장값이 아니라 원가−할인이다", () => {
-    it("표의 세 금액이 서로 맞는다", () => {
-      renderPage();
-      const cells = within(bodyRows()[0]).getAllByRole("cell");
-
-      // 14 렌트 원가 · 15 할인 금액 · 16 렌트가
-      expect(cells[14]).toHaveTextContent("240,000원");
-      expect(cells[15]).toHaveTextContent("51,000원");
-      expect(cells[16]).toHaveTextContent("189,000원");
+      /* U-R26 1,900 − 200 = 1,700원/일 */
+      const cells = cellsOf(rowOf(R26));
+      expect(cells[CELL.rentBase]).toHaveTextContent("1,900원");
+      expect(cells[CELL.rentDiscount]).toHaveTextContent("200원");
+      expect(cells[CELL.rentPrice]).toHaveTextContent("1,700원/일");
     });
 
-    it("판매 건은 원가·렌트가가 —다 (할인은 판매에도 있다)", async () => {
+    it("판매 건은 렌트 금액 세 열과 이용 기간이 모두 — 다 (원본 hasRent)", async () => {
       const { user } = renderPage();
+
       await user.click(typeCard("판매"));
 
-      const cells = within(bodyRows()[0]).getAllByRole("cell");
-      expect(cells[14]).toHaveTextContent("—");
-      expect(cells[16]).toHaveTextContent("—");
+      for (const row of bodyRows()) {
+        const cells = cellsOf(row);
+        for (const index of [
+          CELL.period,
+          CELL.rentBase,
+          CELL.rentDiscount,
+          CELL.rentPrice,
+        ]) {
+          expect(cells[index]).toHaveTextContent("—");
+        }
+      }
     });
+
+    it("표는 26열, 앞 7열이 sticky 이고 오프셋이 폭의 누적합(760)이다", () => {
+      renderPage();
+
+      const toPx = (cls: string, prefix: string) =>
+        Number(
+          cls
+            .split(/\s+/)
+            .find((name) => name.startsWith(prefix))
+            ?.slice(prefix.length),
+        ) * 4;
+      const cols = [
+        ...screen.getByRole("table").querySelectorAll("colgroup > col"),
+      ].map((col) => toPx(col.className, "w-"));
+      const heads = screen.getAllByRole("columnheader");
+      expect(heads).toHaveLength(26);
+      expect(cols).toHaveLength(26);
+
+      let offset = 0;
+      heads.slice(0, 7).forEach((head, index) => {
+        expect(classList(head)).toContain("sticky");
+        expect(toPx(head.className, "left-")).toBe(offset);
+        offset += cols[index];
+      });
+      expect(offset).toBe(760);
+      expect(classList(heads[7])).not.toContain("sticky");
+    });
+  });
+});
+
+describe("데이터 상태 미리보기 (?preview=)", () => {
+  it("loading — 머리 글자는 남기고 값만 스켈레톤이다", () => {
+    renderPage("?preview=loading");
+
+    expect(
+      screen.getByRole("columnheader", { name: "주문번호" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: R25 })).toBeNull();
+    expect(
+      document.body.querySelectorAll("[data-skeleton]").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("empty — 값이 있어도 빈 상태를 보여준다", () => {
+    renderPage("?preview=empty");
+
+    expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
+  });
+
+  it("refreshing — 스켈레톤으로 되돌리지 않고 이전 값을 흐리게 둔다", async () => {
+    renderPage("?preview=refreshing");
+
+    expect(screen.getByRole("button", { name: R25 })).toBeVisible();
+    await waitFor(() =>
+      expect(
+        document.body.querySelector("[data-table-shell-body]")?.className,
+      ).toContain("opacity-50"),
+    );
   });
 });

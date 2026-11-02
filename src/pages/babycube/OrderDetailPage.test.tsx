@@ -328,7 +328,7 @@ describe("OrderDetailPage", () => {
     it("모든 처리단위의 이력 시각이 순서를 지키고 오늘을 넘지 않는다", () => {
       const today = new Date("2026-10-19T23:59:59");
       ORDERS.forEach((order) => {
-        const times = historyOf(order).map((row) => row.at.getTime());
+        const times = historyOf(order, "all").map((row) => row.at.getTime());
         times.forEach((time, index) => {
           expect(time).toBeLessThanOrEqual(today.getTime());
           if (index > 0) expect(time).toBeGreaterThan(times[index - 1]);
@@ -355,5 +355,174 @@ describe("OrderDetailPage", () => {
         document.body.querySelectorAll("[data-skeleton]").length,
       ).toBeGreaterThan(0);
     });
+  });
+});
+
+/* ---------------------------------------------------------------------------
+ * 클레임 모드 — 취소·반품·교환 상세도 이 화면이다 (원본 `hqOrderDetailPage(u, {rma})`)
+ *
+ * 경로가 모드를 정하고, 그 클레임이 있는 처리단위만 연다. 원본 결함(신청 구분이 늘 1단계 이름 ·
+ * 거부·재반송이 「반려」로 · 지연 상시 삽입 · 반려인데 환불 예정액 · 렌트 취소에 렌트료 환불 없음 ·
+ * 판매 반품 배송비 이중 부담)을 다시 갖지 않는지 본다.
+ * ------------------------------------------------------------------------ */
+describe("클레임 모드", () => {
+  it("취소 경로 — 제목·클레임 줄·상태 두 칸, [목록]은 취소 목록으로", async () => {
+    const { user, onNavSelect } = renderAt("/orders-cancel/U-R23");
+
+    expect(
+      screen.getByRole("heading", { name: "취소 상세(렌트)" }),
+    ).toBeVisible();
+    expect(valueOf("신청 구분")).toBe("취소");
+    expect(valueOf("신청일시")).toBe("2026.10.16 18:40");
+    expect(valueOf("발송 여부")).toBe("발송 전");
+    expect(valueOf("신청 사유")).toBe("이용 일정 변경");
+    expect(valueOf("배송비 부담")).toBe("해당 없음 (발송 전 취소)");
+    /* 상품주문상태 = 주문 자체의 단계, 취소상태 = 클레임 단계 */
+    expect(valueOf("상품주문상태")).toBe("배송 준비");
+    expect(valueOf("취소상태")).toBe("환불 처리중");
+
+    await user.click(screen.getByRole("button", { name: "목록" }));
+    expect(onNavSelect).toHaveBeenCalledWith("/orders-cancel");
+  });
+
+  it("주문 상세에는 클레임 줄이 없다 — 같은 처리단위라도 경로가 모드를 정한다", () => {
+    renderAt("/orders-all/U-R23");
+
+    expect(
+      screen.getByRole("heading", { name: "주문 상세(렌트)" }),
+    ).toBeVisible();
+    expect(hasRow("신청 구분")).toBe(false);
+    expect(hasRow("취소상태")).toBe(false);
+    /* 이력은 지금 단계 한 줄만 — 머리 배지와 맞는다 */
+    expect(historyLabels().slice(-2)).toEqual(["배송 준비", "환불 처리중"]);
+  });
+
+  it("처리 이력은 그 클레임이 실제로 거친 단계를 잇는다", () => {
+    renderAt("/orders-cancel/U-R23");
+    expect(historyLabels()).toEqual([
+      "신규 주문",
+      "배송 준비",
+      "취소 요청",
+      "환불 처리중",
+    ]);
+  });
+
+  it("재반송은 거부 뒤에 온다 — 원본은 「반려」 한 줄로 찍고 수거·검수를 지웠다", () => {
+    renderAt("/orders-return/U-S20");
+    expect(historyLabels().slice(-7)).toEqual([
+      "반품 신청",
+      "반품 승인",
+      "반품 수거중",
+      "반품 수거완료",
+      "반품 검수",
+      "반품 거부",
+      "재반송",
+    ]);
+    expect(historyLabels()).not.toContain("반품 반려");
+  });
+
+  it("모드와 맞지 않는 처리단위는 찾을 수 없다 — 취소 경로로 반품 건 · 클레임 없는 건", async () => {
+    const { user, onNavSelect } = renderAt("/orders-cancel/U-R21");
+
+    expect(screen.getByText("찾을 수 없는 취소 건입니다")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "취소 목록으로" }));
+    expect(onNavSelect).toHaveBeenCalledWith("/orders-cancel");
+  });
+
+  it("교환은 판매만 연다 — 렌트 처리단위는 교환 경로로 열리지 않는다", () => {
+    renderAt("/orders-exchange/U-R01");
+    expect(screen.getByText("찾을 수 없는 교환 건입니다")).toBeVisible();
+  });
+
+  describe("명세 꼬리 — 클레임이 돈을 어떻게 움직이는가 (독립 예시)", () => {
+    it("렌트 취소(무료 취소) — 결제금액 전액 환불 + 보증금 반환을 따로", async () => {
+      const { user } = renderAt("/orders-cancel/U-R23");
+      const { lines } = await openStatement(user);
+
+      /* 렌트가 1,200원/일 × 14일 = 16,800원 · 보증금 90,000원 */
+      expect(lines["결제금액"]).toBe("16,800원");
+      expect(lines["환불 예정액"]).toBe("16,800원");
+      expect(lines["보증금 반환 예정액"]).toBe("90,000원");
+    });
+
+    it("취소 완료면 「예정」이 아니라 「완료」다", async () => {
+      const { user } = renderAt("/orders-cancel/U-R24");
+      const { lines } = await openStatement(user);
+
+      expect(lines["환불 완료"]).toBe("8,400원");
+      expect(lines["보증금 반환 완료"]).toBe("90,000원");
+      expect(lines["환불 예정액"]).toBeUndefined();
+    });
+
+    it("판매 반품 고객 귀책 — 편도 배송비를 환불액에서 **한 번만** 뺀다 (별도 청구 줄 없음)", async () => {
+      const { user } = renderAt("/orders-return/U-S18");
+      const { lines } = await openStatement(user);
+
+      expect(lines["결제금액"]).toBe("119,000원");
+      expect(lines["반품 배송비(편도) 차감 · 환불액에서"]).toBe("- 12,000원");
+      expect(lines["환불 예정액"]).toBe("107,000원");
+      expect(Object.keys(lines).some((label) => label?.includes("청구"))).toBe(
+        false,
+      );
+      expect(valueOf("배송비 부담")).toBe(
+        "반품 배송비(편도) 12,000원 · 환불액에서 차감",
+      );
+    });
+
+    it("렌트 반품 고객 귀책 — 보증금에서 뺀다", async () => {
+      const { user } = renderAt("/orders-return/U-R26");
+      const { lines } = await openStatement(user);
+
+      expect(lines["보증금 반환 예정액"]).toBe("142,000원");
+      expect(valueOf("귀책 판정")).toBe("고객 귀책");
+    });
+
+    it("렌트 반품 판매자 귀책 · 완료 — 보증금 전액 반환 완료, 배송비는 판매자 부담", async () => {
+      const { user } = renderAt("/orders-return/U-R27");
+      const { lines } = await openStatement(user);
+
+      expect(lines["보증금 반환 완료"]).toBe("130,000원");
+      expect(valueOf("배송비 부담")).toBe("판매자 부담");
+      expect(valueOf("보증금 상태")).toBe("전액환급");
+    });
+
+    it("거부·재반송은 돈이 움직이지 않는다 — 원본은 거부 건에도 환불 예정액을 붙였다", async () => {
+      const { user } = renderAt("/orders-return/U-S20");
+      const { lines } = await openStatement(user);
+
+      expect(lines["처리 결과"]).toBe("환불 없음 — 원거래 유지");
+      expect(lines["환불 예정액"]).toBeUndefined();
+    });
+
+    it("교환 — 고객 귀책 왕복 배송비 · 환불 없이 재배송 / 거부는 교환 불가", async () => {
+      const { user } = renderAt("/orders-exchange/U-S12");
+      const { lines } = await openStatement(user);
+
+      expect(lines["교환 배송비(왕복) · 고객 부담"]).toBe("12,000원");
+      expect(lines["처리 결과"]).toBe("환불 없음 — 검수 후 재배송");
+      expect(valueOf("발송 여부")).toBe("발송 후 · 한진택배 502610112137");
+    });
+
+    it("교환 거부는 「재배송」이라 말하지 않는다", async () => {
+      const { user } = renderAt("/orders-exchange/U-S28");
+      const { lines } = await openStatement(user);
+
+      expect(lines["처리 결과"]).toBe("교환 불가 — 원거래 유지");
+    });
+  });
+
+  it("같은 처리단위의 주문 상세 ↔ 클레임 상세 이동은 처음부터 다시 그린다", async () => {
+    const { user } = renderAt("/orders-return/U-S18");
+    await user.click(screen.getByRole("button", { name: "상세보기" }));
+    expect(await screen.findByRole("dialog")).toBeVisible();
+
+    act(() => navigate("/orders-all/U-S18"));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("heading", { name: "주문 상세(판매)" }),
+    ).toBeVisible();
   });
 });

@@ -159,6 +159,22 @@ const DETAIL_ROUTES: {
   },
   { prefix: "/products/", parent: "/products", screen: ProductDetailPage },
   { prefix: "/orders-all/", parent: "/orders-all", screen: BcOrderDetailPage },
+  /* 취소·반품·교환 상세도 주문 상세 하나가 맡는다 — 경로가 모드를 정한다(원본 `rma`) */
+  {
+    prefix: "/orders-cancel/",
+    parent: "/orders-cancel",
+    screen: BcOrderDetailPage,
+  },
+  {
+    prefix: "/orders-return/",
+    parent: "/orders-return",
+    screen: BcOrderDetailPage,
+  },
+  {
+    prefix: "/orders-exchange/",
+    parent: "/orders-exchange",
+    screen: BcOrderDetailPage,
+  },
 ];
 
 /** 없는 경로에서 보여줄 화면 — 저장소 색인이 가장 덜 당황스럽다 */

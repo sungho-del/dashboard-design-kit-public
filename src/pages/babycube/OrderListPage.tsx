@@ -579,7 +579,11 @@ export function OrderListPage({
                   const typeMeta = TYPE_META[order.type];
                   const isRent = order.type === "rent";
                   return (
-                    <TableRow key={order.id}>
+                    <TableRow
+                      key={order.id}
+                      clickable
+                      onClick={() => onNavSelect(`/orders-all/${order.id}`)}
+                    >
                       <TableTd className={frozenTd(0)}>
                         {/* 같은 주문번호에 처리단위가 여럿일 수 있어 상품명까지 이름에 넣는다 */}
                         <Checkbox
