@@ -420,8 +420,11 @@ export function OrderListPage({
         scrollLeadWidth={FROZEN_LEAD_WIDTH}
         /* 다른 목록 화면과 같은 층(§Card soft) */
         variant="soft"
-        fill
-        className="flex-1"
+        /*
+          ⚠️ `fill`(남는 높이만큼 표를 늘리기)을 쓰지 않는다 — 큰 화면에서 행 아래가
+          비고 가로 스크롤바가 그 빈칸 밑으로 밀려난다(사용자 보고 2026-10-19).
+          취소·반품·교환 목록처럼 스크롤바는 마지막 행 바로 아래가 자리다.
+        */
         bodyClassName={dimWhile(dataStatus)}
         aria-busy={isBusy(dataStatus)}
         toolbarStart={

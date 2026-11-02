@@ -240,12 +240,7 @@ export function DataTableShell({
       data-table-shell
       data-variant={variant === "flat" ? undefined : variant}
       className={cn(
-        /*
-          `overflow-clip` 이지 `hidden` 이 아니다 — radius 밖을 자르는 일은 같지만
-          `hidden` 은 스크롤 컨테이너가 되어, 아래 프록시 바의 `sticky bottom-0` 이
-          화면이 아니라 이 상자에 붙어 버린다(행이 많으면 바가 화면 밖에 묻힌다).
-        */
-        "relative overflow-clip bg-surface",
+        "relative overflow-hidden bg-surface",
         /*
           radius 와 그림자는 **분기마다 한 번씩만** 방출한다 — `cn()` 은 병합하지
           않으므로 `rounded-medium` 과 `rounded-large` 가 함께 나가면 승자를
@@ -335,11 +330,10 @@ export function DataTableShell({
           data-table-shell-scrollbar
           aria-hidden
           /*
-            표가 화면보다 길면 바가 페이지 아래에 묻힌다(주문 목록 10행에서 사용자 보고).
-            `sticky bottom-0` 으로 표가 보이는 동안 화면 하단에 붙여 둔다. 아래로 지나가는
-            행을 가리므로 배경을 칠하고, 고정 열(z-1)보다 위에 둔다.
+            ⚠️ 화면 하단에 붙이지(`sticky bottom-0`) 않는다 — 표 바로 아래가 자리다
+            (사용자 결정 2026-10-19: 주문 목록도 취소·반품 목록처럼 표 아래에).
           */
-          className="sticky bottom-0 z-2 overflow-x-auto overflow-y-hidden bg-surface"
+          className="overflow-x-auto overflow-y-hidden"
           style={{ marginLeft: scrollLeadWidth, marginRight: scrollTrailWidth }}
         >
           {/*

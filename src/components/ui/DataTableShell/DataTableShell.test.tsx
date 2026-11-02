@@ -51,11 +51,9 @@ describe("DataTableShell", () => {
       expect(shellOf(container).className).not.toContain("shadow-");
     });
 
-    /* `hidden` 이면 스크롤 컨테이너가 되어 프록시 바의 sticky 가 화면에 붙지 못한다 */
-    it("radius 밖으로 표가 삐져나오지 않도록 overflow-clip이다 (hidden 아님)", () => {
+    it("radius 밖으로 표가 삐져나오지 않도록 overflow-hidden이다", () => {
       const { container } = render(<DataTableShell />);
-      expect(shellOf(container).className).toContain("overflow-clip");
-      expect(shellOf(container).className).not.toContain("overflow-hidden");
+      expect(shellOf(container).className).toContain("overflow-hidden");
     });
 
     it("전달한 className이 마지막에 붙어 오버라이드된다", () => {
@@ -465,15 +463,16 @@ describe("DataTableShell", () => {
       expect(bar.scrollLeft).toBe(140);
     });
 
-    it("가로 스크롤바는 화면 하단에 붙어 있다 (표가 길어도 묻히지 않게)", () => {
+    /* 사용자 결정 2026-10-19 — 화면 하단에 붙이지 않고 표 바로 아래에 둔다 */
+    it("가로 스크롤바는 표 바로 아래에 있다 (화면 하단에 붙지 않는다)", () => {
       const { container } = render(
         <DataTableShell scrollLeadWidth={696}>
           <table />
         </DataTableShell>,
       );
-      expect(slot(container, "scrollbar")?.className).toContain(
-        "sticky bottom-0",
-      );
+      const bar = slot(container, "scrollbar")!;
+      expect(bar.className).not.toContain("sticky");
+      expect(bar.previousElementSibling).toBe(slot(container, "body"));
     });
   });
 
