@@ -346,13 +346,17 @@ describe("OrderExchangeListPage (BabyCube S11 교환 목록)", () => {
     });
   });
 
-  describe("검색조건은 접힌 바로 열린다 (목록 공통 형식)", () => {
-    it("처음에는 접혀 있고 조건이 없다고 요약한다", () => {
-      renderPage();
-      expect(screen.getByRole("button", { name: /검색 열기/ })).toHaveAttribute(
+  describe("검색조건 바 (목록 공통 형식)", () => {
+    /* 사용자 결정 2026-10-19 — 원본은 접힘이지만 펼친 채로 연다 */
+    it("처음에는 펼쳐져 있고, 접으면 조건이 없다고 요약한다", async () => {
+      const { user } = renderPage();
+      expect(screen.getByRole("button", { name: /검색 닫기/ })).toHaveAttribute(
         "aria-expanded",
-        "false",
+        "true",
       );
+      expect(screen.getByRole("combobox", { name: /^상태/ })).toBeVisible();
+
+      await user.click(screen.getByRole("button", { name: /검색 닫기/ }));
       expect(
         screen.queryByRole("combobox", { name: /^상태/ }),
       ).not.toBeInTheDocument();

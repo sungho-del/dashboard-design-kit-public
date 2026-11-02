@@ -283,8 +283,8 @@ export function ProductListPage({
   const [status, setStatus] = useState(DEFAULT_FILTER);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [sort, setSort] = useState<SortState | null>(null);
-  /** 검색조건 펼침. **기본은 접힘**이다(원본) — 먼저 보여야 하는 것은 결과다 */
-  const [filterOpen, setFilterOpen] = useState(false);
+  /** 검색조건 펼침. **기본은 펼침**이다(사용자 결정 2026-10-19 — 원본은 접힘) */
+  const [filterOpen, setFilterOpen] = useState(true);
 
   /*
     실 API 를 붙이면 이 한 줄을 fetch 상태로 바꾼다 — 지금은 `?preview=` 로 미리 본다

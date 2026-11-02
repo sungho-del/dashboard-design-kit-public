@@ -224,8 +224,8 @@ export function OrderListPage({
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [sort, setSort] = useState<SortState | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
-  /** 검색조건 펼침. **기본은 접힘**이다(원본) — 먼저 보여야 하는 것은 결과다 */
-  const [filterOpen, setFilterOpen] = useState(false);
+  /** 검색조건 펼침. **기본은 펼침**이다(사용자 결정 2026-10-19 — 원본은 접힘) */
+  const [filterOpen, setFilterOpen] = useState(true);
 
   /* `?preview=loading|empty|refreshing` 으로 데이터 상태를 미리 본다 */
   const dataStatus = asStatus(useSearchParams().get("preview"));

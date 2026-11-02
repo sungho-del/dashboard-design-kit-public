@@ -182,8 +182,8 @@ export function OrderCancelListPage({
     filtersFromQuery(new URLSearchParams(window.location.search)),
   );
   const [page, setPage] = useState(1);
-  /* 검색조건은 접힌 채로 연다 — 걸린 조건은 요약 줄이 말한다 */
-  const [filterOpen, setFilterOpen] = useState(false);
+  /** 검색조건 펼침. **기본은 펼침**이다(사용자 결정 2026-10-19 — 원본은 접힘) */
+  const [filterOpen, setFilterOpen] = useState(true);
 
   const [preview, setPreview] = useState<Cancel | null>(null);
 

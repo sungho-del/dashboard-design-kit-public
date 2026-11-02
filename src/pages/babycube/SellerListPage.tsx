@@ -344,8 +344,8 @@ export function SellerListPage({
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   /** 고른 행 — 셀러 id 로 든다(인덱스로 들면 정렬·필터가 바뀌는 순간 다른 셀러가 골라진다) */
   const [selected, setSelected] = useState<string[]>([]);
-  /** 검색조건 펼침. **기본은 접힘**(원본) — 먼저 보여야 하는 것은 조건이 아니라 결과다 */
-  const [filterOpen, setFilterOpen] = useState(false);
+  /** 검색조건 펼침. **기본은 펼침**이다(사용자 결정 2026-10-19 — 원본은 접힘) */
+  const [filterOpen, setFilterOpen] = useState(true);
 
   /**
    * 셀러 상세로 이동 — 원본의 "셀러명 클릭 → `/sellers/{id}`".

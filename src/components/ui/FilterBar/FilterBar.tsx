@@ -8,7 +8,7 @@ import { TextButton } from "../TextButton";
 /* -------------------------------------------------------------------------
  * FilterBar — 목록 화면의 "검색조건" 바
  *
- * 원본 어드민의 `filter` 영역이다. 접힌 채로 열리고, 지금 걸린 조건을 **한 줄로
+ * 원본 어드민의 `filter` 영역이다. 접을 수 있고, 지금 걸린 조건을 **한 줄로
  * 요약**해 보여 준다:
  *
  * ```
@@ -18,8 +18,9 @@ import { TextButton } from "../TextButton";
  * ## 왜 접는가
  * 목록 화면 27개가 전부 이 자리를 갖는데, 조건 컨트롤이 3~8개까지 늘어난다.
  * 늘 펼쳐 두면 **표가 첫 화면에서 밀려난다** — 목록 화면에서 먼저 보여야 하는 것은
- * 조건이 아니라 결과다. 그래서 기본은 접힘이고, 조건이 걸려 있으면 요약이 그 사실을
- * 대신 말한다.
+ * 조건이 아니라 결과다. 접으면 조건이 걸려 있다는 사실은 요약이 대신 말한다.
+ * ⚠️ 처음 열릴 때는 **펼친 채**다(사용자 결정 2026-10-19 — 원본은 접힘). 펼침 여부는
+ * 화면이 `open` 으로 정한다.
  *
  * ## ⚠️ 이 컴포넌트는 **조건을 모른다**
  * 안에 무엇이 들어가는지(기간·셀렉트·검색어), 언제 적용되는지(즉시 / [검색] 버튼),
@@ -97,7 +98,8 @@ export function FilterBar({
           */}
           <span className={cn(summaryClasses, "truncate")}>{summary}</span>
 
-          <span className="ml-auto flex shrink-0 items-center gap-2">
+          {/* 초기화를 [검색 열기]에서 띄운다 — 붙어 있으면 한 덩어리로 읽힌다(사용자 요청) */}
+          <span className="ml-auto flex shrink-0 items-center gap-4">
             {onReset ? (
               <TextButton tone="secondary" onClick={onReset}>
                 초기화

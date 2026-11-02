@@ -301,9 +301,12 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
   });
 
   describe("검색조건 (접힘 + 요약)", () => {
-    it("접힌 채로 열리고 걸린 조건이 없으면 요약이 그렇게 말한다", () => {
-      renderPage();
+    /* 사용자 결정 2026-10-19 — 원본은 접힘이지만 펼친 채로 연다 */
+    it("펼친 채로 열리고, 접으면 걸린 조건이 없다고 요약한다", async () => {
+      const { user } = renderPage();
+      expect(screen.getByPlaceholderText("검색어 입력")).toBeVisible();
 
+      await user.click(screen.getByRole("button", { name: /검색 닫기/ }));
       expect(screen.queryByPlaceholderText("검색어 입력")).toBeNull();
       expect(screen.getByText("조건 없음 (전체)")).toBeVisible();
     });
@@ -705,7 +708,9 @@ describe("데이터 상태 미리보기 (?preview=)", () => {
   it("loading — 머리 글자는 남기고 값만 스켈레톤이다", () => {
     renderPage("?preview=loading");
 
-    expect(screen.getByText("주문번호")).toBeVisible();
+    expect(
+      screen.getByRole("columnheader", { name: "주문번호" }),
+    ).toBeVisible();
     expect(screen.queryByRole("button", { name: R01 })).toBeNull();
     expect(
       document.body.querySelectorAll("[data-skeleton]").length,

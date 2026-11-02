@@ -413,11 +413,8 @@ export function MemberListPage({
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   /** 일괄 변경 대상 — 회원 id(이메일)를 담는다 */
   const [selected, setSelected] = useState<string[]>([]);
-  /**
-   * 검색조건 펼침. **기본은 접힘**이다(원본) — 목록 화면에서 먼저 보여야 하는 것은
-   * 조건이 아니라 결과다. 걸린 조건은 접힌 줄의 요약이 대신 말한다.
-   */
-  const [filterOpen, setFilterOpen] = useState(false);
+  /** 검색조건 펼침. **기본은 펼침**이다(사용자 결정 2026-10-19 — 원본은 접힘) */
+  const [filterOpen, setFilterOpen] = useState(true);
   /** 사유를 기다리는 일괄 변경 — 휴면·정지는 사유를 받아야 처리된다 */
   const [pending, setPending] = useState<{
     target: MemberStatus;

@@ -388,10 +388,12 @@ describe("SellerListPage (S03 셀러 관리)", () => {
    * 접힌 검색조건 줄은 걸린 조건을 요약한다.
    */
   describe("검색조건", () => {
-    it("접힌 채로 열리고, 조건이 없으면 「조건 없음 (전체)」 다", () => {
-      renderPage();
+    /* 사용자 결정 2026-10-19 — 원본은 접힘이지만 펼친 채로 연다 */
+    it("펼친 채로 열리고, 접으면 「조건 없음 (전체)」 다", async () => {
+      const { user } = renderPage();
+      expect(screen.getByPlaceholderText("검색어 입력")).toBeVisible();
 
-      expect(screen.getByRole("button", { name: /검색 열기/ })).toBeVisible();
+      await user.click(screen.getByRole("button", { name: /검색 닫기/ }));
       expect(screen.queryByPlaceholderText("검색어 입력")).toBeNull();
       expect(screen.getByText("조건 없음 (전체)")).toBeVisible();
     });

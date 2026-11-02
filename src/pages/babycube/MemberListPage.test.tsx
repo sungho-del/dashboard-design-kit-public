@@ -1014,20 +1014,22 @@ describe("체크 후 일괄 상태 변경", () => {
  * 검색조건 접기 — 원본 `filter` 영역
  * ------------------------------------------------------------------------ */
 describe("검색조건 접기", () => {
-  it("접힌 채로 열린다 — 목록 화면이 먼저 보여야 하는 것은 결과다", () => {
+  /* 사용자 결정 2026-10-19 — 원본은 접힘이지만 펼친 채로 연다 */
+  it("펼친 채로 열려 기간·조건·검색어가 바로 보인다", () => {
     renderPage();
 
-    expect(screen.getByText("조건 없음 (전체)")).toBeVisible();
-    expect(screen.queryByPlaceholderText("검색어 입력")).toBeNull();
-  });
-
-  it("펼치면 기간·조건·검색어가 나온다", async () => {
-    const { user } = renderPage();
-
-    await user.click(screen.getByRole("button", { name: /검색 열기/ }));
-
+    expect(screen.getByRole("button", { name: /검색 닫기/ })).toBeVisible();
     expect(screen.getByPlaceholderText("검색어 입력")).toBeVisible();
     expect(screen.getByRole("combobox", { name: "검색 조건" })).toBeVisible();
+  });
+
+  it("접으면 컨트롤이 빠지고 조건이 없다고 요약한다", async () => {
+    const { user } = renderPage();
+
+    await user.click(screen.getByRole("button", { name: /검색 닫기/ }));
+
+    expect(screen.queryByPlaceholderText("검색어 입력")).toBeNull();
+    expect(screen.getByText("조건 없음 (전체)")).toBeVisible();
   });
 
   /** 접어 둔 채로도 무엇이 걸렸는지 알아야 한다 — 그게 접을 수 있는 이유다 */
