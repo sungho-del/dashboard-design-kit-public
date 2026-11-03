@@ -1,5 +1,10 @@
 import { Info } from "lucide-react";
-import { IconButton, Tooltip } from "../../components/ui";
+import {
+  IconButton,
+  Tag,
+  Tooltip,
+  type TagCustomStyle,
+} from "../../components/ui";
 import { cn } from "../../lib/cn";
 
 /* =========================================================================
@@ -41,7 +46,7 @@ export interface CalcLine {
 
 export interface CalcBlock {
   key: string;
-  /** 왼쪽 묶음 이름 열 — 없으면 빈 열로 줄만 맞춘다(모든 묶음에 없으면 열 자체가 없다) */
+  /** 왼쪽 묶음 이름 칩(`Tag` small) — 없으면 빈 열로 줄만 맞춘다(모든 묶음에 없으면 열 자체가 없다) */
   label?: string;
   lines: CalcLine[];
   /** 결과 묶음 — 회색 바탕 · 넉넉한 위아래 */
@@ -65,6 +70,11 @@ const VALUE_CLASS = {
   note: "body-medium text-text-sub",
   message: "",
 } as const;
+
+const ON_EMPHASIS: TagCustomStyle = {
+  "--tag-bg-color": "var(--color-surface)",
+  "--tag-color": "var(--color-text-sub)",
+};
 
 function Line({ line }: { line: CalcLine }) {
   const kind = line.kind ?? "item";
@@ -127,11 +137,17 @@ function Block({
       )}
     >
       {labelColumn ? (
-        <span
-          aria-hidden
-          className="body-small flex h-7 w-10 shrink-0 items-center text-text-sub"
-        >
-          {block.label}
+        <span aria-hidden className="flex h-7 w-12 shrink-0 items-center">
+          {block.label ? (
+            /* 묶음 이름은 칩 — 회색 결과 묶음 위에서는 흰 칩으로 뒤집어 묻히지 않게 */
+            block.emphasis ? (
+              <Tag size="small" tone="custom" style={ON_EMPHASIS}>
+                {block.label}
+              </Tag>
+            ) : (
+              <Tag size="small">{block.label}</Tag>
+            )
+          ) : null}
         </span>
       ) : null}
       <dl
