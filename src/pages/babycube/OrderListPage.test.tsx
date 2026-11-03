@@ -170,10 +170,10 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
         expect.stringContaining("렌트"),
         expect.stringContaining("판매"),
       ]);
-      expect(typeCard("렌트")).toHaveAccessibleName("렌트 27건");
+      expect(typeCard("렌트")).toHaveAccessibleName("렌트 32건");
       expect(typeCard("렌트")).toHaveAttribute("aria-pressed", "true");
-      expect(typeCard("판매")).toHaveAccessibleName("판매 29건");
-      expect(screen.getByText("목록 (총 27건)")).toBeVisible();
+      expect(typeCard("판매")).toHaveAccessibleName("판매 35건");
+      expect(screen.getByText("목록 (총 32건)")).toBeVisible();
     });
 
     it("첫 페이지는 10건이고 No 는 조회 결과의 역순 순번이다", () => {
@@ -181,16 +181,16 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
 
       expect(bodyRows()).toHaveLength(10);
       expect(column(CELL.no)).toEqual([
+        "32",
+        "31",
+        "30",
+        "29",
+        "28",
         "27",
         "26",
         "25",
         "24",
         "23",
-        "22",
-        "21",
-        "20",
-        "19",
-        "18",
       ]);
       /* 기본 순서는 결제 최신순 */
       expect(column(CELL.orderNo).slice(0, 2)).toEqual([R01, R02]);
@@ -246,7 +246,7 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
 
       await user.click(typeCard("판매"));
 
-      expect(screen.getByText("목록 (총 29건)")).toBeVisible();
+      expect(screen.getByText("목록 (총 35건)")).toBeVisible();
       expect(new Set(column(CELL.type))).toEqual(new Set(["판매"]));
 
       await openFilters(user);
@@ -319,7 +319,7 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
           .getAllByRole("checkbox", { name: /선택$/ })
           .filter((box) => (box as HTMLInputElement).checked),
       ).toHaveLength(0);
-      expect(screen.getByText("목록 (총 27건)")).toBeVisible();
+      expect(screen.getByText("목록 (총 32건)")).toBeVisible();
     });
   });
 
@@ -360,7 +360,8 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
       expect(screen.getByText("셀러 리틀베이비")).toBeVisible();
 
       await chooseOption(user, "판매자", "셀러 전체");
-      expect(screen.getByText("목록 (총 27건)")).toBeVisible();
+      /* 렌트 32 − 본사 렌트 1(U-R32) */
+      expect(screen.getByText("목록 (총 31건)")).toBeVisible();
     });
 
     it("판매자 열은 본사면 '본사', 셀러면 셀러명이다 (원본 owner)", async () => {
@@ -369,10 +370,16 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
       await user.click(typeCard("판매"));
       await chooseOption(user, "판매자", "본사");
 
-      /* U-S10 · U-S24 + 클레임 건 U-S13(취소) · U-S15(반품) */
-      expect(column(CELL.seller)).toEqual(["본사", "본사", "본사", "본사"]);
-      /* 렌트에는 본사 상품이 없다 — 카드가 0 을 말한다 */
-      expect(typeCard("렌트")).toHaveAccessibleName("렌트 0건");
+      /* U-S10 · U-S24 · U-S34 + 클레임 건 U-S13(취소) · U-S15(반품) */
+      expect(column(CELL.seller)).toEqual([
+        "본사",
+        "본사",
+        "본사",
+        "본사",
+        "본사",
+      ]);
+      /* 본사 렌트는 U-R32 한 건(정산 사례) — 카드가 판매자 조건을 따라 센다 */
+      expect(typeCard("렌트")).toHaveAccessibleName("렌트 1건");
     });
 
     it("검색 대상 기본은 주문번호다 (원본 7종 · '전체' 대상 없음)", async () => {
@@ -415,7 +422,7 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
 
       await user.click(screen.getByRole("button", { name: "필터 초기화" }));
 
-      expect(screen.getByText("목록 (총 27건)")).toBeVisible();
+      expect(screen.getByText("목록 (총 32건)")).toBeVisible();
       expect(screen.getByText("조건 없음 (전체)")).toBeVisible();
     });
   });
@@ -427,7 +434,7 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
       await user.click(excel());
 
       expect(
-        await screen.findByText("조회 결과 27건을 내려받았습니다"),
+        await screen.findByText("조회 결과 32건을 내려받았습니다"),
       ).toBeVisible();
     });
 
@@ -500,9 +507,10 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
       const { user } = renderPage();
 
       await user.click(sortButton("결제 일시"));
-      expect(column(CELL.paidAt)[0]).toBe("2026.09.15 08:47");
+      /* 가장 이른 결제 — 정산 사례 U-S30(판매)는 판매 탭이라 렌트에서는 U-R29 */
+      expect(column(CELL.paidAt)[0]).toBe("2026.08.18 11:42");
       /* No 는 정렬해도 역순 순번이다 */
-      expect(column(CELL.no)[0]).toBe("27");
+      expect(column(CELL.no)[0]).toBe("32");
 
       await user.click(sortButton("결제 일시"));
       expect(column(CELL.paidAt)[0]).toBe("2026.10.18 14:32");
@@ -518,7 +526,7 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
 
       await user.click(sortButton("이용 기간"));
 
-      expect(column(CELL.period)[0]).toBe("2026.09.19 ~ 2026.10.09");
+      expect(column(CELL.period)[0]).toBe("2026.08.22 ~ 2026.09.11");
     });
 
     it("정렬을 바꾸면 1페이지로 돌아간다", async () => {
@@ -527,7 +535,7 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
       await gotoPage(user, 2);
       await user.click(sortButton("결제 일시"));
 
-      expect(column(CELL.no)[0]).toBe("27");
+      expect(column(CELL.no)[0]).toBe("32");
     });
   });
 
@@ -536,11 +544,24 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
       const { user } = renderPage();
 
       await gotoPage(user, 3);
-      expect(column(CELL.no)).toEqual(["7", "6", "5", "4", "3", "2", "1"]);
+      expect(column(CELL.no)).toEqual([
+        "12",
+        "11",
+        "10",
+        "9",
+        "8",
+        "7",
+        "6",
+        "5",
+        "4",
+        "3",
+      ]);
+      await gotoPage(user, 4);
+      expect(column(CELL.no)).toEqual(["2", "1"]);
 
       await chooseOption(user, "페이지당 개수", "20개씩 보기");
       expect(bodyRows()).toHaveLength(20);
-      expect(column(CELL.no)[0]).toBe("27");
+      expect(column(CELL.no)[0]).toBe("32");
     });
 
     it("판매도 11건이 넘어 두 페이지로 나뉜다", async () => {
@@ -565,7 +586,7 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
     it("stat 은 유형이다 — ?stat=판매", () => {
       renderPage("?stat=판매");
       expect(typeCard("판매")).toHaveAttribute("aria-pressed", "true");
-      expect(screen.getByText("목록 (총 29건)")).toBeVisible();
+      expect(screen.getByText("목록 (총 35건)")).toBeVisible();
     });
 
     it("flow 는 상태다 — ?stat=렌트&flow=연체중", () => {
@@ -575,7 +596,7 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
 
     it("판매에 없는 상태로 들어오면 상태를 버린다 (늘 0건인 화면 방지)", () => {
       renderPage("?stat=판매&flow=대여중");
-      expect(screen.getByText("목록 (총 29건)")).toBeVisible();
+      expect(screen.getByText("목록 (총 35건)")).toBeVisible();
     });
 
     it("owner 는 판매자, sellerName 은 셀러다", () => {
@@ -585,7 +606,13 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
 
     it("본사인데 셀러가 지정돼 들어오면 셀러 지정을 버린다", () => {
       renderPage("?stat=판매&owner=본사&sellerName=리틀베이비");
-      expect(column(CELL.seller)).toEqual(["본사", "본사", "본사", "본사"]);
+      expect(column(CELL.seller)).toEqual([
+        "본사",
+        "본사",
+        "본사",
+        "본사",
+        "본사",
+      ]);
     });
 
     it("q 는 주문번호 검색어다", () => {
@@ -818,9 +845,15 @@ describe("클레임 샘플의 계약", () => {
 
   it("반품·교환은 받은 뒤에만 생기고, 원래 배송 송장이 남는다", () => {
     for (const order of [...ofType("return"), ...ofType("exchange")]) {
-      expect(["delivered", "renting"]).toContain(order.baseStatus);
+      /* 구매확정 뒤 반품은 정산 환수 사례(U-S30) 하나 — 8월 확정·지급 뒤 9월 반품 완료 */
+      expect(["delivered", "renting", "confirmed"]).toContain(order.baseStatus);
       expect(order.trackingNo).not.toBe("");
     }
+    expect(
+      claims
+        .filter((order) => order.baseStatus === "confirmed")
+        .map((order) => order.id),
+    ).toEqual(["U-S30"]);
   });
 
   it("수거가 시작된 반품·교환은 판매 건도 수거 송장이 있다", () => {

@@ -1,0 +1,290 @@
+import { act, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { ToastProvider } from "../../components/ui";
+import { navigate } from "../../lib/router";
+import { SettlementStatementDetailPage } from "./SettlementStatementDetailPage";
+
+/* -------------------------------------------------------------------------
+ * 정산 명세서 상세 (BO-STL-008) — 기획 v0.4 `hqStmtPage` · 조회 전용
+ *
+ * 렌더 여부가 아니라 **숫자와 동작**을 본다: 지급 정보(본사 = 지급 대상 아님) · 정산 명세 줄과 금액
+ * (사례표 `settle-cases.md` 손계산 — 쿠폰·환수·미회수·보전·포인트 조건부 줄) · 거래 내역(정렬·문구·
+ * 페이지·각주·주문 상세 이동) · 하단 바(원본 5버튼 · 본사는 [셀러 정산에서 처리] 없음) · 찾을 수 없음 ·
+ * 명세서가 바뀌면 처음부터.
+ * ---------------------------------------------------------------------- */
+class ObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords() {
+    return [];
+  }
+}
+
+beforeAll(() => {
+  vi.stubGlobal("ResizeObserver", ObserverStub);
+  vi.stubGlobal("IntersectionObserver", ObserverStub);
+});
+
+afterAll(() => {
+  vi.unstubAllGlobals();
+});
+
+function renderAt(path: string) {
+  window.history.replaceState(null, "", path);
+  const onNavSelect = vi.fn();
+  const user = userEvent.setup();
+  render(
+    <ToastProvider position="bottom">
+      <SettlementStatementDetailPage
+        navOpen
+        onNavOpenChange={vi.fn()}
+        activeNav="/settle-statement"
+        onNavSelect={onNavSelect}
+      />
+    </ToastProvider>,
+  );
+  return { user, onNavSelect };
+}
+
+const at = (no: string) => renderAt(`/settle-statement/${no}`);
+
+/** InfoList 한 줄 — `<dt>` 라벨 옆의 값 */
+function valueOf(label: string): string {
+  const term = screen
+    .getAllByText(label)
+    .find((element) => element.tagName === "DT");
+  if (!term) throw new Error(`라벨을 찾지 못했습니다: ${label}`);
+  return term.nextElementSibling?.textContent ?? "";
+}
+
+/** 정산 명세 박스 — `[라벨, 값]` 순서 그대로 */
+function calcLines(): [string, string][] {
+  const box = document.body.querySelector("[data-statement-calc]")!;
+  return [...box.querySelectorAll("dt")].map((dt) => [
+    dt.textContent ?? "",
+    dt.nextElementSibling?.textContent ?? "",
+  ]);
+}
+
+function txRows(): string[][] {
+  const table = screen.getByRole("table");
+  return within(table)
+    .getAllByRole("row")
+    .slice(1)
+    .map((row) =>
+      within(row)
+        .getAllByRole("cell")
+        .map((cell) => cell.textContent ?? ""),
+    );
+}
+
+describe("찾을 수 없음", () => {
+  it.each([
+    "/settle-statement/STM-0000-0000",
+    "/settle-statement/STM-2609-0226/x",
+  ])("%s → 안내 + [정산 내역/명세서로]", async (path) => {
+    const { user, onNavSelect } = renderAt(path);
+
+    expect(screen.getByText("찾을 수 없는 명세서입니다")).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: "정산 내역/명세서로" }),
+    );
+    expect(onNavSelect).toHaveBeenCalledWith("/settle-statement");
+  });
+});
+
+describe("셀러 명세 — 코지베이비 (확인요청 · 안심케어 보전)", () => {
+  it("머리: 제목 · 번호·대상·회차·매출·지급액·지급일 · 상태 배지", () => {
+    at("STM-2609-0231");
+
+    expect(
+      screen.getByRole("heading", { name: "정산 명세서 상세" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        "STM-2609-0231 · 코지베이비 · 2026.09 명세서 · 매출 37,800원 · 지급액 49,563원 · 지급일 2026.10.10",
+      ),
+    ).toBeVisible();
+  });
+
+  it("지급 정보 6줄 + 확인요청 안내 + 조회 전용 안내", () => {
+    at("STM-2609-0231");
+
+    expect(valueOf("정산 대상")).toBe("코지베이비");
+    expect(valueOf("정산월")).toBe("2026.09");
+    expect(valueOf("지급일")).toBe("2026.10.10 (익월 10일)");
+    expect(valueOf("지급 계좌")).toBe("국민은행 45**-**-****** (코지베이비)");
+    expect(valueOf("정산 반영 거래 건수")).toBe("1건");
+    expect(valueOf("상태")).toBe("확인요청");
+    expect(screen.getByText(/확인·이의제기 기간\(3일\)/)).toBeVisible();
+    expect(screen.getByText(/상태 변경·확인요청·지급 처리는/)).toBeVisible();
+  });
+
+  it("정산 명세 — 쿠폰·환수 줄 없이 보전이 더해진다", () => {
+    at("STM-2609-0231");
+
+    expect(calcLines()).toEqual([
+      ["확정 거래액 (할인 후)", "37,800원"],
+      ["정산 매출 (수수료 부과 기준)", "37,800원"],
+      ["판매 수수료 (요율 13.5% · 본사 수익)", "- 5,103원"],
+      ["PG 수수료 (요율 미정 · 데모 3%)", "- 1,134원"],
+      ["안심케어 보전 (손상에 대한 본사 복원비)", "+ 18,000원"],
+      ["지급액", "49,563원"],
+    ]);
+  });
+
+  it("하단 바 — 원본 5버튼, [셀러 정산에서 처리]는 그 셀러의 정산 상세로", async () => {
+    const { user, onNavSelect } = at("STM-2609-0231");
+
+    await user.click(
+      screen.getByRole("button", { name: "셀러 정산에서 처리" }),
+    );
+    expect(onNavSelect).toHaveBeenLastCalledWith("/settle-seller/S-231");
+
+    for (const name of ["목록", "확인", "취소"]) {
+      await user.click(screen.getByRole("button", { name }));
+      expect(onNavSelect).toHaveBeenLastCalledWith("/settle-statement");
+    }
+
+    await user.click(screen.getAllByRole("button", { name: "셀러 정산" })[0]);
+    expect(onNavSelect).toHaveBeenLastCalledWith("/settle-seller");
+  });
+
+  it("[다운로드]는 알림만", async () => {
+    const { user } = at("STM-2609-0231");
+
+    await user.click(screen.getByRole("button", { name: "다운로드" }));
+    expect(await screen.findByText("코지베이비 명세서 다운로드")).toBeVisible();
+  });
+});
+
+describe("셀러 명세 — 리틀스텝 (이의제기 · 환수로 미회수)", () => {
+  it("환수 줄 · 지급액 0원 하한 · 미회수 잔액 줄과 각주 · 이의제기 안내", () => {
+    at("STM-2609-0227");
+
+    expect(calcLines()).toEqual([
+      ["확정 거래액 (할인 후)", "0원"],
+      ["정산 매출 (수수료 부과 기준)", "0원"],
+      ["판매 수수료 (요율 11% · 본사 수익)", "- 0원"],
+      ["PG 수수료 (요율 미정 · 데모 3%)", "- 0원"],
+      ["취소·반품 차감 (전월 확정분 환수)", "- 77,400원"],
+      ["지급액", "0원"],
+      ["미회수 잔액 (별도 청구)", "77,400원"],
+    ]);
+    expect(
+      screen.getByText(
+        "환수액이 이번 회차 확정 매출을 넘어 77,400원을 회수하지 못했습니다.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByText(/이의를 제기/)).toBeVisible();
+  });
+
+  it("거래 내역 — 환수 건이 맨 위, 각주는 반영 0건 · 제외 9건, 주문번호 → 주문 상세", async () => {
+    const { user, onNavSelect } = at("STM-2609-0227");
+
+    const rows = txRows();
+    expect(rows).toHaveLength(9);
+    expect(rows[0]).toEqual([
+      "1",
+      "20260805132741",
+      "판매",
+      "부스터 주니어 카시트 그로우",
+      "90,000원",
+      "반품 완료",
+      "제외 · 반품 환수",
+    ]);
+    expect(screen.getByText("0건 · 0원")).toBeVisible();
+    expect(screen.getByText("9건")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "20260805132741" }));
+    expect(onNavSelect).toHaveBeenCalledWith("/orders-all/U-S30");
+  });
+});
+
+describe("셀러 명세 — 아기별상사 (쿠폰 · 포인트 참고)", () => {
+  it("셀러 쿠폰을 빼고, 포인트는 참고 줄로만", () => {
+    at("STM-2609-1042");
+
+    expect(calcLines()).toEqual([
+      ["확정 거래액 (할인 후)", "200,000원"],
+      ["셀러 쿠폰 (셀러 부담)", "- 10,000원"],
+      ["정산 매출 (수수료 부과 기준)", "190,000원"],
+      ["판매 수수료 (요율 12% · 본사 수익)", "- 22,800원"],
+      ["PG 수수료 (요율 미정 · 데모 3%)", "- 5,700원"],
+      ["포인트 사용분 본사 부담 (참고 · 정산 영향 없음)", "3,000원"],
+      ["지급액", "161,500원"],
+    ]);
+  });
+});
+
+describe("본사 명세 — 지급 대상 아님", () => {
+  it("지급 정보가 지급 대상이 아님을 말하고, [셀러 정산에서 처리]가 없다", () => {
+    at("STM-2609-0001");
+
+    expect(valueOf("정산 대상")).toBe("본사 (자체)");
+    expect(valueOf("지급 계좌")).toBe("본사 (자체 매출 · 지급 대상 아님)");
+    expect(valueOf("정산 반영 거래 건수")).toBe("2건");
+    expect(screen.getByText("외부로 지급하는 금액이 아니며")).toBeVisible();
+    expect(screen.queryByText(/조회 전용/)).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "셀러 정산에서 처리" }),
+    ).toBeNull();
+  });
+
+  it("정산 명세 — 판매·렌트·합계·직영 차감 0원·지급액", () => {
+    at("STM-2609-0001");
+
+    expect(calcLines()).toEqual([
+      ["판매 매출", "159,000원"],
+      ["렌트 매출", "12,600원"],
+      ["매출 합계", "171,600원"],
+      ["차감", "0원 (직영 — 수수료 없음)"],
+      ["지급액", "171,600원"],
+    ]);
+  });
+
+  it("거래 내역 — 반영 2건이 위, 다른 달 확정·취소·반품·교환은 제외", () => {
+    at("STM-2609-0001");
+
+    expect(txRows().map((row) => row[6])).toEqual([
+      "반영",
+      "반영",
+      "제외 · 취소",
+      "제외 · 반품",
+      "제외 · 미확정",
+      "제외 · 2026.10 확정",
+    ]);
+    expect(screen.getByText("2건 · 171,600원")).toBeVisible();
+    expect(screen.getByText("4건")).toBeVisible();
+  });
+});
+
+describe("거래 내역 페이지 · 접기 · 명세서가 바뀌면 처음부터", () => {
+  it("리틀베이비 11건 — 2페이지에 11번째, 페이지당 20이면 한 페이지", async () => {
+    const { user } = at("STM-2609-0201");
+
+    expect(txRows()).toHaveLength(10);
+    await user.click(screen.getByRole("button", { name: "2" }));
+    expect(txRows().map((row) => row[0])).toEqual(["11"]);
+
+    await user.click(screen.getByRole("combobox", { name: "페이지당 개수" }));
+    await user.click(
+      within(await screen.findByRole("listbox")).getByRole("option", {
+        name: "20개씩 보기",
+      }),
+    );
+    expect(txRows()).toHaveLength(11);
+  });
+
+  it("구역을 접으면 내용이 사라지고, 다른 명세서로 가면 다시 펼쳐진다", async () => {
+    const { user } = at("STM-2609-0226");
+
+    await user.click(screen.getByRole("button", { name: "지급 정보 접기" }));
+    expect(screen.queryByText("지급 계좌")).toBeNull();
+
+    act(() => navigate("/settle-statement/STM-2609-0230"));
+    expect(valueOf("정산 대상")).toBe("아이랑");
+    expect(valueOf("지급 계좌")).toContain("아이랑");
+  });
+});

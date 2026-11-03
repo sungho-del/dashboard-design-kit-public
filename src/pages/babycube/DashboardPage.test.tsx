@@ -130,7 +130,7 @@ describe("BabycubeDashboardPage (S01 대시보드)", () => {
       renderPage();
 
       expect(screen.getByText("12,847")).toBeVisible();
-      expect(screen.getByText("824,000,000")).toBeVisible();
+      expect(screen.getByText("489,700")).toBeVisible();
       // 단위는 여러 타일이 공유하므로 개수로 본다 (명 3 · 원 3)
       expect(screen.getAllByText("명")).toHaveLength(3);
       expect(screen.getAllByText("원")).toHaveLength(3);

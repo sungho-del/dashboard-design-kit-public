@@ -10,6 +10,7 @@ import { TEMPLATE_ROUTES } from "./pages/routes";
 
 /* BabyCube — 기획서(pipeline/01-service-brief.json)에서 Stage 5 가 생성한 28화면 */
 import { BannerListPage } from "./pages/babycube/BannerListPage";
+import { CareClaimDetailPage } from "./pages/babycube/CareClaimDetailPage";
 import { CareClaimListPage } from "./pages/babycube/CareClaimListPage";
 import { CategoryListPage } from "./pages/babycube/CategoryListPage";
 import { CouponListPage } from "./pages/babycube/CouponListPage";
@@ -29,6 +30,7 @@ import { OrderReturnListPage } from "./pages/babycube/OrderReturnListPage";
 import { PointListPage } from "./pages/babycube/PointListPage";
 import { PopupListPage } from "./pages/babycube/PopupListPage";
 import { ProductListPage } from "./pages/babycube/ProductListPage";
+import { RentDepositDetailPage } from "./pages/babycube/RentDepositDetailPage";
 import { RentDepositListPage } from "./pages/babycube/RentDepositListPage";
 import { ReviewListPage } from "./pages/babycube/ReviewListPage";
 import { ScriptSettingsPage } from "./pages/babycube/ScriptSettingsPage";
@@ -37,8 +39,10 @@ import { SellerListPage } from "./pages/babycube/SellerListPage";
 import { SellerReviewDetailPage } from "./pages/babycube/SellerReviewDetailPage";
 import { ProductDetailPage } from "./pages/babycube/ProductDetailPage";
 import { SellerReviewPage } from "./pages/babycube/SellerReviewPage";
+import { SellerSettlementDetailPage } from "./pages/babycube/SellerSettlementDetailPage";
 import { SellerSettlementPage } from "./pages/babycube/SellerSettlementPage";
 import { SettingsPage } from "./pages/babycube/SettingsPage";
+import { SettlementStatementDetailPage } from "./pages/babycube/SettlementStatementDetailPage";
 import { SettlementStatementPage } from "./pages/babycube/SettlementStatementPage";
 import { SupportListPage } from "./pages/babycube/SupportListPage";
 import { TaxInvoiceListPage } from "./pages/babycube/TaxInvoiceListPage";
@@ -174,6 +178,27 @@ const DETAIL_ROUTES: {
     prefix: "/orders-exchange/",
     parent: "/orders-exchange",
     screen: BcOrderDetailPage,
+  },
+  /* 정산 관리 — 원본 숨은 상세 4개(셀러 정산 · 보증금 · 안심케어 청구 · 정산 명세서) */
+  {
+    prefix: "/settle-seller/",
+    parent: "/settle-seller",
+    screen: SellerSettlementDetailPage,
+  },
+  {
+    prefix: "/rent-deposit/",
+    parent: "/rent-deposit",
+    screen: RentDepositDetailPage,
+  },
+  {
+    prefix: "/care-claims/",
+    parent: "/care-claims",
+    screen: CareClaimDetailPage,
+  },
+  {
+    prefix: "/settle-statement/",
+    parent: "/settle-statement",
+    screen: SettlementStatementDetailPage,
   },
 ];
 

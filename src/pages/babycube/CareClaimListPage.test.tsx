@@ -1,28 +1,22 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { CareClaimListPage } from "./CareClaimListPage";
-import {
-  CLAIMS,
-  reviewableOf,
-  sumRestoreFee,
-  won,
-} from "./CareClaimListPage.data";
+import { CLAIM_ROWS, REVIEW_COPY, sumAmount } from "./CareClaimListPage.data";
+import { SETTLEMENT_SUMMARY, SELLER_SETTLEMENTS } from "./settlement.data";
 
-/**
- * S14 안심케어 승인 — **동작** 검증.
+/* -------------------------------------------------------------------------
+ * S14 안심케어 승인 — 목록형 (+ 행 선택 · 일괄 심사)
  *
- * 상태 대시(건수 카드) · **기본 상태가 청구 접수인 것** · 조건부 열(승인일·반려일) ·
- * 기간 기준 3축 · 검색 조건 3종 · 행 선택 · 일괄 심사 두 갈래와 **검증 문구** ·
- * 모달 합계(고른 것이 아니라 심사 대상의 합) · 반려 사유 필수를 확인한다.
+ * ## 무엇을 검증하는가
+ * 상태 3카드(전체 없음 · 기본 청구 접수) · 접수 건만 선택 · No · 복원비/청구일 정렬 ·
+ * 검색조건(기본 펼침) · 페이지 크기 · 승인 창(합계)/반려 창(사유 trim 필수 · 다시 열면 초기화) ·
+ * 처리는 토스트만 · 행 클릭 → 상세(체크박스는 이동 안 함) · `?preview=` ·
+ * **사례표 숫자**(접수 U-R18 9,000 · 승인 U-R28 12,000 · U-R29 18,000 · 반려 U-R19 15,000 —
+ * 승인 합 30,000 = 셀러 정산 보전 합).
  *
- * ## ⚠️ "되살아나지 않는지"도 함께 본다
- * 원본 대조로 **도움말 툴팁 · 선택 바 · 툴바의 `심사` 버튼 · 체크박스 잠금**을 걷어냈고,
- * **반려 결과 문구**를 정반대에서 원본으로 되돌렸다.
- *
- * jsdom 에는 레이아웃도 `ResizeObserver`/`IntersectionObserver` 도 없다.
- * Select·DatePicker·Dropdown 이 쓰는 floating-ui `autoUpdate` 가 둘을 요구한다.
- */
+ * ## 원본에 없는 것이 되살아나지 않는지도 본다 — 엑셀 · [전체] 카드 · 단건 심사 버튼
+ * ---------------------------------------------------------------------- */
 class ObserverStub {
   observe() {}
   unobserve() {}
@@ -41,153 +35,167 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-function renderPage() {
+function renderPage(url = "/care-claims") {
+  window.history.replaceState(null, "", url);
   const onNavSelect = vi.fn();
-  const onNavOpenChange = vi.fn();
   const user = userEvent.setup();
-
   render(
     <ToastProvider position="bottom">
       <CareClaimListPage
         navOpen
-        onNavOpenChange={onNavOpenChange}
+        onNavOpenChange={vi.fn()}
         activeNav="/care-claims"
         onNavSelect={onNavSelect}
       />
     </ToastProvider>,
   );
-
-  return { user, onNavSelect, onNavOpenChange };
+  return { user, onNavSelect };
 }
 
-/** 헤더 행을 뺀 데이터 행. 빈 상태에서는 표가 통째로 걷혀 빈 배열이 된다 */
+afterEach(() => window.history.replaceState(null, "", "/"));
+
+/* 사례표 `settle-cases.md` — 처리단위 · 주문번호 */
+const RECEIVED_NO = "20260918112008"; // U-R18 베이비루 9,000 접수
+const APPROVED_A = "20260820151024"; // U-R28 베베하우스 12,000 승인
+const APPROVED_B = "20260818114237"; // U-R29 코지베이비 18,000 승인
+const REJECTED_NO = "20260915084755"; // U-R19 리틀베이비 15,000 반려
+
+const statusBox = (name: string) => screen.getByRole("button", { name });
+
 function bodyRows(): HTMLElement[] {
   const table = screen.queryByRole("table");
   if (!table) return [];
   return within(table).getAllByRole("row").slice(1);
 }
 
-/** 남아 있는 청구의 주문번호(2번째 컬럼 — 1번째는 체크박스) */
-function visibleOrderNos(): string[] {
-  return bodyRows().map(
-    (row) => within(row).getAllByRole("cell")[1].textContent ?? "",
-  );
-}
+/** 열: 0 선택 · 1 No · 2 주문번호 · 3 셀러 · 4 상품 · 5 검수 판정 · 6 복원비 · 7 청구일 · [8 승인일|반려일] · 상태 */
+const cellsOf = (row: HTMLElement) => within(row).getAllByRole("cell");
+const column = (index: number) =>
+  bodyRows().map((row) => cellsOf(row)[index].textContent);
+const rowOf = (orderNo: string) =>
+  screen.getByRole("button", { name: orderNo }).closest("tr") as HTMLElement;
 
-function columnNames(): string[] {
-  return within(screen.getByRole("table"))
-    .getAllByRole("columnheader")
-    .map((cell) => cell.textContent ?? "");
-}
+const bar = () => screen.getByRole("group", { name: "선택한 청구 일괄 심사" });
+const queryBar = () =>
+  screen.queryByRole("group", { name: "선택한 청구 일괄 심사" });
+const rowCheckbox = (orderNo: string) =>
+  screen.getByRole("checkbox", { name: `${orderNo} 선택` });
+const sortButton = (name: string) =>
+  within(screen.getByRole("columnheader", { name })).getByRole("button");
 
-/** 검색 입력은 이 화면의 유일한 textbox 다 (반려 모달을 열기 전까지) */
-function searchBox(): HTMLElement {
-  return screen.getByRole("textbox");
-}
-
-/** 셀렉트를 열고 옵션 하나를 고른다 */
-async function pickOption(
+async function chooseOption(
   user: ReturnType<typeof userEvent.setup>,
-  selectName: string | RegExp,
-  optionName: string,
+  selectName: string,
+  optionLabel: string,
 ) {
   await user.click(screen.getByRole("combobox", { name: selectName }));
   await user.click(
-    within(await screen.findByRole("listbox")).getByRole("option", {
-      name: optionName,
+    within(screen.getByRole("listbox")).getByRole("option", {
+      name: optionLabel,
     }),
   );
 }
 
-/** 일괄 심사 메뉴에서 항목 하나를 고른다 (원본 `toolsRight` 셀렉트에 해당) */
-async function pickReview(
-  user: ReturnType<typeof userEvent.setup>,
-  itemName: string,
-) {
-  await user.click(screen.getByRole("button", { name: "일괄 심사" }));
-  await user.click(
-    within(await screen.findByRole("menu")).getByRole("menuitem", {
-      name: itemName,
-    }),
-  );
-}
-
-describe("CareClaimListPage (BabyCube S14 안심케어 승인)", () => {
-  describe("첫 화면 (원본 `defaultStat`)", () => {
-    it("전체가 아니라 '청구 접수'로 열린다 — 일감을 보러 오는 화면이다", () => {
-      renderPage();
-
+describe("CareClaimListPage (S14 안심케어 승인)", () => {
+  describe("샘플 — 주문 처리단위에서 뽑는다 (사례표)", () => {
+    it("렌트·청구 있는 처리단위 4건 — 접수 1 · 승인 2 · 반려 1", () => {
       expect(
-        screen.getByRole("button", { name: /^청구 접수/ }),
-      ).toHaveAttribute("aria-pressed", "true");
-      expect(visibleOrderNos()).toEqual(
-        CLAIMS.filter((row) => row.status === "received").map((row) => row.id),
+        CLAIM_ROWS.map((row) => [row.id, row.seller, row.amount, row.status]),
+      ).toEqual([
+        ["U-R18", "베이비루", 9000, "received"],
+        ["U-R19", "리틀베이비", 15000, "rejected"],
+        ["U-R28", "베베하우스", 12000, "approved"],
+        ["U-R29", "코지베이비", 18000, "approved"],
+      ]);
+      /* 청구할 수 있는 판정은 「파손(복원가능)」 하나다(약관) */
+      expect(CLAIM_ROWS.every((row) => row.inspection === "repairable")).toBe(
+        true,
       );
     });
 
-    it("심사 안내 한 줄이 원본 문구 그대로다", () => {
-      renderPage();
-
+    it("승인 복원비 합 30,000원 = 2026.09 회차 셀러 정산의 보전 합 (베베하우스 12,000 · 코지베이비 18,000)", () => {
+      const approved = CLAIM_ROWS.filter((row) => row.status === "approved");
+      expect(sumAmount(approved)).toBe(30000);
+      expect(SETTLEMENT_SUMMARY.care).toBe(30000);
       expect(
-        screen.getByText(
-          "승인한 복원비만 익월 정산에 보전됩니다 — 접수·반려 건은 보전 대상이 아닙니다.",
-        ),
-      ).toBeVisible();
-    });
-
-    it("선택한 상태의 설명(원본 statusTips)이 상시 노출된다", () => {
-      renderPage();
-
-      expect(
-        screen.getByText(/입점사가 복원비를 청구해 본사 판단을 기다리는/),
-      ).toBeVisible();
-    });
-
-    it("⚠️ 도움말 툴팁을 되살리지 않는다 — 원본에 없다", () => {
-      renderPage();
-
-      expect(
-        screen.queryByRole("button", { name: "안심케어 심사 도움말" }),
-      ).not.toBeInTheDocument();
+        SELLER_SETTLEMENTS.filter((row) => row.care > 0).map((row) => [
+          row.name,
+          row.care,
+        ]),
+      ).toEqual(
+        expect.arrayContaining([
+          ["베베하우스", 12000],
+          ["코지베이비", 18000],
+        ]),
+      );
     });
   });
 
-  describe("상태 대시 (원본 `chip.dash: !0`)", () => {
-    it("카드가 곧 필터다 — 누르면 그 상태만 남는다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("button", { name: /^반려/ }));
-
-      expect(visibleOrderNos()).toEqual(["R2026-0402-0620"]);
-      expect(screen.getByText("목록 (총 1건)")).toBeVisible();
+  describe("상태 대시 — 3장 · 전체 없음 · 기본 청구 접수", () => {
+    it("청구 접수·승인·반려만 있고 [전체] 는 없다", () => {
+      renderPage();
+      expect(statusBox("청구 접수 1건")).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(statusBox("승인 2건")).toBeVisible();
+      expect(statusBox("반려 1건")).toBeVisible();
+      expect(screen.queryByRole("button", { name: /^전체/ })).toBeNull();
     });
 
-    it("건수는 검색까지 통과한 행에서 센다 — 표와 모순되지 않는다", async () => {
+    it("카드가 곧 상태 필터다 — 승인일 열은 승인에서만, 반려일 열은 반려에서만", async () => {
       const { user } = renderPage();
+      expect(column(2)).toEqual([RECEIVED_NO]);
+      expect(screen.queryByRole("columnheader", { name: "승인일" })).toBeNull();
 
-      await user.click(screen.getByRole("button", { name: /^전체/ }));
+      await user.click(statusBox("승인 2건"));
+      expect(column(2)).toEqual([APPROVED_A, APPROVED_B]);
+      expect(column(8)).toEqual(["2026.09.21", "2026.09.18"]);
+
+      await user.click(statusBox("반려 1건"));
+      expect(column(2)).toEqual([REJECTED_NO]);
       expect(
-        screen.getByRole("button", { name: `전체 ${CLAIMS.length}건` }),
-      ).toBeVisible();
+        screen.getByRole("columnheader", { name: "반려일" }),
+      ).toBeInTheDocument();
+      expect(column(8)).toEqual(["2026.10.16"]);
+    });
 
-      await pickOption(user, /검색조건/, "셀러명");
-      await user.type(searchBox(), "맘스케어");
-
-      // 맘스케어는 청구 접수 2건뿐이다 — 전체 카드도 2건이 돼야 한다
-      expect(screen.getByRole("button", { name: "전체 2건" })).toBeVisible();
+    it("반려 카드 툴팁은 상품 문장이 아니라 안심케어 반려 안내다", async () => {
+      const { user } = renderPage();
+      await user.hover(statusBox("반려 1건"));
       expect(
-        screen.getByRole("button", { name: "청구 접수 2건" }),
+        await screen.findByText(/반려 건은 본사 보전 대상이 아니며/),
       ).toBeVisible();
-      expect(screen.getByRole("button", { name: "승인 0건" })).toBeVisible();
+      expect(screen.queryByText(/판매를 내린 상태/)).toBeNull();
+    });
+
+    it("안내 한 줄은 상태 카드와 검색조건 사이에 있다 (원본 midNote)", () => {
+      renderPage();
+      const note = screen.getByText(
+        "승인한 복원비만 익월 정산에 보전됩니다 — 접수·반려 건은 보전 대상이 아닙니다.",
+      );
+      const cards = screen.getByRole("button", { name: "청구 접수 1건" });
+      const filters = screen.getByRole("combobox", { name: "기간 기준" });
+      expect(
+        cards.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(
+        note.compareDocumentPosition(filters) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
     });
   });
 
-  describe("조건부 열 (원본이 상태에 따라 밀어 넣는 두 열)", () => {
-    it("청구 접수에서는 승인일·반려일 열이 없다", () => {
+  describe("목록", () => {
+    it("열 순서 · 셀 표기 (사례표 U-R18)", () => {
       renderPage();
-
-      expect(columnNames()).toEqual([
+      expect(
+        within(screen.getByRole("table"))
+          .getAllByRole("columnheader")
+          .map((th) => th.textContent),
+      ).toEqual([
         "",
+        "No",
         "주문번호",
         "셀러",
         "상품",
@@ -196,333 +204,308 @@ describe("CareClaimListPage (BabyCube S14 안심케어 승인)", () => {
         "청구일",
         "상태",
       ]);
+      expect(cellsOf(rowOf(RECEIVED_NO)).map((td) => td.textContent)).toEqual([
+        "",
+        "1",
+        RECEIVED_NO,
+        "베이비루",
+        "아기침대 슬립 베이직",
+        "파손(복원가능)",
+        "9,000원",
+        "2026.10.10",
+        "청구 접수",
+      ]);
     });
 
-    /**
-     * 표 전체가 **한 기준선**에 선다 — 수치도 좌측이다.
-     * 배지만 들어가는 열만 가운데다(`DESIGN.md` §7-2): 배지는 글자가 아니라 객체라
-     * 왼쪽 모서리에 정보가 없다.
-     */
-    it("우측 정렬 열이 없다 · 배지만 든 열만 가운데다", () => {
+    it("「목록 (총 N건)」 · 엑셀 없음 · 단건 심사 버튼 없음", () => {
       renderPage();
-
-      const cells = within(bodyRows()[0]).getAllByRole("cell");
-      const headers = within(screen.getByRole("table")).getAllByRole(
-        "columnheader",
-      );
-
-      for (const el of [...cells, ...headers]) {
-        expect(el.className.split(/\s+/)).not.toContain("text-right");
-      }
-
-      const BADGE_COLUMNS = [4, 7];
-      headers.forEach((header, index) => {
-        const want = BADGE_COLUMNS.includes(index);
-        expect(header.className.split(/\s+/).includes("text-center")).toBe(
-          want,
-        );
-        expect(
-          cells[index].className.split(/\s+/).includes("text-center"),
-        ).toBe(want);
-      });
+      expect(
+        screen.getByRole("heading", { name: "목록 (총 1건)" }),
+      ).toBeVisible();
+      expect(screen.queryByRole("button", { name: /엑셀/ })).toBeNull();
+      expect(
+        within(rowOf(RECEIVED_NO))
+          .getAllByRole("button")
+          .map((button) => button.textContent),
+      ).toEqual([RECEIVED_NO]);
     });
 
-    it("승인을 고르면 승인일 열만 붙는다", async () => {
+    it("No 는 조회 결과의 역순 순번이다", async () => {
       const { user } = renderPage();
-
-      await user.click(screen.getByRole("button", { name: /^승인/ }));
-
-      expect(columnNames()).toContain("승인일");
-      expect(columnNames()).not.toContain("반려일");
-      // 원본 `ymd` — 날짜만 낸다
-      expect(within(bodyRows()[0]).getAllByRole("cell")[7]).toHaveTextContent(
-        "2026.08.03",
-      );
+      await user.click(statusBox("승인 2건"));
+      expect(column(1)).toEqual(["2", "1"]);
     });
 
-    it("반려를 고르면 반려일 열만 붙는다", async () => {
+    it("페이지당 개수는 10·20·50·100 이다", async () => {
       const { user } = renderPage();
-
-      await user.click(screen.getByRole("button", { name: /^반려/ }));
-
-      expect(columnNames()).toContain("반려일");
-      expect(columnNames()).not.toContain("승인일");
+      await user.click(screen.getByRole("combobox", { name: "페이지당 개수" }));
+      expect(
+        screen.getAllByRole("option").map((option) => option.textContent),
+      ).toEqual(["10개씩 보기", "20개씩 보기", "50개씩 보기", "100개씩 보기"]);
     });
   });
 
-  describe("기간 기준 3축 (원본 `date.fields`)", () => {
-    it("청구일·승인일·반려일 셋 중에서 고른다", async () => {
+  describe("정렬 — 복원비 · 청구일 (원본 sortHead)", () => {
+    it("복원비 오름 → 내림 → 해제", async () => {
       const { user } = renderPage();
+      await user.click(statusBox("승인 2건"));
 
-      await user.click(screen.getByRole("combobox", { name: /기간 기준/ }));
-      expect(
-        within(await screen.findByRole("listbox"))
-          .getAllByRole("option")
-          .map((option) => option.textContent),
-      ).toEqual(["청구일", "승인일", "반려일"]);
+      await user.click(sortButton("복원비"));
+      expect(column(6)).toEqual(["12,000원", "18,000원"]);
+      await user.click(sortButton("복원비"));
+      expect(column(6)).toEqual(["18,000원", "12,000원"]);
+      await user.click(sortButton("복원비"));
+      expect(column(2)).toEqual([APPROVED_A, APPROVED_B]);
     });
 
-    it("기준만 바꾸고 기간을 비워 두면 아무것도 걸리지 않는다", async () => {
+    it("청구일 오름차순 — 정렬해도 No 는 위에서부터 역순", async () => {
       const { user } = renderPage();
+      await user.click(statusBox("승인 2건"));
+      await user.click(sortButton("청구일"));
+      expect(column(7)).toEqual(["2026.09.16", "2026.09.18"]);
+      expect(column(1)).toEqual(["2", "1"]);
+    });
 
-      await user.click(screen.getByRole("button", { name: /^전체/ }));
-      await pickOption(user, /기간 기준/, "승인일");
+    it("상태 카드를 바꾸면 정렬과 선택이 풀린다 (원본 subnav)", async () => {
+      const { user } = renderPage();
+      await user.click(rowCheckbox(RECEIVED_NO));
+      await user.click(sortButton("복원비"));
 
+      await user.click(statusBox("승인 2건"));
       expect(
-        screen.getByRole("combobox", { name: /기간 기준/ }),
-      ).toHaveTextContent("승인일");
-      expect(screen.getByText(`목록 (총 ${CLAIMS.length}건)`)).toBeVisible();
+        screen.getByRole("columnheader", { name: "복원비" }),
+      ).toHaveAttribute("aria-sort", "none");
+      expect(queryBar()).toBeNull();
+    });
+
+    it("승인일·반려일은 정렬하지 않는다", async () => {
+      const { user } = renderPage();
+      await user.click(statusBox("승인 2건"));
+      expect(
+        within(
+          screen.getByRole("columnheader", { name: "승인일" }),
+        ).queryByRole("button"),
+      ).toBeNull();
     });
   });
 
-  describe("검색 (조건 3종)", () => {
-    it("기본 조건은 주문번호다", async () => {
+  describe("검색조건 — 기본 펼침 · 입력 즉시 적용", () => {
+    it("펼친 채로 열리고, 접으면 요약이 조건을 말한다", async () => {
       const { user } = renderPage();
-
-      await user.type(searchBox(), "0288");
-
-      expect(visibleOrderNos()).toEqual(["R2026-0705-0288"]);
+      await chooseOption(user, "검색 조건", "셀러명");
+      await user.type(screen.getByPlaceholderText("검색어 입력"), "베베하우스");
+      await user.click(screen.getByRole("button", { name: /검색 닫기/ }));
+      expect(screen.getByText("셀러명 «베베하우스»")).toBeVisible();
     });
 
-    it("조건을 상품명으로 바꾸면 상품명으로 찾는다", async () => {
+    it("검색어가 카드 건수에도 걸린다 — 상태를 뺀 나머지 조건으로 센다", async () => {
       const { user } = renderPage();
+      await chooseOption(user, "검색 조건", "셀러명");
+      await user.type(screen.getByPlaceholderText("검색어 입력"), "베베하우스");
 
-      await pickOption(user, /검색조건/, "상품명");
-      await user.type(searchBox(), "바운서");
-
-      expect(visibleOrderNos()).toEqual(["R2026-0705-0288"]);
-    });
-
-    it("조건이 주문번호일 때 셀러명으로는 찾히지 않는다", async () => {
-      const { user } = renderPage();
-
-      await user.type(searchBox(), "맘스케어");
-
-      expect(bodyRows()).toHaveLength(0);
+      expect(statusBox("청구 접수 0건")).toBeVisible();
+      expect(statusBox("승인 1건")).toBeVisible();
       expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
     });
-  });
 
-  describe("일괄 심사 — 막는 순서가 원본과 같다", () => {
-    it("아무것도 고르지 않으면 원본 문구로 막는다", async () => {
+    it("주문번호·상품명으로도 찾는다", async () => {
       const { user } = renderPage();
+      await user.click(statusBox("승인 2건"));
+      await user.type(screen.getByPlaceholderText("검색어 입력"), "0818");
+      expect(column(2)).toEqual([APPROVED_B]);
 
-      await pickReview(user, "승인 처리");
-
-      expect(await screen.findByText("선택된 항목이 없습니다.")).toBeVisible();
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      await chooseOption(user, "검색 조건", "상품명");
+      await user.clear(screen.getByPlaceholderText("검색어 입력"));
+      await user.type(screen.getByPlaceholderText("검색어 입력"), "코모");
+      expect(column(2)).toEqual([APPROVED_A]);
     });
 
-    it("심사할 수 없는 건만 골랐으면 이유를 말한다 (체크박스를 잠그지 않는다)", async () => {
+    it("기간 기준을 바꾸면 날짜 입력이 그 축을 밝힌다", async () => {
       const { user } = renderPage();
+      await chooseOption(user, "기간 기준", "반려일");
+      expect(screen.getByText("반려일 시작")).toBeVisible();
+    });
 
-      await user.click(screen.getByRole("button", { name: /^승인/ }));
-      // 승인된 건은 다시 심사할 수 없다. 원본은 고를 수는 있게 둔다
-      await user.click(
-        screen.getByRole("checkbox", { name: "R2026-0429-0188 선택" }),
+    it("초기화하면 청구 접수로 돌아간다", async () => {
+      const { user } = renderPage();
+      await user.click(statusBox("반려 1건"));
+      await user.type(screen.getByPlaceholderText("검색어 입력"), "없는건");
+      await user.click(screen.getByRole("button", { name: "필터를 초기화" }));
+
+      expect(statusBox("청구 접수 1건")).toHaveAttribute(
+        "aria-pressed",
+        "true",
       );
-      await pickReview(user, "승인 처리");
-
-      expect(
-        await screen.findByText("청구 접수 상태인 건만 심사할 수 있습니다."),
-      ).toBeVisible();
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(column(2)).toEqual([RECEIVED_NO]);
     });
   });
 
-  describe("승인 모달", () => {
-    it("건수·합계는 고른 것이 아니라 **심사 대상**의 것이다", async () => {
+  describe("선택 — 청구 접수 건만", () => {
+    it("종결 건은 고를 수 없고 전체 선택도 잠긴다", async () => {
       const { user } = renderPage();
-
-      await user.click(screen.getByRole("button", { name: /^전체/ }));
-      await user.click(
-        screen.getByRole("checkbox", { name: "R2026-0705-0288 선택" }),
-      );
-      await user.click(
-        screen.getByRole("checkbox", { name: "R2026-0612-0503 선택" }),
-      );
-      // 심사할 수 없는 건을 하나 더 섞는다 — 합계에 들어가면 안 된다
-      await user.click(
-        screen.getByRole("checkbox", { name: "R2026-0429-0188 선택" }),
-      );
-      await pickReview(user, "승인 처리");
-
-      const dialog = await screen.findByRole("dialog");
+      await user.click(statusBox("승인 2건"));
+      expect(rowCheckbox(APPROVED_A)).toBeDisabled();
       expect(
-        within(dialog).getByRole("heading", { name: "안심케어 승인 (2건)" }),
-      ).toBeVisible();
+        screen.getByRole("checkbox", { name: "전체 선택" }),
+      ).toBeDisabled();
+    });
 
-      const targets = reviewableOf([
-        "R2026-0705-0288",
-        "R2026-0612-0503",
-        "R2026-0429-0188",
-      ]);
-      expect(targets).toHaveLength(2);
+    it("고르면 일괄 바가 뜨고, 체크박스를 눌러도 상세로 가지 않는다", async () => {
+      const { user, onNavSelect } = renderPage();
+      expect(queryBar()).toBeNull();
+
+      await user.click(rowCheckbox(RECEIVED_NO));
+      expect(within(bar()).getByText("1건 선택됨")).toBeVisible();
+      expect(onNavSelect).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("일괄 승인 — 원본 gateApprove(care)", () => {
+    it("원본 문구 · 심사 대상 복원비 합계 · 처리하면 토스트만", async () => {
+      const { user } = renderPage();
+      await user.click(rowCheckbox(RECEIVED_NO));
+      await user.click(
+        within(bar()).getByRole("button", { name: /승인 처리/ }),
+      );
+
+      const dialog = screen.getByRole("dialog", { name: "안심케어 승인" });
       expect(
         within(dialog).getByText(
-          `승인하면 복원비 ${won(sumRestoreFee(targets))}이 익월 정산에 보전되고, 해당 건의 보증금은 차감 없이 종결됩니다.`,
+          "승인하면 복원비 9,000원이 익월 정산에 보전되고, 해당 건의 보증금은 차감 없이 종결됩니다.",
         ),
       ).toBeVisible();
-      expect(sumRestoreFee(targets)).toBe(82_000);
-    });
-
-    it("한 건이면 제목에 건수를 붙이지 않는다 (원본 규칙)", async () => {
-      const { user } = renderPage();
-
-      await user.click(
-        screen.getByRole("checkbox", { name: "R2026-0705-0288 선택" }),
-      );
-      await pickReview(user, "승인 처리");
-
       expect(
-        within(await screen.findByRole("dialog")).getByRole("heading", {
-          name: "안심케어 승인",
-        }),
+        within(dialog).getByText("승인 후에는 이 화면에서 되돌릴 수 없습니다."),
       ).toBeVisible();
-    });
-
-    it("되돌릴 수 없다는 경고가 함께 뜬다", async () => {
-      const { user } = renderPage();
 
       await user.click(
-        screen.getByRole("checkbox", { name: "R2026-0705-0288 선택" }),
+        within(dialog).getByRole("button", { name: "승인 처리" }),
       );
-      await pickReview(user, "승인 처리");
-
-      expect(
-        within(await screen.findByRole("dialog")).getByText(
-          "승인 후에는 이 화면에서 되돌릴 수 없습니다.",
-        ),
-      ).toBeVisible();
-    });
-
-    it("확정하면 원본 토스트를 띄우고 선택을 푼다", async () => {
-      const { user } = renderPage();
-
-      await user.click(
-        screen.getByRole("checkbox", { name: "R2026-0705-0288 선택" }),
-      );
-      await pickReview(user, "승인 처리");
-      await user.click(screen.getByRole("button", { name: "승인 처리" }));
-
       expect(
         await screen.findByText("승인 처리되었습니다. 익월 정산에 보전됩니다."),
       ).toBeVisible();
-      await waitFor(() =>
-        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-      );
-      expect(
-        screen.getByRole("checkbox", { name: "R2026-0705-0288 선택" }),
-      ).not.toBeChecked();
+      /* 퍼블 범위 — 상태·건수는 그대로, 선택만 풀린다 */
+      expect(statusBox("청구 접수 1건")).toBeVisible();
+      expect(within(rowOf(RECEIVED_NO)).getByText("청구 접수")).toBeVisible();
+      expect(queryBar()).toBeNull();
     });
 
-    it("'취소'는 아무것도 진행시키지 않는다", async () => {
+    it("취소하면 아무 일도 없다", async () => {
       const { user } = renderPage();
-
+      await user.click(rowCheckbox(RECEIVED_NO));
       await user.click(
-        screen.getByRole("checkbox", { name: "R2026-0705-0288 선택" }),
+        within(bar()).getByRole("button", { name: /승인 처리/ }),
       );
-      await pickReview(user, "승인 처리");
-      await user.click(screen.getByRole("button", { name: "취소" }));
+      await user.click(
+        within(screen.getByRole("dialog")).getByRole("button", {
+          name: "취소",
+        }),
+      );
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(rowCheckbox(RECEIVED_NO)).toBeChecked();
+    });
 
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-      expect(
-        screen.queryByText("승인 처리되었습니다. 익월 정산에 보전됩니다."),
-      ).not.toBeInTheDocument();
+    it("여러 건이면 제목·알림에 건수가 붙는다 (문구 계약)", () => {
+      expect(REVIEW_COPY.approveTitle(2)).toBe("안심케어 승인 (2건)");
+      expect(REVIEW_COPY.approved(2)).toBe(
+        "2건 승인 처리되었습니다. 익월 정산에 보전됩니다.",
+      );
+      expect(REVIEW_COPY.rejectTitle(2)).toBe("안심케어 반려 사유 입력 (2건)");
+      expect(REVIEW_COPY.rejected(2)).toBe("2건을 반려 처리했습니다.");
+      expect(REVIEW_COPY.approveBody(30000)).toContain("복원비 30,000원이");
     });
   });
 
-  describe("반려 모달", () => {
-    it("⚠️ 반려 결과 문구가 원본이다 — '차감 없이 종결'은 승인의 결과다", async () => {
-      const { user } = renderPage();
-
+  describe("일괄 반려 — 원본 carereject", () => {
+    const openReject = async (user: ReturnType<typeof userEvent.setup>) => {
       await user.click(
-        screen.getByRole("checkbox", { name: "R2026-0705-0288 선택" }),
+        within(bar()).getByRole("button", { name: /반려 처리/ }),
       );
-      await pickReview(user, "반려 처리");
+      return screen.getByRole("dialog", { name: "안심케어 반려 사유 입력" });
+    };
 
-      const dialog = await screen.findByRole("dialog");
+    it("사유가 비거나 공백뿐이면 처리하지 않고 입력칸 아래에 이유를 낸다", async () => {
+      const { user } = renderPage();
+      await user.click(rowCheckbox(RECEIVED_NO));
+      const dialog = await openReject(user);
+
       expect(
-        within(dialog).getByText(
-          "반려하면 본사 보전 대상에서 빠지고, 해당 건은 보증금 차감 판단으로 되돌아갑니다(입점사 검수·반납 상세에 사유가 표시됩니다).",
-        ),
+        within(dialog).getByPlaceholderText(/복원 견적서 미첨부/),
       ).toBeVisible();
       expect(
-        within(dialog).queryByText(/차감 없이 종결/),
-      ).not.toBeInTheDocument();
-    });
-
-    it("사유가 비어 있으면 넘어가지 않는다 — 사유는 입점사에게 그대로 보인다", async () => {
-      const { user } = renderPage();
-
-      await user.click(
-        screen.getByRole("checkbox", { name: "R2026-0705-0288 선택" }),
-      );
-      await pickReview(user, "반려 처리");
-      await user.click(screen.getByRole("button", { name: "반려 처리" }));
-
-      expect(
-        await screen.findByText("반려 사유를 입력해주세요."),
+        within(dialog).getByText(/보증금 차감 판단으로 되돌아갑니다/),
       ).toBeVisible();
-      expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+      await user.type(within(dialog).getByRole("textbox"), "   ");
+      await user.click(
+        within(dialog).getByRole("button", { name: "반려 처리" }),
+      );
+      expect(
+        within(dialog).getByText("반려 사유를 입력해주세요."),
+      ).toBeVisible();
+      expect(screen.queryByText("반려 처리되었습니다.")).toBeNull();
     });
 
-    it("사유를 넣으면 반려 토스트를 띄우고 닫는다", async () => {
+    it("닫았다 다시 열면 적던 사유가 남지 않는다", async () => {
       const { user } = renderPage();
+      await user.click(rowCheckbox(RECEIVED_NO));
+      let dialog = await openReject(user);
+      await user.type(within(dialog).getByRole("textbox"), "견적서 없음");
+      await user.click(within(dialog).getByRole("button", { name: "취소" }));
 
+      dialog = await openReject(user);
+      expect(within(dialog).getByRole("textbox")).toHaveValue("");
+    });
+
+    it("사유를 적으면 토스트만 — 행은 그대로", async () => {
+      const { user } = renderPage();
+      await user.click(rowCheckbox(RECEIVED_NO));
+      const dialog = await openReject(user);
+      await user.type(within(dialog).getByRole("textbox"), "견적서 미첨부");
       await user.click(
-        screen.getByRole("checkbox", { name: "R2026-0705-0288 선택" }),
+        within(dialog).getByRole("button", { name: "반려 처리" }),
       );
-      await pickReview(user, "반려 처리");
-
-      const dialog = await screen.findByRole("dialog");
-      await user.type(
-        within(dialog).getByRole("textbox"),
-        "복원 견적서 미첨부",
-      );
-      await user.click(screen.getByRole("button", { name: "반려 처리" }));
 
       expect(await screen.findByText("반려 처리되었습니다.")).toBeVisible();
-      await waitFor(() =>
-        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-      );
+      expect(statusBox("반려 1건")).toBeVisible();
+      expect(queryBar()).toBeNull();
     });
   });
 
-  describe("선택 유지 규칙", () => {
-    it("조건을 바꾸면 선택이 풀린다 — 안 보이는 건이 합계에 들어가면 안 된다", async () => {
-      const { user } = renderPage();
-
-      await user.click(
-        screen.getByRole("checkbox", { name: "R2026-0705-0288 선택" }),
-      );
-      await user.click(screen.getByRole("button", { name: /^전체/ }));
-
-      await pickReview(user, "승인 처리");
-      expect(await screen.findByText("선택된 항목이 없습니다.")).toBeVisible();
+  describe("상세 진입", () => {
+    it("주문번호를 누르면 처리단위 상세로 간다", async () => {
+      const { user, onNavSelect } = renderPage();
+      await user.click(screen.getByRole("button", { name: RECEIVED_NO }));
+      expect(onNavSelect).toHaveBeenCalledWith("/care-claims/U-R18");
     });
 
-    it("⚠️ 선택 바를 되살리지 않는다 — 원본에는 메뉴 하나뿐이다", async () => {
-      const { user } = renderPage();
-
-      await user.click(
-        screen.getByRole("checkbox", { name: "R2026-0705-0288 선택" }),
-      );
-
-      expect(screen.queryByText("1건 선택됨")).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "심사" })).toBeNull();
+    it("행의 다른 칸을 눌러도 같은 상세로 간다", async () => {
+      const { user, onNavSelect } = renderPage();
+      await user.click(statusBox("반려 1건"));
+      await user.click(cellsOf(rowOf(REJECTED_NO))[4]);
+      expect(onNavSelect).toHaveBeenLastCalledWith("/care-claims/U-R19");
     });
   });
 
-  describe("엑셀 다운로드 (원본 `toolsLeft`)", () => {
-    it("지금 조회된 건수로 파일명을 만든다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("button", { name: "엑셀 다운로드" }));
-
+  describe("데이터 상태 미리보기 (?preview=)", () => {
+    it("loading — 본문만 스켈레톤", () => {
+      renderPage("/care-claims?preview=loading");
       expect(
-        await screen.findByText("안심케어승인_4건.csv 를 내려받았습니다"),
-      ).toBeVisible();
+        document.body.querySelectorAll("[data-skeleton]").length,
+      ).toBeGreaterThan(0);
+      expect(screen.queryByText("해당 조건의 항목이 없습니다")).toBeNull();
+    });
+
+    it("empty — 빈 상태 · 카드 0건", () => {
+      renderPage("/care-claims?preview=empty");
+      expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
+      expect(statusBox("청구 접수 0건")).toBeVisible();
+    });
+
+    it("refreshing — 표는 남고 바쁨 표시가 붙는다", () => {
+      renderPage("/care-claims?preview=refreshing");
+      expect(column(2)).toEqual([RECEIVED_NO]);
+      expect(document.body.querySelector('[aria-busy="true"]')).not.toBeNull();
     });
   });
 });

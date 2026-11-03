@@ -142,7 +142,8 @@ const headerCount = () =>
 const statusBox = (name: string) => screen.getByRole("button", { name });
 
 /** 샘플: 입점 26 · 퇴점 처리중 3 · 퇴점 3 (상세까지 갖춘 7곳 + 원본 v0.4 간이 25곳) */
-const ACTIVE = "입점 26건";
+/* 25 + 주문 쪽 셀러 6곳(S-226~S-231, 2026-11-02) + 상세 7곳 중 입점 */
+const ACTIVE = "입점 32건";
 const EXITING = "퇴점 처리중 3건";
 const CLOSED = "퇴점 3건";
 
@@ -239,7 +240,7 @@ describe("SellerListPage (S03 셀러 관리)", () => {
       expect(
         screen.getByRole("columnheader", { name: "상품수" }),
       ).toHaveAttribute("aria-sort", "none");
-      expect(visibleNos()[0]).toBe("26");
+      expect(visibleNos()[0]).toBe("32");
       expect(
         screen.getByRole("checkbox", { name: "아기별상사 선택" }),
       ).not.toBeChecked();
@@ -247,16 +248,16 @@ describe("SellerListPage (S03 셀러 관리)", () => {
   });
 
   describe("목록", () => {
-    it("기본 상태(입점) 26건을 10건씩 나눠 보여준다", async () => {
+    it("기본 상태(입점) 32건을 10건씩 나눠 보여준다", async () => {
       const { user } = renderPage();
 
       expect(bodyRows()).toHaveLength(10);
       expect(
-        screen.getByRole("heading", { name: "목록 (총 26건)" }),
+        screen.getByRole("heading", { name: "목록 (총 32건)" }),
       ).toBeVisible();
 
-      await user.click(screen.getByRole("button", { name: "3" }));
-      expect(bodyRows()).toHaveLength(6);
+      await user.click(screen.getByRole("button", { name: "4" }));
+      expect(bodyRows()).toHaveLength(2);
     });
 
     /**
@@ -267,20 +268,20 @@ describe("SellerListPage (S03 셀러 관리)", () => {
       const { user } = renderPage();
 
       expect(visibleNos()).toEqual([
+        "32",
+        "31",
+        "30",
+        "29",
+        "28",
+        "27",
         "26",
         "25",
         "24",
         "23",
-        "22",
-        "21",
-        "20",
-        "19",
-        "18",
-        "17",
       ]);
 
       await user.click(screen.getByRole("button", { name: "2" }));
-      expect(visibleNos()[0]).toBe("16");
+      expect(visibleNos()[0]).toBe("22");
 
       await user.click(statusBox(CLOSED));
       expect(visibleNos()).toEqual(["3", "2", "1"]);
@@ -418,7 +419,7 @@ describe("SellerListPage (S03 셀러 관리)", () => {
       expect(visibleNames()).toContain("포근하루");
       expect(visibleNames()).not.toContain("아기별상사");
       // 상태 대시의 건수는 상태를 뺀 나머지 축(위생인증)을 반영해 함께 줄어든다
-      expect(statusBox("입점 11건")).toBeVisible();
+      expect(statusBox("입점 14건")).toBeVisible();
       expect(statusBox("퇴점 처리중 3건")).toBeVisible();
       expect(statusBox("퇴점 2건")).toBeVisible();
       expect(screen.getByText("위생인증 인증안됨")).toBeVisible();
@@ -494,7 +495,7 @@ describe("SellerListPage (S03 셀러 관리)", () => {
       const { user } = renderPage();
 
       await user.click(screen.getByRole("button", { name: "엑셀 다운로드" }));
-      expect(screen.getByText("조회 결과 26건을 내려받았습니다")).toBeVisible();
+      expect(screen.getByText("조회 결과 32건을 내려받았습니다")).toBeVisible();
     });
 
     it("고른 행이 있으면 그 행만 대상이다", async () => {
@@ -708,8 +709,8 @@ describe("정렬", () => {
 
     await user.click(sortButton("상품수"));
 
-    expect(visibleNos()[0]).toBe("26");
-    expect(visibleNos()[9]).toBe("17");
+    expect(visibleNos()[0]).toBe("32");
+    expect(visibleNos()[9]).toBe("23");
   });
 });
 
@@ -791,7 +792,7 @@ describe("페이지당 개수", () => {
     ).toEqual(["10개씩 보기", "20개씩 보기", "50개씩 보기", "100개씩 보기"]);
     await user.click(screen.getByRole("option", { name: "50개씩 보기" }));
 
-    expect(bodyRows()).toHaveLength(26);
+    expect(bodyRows()).toHaveLength(32);
     expect(screen.queryByRole("button", { name: "2" })).toBeNull();
   });
 });

@@ -1,4 +1,5 @@
 import type { ChartSeries } from "../../components/ui";
+import { SETTLEMENT_SUMMARY } from "./settlement.data";
 
 /* -------------------------------------------------------------------------
  * S01 대시보드 (BabyCube 본사 운영 어드민) — 통계형 화면의 **도메인 층**
@@ -275,10 +276,10 @@ export const ORDERS_NAV_ID = "/orders-all";
  * 방문자는 어제 같은 시각, 회원 총계는 지난달 말, 거래액은 정산 회차 기준이다.
  * 한 문구로 묶으면 기준이 다른 지표가 같은 기준으로 읽혀 숫자가 서로 모순된다.
  *
- * ⚠️ 매출 3장의 숫자는 서로 맞춰 두었다 —
- *   입점사 거래액 82,400만 − 지급 예정 71,860만 = 10,540만
- *   그중 본사 수수료 수익이 9,480만(거래액의 11.5%), 나머지 1,060만은
- *   PG수수료·셀러쿠폰·취소/반품 차감분이다.
+ * ⚠️ 매출 3장은 **셀러 정산 화면과 같은 계산**(`settlement.data.ts` 의 회차 요약)을 읽는다 —
+ *   원본 대시보드도 `settleSellerRows()` 를 더한다(proto.html:3103~3105). 손으로 적은 값을 두면
+ *   타일을 눌러 간 셀러 정산 요약과 숫자가 달라진다.
+ *   거래액 라벨은 정산 기준 결정(할인 후 소계)에 맞춰 「(할인 후)」 — 원본 「(정가)」(기획 확인 필요).
  * ====================================================================== */
 
 /**
@@ -336,20 +337,20 @@ export const METRIC_GROUPS = [
     title: "매출 지표",
     metrics: [
       {
-        label: "입점사 거래액(정가)",
-        value: "824,000,000",
+        label: "입점사 거래액(할인 후)",
+        value: SETTLEMENT_SUMMARY.sales.toLocaleString("ko-KR"),
         unit: "원",
         navId: "/settle-seller",
       },
       {
         label: "지급 예정 총액",
-        value: "718,600,000",
+        value: SETTLEMENT_SUMMARY.payout.toLocaleString("ko-KR"),
         unit: "원",
         navId: "/settle-seller",
       },
       {
         label: "본사 수수료 수익",
-        value: "94,800,000",
+        value: SETTLEMENT_SUMMARY.fee.toLocaleString("ko-KR"),
         unit: "원",
         navId: "/settle-seller",
       },

@@ -135,4 +135,24 @@ describe("App (전달본)", () => {
       expect(window.location.pathname).toBe(list);
     },
   );
+
+  /** 정산 관리의 숨은 상세 4개 — 행을 누르면 그 대상의 상세에 **도착**하고 [목록]으로 돌아온다 */
+  it.each([
+    ["/settle-seller", "셀러 정산"],
+    ["/rent-deposit", "보증금"],
+    ["/care-claims", "안심케어"],
+    ["/settle-statement", "명세서"],
+  ])("%s 의 첫 행을 누르면 %s 상세에 도착한다", async (list) => {
+    renderAt(list);
+
+    const firstRow = within(screen.getByRole("table")).getAllByRole("row")[1];
+    await userEvent.click(within(firstRow).getAllByRole("cell")[1]);
+
+    expect(window.location.pathname).toMatch(new RegExp(`^${list}/[^/]+$`));
+    expect(pageTitle()).not.toBe("화면 목록");
+    expect(screen.queryByText(/^찾을 수 없는/)).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "목록" }));
+    expect(window.location.pathname).toBe(list);
+  });
 });

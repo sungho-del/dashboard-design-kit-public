@@ -1,32 +1,17 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { SettlementStatementPage } from "./SettlementStatementPage";
-import {
-  deduct,
-  NO_AMOUNT,
-  payoutOf,
-  STATEMENTS,
-  won,
-} from "./SettlementStatementPage.data";
 
-/**
- * S15 정산 내역/명세서 — **동작** 검증.
+/* -------------------------------------------------------------------------
+ * 정산 내역/명세서 (목록) — 기획 v0.4 `SCREENS.settleStatement` · 조회 전용
  *
- * 두 축 필터(정산 대상 · 상태) · 검색 조건 2종 · 빈 상태 · 페이지네이션 ·
- * **지급액 = 매출 − 차감** · 정산월 표기 · 표 정렬을 확인한다.
- *
- * ## ⛔ 다른 화면과 맞물린 금액
- * `ST-202606-0002` 의 지급액은 S12 `2026-06-SEL0142` 와 **같은 돈**이다.
- * 여기만 고치면 두 화면이 서로 다른 금액을 말하므로 테스트로 못박는다.
- *
- * ## ⚠️ "되살아나지 않는지"도 함께 본다
- * 원본 대조로 **도움말 툴팁 · 명세서 다운로드 토스트**를 걷어냈고,
- * **상태 필터 · 검색 조건 선택 · 정산 대상 배지 · 정산월 표기**를 되살렸다.
- *
- * jsdom 에는 레이아웃도 `ResizeObserver`/`IntersectionObserver` 도 없다.
- * Select·SegmentedControl 이 쓰는 관측기를 no-op 으로 채운다.
- */
+ * 렌더 여부가 아니라 **동작과 숫자**를 본다: 검색조건(펼침·요약·셀렉트·대소문자 무시) · 빈 상태·초기화 ·
+ * 행/번호/[명세서] → 상세 · 원본에 없는 엑셀·체크박스·미리보기가 없다 · `?preview=`.
+ * 금액 기대값은 사례표(scratchpad `settle-cases.md`)의 원 단위 손계산이다.
+ * ---------------------------------------------------------------------- */
+type User = ReturnType<typeof userEvent.setup>;
+
 class ObserverStub {
   observe() {}
   unobserve() {}
@@ -45,305 +30,291 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-function renderPage() {
+function renderPage(search = "") {
+  window.history.replaceState(null, "", `/settle-statement${search}`);
   const onNavSelect = vi.fn();
-  const onNavOpenChange = vi.fn();
   const user = userEvent.setup();
-
   render(
     <ToastProvider position="bottom">
       <SettlementStatementPage
         navOpen
-        onNavOpenChange={onNavOpenChange}
+        onNavOpenChange={vi.fn()}
         activeNav="/settle-statement"
         onNavSelect={onNavSelect}
       />
     </ToastProvider>,
   );
-
-  return { user, onNavSelect, onNavOpenChange };
+  return { user, onNavSelect };
 }
 
-/** 헤더 행을 뺀 데이터 행. 빈 상태에서는 표가 통째로 걷혀 빈 배열이 된다 */
 function bodyRows(): HTMLElement[] {
   const table = screen.queryByRole("table");
   if (!table) return [];
   return within(table).getAllByRole("row").slice(1);
 }
 
-/** 남아 있는 명세서번호(1번째 컬럼) */
-function visibleNos(): string[] {
-  return bodyRows().map(
-    (row) => within(row).getAllByRole("cell")[0].textContent ?? "",
-  );
+const cellsOf = (row: HTMLElement) =>
+  within(row)
+    .getAllByRole("cell")
+    .map((cell) => cell.textContent ?? "");
+
+const visibleNos = () => bodyRows().map((row) => cellsOf(row)[0]);
+
+const rowOf = (no: string) => {
+  const row = bodyRows().find((item) => cellsOf(item)[0] === no);
+  if (!row) throw new Error(`행을 찾지 못했습니다: ${no}`);
+  return row;
+};
+
+async function chooseOption(user: User, selectLabel: string, option: string) {
+  await user.click(screen.getByRole("combobox", { name: selectLabel }));
+  const listbox = await screen.findByRole("listbox");
+  await user.click(within(listbox).getByRole("option", { name: option }));
 }
 
-/** 검색 입력은 이 화면의 유일한 textbox 다 */
-function searchBox(): HTMLElement {
-  return screen.getByRole("textbox");
-}
+const ALL_NOS = [
+  "STM-2609-0001",
+  "STM-2609-0226",
+  "STM-2609-0227",
+  "STM-2609-0230",
+  "STM-2609-0228",
+  "STM-2609-0201",
+  "STM-2609-0231",
+  "STM-2609-1042",
+  "STM-2609-0229",
+];
 
-/** 셀렉트를 열고 옵션 하나를 고른다 */
-async function pickOption(
-  user: ReturnType<typeof userEvent.setup>,
-  selectName: string | RegExp,
-  optionName: string,
-) {
-  await user.click(screen.getByRole("combobox", { name: selectName }));
-  await user.click(
-    within(await screen.findByRole("listbox")).getByRole("option", {
-      name: optionName,
-    }),
-  );
-}
+describe("표 (원본 8열 · 본사 1 + 셀러 정산 행)", () => {
+  it("열 이름·순서가 원본 그대로고, 체크박스·No·엑셀이 없다", () => {
+    renderPage();
 
-describe("SettlementStatementPage (BabyCube S15 정산 내역/명세서)", () => {
-  describe("표 (원본 8열)", () => {
-    it("컬럼 이름과 순서가 원본 그대로다", () => {
-      renderPage();
-
-      expect(
-        within(screen.getByRole("table"))
-          .getAllByRole("columnheader")
-          .map((cell) => cell.textContent),
-      ).toEqual([
-        "명세서번호",
-        "정산 대상",
-        "정산월",
-        "매출",
-        "차감(수수료·PG·취소)",
-        "지급액",
-        "상태",
-        "명세서",
-      ]);
-    });
-
-    /**
-     * 표 전체가 **한 기준선**에 선다 — 수치도 좌측이다.
-     * 배지만 들어가는 열만 가운데다(`DESIGN.md` §7-2): 배지는 글자가 아니라 객체라
-     * 왼쪽 모서리에 정보가 없다.
-     */
-    it("우측 정렬 열이 없다 · 배지만 든 열만 가운데다", () => {
-      renderPage();
-
-      const cells = within(bodyRows()[0]).getAllByRole("cell");
-      const headers = within(screen.getByRole("table")).getAllByRole(
-        "columnheader",
-      );
-
-      for (const el of [...cells, ...headers]) {
-        expect(el.className.split(/\s+/)).not.toContain("text-right");
-      }
-
-      const BADGE_COLUMNS = [6];
-      headers.forEach((header, index) => {
-        const want = BADGE_COLUMNS.includes(index);
-        expect(header.className.split(/\s+/).includes("text-center")).toBe(
-          want,
-        );
-        expect(
-          cells[index].className.split(/\s+/).includes("text-center"),
-        ).toBe(want);
-      });
-    });
-
-    it("정산 대상은 배지 + 이름을 한 칸에 넣는다", () => {
-      renderPage();
-
-      const cells = within(bodyRows()[0]).getAllByRole("cell");
-      expect(cells[1]).toHaveTextContent("자체");
-      expect(cells[1]).toHaveTextContent("본사 직영");
-    });
-
-    it("정산월은 원본 표기 `2026.07` 이다", () => {
-      renderPage();
-
-      const cells = within(bodyRows()[0]).getAllByRole("cell");
-      expect(cells[2].textContent).toBe("2026.07");
-    });
+    expect(
+      within(screen.getByRole("table"))
+        .getAllByRole("columnheader")
+        .map((cell) => cell.textContent),
+    ).toEqual([
+      "명세서번호",
+      "정산 대상",
+      "정산월",
+      "매출",
+      "차감(수수료·PG·취소)",
+      "지급액",
+      "상태",
+      "명세서",
+    ]);
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: /엑셀/ })).toBeNull();
   });
 
-  describe("금액 (파생값 · 화면 간 계약)", () => {
-    it("지급액 = 매출 − 차감", () => {
-      renderPage();
+  it("본사 먼저, 이어 셀러 정산 행 순서 — 회차 하나(2026.09)", () => {
+    renderPage();
 
-      const cells = within(bodyRows()[0]).getAllByRole("cell");
-      expect(cells[3]).toHaveTextContent("412,850,000원");
-      expect(cells[4]).toHaveTextContent("-61,927,000원");
-      expect(cells[5].textContent).toBe(won(payoutOf(STATEMENTS[0])));
-    });
-
-    it("⛔ 베베마켓 6월 명세서의 지급액은 S12 와 같은 돈이다", () => {
-      const june = STATEMENTS.find((row) => row.id === "ST-202606-0002")!;
-
-      // S12 `2026-06-SEL0142` 의 지급액과 같아야 한다.
-      // 여섯 조각 → 두 조각으로 접는 규칙이 어긋나면 여기서 걸린다
-      expect(payoutOf(june)).toBe(206_268_000);
-      expect(june.revenue).toBe(262_400_000 - 6_290_000);
-      expect(june.deduction).toBe(
-        35_424_000 + 5_898_000 + 10_140_000 - 1_620_000,
-      );
-    });
-
-    it("⛔ 아이누리 7월 명세서도 S12 와 같은 돈이다", () => {
-      const row = STATEMENTS.find((item) => item.id === "ST-202607-0021")!;
-      expect(payoutOf(row)).toBe(50_613_000);
-    });
-
-    it("차감이 없으면 0원이 아니라 '-' 다 (원본 표기)", () => {
-      expect(deduct(0)).toBe(NO_AMOUNT);
-    });
+    expect(visibleNos()).toEqual(ALL_NOS);
+    expect(screen.getByText("목록 (총 9건)")).toBeVisible();
+    expect(new Set(bodyRows().map((row) => cellsOf(row)[2]))).toEqual(
+      new Set(["2026.09"]),
+    );
   });
 
-  describe("두 축 필터 (원본 `chips`: 정산 대상 · 상태)", () => {
-    it("정산 대상으로 장부를 가른다", async () => {
-      const { user } = renderPage();
+  it.each([
+    // 번호, 정산 대상, 매출, 차감(수수료+PG+환수), 지급액, 상태
+    ["STM-2609-0001", "자체본사", "171,600원", "-", "171,600원", "지급완료"],
+    [
+      "STM-2609-0226",
+      "입점사베이비루",
+      "109,000원",
+      "- 16,350원",
+      "92,650원",
+      "지급완료",
+    ],
+    ["STM-2609-0227", "입점사리틀스텝", "0원", "- 77,400원", "0원", "이의제기"],
+    [
+      "STM-2609-0201",
+      "입점사리틀베이비",
+      "84,000원",
+      "- 10,920원",
+      "73,080원",
+      "지급대기",
+    ],
+    [
+      "STM-2609-0231",
+      "입점사코지베이비",
+      "37,800원",
+      "- 6,237원",
+      "49,563원",
+      "확인요청",
+    ],
+    [
+      "STM-2609-0229",
+      "입점사베베하우스",
+      "23,100원",
+      "- 2,957원",
+      "32,143원",
+      "확인완료",
+    ],
+    [
+      "STM-2609-0228",
+      "입점사맘스케어",
+      "14,000원",
+      "- 1,750원",
+      "12,250원",
+      "보류",
+    ],
+  ])("%s — 사례표 금액", (no, target, revenue, deduction, payout, status) => {
+    renderPage();
 
-      await user.click(screen.getByRole("radio", { name: "자체" }));
+    const cells = cellsOf(rowOf(no));
+    expect(cells.slice(1, 7)).toEqual([
+      target,
+      "2026.09",
+      revenue,
+      deduction,
+      payout,
+      status,
+    ]);
+  });
+});
 
-      expect(visibleNos()).toEqual(["ST-202607-0001", "ST-202608-0003"]);
-    });
+describe("검색조건 (FilterBar 기본 펼침 · 셀렉트)", () => {
+  it("펼친 채로 열리고, 접으면 요약이 조건 없음이다", async () => {
+    const { user } = renderPage();
+    expect(screen.getByPlaceholderText("검색어 입력")).toBeVisible();
 
-    it("상태 필터가 있어 '아직 안 끝난 명세'만 볼 수 있다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("radio", { name: "이의제기" }));
-
-      expect(visibleNos()).toEqual(["ST-202607-0033"]);
-      expect(screen.getByText("목록 (총 1건)")).toBeVisible();
-    });
-
-    it("두 축은 함께 걸린다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("radio", { name: "입점사" }));
-      await user.click(screen.getByRole("radio", { name: "지급완료" }));
-
-      expect(visibleNos()).toEqual(["ST-202606-0002", "ST-202606-0018"]);
-    });
+    await user.click(screen.getByRole("button", { name: /검색 닫기/ }));
+    expect(screen.queryByPlaceholderText("검색어 입력")).toBeNull();
+    expect(screen.getByText("조건 없음 (전체)")).toBeVisible();
   });
 
-  describe("검색 (조건 2종)", () => {
-    it("기본 조건은 명세서번호다", async () => {
-      const { user } = renderPage();
+  it("정산 대상 — 자체는 본사 1건, 입점사는 8건", async () => {
+    const { user } = renderPage();
 
-      await user.type(searchBox(), "202606");
+    await chooseOption(user, "정산 대상", "자체");
+    expect(visibleNos()).toEqual(["STM-2609-0001"]);
 
-      expect(visibleNos()).toEqual(["ST-202606-0002", "ST-202606-0018"]);
-    });
-
-    it("조건을 정산 대상으로 바꾸면 이름으로 찾는다", async () => {
-      const { user } = renderPage();
-
-      await pickOption(user, /검색조건/, "정산 대상");
-      await user.type(searchBox(), "코코베이비");
-
-      expect(visibleNos()).toEqual(["ST-202607-0014"]);
-    });
-
-    it("조건이 명세서번호일 때 이름으로는 찾히지 않는다", async () => {
-      const { user } = renderPage();
-
-      await user.type(searchBox(), "코코베이비");
-
-      expect(bodyRows()).toHaveLength(0);
-      expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
-    });
+    await chooseOption(user, "정산 대상", "입점사");
+    expect(visibleNos()).toEqual(ALL_NOS.slice(1));
   });
 
-  describe("빈 상태·초기화·페이지", () => {
-    it("매칭이 없으면 원본 문구로 비우고 표와 페이지네이션을 걷어낸다", async () => {
-      const { user } = renderPage();
+  it("상태 — 지급완료는 본사·베이비루·아기별상사, 요약에 걸린다", async () => {
+    const { user } = renderPage();
 
-      await user.type(searchBox(), "없는번호");
+    await chooseOption(user, "상태", "지급완료");
+    expect(visibleNos()).toEqual([
+      "STM-2609-0001",
+      "STM-2609-0226",
+      "STM-2609-1042",
+    ]);
 
-      expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
-      expect(
-        screen.getByText(
-          "조건을 변경하거나 필터를 초기화한 뒤 다시 조회해 주세요.",
-        ),
-      ).toBeVisible();
-      expect(screen.queryByRole("table")).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("navigation", { name: "페이지네이션" }),
-      ).not.toBeInTheDocument();
-    });
-
-    it("'필터 초기화'로 전체가 돌아온다 — 컨트롤도 함께 되돌아간다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("radio", { name: "자체" }));
-      await user.type(searchBox(), "없는번호");
-      await user.click(screen.getByRole("button", { name: "필터 초기화" }));
-
-      expect(
-        screen.getByText(`목록 (총 ${STATEMENTS.length}건)`),
-      ).toBeVisible();
-      expect(screen.getAllByRole("radio", { name: "전체" })[0]).toBeChecked();
-      expect(searchBox()).toHaveValue("");
-    });
-
-    it("2페이지로 넘어가면 나머지가 보인다", async () => {
-      const { user } = renderPage();
-
-      expect(bodyRows()).toHaveLength(5);
-      await user.click(screen.getByRole("button", { name: "2" }));
-      expect(bodyRows()).toHaveLength(2);
-    });
+    await user.click(screen.getByRole("button", { name: /검색 닫기/ }));
+    expect(screen.getByText("상태 지급완료")).toBeVisible();
   });
 
-  describe("명세서 열 → 미리보기", () => {
-    it("'명세서'는 파일을 내려받지 않는다 — 원본은 화면으로 가는 링크다", async () => {
-      const { user } = renderPage();
+  it("검색 — 기본은 명세서번호, 대소문자 무시", async () => {
+    const { user } = renderPage();
 
-      await user.click(screen.getAllByRole("button", { name: "명세서" })[0]);
-
-      const sheet = await screen.findByRole("dialog");
-      expect(
-        within(sheet).getByRole("heading", { name: "명세서 미리보기" }),
-      ).toBeVisible();
-      // 걷어낸 토스트가 되살아나지 않았는지 본다
-      expect(
-        screen.queryByText(/명세서를 내려받았습니다/),
-      ).not.toBeInTheDocument();
-      // 모달 푸터의 다운로드 버튼도 없다
-      expect(sheet.querySelector('[data-slot="footer"]')).toBeNull();
-    });
-
-    it("행을 열면 명세서 4항목이 뜬다", async () => {
-      const { user } = renderPage();
-
-      await user.click(bodyRows()[2]);
-
-      const sheet = await screen.findByRole("dialog");
-      expect(
-        within(sheet)
-          .getAllByRole("term")
-          .map((term) => term.textContent),
-      ).toEqual(["정산 대상", "정산월", "지급액", "확정 일시"]);
-      expect(
-        within(sheet)
-          .getAllByRole("definition")
-          .map((value) => value.textContent),
-      ).toEqual([
-        "입점사 · 베베마켓",
-        "2026.06",
-        "206,268,000원",
-        "2026-07-10 10:00",
-      ]);
-    });
+    await user.type(
+      screen.getByPlaceholderText("검색어 입력"),
+      "stm-2609-0231",
+    );
+    expect(visibleNos()).toEqual(["STM-2609-0231"]);
   });
 
-  describe("엑셀 다운로드 (원본 `toolsLeft`)", () => {
-    it("지금 조회된 건수로 파일명을 만든다", async () => {
-      const { user } = renderPage();
+  it("검색 대상을 정산 대상으로 바꾸면 이름으로 찾는다 — 명세서번호로는 이름이 안 찾힌다", async () => {
+    const { user } = renderPage();
 
-      await user.click(screen.getByRole("radio", { name: "자체" }));
-      await user.click(screen.getByRole("button", { name: "엑셀 다운로드" }));
+    await user.type(screen.getByPlaceholderText("검색어 입력"), "리틀");
+    expect(bodyRows()).toHaveLength(0);
 
+    await chooseOption(user, "검색 대상", "정산 대상");
+    expect(visibleNos()).toEqual(["STM-2609-0227", "STM-2609-0201"]);
+  });
+
+  it("빈 상태 — 원본 문구, [필터 초기화]로 전체가 돌아온다", async () => {
+    const { user } = renderPage();
+
+    await chooseOption(user, "정산 대상", "자체");
+    await chooseOption(user, "상태", "보류");
+    expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
+    expect(
+      screen.getByText(
+        "조건을 변경하거나 필터를 초기화한 뒤 다시 조회해 주세요.",
+      ),
+    ).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "필터 초기화" }));
+    expect(visibleNos()).toEqual(ALL_NOS);
+  });
+});
+
+describe("페이지", () => {
+  it("페이지당 10/20/50/100, 기본 10 — 9건은 한 페이지", async () => {
+    const { user } = renderPage();
+
+    await user.click(screen.getByRole("combobox", { name: "페이지당 개수" }));
+    const listbox = await screen.findByRole("listbox");
+    expect(
+      within(listbox)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["10개씩 보기", "20개씩 보기", "50개씩 보기", "100개씩 보기"]);
+    expect(bodyRows()).toHaveLength(9);
+    expect(screen.queryByRole("button", { name: "2" })).toBeNull();
+  });
+});
+
+describe("상세로 가는 길 (번호 · [명세서] · 행)", () => {
+  it("행 어디를 눌러도 그 명세서 상세로", async () => {
+    const { user, onNavSelect } = renderPage();
+
+    await user.click(within(rowOf("STM-2609-0231")).getByText("2026.09"));
+    expect(onNavSelect).toHaveBeenCalledWith("/settle-statement/STM-2609-0231");
+  });
+
+  it("명세서번호 링크·[명세서] 버튼도 같은 곳 — 행 클릭과 겹쳐 두 번 가지 않는다", async () => {
+    const { user, onNavSelect } = renderPage();
+
+    await user.click(screen.getByRole("button", { name: "STM-2609-0001" }));
+    expect(onNavSelect).toHaveBeenCalledTimes(1);
+    expect(onNavSelect).toHaveBeenLastCalledWith(
+      "/settle-statement/STM-2609-0001",
+    );
+
+    await user.click(screen.getByRole("button", { name: "리틀스텝 명세서" }));
+    expect(onNavSelect).toHaveBeenCalledTimes(2);
+    expect(onNavSelect).toHaveBeenLastCalledWith(
+      "/settle-statement/STM-2609-0227",
+    );
+    // 걷어낸 미리보기 모달이 되살아나지 않았다
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("데이터 상태 미리보기 (?preview=)", () => {
+  it("loading — 머리는 남기고 값만 스켈레톤", () => {
+    renderPage("?preview=loading");
+
+    expect(
+      screen.getByRole("columnheader", { name: "명세서번호" }),
+    ).toBeVisible();
+    expect(screen.queryByText("STM-2609-0001")).toBeNull();
+    expect(
+      document.body.querySelectorAll("[data-skeleton]").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("empty — 값이 있어도 빈 상태", () => {
+    renderPage("?preview=empty");
+    expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
+  });
+
+  it("refreshing — 값을 흐리게 둔다", async () => {
+    renderPage("?preview=refreshing");
+
+    expect(screen.getByText("STM-2609-0001")).toBeVisible();
+    await waitFor(() =>
       expect(
-        await screen.findByText("정산내역명세서_2건.csv 를 내려받았습니다"),
-      ).toBeVisible();
-    });
+        document.body.querySelector("[data-table-shell-body]")?.className,
+      ).toContain("opacity-50"),
+    );
   });
 });

@@ -2,31 +2,16 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { SellerSettlementPage } from "./SellerSettlementPage";
-import {
-  credit,
-  deduct,
-  NO_AMOUNT,
-  num,
-  payoutOf,
-  ROUND_SUMMARY,
-  SETTLEMENTS,
-  won,
-} from "./SellerSettlementPage.data";
 
-/**
- * S12 셀러 정산 — **동작** 검증.
+/* -------------------------------------------------------------------------
+ * 셀러 정산 (BO-STL-002) — 기획 v0.4 `SCREENS.settleSeller`
  *
- * 렌더 여부만 보면 표가 통째로 빠져도 통과한다. 그래서 여기서는
- * 요약 4값(원본 순서·파생값) · 상태 칩 필터 · 셀러명 검색 · 빈 상태 · 페이지네이션 ·
- * **지급액 계산(여섯 조각의 가감)** · 부호 표기 규칙 · 좌측 2열 고정을 확인한다.
- *
- * ## ⚠️ "되살아나지 않는지"도 함께 본다
- * 이 화면은 원본 대조로 **증감(±%)·비교 기준 문구·행 액션 4종·확인 모달·헤더 배지**를
- * 걷어냈다. 다음 세션이 같은 것을 또 만들지 않도록 없음을 못박는 테스트를 남긴다.
- *
- * jsdom 에는 레이아웃도 `ResizeObserver`/`IntersectionObserver` 도 없다.
- * `SegmentedControl` 의 인디케이터가 크기 관측에 기대므로 no-op 으로 채운다.
- */
+ * 렌더 여부가 아니라 **숫자와 동작**을 본다. 기대 금액은 사례표(scratchpad `settle-cases.md`)의
+ * 손계산 값이다 — 계산 함수를 다시 불러 비교하지 않는다.
+ * 요약·합산 명세(필터와 무관) · 셀별 표기(0 이면 `-` / 수수료·PG 는 `- 0원`) · 상태별 버튼 ·
+ * 확인 모달 3종(검증·초기화·알림 · 상태는 안 바뀜) · 안심케어 금액 설정 · 필터 · 빈 상태 ·
+ * 행 클릭 → 상세 · 원본에 없는 것(엑셀·회차 열·미리보기)이 되살아나지 않는가.
+ * ---------------------------------------------------------------------- */
 class ObserverStub {
   observe() {}
   unobserve() {}
@@ -45,460 +30,410 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-function renderPage() {
-  const onNavSelect = vi.fn();
-  const onNavOpenChange = vi.fn();
-  const user = userEvent.setup();
+type User = ReturnType<typeof userEvent.setup>;
 
+function renderPage(search = "") {
+  window.history.replaceState(null, "", `/settle-seller${search}`);
+  const onNavSelect = vi.fn();
+  const user = userEvent.setup();
   render(
     <ToastProvider position="bottom">
       <SellerSettlementPage
         navOpen
-        onNavOpenChange={onNavOpenChange}
+        onNavOpenChange={vi.fn()}
         activeNav="/settle-seller"
         onNavSelect={onNavSelect}
       />
     </ToastProvider>,
   );
-
-  return { user, onNavSelect, onNavOpenChange };
+  return { user, onNavSelect };
 }
 
-/** 헤더 행을 뺀 데이터 행. 빈 상태에서는 표가 통째로 걷혀 빈 배열이 된다 */
-function bodyRows(): HTMLElement[] {
-  const table = screen.queryByRole("table");
-  if (!table) return [];
-  return within(table).getAllByRole("row").slice(1);
+/** 명세 상자의 한 줄 — `<dt>` 라벨(앞부분) 옆의 값 */
+function lineValue(labelStart: string): string {
+  const term = screen
+    .getAllByRole("term")
+    .find((element) => element.textContent?.startsWith(labelStart));
+  if (!term) throw new Error(`명세 줄이 없습니다: ${labelStart}`);
+  return term.nextElementSibling?.textContent ?? "";
 }
 
-/** 남아 있는 회차의 "셀러" 셀(2번째 컬럼) — 몇 건인지뿐 아니라 **무엇이** 남았는지 본다 */
-function visibleSellers(): string[] {
-  return bodyRows().map(
-    (row) => within(row).getAllByRole("cell")[1].textContent ?? "",
-  );
+/** 표 본문 행 — 첫 칸이 셀러명 */
+const bodyRows = () =>
+  within(screen.getByRole("table")).getAllByRole("row").slice(1);
+const rowOf = (seller: string) =>
+  screen.getByRole("button", { name: seller }).closest("tr")!;
+const cellsOf = (seller: string) =>
+  within(rowOf(seller))
+    .getAllByRole("cell")
+    .map((cell) => cell.textContent);
+
+async function chooseStatus(user: User, option: string) {
+  await user.click(screen.getByRole("combobox", { name: "상태" }));
+  const listbox = await screen.findByRole("listbox");
+  await user.click(within(listbox).getByRole("option", { name: option }));
 }
 
-/** 검색 입력은 이 화면의 유일한 textbox 다 */
-function searchBox(): HTMLElement {
-  return screen.getByRole("textbox");
-}
+describe("셀러 정산 — 요약 · 합산 명세", () => {
+  it("요약 제목·부제와 4값 — 전체 셀러 합(사례표)", () => {
+    renderPage();
+    expect(screen.getByText("2026년 09월 정산 요약")).toBeVisible();
+    expect(screen.getByText("지급일 2026.10.10")).toBeVisible();
+    /* 타일 묶음 — 같은 라벨(「지급 예정 총액」)이 합산 명세에도 있다 */
+    const summaryCard = screen
+      .getByText("입점사 거래액(할인 후)")
+      .closest(".grid") as HTMLElement;
+    for (const [label, value] of [
+      ["입점사 거래액(할인 후)", "489,700"],
+      ["본사 수수료 수익", "54,321"],
+      ["정산 대상", "8"],
+      ["지급 예정 총액", "436,138"],
+    ]) {
+      const tile = within(summaryCard)
+        .getByText(label)
+        .closest("div")!.parentElement!;
+      expect(tile).toHaveTextContent(value);
+    }
+  });
 
-/** 화면에 나온 순서대로인지 — 텍스트 인덱스가 아니라 DOM 위치로 본다 */
-function inDocumentOrder(...texts: string[]): boolean {
-  const nodes = texts.map((text) => screen.getByText(text));
-  return nodes.every((node, index) => {
-    if (index === 0) return true;
-    const previous = nodes[index - 1];
-    return Boolean(
-      previous.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING,
+  it("전 입점사 합산 명세 — 줄 순서·금액, 미회수는 지급과 상계하지 않는다", () => {
+    renderPage();
+    expect(screen.getByText("2026.09 정산 명세")).toBeVisible();
+    expect(screen.getByText("전 입점사 합산")).toBeVisible();
+    expect(lineValue("입점사 확정 거래액")).toBe("489,700원");
+    expect(lineValue("셀러 쿠폰")).toBe("- 15,000원");
+    expect(lineValue("정산 매출")).toBe("474,700원");
+    expect(lineValue("판매 수수료 (셀러별 요율")).toBe("- 54,321원");
+    expect(lineValue("PG 수수료")).toBe("- 14,241원");
+    expect(lineValue("취소·반품 차감")).toBe("- 77,400원");
+    expect(lineValue("안심케어 보전")).toBe("+ 30,000원");
+    expect(lineValue("포인트 사용분")).toBe("3,000원");
+    /* 지급 합 436,138 ≠ net 합 358,738 — 리틀스텝 미회수를 다른 셀러 지급과 상계하지 않는다 */
+    expect(lineValue("지급 예정 총액")).toBe("436,138원");
+    expect(lineValue("미회수 잔액")).toBe("77,400원");
+    expect(
+      screen.getByText(/환수액이 이번 회차 확정 매출을 넘어 77,400원을/),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/보증금·연체료·배상액은 매출 정산과/),
+    ).toBeVisible();
+  });
+
+  it("명세 줄마다 도움말 버튼이 있다(원본 SETTLE_TIP)", () => {
+    renderPage();
+    expect(
+      screen.getByRole("button", {
+        name: /^정산 매출 \(수수료 부과 기준\) 도움말$/,
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", {
+        name: /^미회수 잔액 \(별도 청구\) 도움말$/,
+      }),
+    ).toBeVisible();
+  });
+
+  it("요약·합산은 필터와 무관하다", async () => {
+    const { user } = renderPage();
+    await user.type(screen.getByPlaceholderText("셀러명 검색"), "없는셀러");
+    expect(lineValue("지급 예정 총액")).toBe("436,138원");
+    expect(screen.getByText("8개사")).toBeVisible();
+  });
+});
+
+describe("셀러 정산 — 안심케어 금액 설정", () => {
+  it("초기값은 가입 요금 5,000 · 바꿔 확정하면 알림, 같은 값이면 알림 없음", async () => {
+    const { user } = renderPage();
+    const input = screen.getByRole("textbox", { name: "가입 금액" });
+    expect(input).toHaveValue("5,000");
+
+    await user.click(input);
+    await user.tab();
+    expect(screen.queryByText(/안심케어 금액을/)).toBeNull();
+
+    await user.clear(input);
+    await user.type(input, "7000원{Enter}");
+    expect(
+      await screen.findByText("안심케어 금액을 7,000원으로 설정했습니다."),
+    ).toBeVisible();
+    expect(input).toHaveValue("7,000");
+    /* 설정값은 정산 금액을 바꾸지 않는다(원본도 어디서도 읽지 않는다) */
+    expect(lineValue("지급 예정 총액")).toBe("436,138원");
+  });
+});
+
+describe("셀러 정산 — 표", () => {
+  it("10열 · 체크박스·No·엑셀·회차 열 없음 · 8개사", () => {
+    renderPage();
+    const heads = within(screen.getByRole("table"))
+      .getAllByRole("columnheader")
+      .map((th) => th.textContent);
+    expect(heads).toEqual([
+      "셀러",
+      "거래액(할인 후)",
+      "셀러쿠폰",
+      "수수료",
+      "PG수수료",
+      "취소·반품 차감",
+      "안심케어",
+      "지급액",
+      "상태",
+      "처리",
+    ]);
+    expect(bodyRows()).toHaveLength(8);
+    expect(screen.getByText("목록 (총 8건)")).toBeVisible();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByRole("button", { name: /엑셀/ })).toBeNull();
+  });
+
+  it("셀 표기 — 쿠폰·환수·보전 0 은 `-`, 수수료·PG 는 0 이어도 `- 0원`, 지급액 0원 하한", () => {
+    renderPage();
+    expect(cellsOf("리틀스텝").slice(1, 9)).toEqual([
+      "0원",
+      "-",
+      "- 0원",
+      "- 0원",
+      "- 77,400원",
+      "-",
+      "0원",
+      "이의제기",
+    ]);
+    expect(cellsOf("코지베이비").slice(1, 9)).toEqual([
+      "37,800원",
+      "-",
+      "- 5,103원",
+      "- 1,134원",
+      "-",
+      "+ 18,000원",
+      "49,563원",
+      "확인요청",
+    ]);
+    expect(cellsOf("아기별상사").slice(1, 9)).toEqual([
+      "200,000원",
+      "- 10,000원",
+      "- 22,800원",
+      "- 5,700원",
+      "-",
+      "-",
+      "161,500원",
+      "지급완료",
+    ]);
+    /* 9.8% × 23,100 = 2,263.8 → 반올림 */
+    expect(cellsOf("베베하우스")[3]).toBe("- 2,264원");
+  });
+
+  it("처리 열 — 확인완료·보류 [지급완료] · 이의제기 [수정 명세 재발송] · 그 밖은 [상세]만", () => {
+    renderPage();
+    const actions = (seller: string) =>
+      within(rowOf(seller))
+        .getAllByRole("button")
+        .map((button) => button.textContent)
+        .slice(1);
+    expect(actions("아이랑")).toEqual(["상세", "지급완료"]);
+    expect(actions("베베하우스")).toEqual(["상세", "지급완료"]);
+    expect(actions("맘스케어")).toEqual(["상세", "지급완료"]);
+    expect(actions("리틀스텝")).toEqual(["상세", "수정 명세 재발송"]);
+    for (const seller of ["베이비루", "리틀베이비", "코지베이비", "아기별상사"])
+      expect(actions(seller)).toEqual(["상세"]);
+  });
+
+  it("행 클릭·셀러명·[상세] → 상세 경로 / 업무 버튼은 이동하지 않는다", async () => {
+    const { user, onNavSelect } = renderPage();
+    await user.click(within(rowOf("코지베이비")).getByText("49,563원"));
+    expect(onNavSelect).toHaveBeenLastCalledWith("/settle-seller/S-231");
+    await user.click(screen.getByRole("button", { name: "리틀베이비" }));
+    expect(onNavSelect).toHaveBeenLastCalledWith("/settle-seller/S-201");
+    await user.click(
+      within(rowOf("맘스케어")).getByRole("button", { name: "상세" }),
     );
+    expect(onNavSelect).toHaveBeenLastCalledWith("/settle-seller/S-228");
+
+    onNavSelect.mockClear();
+    await user.click(
+      within(rowOf("아이랑")).getByRole("button", { name: "지급완료" }),
+    );
+    expect(onNavSelect).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeVisible();
   });
-}
+});
 
-describe("SellerSettlementPage", () => {
-  describe("처리 대상 정산 요약 (원본 `note` 슬롯)", () => {
-    it("요약이 어느 회차의 것인지 제목으로 못박는다 — 표는 여러 회차가 섞여 있다", () => {
-      renderPage();
+describe("셀러 정산 — 확인 모달 3종 (알림만 · 상태 그대로)", () => {
+  it("확인완료 [지급완료] — 지급 명세 미리보기 → 처리하면 알림, 행 상태는 그대로", async () => {
+    const { user } = renderPage();
+    await user.click(
+      within(rowOf("베베하우스")).getByRole("button", { name: "지급완료" }),
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(
+      within(dialog).getByText("정산 지급 실행 · 베베하우스"),
+    ).toBeVisible();
+    const value = (label: string) =>
+      within(dialog).getByText(label, { selector: "dt" }).nextElementSibling
+        ?.textContent;
+    expect(value("정산 매출")).toBe("23,100원");
+    expect(value("판매 수수료 (요율 9.8%)")).toBe("- 2,264원");
+    expect(value("PG 수수료")).toBe("- 693원");
+    expect(value("안심케어 보전")).toBe("+ 12,000원");
+    expect(value("지급 예정액")).toBe("32,143원");
+    expect(within(dialog).queryByText("환수액")).toBeNull();
+    expect(
+      within(dialog).getByText(/세금계산서가 동시 발행됩니다/),
+    ).toBeVisible();
 
-      expect(
-        screen.getByRole("heading", { name: "2026년 7월 정산 요약" }),
-      ).toBeVisible();
-      // 지급일은 요약의 부제다. 없으면 "언제 나가는 돈인가"가 화면에서 사라진다
-      expect(screen.getByText("지급일 2026.08.10")).toBeVisible();
-    });
+    await user.click(
+      within(dialog).getByRole("button", { name: "지급완료 처리" }),
+    );
+    expect(
+      await screen.findByText("베베하우스 지급 완료 → 세금계산서 발행"),
+    ).toBeVisible();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(cellsOf("베베하우스")[8]).toBe("확인완료");
+  });
 
-    it("원본 4값을 원본 순서대로 보여준다 (거래액 → 수수료 수익 → 정산 대상 → 지급 예정 총액)", () => {
-      renderPage();
-
-      expect(
-        inDocumentOrder(
-          "입점사 거래액(정가)",
-          "본사 수수료 수익",
-          "정산 대상",
-          "지급 예정 총액",
-        ),
-      ).toBe(true);
-
-      // 단위도 원본 그대로 — 셋은 원, 정산 대상만 개사다
-      expect(screen.getByText("개사")).toBeVisible();
-    });
-
-    it("요약 금액은 저술값이 아니라 표의 현재 회차 합이다", () => {
-      renderPage();
-
-      // 손으로 적으면 "수수료 수익 = 거래액의 10%"인데 표의 행은 전부 12% 인 화면이 나온다
-      expect(screen.getByText(num(ROUND_SUMMARY.listAmount))).toBeVisible();
-      expect(screen.getByText(num(ROUND_SUMMARY.platformFee))).toBeVisible();
-      expect(screen.getByText(num(payoutOf(ROUND_SUMMARY)))).toBeVisible();
-
-      // 정산 대상 개수는 표의 현재 회차 행 수와 같아야 한다
-      expect(screen.getByText(String(ROUND_SUMMARY.sellerCount))).toBeVisible();
-      expect(ROUND_SUMMARY.sellerCount).toBe(5);
-
-      // 표의 모든 현재 회차 행이 같은 수수료율이면 요약도 같은 율이어야 한다
-      expect(ROUND_SUMMARY.platformFee / ROUND_SUMMARY.listAmount).toBeCloseTo(
-        SETTLEMENTS[0].platformFee / SETTLEMENTS[0].listAmount,
-        6,
+  it("보류 [지급완료] — 결론 요지 필수(공백만이면 오류) · 다시 열면 비어 있다", async () => {
+    const { user } = renderPage();
+    const open = () =>
+      user.click(
+        within(rowOf("맘스케어")).getByRole("button", { name: "지급완료" }),
       );
+    await open();
+    let dialog = screen.getByRole("dialog");
+    expect(
+      within(dialog).getByText("보류 종결 — 협의 결론 기록 · 맘스케어"),
+    ).toBeVisible();
+    const field = within(dialog).getByRole("textbox", {
+      name: /외부 협의 결론 요지/,
     });
+    await user.type(field, "   ");
+    await user.click(within(dialog).getByRole("button", { name: "지급 처리" }));
+    expect(
+      within(dialog).getByText("외부 협의 결론 요지를 입력해주세요."),
+    ).toBeVisible();
 
-    it("⚠️ 증감(±%)·비교 기준 문구를 되살리지 않는다 — 원본 타일은 라벨·값·단위뿐이다", () => {
-      renderPage();
+    await user.type(field, "메모");
+    await user.click(within(dialog).getByRole("button", { name: "취소" }));
+    await open();
+    dialog = screen.getByRole("dialog");
+    expect(
+      within(dialog).getByRole("textbox", { name: /외부 협의 결론 요지/ }),
+    ).toHaveValue("");
+    expect(
+      within(dialog).queryByText("외부 협의 결론 요지를 입력해주세요."),
+    ).toBeNull();
 
-      // 이전 회차 전체 데이터가 없어 **계산할 수 없는** 저술값이었다
-      expect(screen.queryByText(/전월 회차 대비/)).not.toBeInTheDocument();
-      expect(screen.queryByText(/13\.5%/)).not.toBeInTheDocument();
-      expect(screen.queryByText(/^[+-]\d+\.\d%$/)).not.toBeInTheDocument();
-    });
-
-    it("⚠️ '정산 대상' 은 헤더 배지가 아니라 요약의 세 번째 항목이다", () => {
-      renderPage();
-
-      expect(screen.queryByText(/정산 대상 \d+개사/)).not.toBeInTheDocument();
-      // 도움말 툴팁도 원본에 없다
-      expect(
-        screen.queryByRole("button", { name: "정산 흐름 도움말" }),
-      ).not.toBeInTheDocument();
-    });
+    await user.type(
+      within(dialog).getByRole("textbox", { name: /외부 협의 결론 요지/ }),
+      "10/14 유선 협의 — 원 명세대로 지급",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "지급 처리" }));
+    expect(
+      await screen.findByText("맘스케어 지급 완료 → 세금계산서 발행"),
+    ).toBeVisible();
+    expect(cellsOf("맘스케어")[8]).toBe("보류");
   });
 
-  describe("지급액 계산 (파생값)", () => {
-    it("지급액 = 거래액 − 셀러쿠폰 − 수수료 − PG수수료 − 취소·반품 차감 + 안심케어", () => {
-      // 안심케어만 부호가 반대다. 뺄셈으로 처리하면 여기서 걸린다
-      expect(payoutOf(SETTLEMENTS[0])).toBe(225_993_000);
-      expect(payoutOf(SETTLEMENTS[2])).toBe(77_215_000);
-      expect(payoutOf(SETTLEMENTS[3])).toBe(50_613_000);
-    });
+  it("이의제기 [수정 명세 재발송] — 이의 사유를 보이고, 검토 내용 필수", async () => {
+    const { user } = renderPage();
+    await user.click(
+      within(rowOf("리틀스텝")).getByRole("button", {
+        name: "수정 명세 재발송",
+      }),
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(
+      within(dialog).getByText("수정 명세 재발송 · 리틀스텝"),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByText(/U-S30 반품 건 환수\(77,400원\)/),
+    ).toBeVisible();
+    expect(within(dialog).getByText("(2026.10.02 16:40)")).toBeVisible();
 
-    it("⛔ 다른 화면과 맞물린 금액 — 6월 회차 지급액은 S15 명세서와 같은 돈이다", () => {
-      const june = SETTLEMENTS.find((row) => row.id === "2026-06-SEL0142")!;
+    await user.click(
+      within(dialog).getByRole("button", { name: "수정 명세 재발송" }),
+    );
+    expect(
+      within(dialog).getByText("검토 결과·수정 내용을 입력해주세요."),
+    ).toBeVisible();
 
-      // S15 `ST-202606-0002` 의 지급액과 같아야 한다. 한쪽만 고치면 두 화면이 어긋난다
-      expect(payoutOf(june)).toBe(206_268_000);
-      // S16 `TX-202607-0001` 의 공급가액과 같아야 한다
-      expect(SETTLEMENTS[0].platformFee).toBe(34_152_000);
-    });
+    await user.type(
+      within(dialog).getByRole("textbox", { name: /검토 결과·수정 내용/ }),
+      "환수 근거(8월 지급 77,400원) 첨부",
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "수정 명세 재발송" }),
+    );
+    expect(
+      await screen.findByText(/수정 명세를 재발송했습니다 — 셀러 재확인을/),
+    ).toBeVisible();
+    expect(cellsOf("리틀스텝")[8]).toBe("이의제기");
+  });
+});
 
-    it("표의 지급액 칸이 계산 결과와 일치한다", () => {
-      renderPage();
-
-      // 1페이지 첫 행 = 베베마켓 2026년 7월
-      const cells = within(bodyRows()[0]).getAllByRole("cell");
-      expect(cells[8]).toHaveTextContent("225,993,000원");
-      expect(cells[8].textContent).toBe(won(payoutOf(SETTLEMENTS[0])));
-    });
+describe("셀러 정산 — 검색조건 · 빈 상태 · 페이지 · preview", () => {
+  it("검색조건은 펼친 채로 열린다 · 상태 셀렉트(전체 + 6)", async () => {
+    const { user } = renderPage();
+    await user.click(screen.getByRole("combobox", { name: "상태" }));
+    const options = within(await screen.findByRole("listbox"))
+      .getAllByRole("option")
+      .map((option) => option.textContent);
+    expect(options).toEqual([
+      "전체",
+      "지급대기",
+      "확인요청",
+      "확인완료",
+      "지급완료",
+      "이의제기",
+      "보류",
+    ]);
   });
 
-  describe("금액 부호 표기 (데이터가 정한다)", () => {
-    it("차감 항목은 -, 안심케어 보전은 + 로 나간다", () => {
-      renderPage();
-
-      const cells = within(bodyRows()[0]).getAllByRole("cell");
-      expect(cells[3]).toHaveTextContent("-6,820,000원"); // 셀러쿠폰
-      expect(cells[4]).toHaveTextContent("-34,152,000원"); // 수수료
-      expect(cells[5]).toHaveTextContent("-6,395,000원"); // PG수수료
-      expect(cells[6]).toHaveTextContent("-12,480,000원"); // 취소·반품 차감
-      expect(cells[7]).toHaveTextContent("+1,240,000원"); // 안심케어
-    });
-
-    it("금액이 없는 칸은 0원이 아니라 '-' 다 (원본 표기)", () => {
-      // 맘스케어는 안심케어 보전이 없다.
-      // `+0원` 은 읽는 사람을 멈추게 하고, `0원` 은 "0을 정산했다"로 읽힌다
-      expect(credit(0)).toBe(NO_AMOUNT);
-      expect(deduct(0)).toBe(NO_AMOUNT);
-
-      renderPage();
-      const cells = within(bodyRows()[2]).getAllByRole("cell");
-      expect(cells[7].textContent).toBe(NO_AMOUNT);
-      expect(cells[7].textContent).not.toContain("원");
-    });
+  it("상태로 거르면 표·건수·요약 줄이 따라온다", async () => {
+    const { user } = renderPage();
+    await chooseStatus(user, "확인완료");
+    expect(
+      bodyRows().map((row) => within(row).getAllByRole("cell")[0].textContent),
+    ).toEqual(expect.arrayContaining(["아이랑", "베베하우스"]));
+    expect(bodyRows()).toHaveLength(2);
+    expect(screen.getByText("목록 (총 2건)")).toBeVisible();
+    expect(screen.getByText("상태 확인완료")).toBeVisible();
   });
 
-  describe("표 (원본 11열 · 좌측 2열 고정)", () => {
-    it("컬럼 이름과 순서가 원본 그대로다", () => {
-      renderPage();
+  it("셀러명 검색(앞뒤 공백 무시) · 결과 없으면 빈 상태 → [필터 초기화]", async () => {
+    const { user } = renderPage();
+    const input = screen.getByPlaceholderText("셀러명 검색");
+    await user.type(input, " 베이비 ");
+    expect(
+      bodyRows()
+        .map((row) => within(row).getAllByRole("cell")[0].textContent)
+        .sort(),
+    ).toEqual(["베이비루", "리틀베이비", "코지베이비"].sort());
 
-      expect(
-        within(screen.getByRole("table"))
-          .getAllByRole("columnheader")
-          .map((cell) => cell.textContent),
-      ).toEqual([
-        "정산 회차",
-        "셀러",
-        "거래액(정가)",
-        "셀러쿠폰",
-        "수수료",
-        "PG수수료",
-        "취소·반품 차감",
-        "안심케어",
-        "지급액",
-        "상태",
-        "처리",
-      ]);
-    });
-
-    /**
-     * 표 전체가 **한 기준선**에 선다 — 수치도 좌측이다.
-     * 배지만 들어가는 열만 가운데다(`DESIGN.md` §7-2): 배지는 글자가 아니라 객체라
-     * 왼쪽 모서리에 정보가 없다.
-     */
-    it("우측 정렬 열이 없다 · 배지만 든 열만 가운데다", () => {
-      renderPage();
-
-      const cells = within(bodyRows()[0]).getAllByRole("cell");
-      const headers = within(screen.getByRole("table")).getAllByRole(
-        "columnheader",
-      );
-
-      for (const el of [...cells, ...headers]) {
-        expect(el.className.split(/\s+/)).not.toContain("text-right");
-      }
-
-      const BADGE_COLUMNS = [9];
-      headers.forEach((header, index) => {
-        const want = BADGE_COLUMNS.includes(index);
-        expect(header.className.split(/\s+/).includes("text-center")).toBe(
-          want,
-        );
-        expect(
-          cells[index].className.split(/\s+/).includes("text-center"),
-        ).toBe(want);
-      });
-    });
-
-    it("원본 `frozen` 두 열이 실제로 고정된다", () => {
-      renderPage();
-
-      // 문자열 부분 일치는 `left-0` 과 `left-0.5` 를 못 가른다 — 클래스 배열로 본다
-      const cells = within(bodyRows()[0]).getAllByRole("cell");
-      expect(cells[0].className.split(/\s+/)).toEqual(
-        expect.arrayContaining(["sticky", "left-0"]),
-      );
-      expect(cells[1].className.split(/\s+/)).toEqual(
-        expect.arrayContaining(["sticky", "left-25"]),
-      );
-      // 세 번째 열부터는 함께 스크롤한다
-      expect(cells[2].className.split(/\s+/)).not.toContain("sticky");
-    });
+    await user.clear(input);
+    await user.type(input, "없는셀러");
+    expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "필터 초기화" }));
+    expect(bodyRows()).toHaveLength(8);
+    expect(input).toHaveValue("");
   });
 
-  describe("상태 칩 필터", () => {
-    it("기본은 전체 — 1페이지에 PAGE_SIZE 만큼 보인다", async () => {
-      const { user } = renderPage();
-
-      expect(bodyRows()).toHaveLength(4);
-      expect(screen.getByText("목록 (총 6건)")).toBeVisible();
-      expect(screen.getByRole("radio", { name: "전체" })).toBeChecked();
-
-      await user.click(screen.getByRole("button", { name: "2" }));
-      expect(bodyRows()).toHaveLength(2);
-    });
-
-    it("이의제기를 고르면 그 회차만 남고 원본 상태 설명이 함께 뜬다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("radio", { name: "이의제기" }));
-
-      expect(visibleSellers()).toEqual(["리틀스텝"]);
-      expect(screen.getByText("목록 (총 1건)")).toBeVisible();
-      // 원본 `statusTips` 문구 — 마우스를 올려야 보이는 툴팁 대신 상시 노출이다
-      expect(
-        screen.getByText(/본사가 검토해 \[수정 명세 재발송\]/),
-      ).toBeVisible();
-    });
-
-    it("전체일 때는 상태 설명을 띄우지 않는다 — 고를 상태가 없다", () => {
-      renderPage();
-
-      expect(
-        screen.queryByText(/셀러가 명세에 이의를 제기했습니다/),
-      ).not.toBeInTheDocument();
-    });
-
-    it("지급완료를 고르면 종결된 회차만 남는다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("radio", { name: "지급완료" }));
-
-      expect(visibleSellers()).toEqual(["베베마켓"]);
-      expect(within(bodyRows()[0]).getAllByRole("cell")[0]).toHaveTextContent(
-        "2026년 6월",
-      );
-    });
+  it("페이지당 개수 10/20/50/100 · 기본 10", async () => {
+    const { user } = renderPage();
+    const sizeSelect = screen.getByRole("combobox", { name: "페이지당 개수" });
+    expect(sizeSelect).toHaveTextContent("10");
+    await user.click(sizeSelect);
+    const options = within(await screen.findByRole("listbox"))
+      .getAllByRole("option")
+      .map((option) => option.textContent);
+    expect(options.map((text) => text?.replace(/\D/g, ""))).toEqual([
+      "10",
+      "20",
+      "50",
+      "100",
+    ]);
   });
 
-  describe("셀러명 검색", () => {
-    it("셀러명으로 좁히면 그 셀러의 회차만 남는다", async () => {
-      const { user } = renderPage();
-
-      await user.type(searchBox(), "베베마켓");
-
-      // 7월(확인완료) · 6월(지급완료) 두 회차가 남는다
-      expect(visibleSellers()).toEqual(["베베마켓", "베베마켓"]);
-      expect(screen.getByText("목록 (총 2건)")).toBeVisible();
-    });
-
-    it("정산 회차 id 로도 검색된다", async () => {
-      const { user } = renderPage();
-
-      await user.type(searchBox(), "2026-06");
-
-      expect(visibleSellers()).toEqual(["베베마켓"]);
-    });
-
-    it("상태 칩과 검색은 함께 걸린다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("radio", { name: "지급완료" }));
-      await user.type(searchBox(), "리틀스텝");
-
-      expect(bodyRows()).toHaveLength(0);
-      expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
-    });
-  });
-
-  describe("빈 상태·초기화", () => {
-    it("매칭이 없으면 원본 문구로 비우고 표와 페이지네이션을 걷어낸다", async () => {
-      const { user } = renderPage();
-
-      expect(screen.getByRole("table")).toBeInTheDocument();
-
-      await user.type(searchBox(), "없는셀러");
-
-      expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
-      expect(
-        screen.getByText(
-          "조건을 변경하거나 필터를 초기화한 뒤 다시 조회해 주세요.",
-        ),
-      ).toBeVisible();
-      expect(screen.queryByRole("table")).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("navigation", { name: "페이지네이션" }),
-      ).not.toBeInTheDocument();
-    });
-
-    it("'필터 초기화'로 전체가 돌아온다 — 컨트롤도 함께 되돌아간다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("radio", { name: "보류" }));
-      await user.type(searchBox(), "없는셀러");
-      await user.click(screen.getByRole("button", { name: "필터 초기화" }));
-
-      expect(bodyRows()).toHaveLength(4);
-      expect(screen.getByText("목록 (총 6건)")).toBeVisible();
-      expect(screen.getByRole("radio", { name: "전체" })).toBeChecked();
-      expect(searchBox()).toHaveValue("");
-    });
-
-    it("필터를 바꾸면 1페이지로 되돌아간다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("button", { name: "2" }));
-      await user.click(screen.getByRole("radio", { name: "전체" }));
-
-      expect(screen.getByRole("button", { name: "1" })).toHaveAttribute(
-        "aria-current",
-        "page",
-      );
-    });
-  });
-
-  describe("처리 컬럼 — 원본은 상세 링크 하나다", () => {
-    it("행마다 '상세' 하나뿐이다 (상태별 액션 버튼을 되살리지 않는다)", () => {
-      renderPage();
-
-      expect(screen.getAllByRole("button", { name: "상세" })).toHaveLength(4);
-
-      // 걷어낸 4종. 특히 '확인요청 발송' 은 원본이 "익월 1일 자동 발송"이라고 못박은 일이다
-      for (const label of [
-        "확인요청 발송",
-        "지급 처리",
-        "수정 명세 재발송",
-        "협의 결론 기록",
-      ]) {
-        expect(
-          screen.queryByRole("button", { name: label }),
-        ).not.toBeInTheDocument();
-      }
-      expect(screen.queryByText("셀러 응답 대기")).not.toBeInTheDocument();
-    });
-
-    it("'상세'는 확인 모달이 아니라 미리보기를 연다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getAllByRole("button", { name: "상세" })[0]);
-
-      // 행 클릭까지 함께 타면 모달이 둘 열린다 — stopPropagation 을 여기서 본다
-      expect(screen.getAllByRole("dialog")).toHaveLength(1);
-      expect(
-        within(await screen.findByRole("dialog")).getByRole("heading", {
-          name: "정산 미리보기",
-        }),
-      ).toBeVisible();
-    });
-  });
-
-  describe("행 클릭 → 정산 미리보기", () => {
-    it("행을 열면 그 회차의 요약 4항목과 상태 설명이 뜬다", async () => {
-      const { user } = renderPage();
-
-      await user.click(bodyRows()[0]);
-
-      const sheet = await screen.findByRole("dialog");
-      expect(
-        within(sheet).getByRole("heading", { name: "정산 미리보기" }),
-      ).toBeVisible();
-      expect(within(sheet).getByText("2026년 7월 · 베베마켓")).toBeVisible();
-
-      expect(
-        within(sheet)
-          .getAllByRole("term")
-          .map((term) => term.textContent),
-      ).toEqual(["거래액", "지급액", "상태", "회차 마감"]);
-      expect(
-        within(sheet)
-          .getAllByRole("definition")
-          .map((value) => value.textContent),
-      ).toEqual([
-        "284,600,000원",
-        "225,993,000원",
-        "확인완료",
-        "2026-07-31 23:59",
-      ]);
-      // 상태 설명이 모달에 함께 나와야 다음 단계를 알 수 있다
-      expect(
-        within(sheet).getByText(/지급일\(매월 10일\)에 지급합니다/),
-      ).toBeVisible();
-    });
-
-    it("푸터는 '명세서 보기' 하나 — 실재하는 S15 화면으로 잇는다", async () => {
-      const { user, onNavSelect } = renderPage();
-
-      await user.click(bodyRows()[0]);
-      const dialog = await screen.findByRole("dialog");
-      const footer = dialog.querySelector(
-        '[data-slot="footer"]',
-      ) as HTMLElement;
-
-      expect(within(footer).getAllByRole("button")).toHaveLength(1);
-      await user.click(
-        within(footer).getByRole("button", { name: "명세서 보기" }),
-      );
-
-      expect(onNavSelect).toHaveBeenCalledWith("/settle-statement");
-    });
-  });
-
-  describe("엑셀 다운로드 (원본 `toolsLeft`)", () => {
-    it("지금 조회된 건수로 파일명을 만든다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("radio", { name: "지급완료" }));
-      await user.click(screen.getByRole("button", { name: "엑셀 다운로드" }));
-
-      expect(
-        await screen.findByText("셀러정산_1건.csv 를 내려받았습니다"),
-      ).toBeVisible();
-    });
+  it("?preview=empty 는 빈 상태", () => {
+    renderPage("?preview=empty");
+    expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
   });
 });

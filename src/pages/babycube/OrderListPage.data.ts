@@ -28,6 +28,9 @@ import { PRODUCTS } from "./ProductListPage.data";
  * 금액은 **주문 당시 값**을 상품 단가로 다시 만든 예시다(렌트 = 일 단가 × 렌트일).
  * ⚠️ 원본 샘플은 2026년 6월이지만, 상품 등록일(7~9월)보다 주문이 앞서지 않도록
  * **2026년 9~10월**로 옮겼다. 형식(14자리 주문번호 · 배송 3종 · 카드 결제)은 원본 그대로다.
+ * 정산 2026.09 회차 사례(2026-11-02 추가 11건)는 9월 안에 확정되도록 **8월 결제**가 섞인다.
+ * 보증금(`deposit.data.ts`)·안심케어·정산(`settlement.data.ts`)이 모두 이 처리단위에서 값을 읽는다 —
+ * 같은 처리단위가 화면마다 다른 말을 하지 않게.
  * ---------------------------------------------------------------------- */
 
 /** 처리단위가 나간 방식. 렌트는 이용 기간·렌트 금액이 붙고 판매는 붙지 않는다 */
@@ -116,6 +119,48 @@ export interface Claim {
   events: ClaimEvent[];
 }
 
+/**
+ * 반납 검수 판정 — 원본 4단(`이상없음`·`파손(복원가능)`·`파손(복원불가)`·`분실`).
+ * 라벨·톤은 보증금 쪽(`deposit.data.ts` `INSPECTION_META`)에 있다.
+ */
+export type Inspection = "ok" | "repairable" | "unrepairable" | "lost";
+
+/** 안심케어 복원비 청구의 본사 심사 상태 — 원본 3값(청구 접수·승인·반려) */
+export type CareClaimStatus = "received" | "approved" | "rejected";
+
+export const CARE_CLAIM_STATUS_LABEL: Record<CareClaimStatus, string> = {
+  received: "청구 접수",
+  approved: "승인",
+  rejected: "반려",
+};
+
+/**
+ * 안심케어 복원비 청구 — 셀러가 반납 검수 뒤 올린다. **주문 클레임(`claim`)과 다른 일이다**
+ * (그쪽은 취소·반품·교환). 금액은 셀러 입력값 그대로, 본사는 승인·반려만 한다(원본 #13).
+ */
+export interface CareClaim {
+  /** 청구 복원비 */
+  amount: number;
+  status: CareClaimStatus;
+  /** 청구일시 `YYYY-MM-DD HH:mm` — 반납 검수 뒤 */
+  claimedAt: string;
+  /** 승인·반려 일시 — 접수 건은 `null` */
+  decidedAt: string | null;
+  /** 반려 사유 — 반려 건만 */
+  rejectReason: string | null;
+}
+
+/** 안심케어 가입 — 주문 명세의 가입 요금과 청구 자격이 **같은 값**을 읽는다 */
+export interface Care {
+  /** 가입 요금(결제 당시) — 정산 매출에 들지 않는다 */
+  fee: number;
+  /** 복원비 청구 — 없으면 `null` */
+  claim: CareClaim | null;
+}
+
+/** 안심케어 가입 요금 — 원본 `UD_CARE_FEE` */
+export const CARE_FEE = 5000;
+
 export interface Order {
   /** 처리단위 코드 — **고유 키**. 행 key·선택·엑셀 선택분·상세 경로(`/orders-all/{id}`) */
   id: string;
@@ -176,7 +221,36 @@ export interface Order {
   shipMemo: string;
   /** 주문일시 `YYYY-MM-DD HH:mm` — 같은 주문번호면 같다 */
   orderedAt: string;
+
+  /* ── 결제 단계의 할인·부가 — 주문 명세와 정산이 **같은 값**을 읽는다 ── */
+
+  /** 쿠폰 할인 — **셀러 쿠폰(셀러 부담)**. 정산 매출에서 빠진다 */
+  coupon: number;
+  /** 포인트 사용 — 본사(플랫폼) 부담. 정산에 영향 없다(참고 줄만) */
+  point: number;
+  /** 안심케어 가입 — 미가입은 `null`. 렌트만 */
+  care: Care | null;
+
+  /* ── 반납 검수 · 확정 — 보증금(`deposit.data.ts`)과 정산(`settlement.data.ts`)이 읽는다 ── */
+
+  /** 검수 판정 — 검수완료 전(또는 판매)은 `null` */
+  inspection: Inspection | null;
+  /** 검수 차감액(셀러 입력) — 0 이상. 보증금 한도는 보증금 함수가 건다 */
+  deduction: number;
+  /** 검수완료 시각 `YYYY-MM-DD HH:mm` — 처리 이력의 「검수완료」와 같은 값 */
+  inspectedAt: string | null;
+  /**
+   * **매출 확정 시각** `YYYY-MM-DD HH:mm` — 판매 = 구매확정(배송 완료 7일 뒤 자동) /
+   * 렌트 = 반납완료. 처리 이력의 그 단계와 같은 값이고 정산 회차 귀속의 기준이다(결제월이 아니다).
+   * 반려·거부·재반송으로 끝난 판매 클레임은 거래가 살아 있어 자동 확정과 클레임 종결 중 늦은 쪽에 확정된다
+   * (원본 `confirmDate`). 미확정·진행 중 클레임은 `null`
+   */
+  confirmedAt: string | null;
 }
+
+/** 클레임이 **거래를 되돌리지 않고** 끝났는가 — 반려·거부·재반송(원본 불성립 어휘) */
+export const isClaimRefused = (order: Pick<Order, "claim">) =>
+  /Rejected$|Refused$|Resend$/.test(order.claim?.status ?? "");
 
 /** 렌트가(원/일) = 원가 − 할인 (음수 방지). 저장하지 않고 계산한다 — 셋이 어긋날 수 없게 */
 export const rentPriceOf = (order: Order): number | null =>
@@ -375,6 +449,7 @@ export const TYPE_META: Record<OrderType, { label: string; tone: TagTone }> = {
  *
  * 주문번호는 결제 일시의 숫자 14자리다 — **결제 일시가 같은 행은 같은 주문**이다
  * (U-R03·U-S03 = 렌트+판매 한 결제, U-R09·U-R22 = 렌트 두 건 한 결제).
+ * 렌트 32(본사 1) · 판매 35(본사 5) — 정산 사례 11건을 더한 수다.
  * 이용 기간은 결제 4일 뒤 시작한다. 단계는 **시연 기준일(2026-10-19)** 기준으로 기간과 맞춰 두었다
  * (대여중은 기간 안, 연체중·검수·반납은 기간이 끝난 뒤).
  * 「단계」는 정상 흐름의 단계(`baseStatus`)다 — 클레임 건은 아래 `CLAIM_SEEDS` 가 상태를 덮는다.
@@ -444,7 +519,91 @@ const SEED_ROWS = [
   "U-S27|2026-09-24 16:08:39|LS240724|eunwoo.cho@example.com|delivered|택배|||",
   "U-S28|2026-09-27 12:12:12|KB781520|seoa.yoon@example.com|delivered|택배|||",
   "U-S29|2026-09-21 18:30:30|BH612093|yejun.cha@example.com|delivered|택배|||",
+  /* ── 정산 2026.09 회차 사례 (2026-11-02 · 사례표 scratchpad `settle-cases.md`) ──
+     렌트 반납완료 5: 안심케어 승인 2(U-R28·U-R29) · 일부환급(U-R30) · 전액차감(U-R31) · 본사 렌트(U-R32).
+     판매: 8월 확정 → 9월 반품 완료 환수(U-S30) · 9/30 확정(U-S31) · 10/1 확정 경계(U-S32) ·
+     반품 반려 후 거래 유지(U-S33) · 본사 판매(U-S34) · 쿠폰·포인트(U-S35).
+     8월 결제 건은 9월 회차에 확정되게 앞당긴 것이다(상품 등록일보다는 늦다). */
+  "U-R28|2026-08-20 15:10:24|BH731058|chaewon.lim@example.com|returned|택배|21||",
+  "U-R29|2026-08-18 11:42:37|KB338806|dain.hong@example.com|returned|택배|21||",
+  "U-R30|2026-08-29 19:05:12|AR240729|hajun.seo@example.com|returned|택배|14||",
+  "U-R31|2026-08-25 09:33:48|MC447210|bora.hwang@example.com|returned|방문 수령|20||",
+  "U-R32|2026-09-01 10:20:15|PR270901|gaeun.yoo@example.com|returned|택배|14||",
+  "U-S30|2026-08-05 13:27:41|LS240724|jisung.ahn@example.com|confirmed|택배|||",
+  "U-S31|2026-09-21 09:15:20|GJ650283|yuna.choi@example.com|confirmed|택배|||",
+  "U-S32|2026-09-22 20:40:05|GJ650283|serin.oh@example.com|confirmed|택배|||",
+  "U-S33|2026-09-03 14:55:09|BL240811|taeho.ryu@example.com|delivered|택배|||",
+  "U-S34|2026-09-08 16:02:33|HQ240806|yerin.song@example.com|confirmed|택배|||",
+  "U-S35|2026-09-10 11:48:56|AS902715|harin.noh@example.com|confirmed|택배|||",
 ];
+
+/**
+ * 결제 단계의 할인 — 일부 처리단위에만 있다(원본도 해시로 일부 건에만 붙인다).
+ * 한 결제(주문번호)에 처리단위가 여럿이면 **한 행에만** 둔다 — 같은 할인을 두 번 빼지 않게.
+ * 쿠폰은 **셀러 쿠폰(셀러 부담)**, 포인트는 본사 부담이다. 주문 명세와 정산이 이 값을 그대로 읽는다.
+ */
+const PAY_EXTRAS: Record<string, { coupon?: number; point?: number }> = {
+  "U-R09": { coupon: 3000 },
+  "U-R11": { point: 2000 },
+  "U-S07": { coupon: 5000 },
+  "U-S31": { coupon: 5000 },
+  "U-S35": { coupon: 10000, point: 3000 },
+};
+
+/**
+ * 안심케어 가입 건 — `null` 은 가입만(청구 없음).
+ * 청구는 반납 검수 뒤에 생긴다(검수완료 → 청구 → 심사, 시연 기준일 전).
+ * - 승인 U-R28·U-R29 — 9월 반납·9월 승인 → 2026.09 회차 보전
+ * - 접수 U-R18 · 반려 U-R19 — 10월 반납이라 9월 회차와 무관(원본도 접수·반려를 다음 달 종료로 둔다)
+ * ⚠️ **기획 확인 필요**: 원본은 접수·반려 건도 보증금이 이미 「전액환급」인데, 반려 안내는
+ * 「보증금 차감 판단으로 되돌아갑니다」라고 한다(이미 돌려준 보증금). 사용자 결정 ④로 원본대로 뒀다.
+ */
+const CARE_SEEDS: Record<string, CareClaim | null> = {
+  "U-R09": null,
+  "U-R12": null,
+  "U-R18": {
+    amount: 9000,
+    status: "received",
+    claimedAt: "2026-10-10 10:30",
+    decidedAt: null,
+    rejectReason: null,
+  },
+  "U-R19": {
+    amount: 15000,
+    status: "rejected",
+    claimedAt: "2026-10-14 11:00",
+    decidedAt: "2026-10-16 15:20",
+    rejectReason:
+      "복원 견적서 미첨부 — 수리 업체 견적서를 첨부해 다시 청구해 주세요.",
+  },
+  "U-R28": {
+    amount: 12000,
+    status: "approved",
+    claimedAt: "2026-09-18 10:00",
+    decidedAt: "2026-09-21 10:30",
+    rejectReason: null,
+  },
+  "U-R29": {
+    amount: 18000,
+    status: "approved",
+    claimedAt: "2026-09-16 11:00",
+    decidedAt: "2026-09-18 14:00",
+    rejectReason: null,
+  },
+};
+
+/**
+ * 반납 검수 판정 — `처리단위 → [판정, 차감액]`. 검수완료·반납완료인데 여기 없으면 「이상없음 · 0원」
+ * (원본: 판정 없는 검수완료는 이상없음). 안심케어 가입 + 복원가능 파손은 차감하지 않는다(본사 부담).
+ */
+const INSPECTION_SEEDS: Record<string, [Inspection, number]> = {
+  "U-R18": ["repairable", 0],
+  "U-R19": ["repairable", 0],
+  "U-R28": ["repairable", 0],
+  "U-R29": ["repairable", 0],
+  "U-R30": ["unrepairable", 25000],
+  "U-R31": ["lost", 40000],
+};
 
 /**
  * 클레임 — `처리단위 → [지금 단계, 신청 일시, 신청 사유]`.
@@ -464,7 +623,7 @@ const CLAIM_SEEDS: Record<string, [ClaimStatus, string, string]> = {
   "U-S11": ["cancelRequested", "2026-10-17 21:30", "옵션 잘못 선택"],
   "U-S13": ["cancelRefunding", "2026-10-16 16:05", "배송 전 단순변심"],
   "U-S14": ["canceled", "2026-10-10 08:15", "중복 주문"],
-  /* 반품 10 — 10단계 각 한 건 (렌트 4 · 판매 6) */
+  /* 반품 12 — 10단계 각 한 건 (렌트 4 · 판매 6) + 정산 사례 2(완료 U-S30 · 반려 U-S33) */
   "U-R25": ["returnRequested", "2026-10-18 15:20", "사이즈 안맞음"],
   "U-S15": ["returnApproved", "2026-10-14 09:30", "단순변심 (청약철회)"],
   "U-S16": ["returnRejected", "2026-10-16 10:00", "단순변심 (수령 7일 경과)"],
@@ -514,6 +673,10 @@ const CLAIM_SEEDS: Record<string, [ClaimStatus, string, string]> = {
     "단순변심 (검수 결과 사용 흔적)",
   ],
   "U-S29": ["exchangeResend", "2026-09-26 10:00", "단순변심 (검수 결과 오염)"],
+  /* 정산 사례 — 8월 회차에 지급된 판매(구매확정 08-14)가 9월에 반품 완료 → 9월 회차 환수 */
+  "U-S30": ["returnDone", "2026-09-08 10:00", "제품 불량 (버클 잠김 불량)"],
+  /* 정산 사례 — 수거 전 반려로 거래 유지 → 자동 구매확정(09-12)으로 9월 회차 반영 */
+  "U-S33": ["returnRejected", "2026-09-06 10:00", "단순변심 (개봉한 위생용품)"],
 };
 
 /** 상품을 받아 보낸 뒤의 단계 — 원래 배송 송장이 붙는다(클레임 건도 원래 단계로 본다) */
@@ -617,6 +780,34 @@ const toOrder = (row: string, index: number): Order => {
       (claim?.events.some((event) => PICKUP_STARTED.includes(event.status)) ??
         false));
 
+  /* 검수·확정 시각 — 처리 이력의 예시 시각과 **같은 규칙**(이력은 이 값을 그대로 읽는다).
+     렌트: 검수완료 = 종료 3일 뒤 11:00 · 반납완료 = 종료 4일 뒤 16:00.
+     판매: 출고 결제 다음 날 → 수령 이틀 뒤 13:10 → 7일 뒤 자동 구매확정 = 결제 9일 뒤 13:10 */
+  const end = isRent ? addDays(start, rentDays - 1) : "";
+  const inspectedAt =
+    isRent && (baseStatus === "inspected" || baseStatus === "returned")
+      ? `${addDays(end, 3)} 11:00`
+      : null;
+  const autoConfirmAt = `${addDays(paidAt.slice(0, 10), 9)} 13:10`;
+  const claimEnd = claim?.events[claim.events.length - 1].at ?? "";
+  const keptAt = claimEnd > autoConfirmAt ? claimEnd : autoConfirmAt;
+  const confirmedAt =
+    baseStatus === "returned"
+      ? `${addDays(end, 4)} 16:00`
+      : baseStatus === "confirmed"
+        ? autoConfirmAt
+        : !isRent &&
+            baseStatus === "delivered" &&
+            isClaimRefused({ claim }) &&
+            keptAt <= `${DEMO_TODAY} 23:59`
+          ? keptAt
+          : null;
+  const extras = PAY_EXTRAS[id] ?? {};
+  const careClaim = CARE_SEEDS[id];
+  const [inspection, deduction]: [Inspection | null, number] = INSPECTION_SEEDS[
+    id
+  ] ?? [inspectedAt ? "ok" : null, 0];
+
   return {
     id,
     orderNo,
@@ -626,7 +817,7 @@ const toOrder = (row: string, index: number): Order => {
     type: product.mode,
     sellerKind: product.source === "hq" ? "hq" : "seller",
     seller: product.seller,
-    period: isRent ? `${start} ~ ${addDays(start, rentDays - 1)}` : "",
+    period: isRent ? `${start} ~ ${end}` : "",
     payMethod: PAY_METHODS[seed % PAY_METHODS.length],
     date: paidAt.slice(0, 16),
     shipMethod,
@@ -654,6 +845,13 @@ const toOrder = (row: string, index: number): Order => {
     address: buyer.address,
     shipMemo: memo,
     orderedAt,
+    coupon: extras.coupon ?? 0,
+    point: extras.point ?? 0,
+    care: careClaim === undefined ? null : { fee: CARE_FEE, claim: careClaim },
+    inspection,
+    deduction,
+    inspectedAt,
+    confirmedAt,
   };
 };
 

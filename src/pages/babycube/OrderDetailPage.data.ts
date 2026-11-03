@@ -1,7 +1,9 @@
 import { monthRangeText, STAGES } from "./GrowthStageListPage.data";
 import {
+  CARE_FEE,
   CLAIM_TYPE_LABEL,
   FAULT_LABEL,
+  isClaimRefused,
   ORDERS,
   perDay,
   rentPriceOf,
@@ -16,8 +18,9 @@ import { ADDRESSES, AIRPORTS, stageOf } from "./ProductDetailPage.data";
 import { PRODUCTS } from "./ProductListPage.data";
 import {
   DEPOSIT_STATUS_META,
+  depositOf,
   type DepositStatus,
-} from "./RentDepositListPage.data";
+} from "./deposit.data";
 
 /* -------------------------------------------------------------------------
  * 주문 상세 (BO-ORD-002) — 조회형 화면의 **도메인 층**
@@ -154,9 +157,14 @@ const plusHours = (at: Date, hours: number) =>
 export const stamp = (at: Date) =>
   `${at.getFullYear()}.${pad(at.getMonth() + 1)}.${pad(at.getDate())} ${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}`;
 
+/** 샘플의 `YYYY-MM-DD HH:mm` → 시각 (클레임 단계·확정 시각은 샘플이 직접 갖는다) */
+const atOf = (text: string) => new Date(`${text.replace(" ", "T")}:00`);
+
 /**
  * 단계별 **예시** 시각. 결제 → 주문확인 → 출고 → 수령 → 대여 시작(이용 기간 시작일) → 회수 순서를 지킨다.
  * 렌트의 출고·수령은 이용 기간 시작에 맞추고, 반납 쪽은 이용 기간 끝에서 센다.
+ * 검수완료·반납완료·구매확정은 주문 행이 든 시각(`inspectedAt`·`confirmedAt`)을 그대로 쓴다 —
+ * 그 규칙은 주문 샘플(`toOrder`) 한 곳에 있고, 보증금 상태 변경일·정산 회차 귀속이 같은 값을 읽는다.
  */
 const eventAt = (order: Order, status: FlowStatus): Date => {
   const paid = new Date(
@@ -182,8 +190,8 @@ const eventAt = (order: Order, status: FlowStatus): Date => {
     case "delivered":
       return deliveredAt;
     case "confirmed":
-      /* 수령 7일 뒤 자동 구매확정 */
-      return plusHours(deliveredAt, 24 * 7);
+      /* 수령 7일 뒤 자동 구매확정 — 정산 귀속과 같은 값(`Order.confirmedAt`) */
+      return atOf(order.confirmedAt!);
     case "renting":
       return dayAt(start, 0, "09:00");
     case "extended":
@@ -195,14 +203,12 @@ const eventAt = (order: Order, status: FlowStatus): Date => {
     case "inspecting":
       return dayAt(end, 2, "15:00");
     case "inspected":
-      return dayAt(end, 3, "11:00");
+      return atOf(order.inspectedAt!);
     case "returned":
-      return dayAt(end, 4, "16:00");
+      /* 반납완료 = 렌트 매출 확정 — 보증금 상태 변경일·정산 귀속과 같은 값 */
+      return atOf(order.confirmedAt!);
   }
 };
-
-/** 샘플의 `YYYY-MM-DD HH:mm` → 시각 (클레임 단계는 샘플이 시각을 직접 갖는다) */
-const atOf = (text: string) => new Date(`${text.replace(" ", "T")}:00`);
 
 export interface HistoryRow {
   status: OrderStatus;
@@ -256,25 +262,12 @@ export const stageTextOf = (order: Order) => {
 };
 
 /**
- * 보증금 상태 — 반납완료 = 전액환급 · 검수완료 = 환급대기 · 그 전은 점유중.
- * 클레임: 취소 완료 = 전액환급(출고 전 무료 취소) · 환불 처리중 = 환급대기 ·
- * 반품 완료 = 판매자 귀책 전액환급 / 고객 귀책 부분환급(반품 배송비 차감).
+ * 보증금 상태 — 보증금 순수 함수(`deposit.data.ts` `depositOf`)를 그대로 읽는다.
+ * 보증금 내역과 같은 처리단위에서 같은 상태·반환액이 나온다(반납완료는 차감액으로 전액/일부/전액차감).
+ * 보증금이 없는 건(판매)은 칸 자체가 없다 — 여기서는 점유중으로 돌려준다.
  */
-export const depositStatusOf = (order: Order): DepositStatus => {
-  switch (order.status) {
-    case "returned":
-    case "canceled":
-      return "fullRefund";
-    case "returnDone":
-      return order.claim?.fault === "customer" ? "partialRefund" : "fullRefund";
-    case "inspected":
-    case "cancelRefunding":
-    case "returnRefunding":
-      return "pendingRefund";
-    default:
-      return "holding";
-  }
-};
+export const depositStatusOf = (order: Order): DepositStatus =>
+  depositOf(order)?.status ?? "holding";
 
 export { DEPOSIT_STATUS_META };
 
@@ -313,20 +306,11 @@ export const feeText = (amount: number) => (amount > 0 ? won(amount) : "무료")
  * 주문 명세 — 원본 `udPriceBox`
  * ====================================================================== */
 
-/** 안심케어 요금 — 원본 `UD_CARE_FEE` */
-export const CARE_FEE = 5000;
-
 /**
- * 결제 단계의 할인·부가 — 일부 처리단위에만 있다(원본도 해시로 일부 건에만 붙인다).
- * 한 결제(주문번호)에 처리단위가 여럿이면 **한 행에만** 둔다 — 같은 할인을 두 번 빼지 않게.
+ * 안심케어 요금 — 원본 `UD_CARE_FEE`. 쿠폰·포인트·안심케어 가입은 주문 행(`Order.coupon` ·
+ * `point` · `care`)이 들고 있다 — 정산이 같은 값을 읽는다(따로 해시로 만들지 않는다)
  */
-const EXTRAS: Record<string, { coupon?: number; point?: number; care?: true }> =
-  {
-    "U-R09": { coupon: 3000, care: true },
-    "U-R11": { point: 2000 },
-    "U-R12": { care: true },
-    "U-S07": { coupon: 5000 },
-  };
+export { CARE_FEE };
 
 export type StatementTone = "plain" | "strong" | "minus" | "total";
 
@@ -350,7 +334,6 @@ const shipFeeOf = (order: Order) => (isParcel(order) ? order.shipFee : 0);
  * ⚠️ **보증금은 들지 않는다**(원본 명세) — 명세에 따로 한 줄로 보인다.
  */
 export const payTotalOf = (order: Order) => {
-  const extra = EXTRAS[order.id] ?? {};
   const ship = shipFeeOf(order);
   const subtotal =
     order.type === "rent"
@@ -360,27 +343,26 @@ export const payTotalOf = (order: Order) => {
   return Math.max(
     0,
     subtotal -
-      (extra.coupon ?? 0) -
-      (extra.point ?? 0) +
-      (extra.care ? CARE_FEE : 0) +
+      order.coupon -
+      order.point +
+      (order.care?.fee ?? 0) +
       ship +
       (order.type === "rent" ? ship : 0),
   );
 };
 
 export const statementOf = (order: Order): StatementLine[] => {
-  const extra = EXTRAS[order.id] ?? {};
   const ship = shipFeeOf(order);
   const plus = (amount: number) => (amount > 0 ? `+ ${won(amount)}` : "무료");
   const discounts = [
-    ...(extra.coupon
-      ? [line("쿠폰 할인", `- ${won(extra.coupon)}`, "minus")]
+    ...(order.coupon
+      ? [line("쿠폰 할인", `- ${won(order.coupon)}`, "minus")]
       : []),
-    ...(extra.point
-      ? [line("포인트 할인 · (플랫폼 부담)", `- ${won(extra.point)}`, "minus")]
+    ...(order.point
+      ? [line("포인트 할인 · (플랫폼 부담)", `- ${won(order.point)}`, "minus")]
       : []),
-    ...(extra.care
-      ? [line("안심케어 · (정산 미포함)", `+ ${won(CARE_FEE)}`)]
+    ...(order.care
+      ? [line("안심케어 · (정산 미포함)", `+ ${won(order.care.fee)}`)]
       : []),
   ];
 
@@ -426,10 +408,6 @@ export const paidAtText = (order: Order) => order.date.replace(/-/g, ".");
 /* =========================================================================
  * 클레임 — 클레임 모드에서만 보인다 (원본 `rma` 분기)
  * ====================================================================== */
-
-/** 클레임이 **거래를 되돌리지 않고** 끝났는가 — 반려·거부·재반송 */
-const isClaimRefused = (order: Order) =>
-  /Rejected$|Refused$|Resend$/.test(order.claim?.status ?? "");
 
 /** 클레임이 끝까지 갔는가 — 취소 완료·반품 완료·교환 완료 */
 const isClaimDone = (order: Order) =>
@@ -508,7 +486,8 @@ export const claimStatementOf = (order: Order): StatementLine[] => {
   const claim = order.claim;
   if (!claim) return [];
   const done = isClaimDone(order);
-  const deposit = order.deposit ?? 0;
+  /* 렌트 보증금 반환액은 보증금 함수 하나가 정한다 — 반품 배송비를 여기서 다시 빼지 않는다 */
+  const depositRefund = depositOf(order)?.refund ?? 0;
   const pay = payTotalOf(order);
   const fee = claimFeeOf(order);
   const rent = order.type === "rent";
@@ -518,7 +497,7 @@ export const claimStatementOf = (order: Order): StatementLine[] => {
       ? [
           line(
             done ? "보증금 반환 완료" : "보증금 반환 예정액",
-            won(deposit),
+            won(depositRefund),
             "strong",
           ),
         ]
@@ -559,6 +538,6 @@ export const claimStatementOf = (order: Order): StatementLine[] => {
     : done
       ? "환불 완료"
       : "환불 예정액";
-  const base = rent ? deposit : pay;
-  return [...feeLine, line(label, won(Math.max(0, base - fee)), "total")];
+  const amount = rent ? depositRefund : Math.max(0, pay - fee);
+  return [...feeLine, line(label, won(amount), "total")];
 };

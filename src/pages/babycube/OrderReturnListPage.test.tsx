@@ -164,7 +164,7 @@ describe("OrderReturnListPage (BabyCube S10 반품 목록)", () => {
       expect(cards).toHaveLength(2);
       expect(typeCard("렌트")).toHaveAccessibleName("렌트 4건");
       expect(typeCard("렌트")).toHaveAttribute("aria-pressed", "true");
-      expect(typeCard("판매")).toHaveAccessibleName("판매 6건");
+      expect(typeCard("판매")).toHaveAccessibleName("판매 8건");
       expect(screen.getByText("목록 (총 4건)")).toBeVisible();
     });
 
@@ -232,7 +232,7 @@ describe("OrderReturnListPage (BabyCube S10 반품 목록)", () => {
       expect(RETURNS).toEqual(
         ORDERS.filter((order) => order.claim?.type === "return"),
       );
-      expect(RETURNS).toHaveLength(10);
+      expect(RETURNS).toHaveLength(12); // 10단계 각 1 + 정산 사례 U-S30(완료) · U-S33(반려)
       expect(RETURNS.map((order) => order.id)).toContain("U-R21");
       expect(RETURNS.filter((order) => order.type === "rent")).toHaveLength(4);
     });

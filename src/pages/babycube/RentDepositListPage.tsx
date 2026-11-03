@@ -3,25 +3,19 @@ import { ArrowDownToLine, Search } from "lucide-react";
 import {
   AppShell,
   Button,
-  Card,
-  CardBody,
-  CardHeader,
+  Checkbox,
   DataTableShell,
   DatePicker,
   EmptyState,
-  FormField,
+  FilterBar,
   Gnb,
-  InfoItem,
-  InfoList,
   Input,
-  Modal,
-  ModalBody,
-  ModalHeader,
   PageHeader,
   Pagination,
-  SegmentedControl,
-  StatTile,
+  PaginationSizeSelect,
   Select,
+  Skeleton,
+  StatTile,
   Table,
   TableBody,
   TableHead,
@@ -33,33 +27,43 @@ import {
   useToast,
   type DateRange,
 } from "../../components/ui";
+import { cn } from "../../lib/cn";
+import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
+import { PERIOD_PRESETS } from "../../lib/periodPresets";
+import { useSearchParams } from "../../lib/router";
 import {
-  deduct,
-  DEPOSIT_STATUS_META,
   DEPOSITS,
-  EXPORT_NAME,
-  FILTERS,
+  DEPOSIT_STATUS_META,
+  EMPTY_DESCRIPTION,
+  EMPTY_FILTERS,
+  EMPTY_TITLE,
   ORDER_STATUS_META,
   PAGE_SIZE,
-  refundOf,
+  PAGE_SIZES,
   SEARCH_FIELDS,
-  searchHaystack,
-  sellerOf,
+  SEARCH_PLACEHOLDER,
   SOURCE_CELL_LABEL,
-  SOURCE_FILTERS,
+  SOURCE_OPTIONS,
+  STATUS_OPTIONS,
   SUMMARY_STATS,
+  deductText,
+  filterSummary,
+  matchesFilters,
+  searchValueOf,
   won,
   ymd,
-  type RentDeposit,
+  type DepositFilters,
+  type DepositSearchField,
 } from "./RentDepositListPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
 /* =========================================================================
- * S13 보증금 내역 — 뼈대 (BabyCube 본사 운영 어드민)
+ * S13 보증금 내역 — 목록형 · 뼈대 (BabyCube 본사 운영 어드민)
  *
- * ## 화면 유형: 목록형
- * 렌트 보증금이 점유중에서 환급/차감으로 판정·집행되는 과정을 금액과 함께 추적한다.
- * 한 행에 상태가 **둘** 붙는다 — 주문 상태(물건)와 보증금 상태(돈)가 따로 움직인다.
+ * ## 화면 유형: 목록형 (조회 전용 원장)
+ * [ 요약 타일 4 | 검색조건(기본 펼침+요약) | 목록 (총 N건) · 엑셀 다운로드 | 표 | 페이지네이션 ]
+ *                                                       ← 원본 v0.4 `listPage` 순서
+ * 행 액션·일괄 처리는 없다(원본 — 환급 실행은 셀러의 검수·반납 관리). 선택은 엑셀 선택분을 정하는 데만 쓴다.
  *
  * ## 이 파일은 도메인을 모른다 — 도메인은 `./RentDepositListPage.data.ts` 에 있다
  *
@@ -67,68 +71,73 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * | ---------------------- | ---------------------------------------------- |
  * | 데이터·타입·라벨·단위  | `RentDepositListPage.data.ts` **전체**         |
  * | 표 컬럼 구성           | 이 파일의 `<colgroup>` + `TableHead` + 본문 셀 |
- * | 금액 요약 4값          | `.data.ts` 의 `SUMMARY_STATS` (샘플에서 집계)  |
- * | 조회 조건 구성         | "조회 조건" 카드                                |
+ * | 요약 4값               | `.data.ts` 의 `SUMMARY_STATS` (데이터가 집계)  |
+ * | 검색조건 구성          | `FilterBar` 의 자식 (원본 순서: 기간→상태→출처→검색) |
+ *
+ * ## 공통 목록 규칙 (주문 목록과 같다)
+ * - 조건을 바꾸면 1페이지로, **선택도 풀린다** — 결과 밖으로 나간 선택이 엑셀에 섞이지 않게
+ * - 엑셀은 지금 조회 결과 안에서 고른 행, 없으면 조회 결과 전체, 0건이면 막는다 — 알림만(파일 생성 없음)
+ * - 행 어디를 눌러도 상세(`/rent-deposit/{처리단위}`), 주문번호 글자도 같은 곳(원본 `idLink`).
+ *   체크박스는 이동하지 않는다(`TableRow clickable` 이 셀 안 컨트롤을 거른다)
+ * - No 열·정렬은 **없다**(원본 그대로 — 이 목록만 No 가 없다)
  *
  * ## ⚠️ 원본에 없어서 걷어낸 것 — 되살리지 말 것
- * - **상태 요약 대시(건수 카드 5장)**. 원본이 이 화면에서만 `showStatusDashboard: !1` 로
- *   **꺼 둔다.** 상태 축의 컨트롤은 칩 하나뿐이다 — 대시를 되살리면 같은 축의
- *   컨트롤이 둘이 되어 한쪽만 눌린 자기모순 화면이 나온다
- * - **요약 카드의 증감(±%)·비교 기준 문구·아이콘**(`STATS`). 원본 타일은 라벨·값뿐이고,
- *   이전 기간 데이터가 없어 계산할 수도 없는 지어낸 숫자였다
- * - **`보증금 흐름` 도움말 툴팁**. 원본에 없는 지어낸 문장이었다
- * - **`출처` 를 12번째 열로 세우던 것**. 출처는 3번째 `구분` 열 + 툴바 칩 두 자리로 끝난다
- * - **모달의 `주문번호 복사` 버튼**. 원본 미리보기에는 액션이 없다
+ * - 행 클릭 「보증금 미리보기」 모달 — 원본은 상세 화면으로 간다
+ * - 늘 펼친 「조회 조건」 카드 · 세그먼트 칩 — 형제처럼 `FilterBar` + 셀렉트
+ * - 상태 요약 대시(건수 카드) — 원본이 이 화면에 두지 않는다
+ * - 「1 / N 페이지」 문구 · 5건 고정 페이지
  *
- * ## 반대로 원본 대조로 **되살린** 것
- * - **상품 이름 옆 안심케어 표식** — 열이 아니라 표식이다(원본 `badge b-care`)
- * - **셀에서만 길어지는 보증금 상태 라벨**(`환급완료(전액차감)`). 칩은 짧게, 셀은 길게 —
- *   `전액차감` 만 있으면 바로 위 `환급대기`(예정) 탓에 "차감할 예정"으로 읽힌다
- * - **셀러명 칸이 자체 재고면 `본사`** (`sellerOf` — 데이터에 박지 않는다)
- *
- * ## 정렬 규칙 (§7-2 · th·td 를 반드시 함께 바꾼다)
- * 수치(보증금액·차감·반환 예정액)는 우측, **배지만** 들어가는 열(구분·주문 상태·
- * 보증금 상태)은 가운데. ⚠️ **상품 열은 좌측이다** — 안심케어 표식이 곁들여지지만
- * 주 정보가 상품명이라 이름의 기준선을 흔들지 않는다.
+ * ## 원본과 다르게 둔 것
+ * - 주문번호까지 좌측 고정(체크박스·주문번호) — 12열이 화면 폭을 넘어 가로로 밀면 어느 건인지 사라진다
+ * - 열은 왼쪽 정렬, 배지만 든 열(구분·주문 상태·보증금 상태)은 가운데(형제 규칙 §7-2)
+ * - 차감 칸에 경고색을 칠하지 않는다(금액 강조색 토큰 없음 — 형제와 같다)
  * ====================================================================== */
 
+/** 고정 2열(체크박스 52 · 주문번호 144)의 `left` — `<colgroup>` 폭의 누적합. 함께 고친다 */
+const FROZEN_LEFT = ["left-0", "left-13"];
+const LAST_FROZEN = FROZEN_LEFT.length - 1;
+const FROZEN_LEAD_WIDTH = 196;
+
+/** 고정 구간의 오른쪽 끝 1px. `border` 는 collapse 표에서 함께 스크롤돼 사라진다 */
+const FROZEN_EDGE =
+  "after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-divide after:content-['']";
+
+const frozenTh = (index: number) =>
+  index > LAST_FROZEN
+    ? undefined
+    : cn(
+        "sticky z-2",
+        FROZEN_LEFT[index],
+        index === LAST_FROZEN && FROZEN_EDGE,
+      );
+
+/** 본문 셀 — 배경은 행에서 물려받는다(zebra·hover 를 따라가려면 상속뿐) */
+const frozenTd = (index: number) =>
+  index > LAST_FROZEN
+    ? undefined
+    : cn(
+        "sticky z-1 bg-inherit",
+        FROZEN_LEFT[index],
+        index === LAST_FROZEN && FROZEN_EDGE,
+      );
+
+/** 표의 열 수 — 로딩 뼈대가 같은 수의 빈 칸을 그린다. `<col>` 수와 같아야 한다 */
+const COLUMN_COUNT = 12;
+
 /**
- * 상태 변경일이 선택한 기간 안에 드는지.
- *
- * `date` 는 `"YYYY-MM-DD HH:mm"` 인데 공백 구분자는 브라우저별 파싱이 갈린다.
- * `T` 로 바꿔 ISO 형태로 만든 뒤 넘긴다. 시작일은 00:00, 종료일은 23:59:59 까지 포함한다
- * (종료일을 그대로 쓰면 그날 낮에 판정된 건이 빠진다).
+ * 날짜가 기간 안에 드는지. 시작일 00:00 ~ 종료일 23:59:59.
+ * **날짜가 없는 행은 기간을 걸면 빠진다**(점유중 — 원본 `_normDate` 그대로).
  */
-const inPeriod = (dateText: string, range?: DateRange) => {
+const inPeriod = (dateText: string | null, range?: DateRange) => {
   if (!range?.from) return true;
-
+  if (!dateText) return false;
   const at = new Date(dateText.replace(" ", "T"));
-  if (Number.isNaN(at.getTime())) return true;
-
   const from = new Date(range.from);
   from.setHours(0, 0, 0, 0);
-
   const to = new Date(range.to ?? range.from);
   to.setHours(23, 59, 59, 999);
-
   return at >= from && at <= to;
 };
-
-/**
- * 원본 `frozen` 열은 **주문번호 하나**다. 가로로 스크롤해도 어느 건인지가 남는다.
- *
- * 마지막(= 유일한) 고정 열이라 오른쪽 경계선을 갖는다 — 고정 구간의 끝이라는 표시다.
- * `border-collapse: collapse` 에서는 sticky 셀의 border 가 함께 스크롤돼 사라지므로
- * `::after` 로 그린다. 배치 기준은 `sticky` 자신이 만든다(`relative` 를 더하지 않는다).
- */
-const FROZEN_TH =
-  "sticky left-0 z-1 after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-divide after:content-['']";
-
-/**
- * 본문 쪽 고정 열은 배경을 **행에서 물려받는다**(`bg-inherit`).
- * zebra 는 `<tr>` 이 칠하므로, 색을 새로 지정하면 홀짝·hover 세 상태를 따라가지 못한다.
- */
-const FROZEN_TD = FROZEN_TH + " bg-inherit";
 
 export interface RentDepositListPageProps {
   navOpen: boolean;
@@ -144,53 +153,74 @@ export function RentDepositListPage({
   onNavSelect,
 }: RentDepositListPageProps) {
   const { toast } = useToast();
-
-  const [status, setStatus] = useState("all");
-  const [source, setSource] = useState("all");
-  /** 원본 `search.fieldOpts` 의 기본값이 주문번호(`no`)다 */
-  const [searchField, setSearchField] = useState(SEARCH_FIELDS[0].value);
-  const [keyword, setKeyword] = useState("");
-  const [period, setPeriod] = useState<DateRange | undefined>();
+  const [filters, setFilters] = useState<DepositFilters>(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  const [selected, setSelected] = useState<string[]>([]);
+  /** 검색조건 펼침. **기본은 펼침**(사용자 결정 2026-10-19 — 원본은 접힘) */
+  const [filterOpen, setFilterOpen] = useState(true);
 
-  const [preview, setPreview] = useState<RentDeposit | null>(null);
+  /* `?preview=loading|empty|refreshing` 으로 데이터 상태를 미리 본다 */
+  const dataStatus = asStatus(useSearchParams().get("preview"));
 
-  const filtered = DEPOSITS.filter((row) => {
-    const matchStatus = status === "all" || row.depositStatus === status;
-    const matchSource = source === "all" || row.source === source;
-    /*
-      ⚠️ 검색은 **고른 조건 한 칸만** 본다. 주문번호·회원명을 한 칸에 뭉뚱그리면
-      "주문번호로 찾는 중"인 사람이 회원명에 걸린 결과를 보게 된다.
-    */
-    const matchKeyword =
-      keyword.trim() === "" ||
-      searchHaystack(row, searchField).includes(keyword.trim());
-    return (
-      matchStatus && matchSource && matchKeyword && inPeriod(row.date, period)
-    );
-  });
+  /** 조건 하나를 바꾼다 — 1페이지로, 선택도 풀린다 */
+  const patch = (next: Partial<DepositFilters>) => {
+    setFilters((prev) => ({ ...prev, ...next }));
+    setPage(1);
+    setSelected([]);
+  };
+  const resetFilters = () => patch(EMPTY_FILTERS);
 
-  /*
-   * 필터로 결과가 줄면 현재 페이지가 범위를 벗어날 수 있다. 그대로 두면
-   * **빈 표**가 그려지므로 마지막 페이지로 당긴다.
-   */
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const paged = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
+  const keyword = filters.keyword.trim().toLowerCase();
+  const filtered = DEPOSITS.filter(
+    (row) =>
+      matchesFilters(row, filters) &&
+      inPeriod(row.changedAt, filters.period) &&
+      (keyword === "" ||
+        searchValueOf(row, filters.searchField)
+          .toLowerCase()
+          .includes(keyword)),
   );
 
-  /* 초기화는 한 곳에서만 정의한다 — 카드와 빈 상태 두 곳이 부르는데
-   * 한쪽만 되돌리면 "초기화했는데 여전히 비어 있음"이 된다 */
-  const resetFilters = () => {
-    setStatus("all");
-    setSource("all");
-    setSearchField(SEARCH_FIELDS[0].value);
-    setKeyword("");
-    setPeriod(undefined);
-    setPage(1);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const paged = filtered.slice(start, start + pageSize);
+
+  /** 머리 체크박스는 **보이는 페이지 단위**다 */
+  const pageIds = paged.map((row) => row.id);
+  const allPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selected.includes(id));
+  const somePageSelected =
+    pageIds.some((id) => selected.includes(id)) && !allPageSelected;
+  const selectedRows = filtered.filter((row) => selected.includes(row.id));
+
+  const toggleRow = (id: string) =>
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id],
+    );
+  const togglePage = () =>
+    setSelected((prev) =>
+      allPageSelected
+        ? prev.filter((id) => !pageIds.includes(id))
+        : [...prev, ...pageIds.filter((id) => !prev.includes(id))],
+    );
+
+  /* 엑셀 — 형제 목록과 같은 3문구. 퍼블은 대상 건수만 알린다 */
+  const exportCsv = () => {
+    const rows = selectedRows.length > 0 ? selectedRows : filtered;
+    if (rows.length === 0) {
+      toast("다운로드할 데이터가 없습니다");
+      return;
+    }
+    toast(
+      selectedRows.length > 0
+        ? `선택한 ${rows.length}건을 내려받았습니다`
+        : `조회 결과 ${rows.length}건을 내려받았습니다`,
+    );
   };
+
+  const openDetail = (id: string) => onNavSelect(`/rent-deposit/${id}`);
 
   return (
     <AppShell
@@ -208,127 +238,92 @@ export function RentDepositListPage({
       header={<PageHeader title="보증금 내역" />}
     >
       {/*
-        금액 요약 — 원본 `note` 슬롯의 **4값**. 라벨과 값뿐이다.
-        넷이 함께 있어야 보증금 풀이 닫힌다 — 들고 있다 / 나갈 예정 / 나갔다 / 본사가 가졌다.
-        ⚠️ 증감(±%)·비교 문구·아이콘을 붙이지 않는다(원본에 없고 계산할 근거도 없다).
+        요약 4값 — 원본 `note` 슬롯. 라벨·값뿐이고 **필터와 무관**하다(보증금 있는 렌트 전체에서 센다).
+        ⚠️ 목록 범위(반납 이후)보다 넓다 — 원본 그대로, 기획 확인 사항(.data.ts 머리 주석)
       */}
-      <section className="grid grid-cols-4 gap-6">
-        {SUMMARY_STATS.map(({ label, value, unit }) => (
-          /* 값·단위 분리와 카드 규격은 `StatTile` 이 맡는다 (docs/DESIGN-dashboard.md §D3) */
+      <section className="grid grid-cols-4 gap-6" aria-label="보증금 요약">
+        {SUMMARY_STATS.map(({ label, value, unit, tone }) => (
           <StatTile
             key={label}
             variant="card"
             label={label}
             value={value}
             unit={unit}
+            tone={tone}
           />
         ))}
       </section>
 
-      {/* 조회 조건 — 상태 칩 · 출처 칩 · 기간 · 검색 2종 */}
-      <Card>
-        <CardHeader
-          title="조회 조건"
-          action={
-            <TextButton tone="secondary" onClick={resetFilters}>
-              초기화
-            </TextButton>
+      <FilterBar
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        summary={filterSummary(filters)}
+        onReset={resetFilters}
+      >
+        <DatePicker
+          mode="range"
+          aria-label="상태 변경일"
+          presets={PERIOD_PRESETS}
+          value={filters.period}
+          onChange={(next) => patch({ period: next })}
+          startPlaceholder="상태 변경일 시작"
+          endPlaceholder="상태 변경일 종료"
+        />
+        <Select
+          className="w-40"
+          aria-label="보증금 상태"
+          options={STATUS_OPTIONS}
+          value={filters.status}
+          onValueChange={(value) => patch({ status: value })}
+        />
+        <Select
+          className="w-32"
+          aria-label="출처"
+          options={SOURCE_OPTIONS}
+          value={filters.source}
+          onValueChange={(value) => patch({ source: value })}
+        />
+        <Select
+          className="w-28"
+          aria-label="검색 대상"
+          options={SEARCH_FIELDS}
+          value={filters.searchField}
+          onValueChange={(value) =>
+            patch({ searchField: value as DepositSearchField })
           }
         />
-        <CardBody>
-          {/* §29-4 균등 분할 — 래퍼 flex + 각 항목 flex-1 min-w-0 (2열 grid 금지) */}
-          <div className="flex flex-wrap items-start gap-2">
-            {/* 그룹 컨트롤은 `group` 이 없으면 접근가능 이름이 아예 없다 (§29-6b) */}
-            <FormField label="보증금 상태" group className="flex-1 min-w-0">
-              <SegmentedControl
-                items={FILTERS}
-                value={status}
-                onValueChange={(next) => {
-                  setStatus(next);
-                  setPage(1);
-                }}
-              />
-            </FormField>
-            {/*
-              출처 — 같은 `source` 필드를 표에서는 `본사/셀러`(구분), 필터에서는
-              `자체/입점사` 로 부른다. 원본이 그렇다(`SOURCE_CELL_LABEL` 주석 참고).
-            */}
-            <FormField label="출처" group className="flex-1 min-w-0">
-              <SegmentedControl
-                items={SOURCE_FILTERS}
-                value={source}
-                onValueChange={(next) => {
-                  setSource(next);
-                  setPage(1);
-                }}
-              />
-            </FormField>
-          </div>
+        <Input
+          placeholder={SEARCH_PLACEHOLDER}
+          value={filters.keyword}
+          onChange={(event) => patch({ keyword: event.target.value })}
+          leftIcon={<Search size={16} strokeWidth={1.2} aria-hidden />}
+        />
+      </FilterBar>
 
-          <div className="flex flex-wrap items-start gap-2">
-            <FormField label="기간 (상태 변경일)" className="flex-1 min-w-0">
-              <DatePicker
-                mode="range"
-                value={period}
-                onChange={(next) => {
-                  setPeriod(next);
-                  setPage(1);
-                }}
-                startPlaceholder="시작일"
-                endPlaceholder="종료일"
-              />
-            </FormField>
-            <FormField label="검색조건" className="flex-1 min-w-0">
-              <Select
-                options={SEARCH_FIELDS}
-                value={searchField}
-                onValueChange={(next) => {
-                  setSearchField(next);
-                  setPage(1);
-                }}
-              />
-            </FormField>
-            <FormField label="검색어" className="flex-1 min-w-0">
-              <Input
-                placeholder="검색어 입력"
-                value={keyword}
-                onChange={(event) => {
-                  setKeyword(event.target.value);
-                  setPage(1);
-                }}
-                leftIcon={<Search size={16} strokeWidth={1.2} aria-hidden />}
-              />
-            </FormField>
-          </div>
-        </CardBody>
-      </Card>
-
-      {/* 보증금 목록 — DataTableShell 이 §7-1 셸 구조를 책임진다 */}
       <DataTableShell
+        scrollLeadWidth={FROZEN_LEAD_WIDTH}
+        variant="soft"
+        bodyClassName={dimWhile(dataStatus)}
+        aria-busy={isBusy(dataStatus)}
         toolbarStart={
           <h2 className="heading-medium-bold text-text">
             목록 (총 {filtered.length}건)
           </h2>
         }
         toolbarEnd={
-          /* 원본 `toolsLeft` 의 유일한 도구. 지금 조회된 건수로 파일명을 만든다 */
-          <Button
-            variant="secondary"
-            onClick={() =>
-              toast(`${EXPORT_NAME}_${filtered.length}건.csv 를 내려받았습니다`)
-            }
-          >
+          <Button variant="secondary" onClick={exportCsv}>
             <ArrowDownToLine size={16} strokeWidth={1.2} aria-hidden />
             엑셀 다운로드
           </Button>
         }
-        isEmpty={filtered.length === 0}
+        isEmpty={dataStatus === "empty" || filtered.length === 0}
         empty={
           <EmptyState
             size="table"
+            sticky
             icon={<Search strokeWidth={1.2} aria-hidden />}
-            title="해당 조건의 항목이 없습니다"
-            description="조건을 변경하거나 필터를 초기화한 뒤 다시 조회해 주세요."
+            title={EMPTY_TITLE}
+            description={EMPTY_DESCRIPTION}
           >
             <Button variant="secondary" onClick={resetFilters}>
               필터 초기화
@@ -340,42 +335,52 @@ export function RentDepositListPage({
             page={currentPage}
             totalPages={totalPages}
             onPageChange={setPage}
-            start={
-              <span className="body-small text-text-sub">
-                {currentPage} / {totalPages} 페이지
-              </span>
+            end={
+              <PaginationSizeSelect
+                sizes={PAGE_SIZES}
+                value={pageSize}
+                onSizeChange={(size) => {
+                  setPageSize(size);
+                  setPage(1);
+                }}
+              />
             }
           />
         }
       >
         <Table>
-          {/*
-            `table-fixed` 라 폭 지정이 필수다. 11열이라 %가 아니라 px 로 준다 —
-            합계가 곧 표 폭이 되고, 그만큼 셸의 표 래퍼가 가로로 스크롤한다.
-          */}
+          {/* table-fixed 라 폭 지정 필수. ⚠️ 앞 2개는 `FROZEN_LEFT` 와 짝이다(합 196) */}
           <colgroup>
-            <col className="w-35" />
+            <col className="w-13" />
+            <col className="w-36" />
             <col className="w-23" />
             <col className="w-20" />
             <col className="w-28" />
-            <col className="w-50" />
+            <col className="w-56" />
             <col className="w-25" />
             <col className="w-25" />
             <col className="w-28" />
             <col className="w-25" />
-            <col className="w-38" />
+            <col className="w-40" />
             <col className="w-28" />
           </colgroup>
           <TableHead>
             <TableRow>
-              <TableTh className={FROZEN_TH}>주문번호</TableTh>
+              <TableTh className={frozenTh(0)}>
+                <Checkbox
+                  size="small"
+                  aria-label="이 페이지 전체 선택"
+                  checked={allPageSelected}
+                  indeterminate={somePageSelected}
+                  onChange={togglePage}
+                />
+              </TableTh>
+              <TableTh className={frozenTh(1)}>주문번호</TableTh>
               <TableTh>회원</TableTh>
-              {/* 배지만 들어가는 열은 가운데 (§7-2) — th·td 를 반드시 함께 바꾼다 */}
+              {/* 배지만 들어가는 열은 가운데 (§7-2) — th·td 를 함께 바꾼다 */}
               <TableTh align="center">구분</TableTh>
               <TableTh>셀러명</TableTh>
-              {/* ⚠️ 상품은 좌측 — 표식이 붙어도 주 정보가 이름이다 */}
               <TableTh>상품</TableTh>
-              {/* 크기를 비교하는 수치는 우측 (§7-2) */}
               <TableTh>보증금액</TableTh>
               <TableTh>차감</TableTh>
               <TableTh>반환 예정액</TableTh>
@@ -385,93 +390,79 @@ export function RentDepositListPage({
             </TableRow>
           </TableHead>
           <TableBody>
-            {paged.map((row) => {
-              const depositStatus = DEPOSIT_STATUS_META[row.depositStatus];
-              const orderStatus = ORDER_STATUS_META[row.orderStatus];
-              return (
-                <TableRow
-                  key={row.id}
-                  clickable
-                  onClick={() => setPreview(row)}
-                >
-                  <TableTd className={FROZEN_TD}>{row.id}</TableTd>
-                  <TableTd>{row.member}</TableTd>
-                  <TableTd align="center">
-                    {/* 구분은 분류라 상태색을 쓰지 않는다 — 중립색 */}
-                    <Tag size="small">{SOURCE_CELL_LABEL[row.source]}</Tag>
-                  </TableTd>
-                  {/* 자체 재고면 "본사" — 값을 데이터에 박지 않고 데이터가 만든다 */}
-                  <TableTd>{sellerOf(row)}</TableTd>
-                  <TableTd>
-                    {/*
-                      안심케어는 **열이 아니라 표식**이다. 이름이 길면 이름 쪽이
-                      줄고 표식은 남는다(`shrink-0` 은 Tag 가 이미 갖고 있다).
-                    */}
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="truncate">{row.product}</span>
-                      {row.careEnrolled && <Tag size="small">안심케어</Tag>}
-                    </span>
-                  </TableTd>
-                  <TableTd>{won(row.deposit)}</TableTd>
-                  {/* 부호와 `-` 표기는 데이터가 정한다 — 뼈대는 렌더만 한다 */}
-                  <TableTd>{deduct(row.deduction)}</TableTd>
-                  <TableTd>{won(refundOf(row))}</TableTd>
-                  <TableTd align="center">
-                    <Tag tone={orderStatus.tone} size="small">
-                      {orderStatus.label}
-                    </Tag>
-                  </TableTd>
-                  <TableTd align="center">
-                    {/* 셀에서는 긴 라벨 — `전액차감` 만으로는 "차감할 예정"으로 읽힌다 */}
-                    <Tag tone={depositStatus.tone} dot>
-                      {depositStatus.cellLabel}
-                    </Tag>
-                  </TableTd>
-                  {/* 저장은 하이픈+시각, 화면은 원본 `ymd` 처럼 날짜만 */}
-                  <TableTd>{ymd(row.date)}</TableTd>
-                </TableRow>
-              );
-            })}
+            {dataStatus === "loading"
+              ? Array.from({ length: pageSize }, (_, row) => (
+                  <TableRow key={`skeleton-${row}`}>
+                    {Array.from({ length: COLUMN_COUNT }, (_, cell) => (
+                      <TableTd key={cell} className={frozenTd(cell)}>
+                        <span className="body-small block">
+                          <Skeleton />
+                        </span>
+                      </TableTd>
+                    ))}
+                  </TableRow>
+                ))
+              : paged.map((row) => {
+                  const depositMeta = DEPOSIT_STATUS_META[row.status];
+                  const orderMeta = ORDER_STATUS_META[row.orderStatus];
+                  return (
+                    <TableRow
+                      key={row.id}
+                      clickable
+                      onClick={() => openDetail(row.id)}
+                    >
+                      <TableTd className={frozenTd(0)}>
+                        {/* 같은 주문번호에 처리단위가 여럿일 수 있어 상품명까지 이름에 넣는다 */}
+                        <Checkbox
+                          size="small"
+                          aria-label={`${row.orderNo} ${row.product} 선택`}
+                          checked={selected.includes(row.id)}
+                          onChange={() => toggleRow(row.id)}
+                        />
+                      </TableTd>
+                      <TableTd className={frozenTd(1)}>
+                        <TextButton onClick={() => openDetail(row.id)}>
+                          {row.orderNo}
+                        </TextButton>
+                      </TableTd>
+                      <TableTd>{row.member}</TableTd>
+                      <TableTd align="center">
+                        {/* 구분은 분류라 상태색을 쓰지 않는다 — 중립색 */}
+                        <Tag size="small">
+                          {SOURCE_CELL_LABEL[row.sellerKind]}
+                        </Tag>
+                      </TableTd>
+                      <TableTd>{row.seller}</TableTd>
+                      <TableTd>
+                        {/* 안심케어는 열이 아니라 상품 옆 표식이다 — 이름이 길면 이름 쪽이 준다 */}
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="truncate">{row.product}</span>
+                          {row.care && <Tag size="small">안심케어</Tag>}
+                        </span>
+                      </TableTd>
+                      <TableTd>{won(row.deposit)}</TableTd>
+                      <TableTd>{deductText(row.deduction)}</TableTd>
+                      <TableTd>{won(row.refund)}</TableTd>
+                      <TableTd align="center">
+                        <Tag tone={orderMeta.tone} dot size="small">
+                          {orderMeta.label}
+                        </Tag>
+                      </TableTd>
+                      <TableTd align="center">
+                        {/* 셀에서는 긴 라벨 — `전액차감` 만으로는 "차감할 예정"으로 읽힌다 */}
+                        <Tag tone={depositMeta.tone} dot size="small">
+                          {depositMeta.cellLabel}
+                        </Tag>
+                      </TableTd>
+                      <TableTd className="tabular-nums">
+                        {ymd(row.changedAt)}
+                      </TableTd>
+                    </TableRow>
+                  );
+                })}
           </TableBody>
         </Table>
       </DataTableShell>
-
-      {/*
-        보증금 미리보기 — 금액 4항목짜리 빠른 확인용이다.
-        제목을 "보증금 상세"로 두지 않는다. 표가 11열이라 전체 정보가 모달에
-        들어가지 않으므로, 여기서 다 보여주려 들면 모달이 두 번째 표가 된다.
-        ⚠️ 푸터(도메인 액션)를 두지 않는다 — 원본 미리보기에 액션이 없다.
-      */}
-      <Modal open={preview !== null} onClose={() => setPreview(null)}>
-        <ModalHeader
-          title="보증금 미리보기"
-          description={
-            preview ? preview.id + " · " + preview.member : undefined
-          }
-        />
-        <ModalBody>
-          {/*
-            ⚠️ `labelWidth` 는 **목록 전체가 함께 가져간다.** `InfoItem` 은 행마다
-            독립된 flex 라, 한 항목에만 주면 그 줄의 값만 오른쪽으로 밀려 숫자가
-            세로로 어긋난다. "반환 예정액"(6글자)이 기본 80 을 넘으므로
-            네 항목 모두 96 으로 맞춘다 — 기본값(80)은 아예 주지 않는다(§30-3).
-          */}
-          <InfoList>
-            <InfoItem label="상품" labelWidth={96}>
-              {preview?.product}
-            </InfoItem>
-            <InfoItem label="보증금액" labelWidth={96}>
-              {preview ? won(preview.deposit) : ""}
-            </InfoItem>
-            <InfoItem label="차감" labelWidth={96}>
-              {preview ? deduct(preview.deduction) : ""}
-            </InfoItem>
-            <InfoItem label="반환 예정액" labelWidth={96}>
-              {preview ? won(refundOf(preview)) : ""}
-            </InfoItem>
-          </InfoList>
-        </ModalBody>
-      </Modal>
     </AppShell>
   );
 }

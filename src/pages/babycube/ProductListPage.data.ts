@@ -297,7 +297,7 @@ export const CATEGORY_HINT = "유형 먼저 선택";
  * 샘플
  * ---------------------------------------------------------------------- */
 
-/** 반려 사유·이미지·재심사 같은 **상세 사례**를 갖춘 8건 (1건은 본사 직영 — 화면에서 빠진다) */
+/** 반려 사유·이미지·재심사 같은 **상세 사례**를 갖춘 9건 (2건은 본사 직영 판매·렌트 — 화면에서 빠진다) */
 const DETAILED: Product[] = [
   {
     id: "BL240814",
@@ -429,6 +429,32 @@ const DETAILED: Product[] = [
     saleStart: "2026-08-07 00:00:00",
     saleEnd: "",
     updatedAt: "2026-08-18 17:33:04",
+  },
+  {
+    /* 본사 직영 렌트 — 원본에도 자체 렌트가 있다(보증금 「자체」·주문 「본사」 렌트가 0건이 아니게).
+       셀러 상세 「베이비큐브」 등록 상품의 PR270901 과 같은 상품이다(코드·이름·등록일) */
+    id: "PR270901",
+    mode: "rent",
+    source: "hq",
+    seller: "본사",
+    name: "본사 기획 사계절 아기 침낭 세트",
+    category: "sleep-bed-side",
+    rentBase: 900,
+    rentDiscount: 0,
+    deposit: 50000,
+    saleBase: null,
+    saleDiscount: null,
+    shipFee: 0,
+    returnFee: 6000,
+    exchangeFee: 6000,
+    kc: "ok",
+    image: "ok",
+    status: "onSale",
+    display: "shown",
+    date: "2026-05-22 11:37:08",
+    saleStart: "2026-05-23 00:00:00",
+    saleEnd: "",
+    updatedAt: "2026-05-22 11:37:08",
   },
   {
     id: "MC240803",
