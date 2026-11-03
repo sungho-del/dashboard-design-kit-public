@@ -6,9 +6,10 @@ import { HolidayListPage } from "./HolidayListPage";
 /**
  * S25 공휴일 관리 — **동작** 테스트.
  *
- * 이 화면의 핵심은 **"종료일을 비우면 시작일 하루만 등록된다"** 는 규칙이다.
- * 그래서 목록 표시(기간 셀)와 등록 경로(달력에서 시작일만 고르기)를 **둘 다** 본다 —
- * 표만 보면 규칙이 폼에서 깨져도 통과하고, 폼만 보면 표에서 깨져도 통과한다.
+ * 핵심 규칙 **"종료일을 비우면 시작일 하루"** 는 표의 기간 셀(하루짜리 = 날짜 하나)과
+ * 등록 모달의 안내 문구로 본다. 등록은 알림만이라 새 행이 표에 생기지 않는다.
+ *
+ * ⚠️ 업무 확정(등록·수정·삭제)은 **알림만** 띄운다 — 매 경로에서 목록이 원본 8건 그대로인지 본다.
  *
  * ⚠️ `원본에 없는 축` 묶음은 **걷어낸 것이 되살아나지 않는지** 보는 회귀 테스트다.
  * 원본 `/ops-calendar` 의 툴바에는 연도 칩뿐이고("전체"가 없다), `관리` 열에는
@@ -85,12 +86,24 @@ function bodyRows(): HTMLElement[] {
   return within(table).getAllByRole("row").slice(1);
 }
 
-/** 보이는 공휴일 내용 (2번째 컬럼 — 0 체크박스 · 1 내용 · … · 4 관리) */
+/** 보이는 공휴일 내용 (0 체크박스 · 1 No · 2 내용 · 3 기간 · 4 등록/수정일 · 5 관리) */
 function visibleContents(): string[] {
   return bodyRows().map(
-    (row) => within(row).getAllByRole("cell")[1].textContent ?? "",
+    (row) => within(row).getAllByRole("cell")[2].textContent ?? "",
   );
 }
+
+/** 원본 8건을 시작일 순으로 — 표가 이 순서여야 한다 */
+const ORIGINAL_ORDER = [
+  "물류센터 정기 점검",
+  "전사 재고 실사",
+  "광복절",
+  "광복절 대체공휴일",
+  "추석 연휴",
+  "개천절",
+  "한글날",
+  "성탄절",
+];
 
 function editButton(content: string): HTMLElement {
   return screen.getByRole("button", { name: `${content} 수정` });
@@ -107,23 +120,22 @@ function formModal(name: "공휴일 등록" | "공휴일 수정") {
 
 describe("HolidayListPage", () => {
   describe("목록·연도 칩", () => {
-    it("올해 공휴일만 보이고 총 건수를 툴바가 든다 (페이지네이션 없음)", () => {
+    it("원본 8건을 시작일 순으로 그리고 No 를 1..N 으로 매긴다", () => {
       renderPage();
 
-      // 샘플 6건 중 2025년 성탄절은 다른 칩에 있다
-      expect(screen.getByText("목록 (총 5건)")).toBeVisible();
-      expect(bodyRows()).toHaveLength(5);
-      expect(visibleContents()).not.toContain("성탄절");
+      expect(screen.getByText("목록 (총 8건)")).toBeVisible();
+      expect(visibleContents()).toEqual(ORIGINAL_ORDER);
+      expect(
+        bodyRows().map(
+          (row) => within(row).getAllByRole("cell")[1].textContent,
+        ),
+      ).toEqual(["1", "2", "3", "4", "5", "6", "7", "8"]);
       expect(
         screen.queryByRole("navigation", { name: "페이지네이션" }),
       ).not.toBeInTheDocument();
     });
 
-    /*
-      원본은 `관리` 를 맨 앞에 두지만 의도적으로 마지막으로 옮겼다.
-      되돌아가지 않는지 보는 회귀 테스트다 — 근거는 뼈대 상단 주석과 `DESIGN_참고.md` §7.
-    */
-    it("행 액션(관리)은 마지막 열이다", () => {
+    it("열은 [체크] No 내용 기간 등록/수정일 관리 — 관리가 마지막이다", () => {
       renderPage();
 
       const headers = within(screen.getByRole("table"))
@@ -131,25 +143,62 @@ describe("HolidayListPage", () => {
         .map((cell) => cell.textContent);
 
       // 0번은 전체 선택 체크박스 셀 — 텍스트가 없다
-      expect(headers).toEqual(["", "내용", "기간", "등록/수정일", "관리"]);
+      expect(headers).toEqual([
+        "",
+        "No",
+        "내용",
+        "기간",
+        "등록/수정일",
+        "관리",
+      ]);
     });
 
-    it("2025 칩을 고르면 그 해 공휴일만 남는다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("radio", { name: "2025" }));
-
-      expect(visibleContents()).toEqual(["성탄절"]);
-      expect(screen.getByText("목록 (총 1건)")).toBeVisible();
-    });
-
-    it("기간 셀 — 하루짜리는 날짜 하나만, 범위는 물결로 잇는다", () => {
+    it("연도 칩은 데이터에 있는 해만 — 2026 하나가 골라져 있다", () => {
       renderPage();
 
-      // 개천절 — endAt 이 빈 문자열
+      const chips = screen.getAllByRole("radio");
+      expect(chips.map((chip) => chip.textContent)).toEqual(["2026"]);
+      expect(chips[0]).toBeChecked();
+    });
+
+    it("기간 셀 — 하루짜리는 날짜 하나만, 범위는 물결로 잇는다 · 등록일은 원본 값", () => {
+      renderPage();
+
       expect(screen.getByText("2026.10.03")).toBeVisible();
-      // 추석 연휴 — 9/24 ~ 9/26
       expect(screen.getByText("2026.09.24 ~ 2026.09.26")).toBeVisible();
+      const first = within(bodyRows()[0]).getAllByRole("cell");
+      expect(first[4]).toHaveTextContent("2026.07.27");
+    });
+  });
+
+  describe("표 도구줄 버튼", () => {
+    it("[공휴일 등록][선택 삭제] 가 원본 순서로 표 위에 있다 · 도움말 없음", () => {
+      renderPage();
+
+      const create = screen.getByRole("button", { name: "공휴일 등록" });
+      const remove = screen.getByRole("button", { name: "선택 삭제" });
+      const table = screen.getByRole("table");
+      expect(
+        create.compareDocumentPosition(remove) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      // 머리(제목) 다음 · 표 앞 — 표 도구줄 자리다
+      expect(
+        screen
+          .getByRole("heading", { name: "공휴일 관리" })
+          .compareDocumentPosition(create) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(
+        remove.compareDocumentPosition(table) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(
+        screen.getByText("목록 (총 8건)").compareDocumentPosition(create) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(
+        screen.queryByRole("button", { name: "도움말" }),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -164,7 +213,6 @@ describe("HolidayListPage", () => {
     it("내용 검색·초기화·'전체' 칩이 없다", () => {
       renderPage();
 
-      // 검색 입력이 있었다면 모달이 닫힌 상태에서도 textbox 가 잡힌다
       expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
       expect(
         screen.queryByRole("radio", { name: "전체" }),
@@ -180,20 +228,25 @@ describe("HolidayListPage", () => {
       const rowButtons = within(screen.getByRole("table")).getAllByRole(
         "button",
       );
-      expect(rowButtons).toHaveLength(5);
+      expect(rowButtons).toHaveLength(8);
       expect(rowButtons.map((button) => button.textContent)).toEqual(
-        Array(5).fill("수정"),
+        Array(8).fill("수정"),
       );
     });
   });
 
   describe("행 선택·선택 삭제", () => {
-    it("전체 선택은 보이는 행 전부를 고른다", async () => {
+    it("전체 선택은 보이는 행 전부를 고른다 — 건수 줄에 선택 꼬리를 달지 않는다", async () => {
       const { user } = renderPage();
 
       await user.click(screen.getByRole("checkbox", { name: "전체 선택" }));
 
-      expect(screen.getByText("목록 (총 5건) · 5건 선택")).toBeVisible();
+      for (const content of ORIGINAL_ORDER) {
+        expect(
+          screen.getByRole("checkbox", { name: `${content} 선택` }),
+        ).toBeChecked();
+      }
+      expect(screen.getByText("목록 (총 8건)")).toBeVisible();
     });
 
     it("아무것도 고르지 않고 누르면 안내 토스트만 뜬다", async () => {
@@ -206,7 +259,7 @@ describe("HolidayListPage", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
-    it("1건만 지워도 토스트에 건수가 붙는다 (원본 규칙)", async () => {
+    it("1건 — 원본 문구 · 대상 표기 없음 · 알림만 뜨고 목록은 그대로", async () => {
       const { user } = renderPage();
 
       await user.click(screen.getByRole("checkbox", { name: "개천절 선택" }));
@@ -214,21 +267,25 @@ describe("HolidayListPage", () => {
 
       const dialog = await screen.findByRole("dialog", { name: "공휴일 삭제" });
       expect(
-        within(dialog).getByText(/대여 불가일 계산에서도 즉시 제외됩니다/),
+        within(dialog).getByText(
+          "삭제하면 목록에서 사라지고 대여 불가일 계산에서도 즉시 제외됩니다.",
+        ),
       ).toBeVisible();
-      // 위험 안내는 따로 세운다 — 한 문단에 뭉치면 묻힌다
       expect(
         within(dialog).getByText("삭제 후에는 되돌릴 수 없습니다."),
       ).toBeVisible();
+      // 대상 이름을 적지 않는다(원본 UI-323)
+      expect(within(dialog).queryByText("개천절")).not.toBeInTheDocument();
 
       await user.click(
         within(footerOf(dialog)).getByRole("button", { name: "삭제" }),
       );
 
-      // 배너·팝업은 1건이면 건수를 빼는데 이 화면만 원본이 다르다
       expect(await screen.findByText("1건 삭제되었습니다.")).toBeVisible();
-      expect(visibleContents()).not.toContain("개천절");
-      expect(screen.getByText("목록 (총 4건)")).toBeVisible();
+      expect(visibleContents()).toEqual(ORIGINAL_ORDER);
+      expect(
+        screen.getByRole("checkbox", { name: "개천절 선택" }),
+      ).not.toBeChecked();
     });
 
     it("2건 이상이면 모달 제목에 건수가 붙는다", async () => {
@@ -246,7 +303,7 @@ describe("HolidayListPage", () => {
       );
 
       expect(await screen.findByText("2건 삭제되었습니다.")).toBeVisible();
-      expect(screen.getByText("목록 (총 3건)")).toBeVisible();
+      expect(screen.getByText("목록 (총 8건)")).toBeVisible();
     });
   });
 
@@ -267,7 +324,7 @@ describe("HolidayListPage", () => {
 
       const toast = await screen.findByText("시작일을 선택해주세요.");
       expect(toast).toHaveAttribute("data-tone", "critical");
-      expect(screen.getByText("목록 (총 5건)")).toBeVisible();
+      expect(modal).toBeVisible();
     });
 
     it("시작일을 골라도 내용이 비면 저장되지 않는다", async () => {
@@ -289,18 +346,17 @@ describe("HolidayListPage", () => {
 
       const toast = await screen.findByText("내용을 입력해주세요.");
       expect(toast).toHaveAttribute("data-tone", "critical");
-      expect(screen.getByText("목록 (총 5건)")).toBeVisible();
+      expect(modal).toBeVisible();
     });
   });
 
-  describe("등록 모달 — 종료일을 비우면 하루", () => {
-    it("시작일만 고르고 등록하면 하루짜리로 들어간다", async () => {
+  describe("등록 모달 — 알림만", () => {
+    it("종료일 안내가 붙어 있고, 등록하면 알림 후 닫히며 목록은 그대로다", async () => {
       const { user } = renderPage();
 
       await user.click(screen.getByRole("button", { name: "공휴일 등록" }));
       const modal = await formModal("공휴일 등록");
 
-      // 안내 문구가 실제로 붙어 있어야 사용자가 이 규칙을 안다 (원본 문장)
       expect(
         within(modal).getByText("종료일을 비우면 시작일 하루만 등록됩니다."),
       ).toBeVisible();
@@ -309,7 +365,6 @@ describe("HolidayListPage", () => {
       await user.click(
         await screen.findByRole("button", { name: dayLabel(12) }),
       );
-
       await user.type(
         within(modal).getByRole("textbox", { name: /내용/ }),
         "임시 물류센터 휴무",
@@ -319,45 +374,38 @@ describe("HolidayListPage", () => {
       );
 
       expect(await screen.findByText("등록되었습니다.")).toBeVisible();
-      expect(screen.getByText("목록 (총 6건)")).toBeVisible();
-      /*
-        범위(`~`)가 아니라 날짜 하나로 그려져야 한다.
-        ⚠️ 화면 전체에서 찾으면 안 된다 — 오늘 등록한 행은 **기간과 등록일이 같은 날**이라
-        같은 문자열이 두 셀에 뜬다. 기간 열(2번)만 본다.
-      */
-      const added = bodyRows().find((row) =>
-        within(row)
-          .getAllByRole("cell")[1]
-          .textContent?.includes("임시 물류센터 휴무"),
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("dialog", { name: "공휴일 등록" }),
+        ).not.toBeInTheDocument(),
       );
-      expect(within(added!).getAllByRole("cell")[2]).toHaveTextContent(dot(12));
-      expect(visibleContents()).toContain("임시 물류센터 휴무");
+      expect(visibleContents()).toEqual(ORIGINAL_ORDER);
+      expect(screen.queryByText(dot(12))).not.toBeInTheDocument();
     });
 
-    it("시작일·종료일을 모두 고르면 범위로 그린다", async () => {
+    it("다시 열면 이전 초안이 남지 않는다", async () => {
       const { user } = renderPage();
 
       await user.click(screen.getByRole("button", { name: "공휴일 등록" }));
-      const modal = await formModal("공휴일 등록");
-
-      await user.click(within(modal).getByText("시작일"));
-      await user.click(
-        await screen.findByRole("button", { name: dayLabel(12) }),
-      );
-      await user.click(
-        await screen.findByRole("button", { name: dayLabel(15) }),
-      );
-
+      let modal = await formModal("공휴일 등록");
       await user.type(
         within(modal).getByRole("textbox", { name: /내용/ }),
-        "연휴 대체 휴무",
+        "초안",
       );
       await user.click(
-        within(footerOf(modal)).getByRole("button", { name: "등록" }),
+        within(footerOf(modal)).getByRole("button", { name: "취소" }),
+      );
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("dialog", { name: "공휴일 등록" }),
+        ).not.toBeInTheDocument(),
       );
 
-      expect(await screen.findByText("등록되었습니다.")).toBeVisible();
-      expect(screen.getByText(`${dot(12)} ~ ${dot(15)}`)).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "공휴일 등록" }));
+      modal = await formModal("공휴일 등록");
+      expect(within(modal).getByRole("textbox", { name: /내용/ })).toHaveValue(
+        "",
+      );
     });
   });
 
@@ -377,7 +425,7 @@ describe("HolidayListPage", () => {
       ).toBeVisible();
     });
 
-    it("내용을 고쳐 저장하면 목록에 반영된다", async () => {
+    it("내용을 고쳐 저장하면 알림만 뜨고 목록은 원본 그대로다", async () => {
       const { user } = renderPage();
 
       await user.click(editButton("개천절"));
@@ -391,8 +439,7 @@ describe("HolidayListPage", () => {
       );
 
       expect(await screen.findByText("수정되었습니다.")).toBeVisible();
-      expect(visibleContents()).toContain("개천절 (대체)");
-      expect(screen.getByText("목록 (총 5건)")).toBeVisible();
+      expect(visibleContents()).toEqual(ORIGINAL_ORDER);
     });
 
     it("'취소'는 아무것도 바꾸지 않는다", async () => {
@@ -409,7 +456,7 @@ describe("HolidayListPage", () => {
           screen.queryByRole("dialog", { name: "공휴일 수정" }),
         ).not.toBeInTheDocument(),
       );
-      expect(visibleContents()).toContain("개천절");
+      expect(visibleContents()).toEqual(ORIGINAL_ORDER);
     });
   });
 });

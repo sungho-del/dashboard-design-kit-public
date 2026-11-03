@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import {
   AppShell,
   Button,
@@ -8,6 +8,7 @@ import {
   CardHeader,
   FormField,
   Gnb,
+  IconButton,
   Input,
   PageHeader,
   useToast,
@@ -21,105 +22,96 @@ import {
   type SettingKey,
 } from "./SettingsPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
-import { cn } from "../../lib/cn";
 
 /* =========================================================================
- * S28 설정 — 뼈대
+ * 설정 — 뼈대 (BabyCube 본사 운영 어드민 · BO-SYS-002)
  *
- * ## 화면 유형: 폼형 (`src/pages/ProductFormPage.tsx` 변형)
- * 판정 근거 — `purpose` 가 "…를 접이식 섹션으로 관리하는 **폼 화면**",
- * `components` 가 `Card`·`FormField`·`Input`·`Button` 이고 `Table` 이 없다. §2 폼형 행.
+ * ## 화면 유형: 설정형 폼 (원본 `SCREENS.settings` proto.html:4137~4155 · 4124~4127 주석)
  *
- * ## 폼형 템플릿에서 상속한 것 (`screen-templates.md` §3-4)
- * 1. **카드 = 섹션** — 판매자·푸터정보 / 고객 센터 두 덩어리
- * 2. **간격을 페이지가 지정하지 않는다** — 카드 24는 `AppShell` gap-6,
+ * ```
+ * 판매자 / 푸터정보   ← 회사명* · 사업자 등록 번호* · 대표자명* · 전화 번호* · 주소*(도로명 / 상세·우편번호)
+ *                      안내 「사용자 앱 푸터의 사업자 정보로 노출됩니다. …」
+ * 고객 센터 정보      ← 상담 전화 번호* · 업무 시간* · 점심 시간
+ *                      안내 「사용자 앱 고객센터·주문 문의 안내에 노출됩니다.」
+ *                                              [저장]   ← 하단 고정 바 (오른쪽 하나)
+ * ```
+ *
+ * | 갈아끼울 것             | 위치                                      |
+ * | ----------------------- | ----------------------------------------- |
+ * | 문구·저장값·글자 수     | `SettingsPage.data.ts`                    |
+ * | 구획·필드 구성·입력 폭  | 이 파일의 `Section` 두 장과 `field()` 호출 |
+ *
+ * ## 그대로 두는 것
+ * 1. **구획 = 접을 수 있는 카드**(형제 공지·FAQ·셀러 상세의 `Section` 과 같은 꼴 —
+ *    soft 카드 · 머리 오른쪽 접기 아이콘 버튼). 기본 **펼침**, 접으면 본문을 DOM 에서 뺀다
+ * 2. **편집값은 페이지(`values`)에 있다** — 구획 안으로 옮기면 접었다 펼 때 값이 사라진다
+ * 3. **간격을 페이지가 지정하지 않는다** — 카드 24는 `AppShell` gap-6,
  *    필드 20은 `CardBody` gap-5, 라벨↔입력 6은 `FormField` gap-1.5
+ * 4. **입력 폭 상한은 원본 값**(`setInput` 4번째 인자) — 회사명 280 · 번호·대표자 240 ·
+ *    주소 두 칸 각 420 · 업무/점심 520. 폭은 레이아웃이라 뼈대에 둔다
+ * 5. 안내(`nv-help`)는 구획 **아래**(필드 뒤)에 붙는다
  *
- * ## 템플릿에서 더한 것 — **섹션 접기/펼치기**
- * `Accordion` 컴포넌트는 33종에 없다(DESIGN.md §21 은 규격만 있고 구현이 없다).
- * 새로 만들지 않고 `Card` + 헤더 버튼으로 짰다 — §21 이 "시각 스타일이 없는 순수 구조
- * 컴포넌트"라고 못박고 있어, 표면을 이미 가진 `Card` 위에 얹으면 규격이 그대로 성립한다.
- * - 제목 줄 전체가 버튼이다(`<h3><button aria-expanded>`) — 셰브런만 누를 수 있으면 좁다
- * - 셰브런은 펼침 시 180° 회전 · 0.2s ease-in-out (§21)
- * - **접힌 섹션은 DOM 에서 뺀다.** `hidden` 속성은 `CardBody` 의 `flex` 유틸이 이겨
- *   먹히지 않는다(같은 `display` 속성을 두 규칙이 다툰다). 값은 이 컴포넌트의
- *   `values` 에 있어 접었다 펴도 사라지지 않는다
- * - `aria-controls` 는 쓰지 않는다 — 접히면 가리킬 요소가 사라져 참조가 끊긴다.
- *   `aria-expanded` 만으로 disclosure 패턴이 성립한다
+ * ## 저장 — 화면 전체 [저장] 하나 = 두 구획 한 번에 (구획별 저장 없음 · proto.html:4134~4135)
+ * **하단 고정 바 오른쪽**에 둔다(2026-11-03 사용자 결정 — 원본 `nv-bar` 와 형제 폼·상세가 전부 하단 바).
+ * 한때 머리 오른쪽에 두었던 결정은 이 결정으로 **대체됐다** — 머리에 다시 두지 말 것.
+ * 스크립트 관리(`ScriptSettingsPage`)와 함께 움직인다. 왼쪽에 [목록]·[취소]를 만들지 않는다.
+ * 원본 `setSave` 는 검증 없이 「설정이 저장되었습니다.」 — 필수 표시는 표시일 뿐 저장을 막지 않는다.
  *
- * ## 원본 어드민(`/settings`) 대조 결과
- * 원본은 접이식 섹션 2개 + 하단 바 하나다. 섹션은 기본 **펼침**이다.
+ * ## 퍼블 범위
+ * [저장]은 알림만. 화면을 떠나면 편집값·접힘은 처음으로 돌아온다(원본 `PFOPEN` 전역 유지는 안 옮긴다).
  *
- * 원본과 맞춘 것:
- * - **섹션 순서 — `판매자 / 푸터정보` 가 먼저**, `고객 센터 정보` 가 나중이다
- *   (기획서 S28 은 반대로 적었지만 원본이 정본이다)
- * - 판매자 필드 순서 — 회사명 · 사업자 등록 번호 · 대표자명 · 전화 번호 · 주소
- * - 고객 센터 필드 순서 — 상담 전화 번호 · 업무 시간 · 점심 시간(**여기만 선택**)
- * - 섹션 안내(`nv-help`)는 **필드 아래**에 붙는다. 원본 문장 그대로
- * - 저장 버튼 문구는 `저장` 이다(스크립트 화면의 `변경 사항 저장` 과 다르다).
- *   **위치는 원본의 하단 바가 아니라 상단 헤더 우측이다** — 사용자 결정으로 폼형 템플릿과 통일
- * - 저장 토스트 `설정이 저장되었습니다.`
- * - 입력마다 `maxLength` 가 있다(회사명 40 · 번호류 20 · 주소·시간 80)
+ * ## 원본과 의도적으로 다른 곳
+ * 1. 원본 `주소` 는 **한 행에 입력 2개**(도로명 / 상세·우편번호)다. 여기서는 필드를 둘로
+ *    나눴다 — `FormField` 는 자식 하나에만 `id` 를 이어 주므로 입력 두 개를 한 필드에
+ *    넣으면 **둘째 입력에 이름이 붙지 않는다.** 둘째 라벨은 원본 placeholder 문구를 썼다
+ * 2. 구획 제목 옆 필수 ●(원본 `nvSec {req:true}`)는 그리지 않는다 — 형제 `Section` 과 같다
+ * 3. 라벨은 위, 입력은 아래(키트 폼 규격 §29). 원본은 라벨 160px 왼쪽 열
  *
- * ⚠️ 원본에 없어서 걷어낸 것 — **되살리지 말 것**
- * 1. **필수값 검증과 그에 딸린 것 전부** — 원본은 값을 그대로 PATCH 하고 판정은
- *    서버가 한다. 클라이언트 검증이 없으니 `touched`·필드 에러·
- *    "빠진 항목이 든 섹션 자동 펼침"·`SECTION_OF` 도 함께 지웠다.
- *    ⚠️ `설정을 저장하지 못했습니다.` 는 **서버 오류 문구**다 — 검증 실패 문구로 쓰지 말 것
- * 2. **하단 바 좌측 문구와 `저장 전` 배지** — 원본 `nv-bar-l` 은 비어 있다
- * 3. **변경이 없을 때 저장 버튼 비활성화** — 원본은 저장 중에만 잠근다
- * 4. **대표자명·사업자 등록 번호 2열 병치와 그 아래 `Divider`** — 원본은 한 줄에 하나씩이다
- * 5. **PageHeader 도움말 툴팁**
- *
- * ## 원본과 의도적으로 다른 곳 (하나뿐이다)
- * 원본 `주소` 는 **한 행에 입력 2개**(도로명 / 상세·우편번호)다. 여기서는 필드를 둘로
- * 나눴다 — `FormField` 는 자식 하나에만 `id` 를 이어 주므로 입력 두 개를 한 필드에
- * 넣으면 **둘째 입력에 이름이 붙지 않는다.** 둘째 라벨은 원본 placeholder 문구를 썼다.
+ * ## 기획 확인 필요 (원본대로 둠)
+ * - 화면 주석(annotations.js:91·95~96)은 옛 설정 화면(운영 정책 기본값 표·관리자 계정·「메뉴 임시 숨김」)을
+ *   설명한다 — 지금 원본 코드의 2구획 폼과 다르다. 코드를 정본으로 두고 옛 항목을 되살리지 않는다
+ *   (안심케어 금액은 셀러 정산 화면, 수수료율은 셀러별, 개인정보 처리방침은 약관 관리 소관)
+ * - 판매자 안내의 「프로토타입에서는 직접 입력합니다」는 원본 문장 그대로다
+ * - FAQ 고객센터 번호(02-6406-1110)와 이 화면 상담 번호(02-1588-0000)가 다르다
  * ====================================================================== */
 
-interface SectionCardProps {
+/** 접을 수 있는 구역 한 장 — 공지 폼·셀러 상세와 같은 규격 */
+function Section({
+  section,
+  open,
+  onToggle,
+  children,
+}: {
   section: SectionId;
   open: boolean;
   onToggle: () => void;
   children: ReactNode;
-}
-
-/**
- * 접이식 섹션 카드.
- * 페이지 밖으로 내보내지 않는다 — 이 화면의 레이아웃 조각이지 디자인 시스템 컴포넌트가 아니다.
- */
-function SectionCard({ section, open, onToggle, children }: SectionCardProps) {
+}) {
   const { title, guide } = SECTIONS[section];
   const [guideBefore, guideStrong, guideAfter] = guide;
 
   return (
-    <Card>
-      <CardHeader>
-        <h3>
-          <button
-            type="button"
+    <Card variant="soft">
+      <CardHeader
+        title={title}
+        action={
+          <IconButton
+            variant="ghost"
+            size="small"
+            label={`${title} ${open ? "접기" : "펼치기"}`}
             aria-expanded={open}
             onClick={onToggle}
-            className={cn(
-              "flex w-full cursor-pointer items-center justify-between gap-3 rounded-small text-left",
-              "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus",
-            )}
-          >
-            <span className="heading-medium-bold text-text">{title}</span>
-            <ChevronDown
-              size={20}
-              strokeWidth={1.2}
-              aria-hidden
-              className={cn(
-                "shrink-0 text-icon-sub",
-                "transition-transform duration-200 ease-in-out",
-                open && "rotate-180",
-              )}
-            />
-          </button>
-        </h3>
-      </CardHeader>
-      {open && (
+            icon={
+              open ? (
+                <ChevronUp strokeWidth={1.2} aria-hidden />
+              ) : (
+                <ChevronDown strokeWidth={1.2} aria-hidden />
+              )
+            }
+          />
+        }
+      />
+      {open ? (
         <CardBody>
           {children}
           {/* 원본 `nv-help` 는 필드 **아래**에 온다 — 값이 어디에 나가는지 알린다 */}
@@ -129,7 +121,7 @@ function SectionCard({ section, open, onToggle, children }: SectionCardProps) {
             {guideAfter}
           </p>
         </CardBody>
-      )}
+      ) : null}
     </Card>
   );
 }
@@ -154,24 +146,31 @@ export function SettingsPage({
     seller: true,
     customer: true,
   });
+  const toggle = (section: SectionId) => () =>
+    setOpen((prev) => ({ ...prev, [section]: !prev[section] }));
 
   const change = (key: SettingKey) => (event: { target: { value: string } }) =>
     setValues((prev) => ({ ...prev, [key]: event.target.value }));
 
-  const isRequired = (key: SettingKey) => REQUIRED_KEYS.includes(key);
-
-  /* 원본은 아홉 값을 그대로 PATCH 한다 — 클라이언트 검증이 없다 */
+  /* 원본 `setSave` — 두 구획 한 번에, 검증 없이. 퍼블 범위라 알림만 */
   const save = () => toast("설정이 저장되었습니다.");
 
-  /** 필드 하나. 라벨·placeholder·글자 수 제한이 전부 `FIELD_COPY` 에서 온다 */
-  const field = (key: SettingKey, inputMode?: "tel" | "numeric") => (
-    <FormField label={FIELD_COPY[key].label} required={isRequired(key)}>
+  /**
+   * 필드 하나. 라벨·placeholder·글자 수 제한은 `FIELD_COPY`, 폭 상한은 여기서(원본 px → 4px 단위).
+   * 클래스 문자열을 그대로 써야 Tailwind 스캔이 잡는다 — 조립하지 말 것
+   */
+  const field = (key: SettingKey, widthClass: string, tel = false) => (
+    <FormField
+      label={FIELD_COPY[key].label}
+      required={REQUIRED_KEYS.includes(key)}
+    >
       <Input
+        className={widthClass}
         value={values[key]}
         onChange={change(key)}
         placeholder={FIELD_COPY[key].placeholder}
         maxLength={FIELD_COPY[key].max}
-        inputMode={inputMode}
+        inputMode={tel ? "tel" : undefined}
       />
     </FormField>
   );
@@ -189,50 +188,34 @@ export function SettingsPage({
           collapsedLogo={GNB_LOGO_SLOTS.collapsed}
         />
       }
-      header={
-        <PageHeader
-          title="설정"
-          /*
-            저장은 **상단 헤더 우측**이다 — 폼형 템플릿(`ProductFormPage`)과 같은 자리.
-            원본 어드민은 하단 고정 바를 쓰지만, 한 저장소에 저장 위치가 둘이면
-            화면마다 어디를 눌러야 하는지 다시 찾아야 한다. **사용자 결정으로 통일했다.**
-          */
-          actions={
-            /*
-              size 를 주지 않는다 = `medium`(40). `PageHeader` 에 버튼을 두는 다른 14개
-              화면이 전부 기본값이다. `large`(48)는 **하단 고정 바** 시절의 값이었고,
-              바는 세로 여백이 넉넉한 독립 영역이라 맞았지만 헤더(min-h 72)에서는 과하다.
-            */
-            <Button onClick={save}>저장</Button>
-          }
-        />
-      }
+      header={<PageHeader title="설정" />}
     >
-      {/* ⚠️ 판매자 섹션이 **먼저**다 (원본 순서) */}
-      <SectionCard
-        section="seller"
-        open={open.seller}
-        onToggle={() => setOpen((prev) => ({ ...prev, seller: !prev.seller }))}
-      >
-        {field("company")}
-        {field("bizNumber", "numeric")}
-        {field("ceo")}
-        {field("phone", "tel")}
-        {field("roadAddress")}
-        {field("detailAddress")}
-      </SectionCard>
+      {/* ⚠️ 판매자 구획이 **먼저**다 (원본 순서) */}
+      <Section section="seller" open={open.seller} onToggle={toggle("seller")}>
+        {field("company", "max-w-70")}
+        {field("bizNumber", "max-w-60")}
+        {field("ceo", "max-w-60")}
+        {field("phone", "max-w-60", true)}
+        {field("roadAddress", "max-w-105")}
+        {field("detailAddress", "max-w-105")}
+      </Section>
 
-      <SectionCard
+      <Section
         section="customer"
         open={open.customer}
-        onToggle={() =>
-          setOpen((prev) => ({ ...prev, customer: !prev.customer }))
-        }
+        onToggle={toggle("customer")}
       >
-        {field("centerPhone", "tel")}
-        {field("workHours")}
-        {field("lunchHours")}
-      </SectionCard>
+        {field("centerPhone", "max-w-60", true)}
+        {field("workHours", "max-w-130")}
+        {field("lunchHours", "max-w-130")}
+      </Section>
+
+      {/* 하단 액션 바 (원본 `nv-bar`) — 화면 아래에 붙는다. 왼쪽은 비어 있다 */}
+      <Card variant="soft" className="sticky bottom-6 z-10">
+        <div className="flex items-center justify-end gap-2">
+          <Button onClick={save}>저장</Button>
+        </div>
+      </Card>
     </AppShell>
   );
 }

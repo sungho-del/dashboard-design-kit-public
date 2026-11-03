@@ -1,18 +1,18 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { ScriptSettingsPage } from "./ScriptSettingsPage";
 import { SAVED_SCRIPTS, SCRIPT_FIELDS } from "./ScriptSettingsPage.data";
 
 /**
- * S27 스크립트 관리 — **동작** 테스트.
+ * 스크립트 관리 — **동작** 테스트.
  *
  * 렌더만 보면 세 필드가 서로 뒤바뀌어도 통과한다. 여기서는
  * **필드가 각자 독립적인가** · 각 자리의 안내(출력 위치 · 도움말 · placeholder)가
  * 제 짝에 붙어 있는가 · 저장이 토스트를 띄우는가를 본다.
  *
  * ⚠️ `원본에 없는 축` 묶음은 **걷어낸 것이 되살아나지 않는지** 보는 회귀 테스트다.
- * 원본 `/scripts` 에는 카드 제목도, `저장 전` 배지도, 하단 바 좌측 문구도,
+ * 원본 `SCREENS.scripts` 에는 카드 제목도, `저장 전` 배지도, 하단 바 좌측 문구도,
  * 변경 없을 때의 버튼 잠금도 없다(`ScriptSettingsPage.tsx` 상단 주석).
  */
 class ObserverStub {
@@ -100,18 +100,39 @@ describe("ScriptSettingsPage", () => {
       );
     });
 
-    it("저장돼 있던 값이 채워진 채로 열린다", () => {
+    it("저장돼 있던 원본 값(GTM·GA4 / GTM noscript / 네이버)이 채워진 채로 열린다", () => {
       renderPage();
 
       expect(headerBox()).toHaveValue(SAVED_SCRIPTS.header);
-      // 바디는 비어 있는 것이 정상이다 — "아무 코드도 넣지 않기로 한 상태"
-      expect(bodyBox()).toHaveValue("");
+      expect(bodyBox()).toHaveValue(SAVED_SCRIPTS.body);
       expect(footerBox()).toHaveValue(SAVED_SCRIPTS.footer);
+      // GTM 헤더 스니펫과 바디 noscript 는 같은 컨테이너의 짝이다
+      expect(SAVED_SCRIPTS.header).toContain("GTM-BC7K92X");
+      expect(SAVED_SCRIPTS.body).toContain("GTM-BC7K92X");
+      expect(SAVED_SCRIPTS.header).toContain("G-4LZQ8MNV3T");
+      expect(SAVED_SCRIPTS.footer).toContain("wcslog.js");
+    });
+
+    it("저장값은 문자열로만 보인다 — 화면에 스크립트·iframe 이 생기지 않는다", () => {
+      renderPage();
+
+      expect(document.querySelector("script")).toBeNull();
+      expect(document.querySelector("iframe")).toBeNull();
+    });
+
+    it("세 입력칸 모두 내부 textarea 에 고정폭 글꼴을 쓴다", () => {
+      renderPage();
+
+      for (const box of [headerBox(), bodyBox(), footerBox()]) {
+        expect(box.tagName).toBe("TEXTAREA");
+        expect(box).toHaveClass("font-code");
+      }
     });
 
     it("한 필드에 입력해도 다른 필드는 그대로다", async () => {
       const { user } = renderPage();
 
+      await user.clear(bodyBox());
       await user.type(bodyBox(), "<noscript>gtm</noscript>");
 
       expect(bodyBox()).toHaveValue("<noscript>gtm</noscript>");
@@ -139,9 +160,32 @@ describe("ScriptSettingsPage", () => {
   });
 
   describe("저장", () => {
+    it("[변경 사항 저장]은 머리가 아니라 하단 바에 하나뿐이다", () => {
+      renderPage();
+
+      expect(
+        within(screen.getByRole("banner")).queryByRole("button", {
+          name: "변경 사항 저장",
+        }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getAllByRole("button", { name: "변경 사항 저장" }),
+      ).toHaveLength(1);
+      // 세 입력칸보다 뒤(화면 아래)에 온다
+      expect(
+        footerBox().compareDocumentPosition(saveButton()) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      // 하단 바에는 저장 하나뿐 — [목록]·[취소]를 만들지 않는다
+      expect(
+        screen.queryByRole("button", { name: /^(목록|취소)$/ }),
+      ).not.toBeInTheDocument();
+    });
+
     it("저장하면 토스트를 띄우고 입력은 그대로 남는다", async () => {
       const { user } = renderPage();
 
+      await user.clear(bodyBox());
       await user.type(bodyBox(), "<noscript>gtm</noscript>");
       await user.click(saveButton());
 

@@ -71,6 +71,12 @@
   src: url("/fonts/Pretendard-Bold.woff2") format("woff2");
 }
 
+/* 코드 입력용 고정폭 글꼴 — 토큰 체계에 없는 폰트 패밀리라 여기 수기로 둔다(CLAUDE.md 예외).
+ * 쓰는 곳: 스크립트 관리 입력칸(`font-code`). 원본 BabyCube 정책 「입력칸 : 고정폭 글꼴」 */
+@theme {
+  --font-code: ui-monospace, Menlo, Consolas, monospace;
+}
+
 /* ── 전역 기본값 ─────────────────────────────────────────
  * Clay 의 body 기본값(16px / imweb Sans)에 대응.
  * ------------------------------------------------------- */

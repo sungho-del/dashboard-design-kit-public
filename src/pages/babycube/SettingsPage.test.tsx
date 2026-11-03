@@ -1,20 +1,21 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { SettingsPage } from "./SettingsPage";
-import { FIELD_COPY } from "./SettingsPage.data";
+import { FIELD_COPY, SAVED_SETTINGS } from "./SettingsPage.data";
+import { SELLERS } from "./SellerListPage.data";
 
 /**
- * S28 설정 — **동작** 테스트.
+ * 설정 — **동작** 테스트.
  *
  * 보는 것은 넷이다.
  *   1) **섹션 순서** — 원본은 `판매자 / 푸터정보` 가 먼저다
  *   2) 섹션 접기/펼치기와 **접었다 펴도 값이 남는가**
  *   3) 필수 표시가 실제로 `aria-required` 까지 가는가 (라벨의 `*` 는 aria-hidden 이다)
- *   4) 저장이 토스트를 띄우는가
+ *   4) 저장이 하단 바 하나에서 토스트를 띄우는가
  *
  * ⚠️ `원본에 없는 축` 묶음은 **걷어낸 것이 되살아나지 않는지** 보는 회귀 테스트다.
- * 원본 `/settings` 에는 클라이언트 필수값 검증이 없다 — 그래서 필드 에러도,
+ * 원본 `SCREENS.settings` 에는 클라이언트 필수값 검증이 없다 — 그래서 필드 에러도,
  * "빠진 항목이 든 섹션 자동 펼침"도, 하단 바의 dirty 문구·버튼 잠금도 없다.
  */
 class ObserverStub {
@@ -54,8 +55,9 @@ function renderPage() {
   return { user, onNavSelect, onNavOpenChange };
 }
 
+/** 구획 머리 오른쪽 접기 버튼 — 이름이 「{제목} 접기|펼치기」 */
 const sectionToggle = (title: string) =>
-  screen.getByRole("button", { name: title });
+  screen.getByRole("button", { name: new RegExp(`^${title} (접기|펼치기)$`) });
 /** 섹션 안내 문구는 `<b>` 로 끊겨 있어 문단 전체를 이어 붙여 본다 */
 const guideText = () =>
   Array.from(document.querySelectorAll("p"))
@@ -148,6 +150,18 @@ describe("SettingsPage", () => {
 
       expect(field("업무 시간")).toHaveValue("평일 09:00 ~ 18:00");
     });
+
+    it("접기 버튼 이름이 상태를 따라간다", async () => {
+      const { user } = renderPage();
+
+      expect(
+        screen.getByRole("button", { name: "고객 센터 정보 접기" }),
+      ).toBeVisible();
+      await user.click(sectionToggle("고객 센터 정보"));
+      expect(
+        screen.getByRole("button", { name: "고객 센터 정보 펼치기" }),
+      ).toBeVisible();
+    });
   });
 
   describe("필드", () => {
@@ -168,6 +182,47 @@ describe("SettingsPage", () => {
       expect(field("상세 주소 · 우편번호")).not.toHaveAttribute(
         "aria-required",
       );
+    });
+
+    it("원본 저장값으로 열린다 — 대표자·주소·시간 접두어", () => {
+      renderPage();
+
+      expect(field("대표자명")).toHaveValue("BabyCube");
+      expect(field("주소")).toHaveValue("서울특별시 강남구 테헤란로 501");
+      expect(field("상세 주소 · 우편번호")).toHaveValue("12층 (06168)");
+      expect(field("업무 시간")).toHaveValue(
+        "운영시간. 평일 10:00 ~ 17:00 (주말·공휴일 휴무)",
+      );
+      expect(field("점심 시간")).toHaveValue("점심시간. 평일 13:00 ~ 14:00");
+    });
+
+    it("대표자·전화가 셀러 목록 본사 행과 같다", () => {
+      const hq = SELLERS.find((seller) => seller.isHeadquarters);
+      expect(hq?.ceo).toBe(SAVED_SETTINGS.ceo);
+      expect(hq?.phone).toBe(SAVED_SETTINGS.phone);
+    });
+
+    it("사업자 등록 번호는 숫자 전용 키보드를 강제하지 않는다 (하이픈 포함 값)", () => {
+      renderPage();
+
+      expect(field("사업자 등록 번호")).not.toHaveAttribute("inputmode");
+      expect(field("전화 번호")).toHaveAttribute("inputmode", "tel");
+    });
+
+    it("입력 폭 상한이 원본 px 그대로다", () => {
+      renderPage();
+
+      // 폭 클래스는 Input 래퍼에 붙는다 — 입력칸의 부모
+      const widthOf = (label: string) => field(label).parentElement;
+      expect(widthOf("회사명")).toHaveClass("max-w-70"); // 280
+      expect(widthOf("사업자 등록 번호")).toHaveClass("max-w-60"); // 240
+      expect(widthOf("대표자명")).toHaveClass("max-w-60");
+      expect(widthOf("전화 번호")).toHaveClass("max-w-60");
+      expect(widthOf("주소")).toHaveClass("max-w-105"); // 420
+      expect(widthOf("상세 주소 · 우편번호")).toHaveClass("max-w-105");
+      expect(widthOf("상담 전화 번호")).toHaveClass("max-w-60");
+      expect(widthOf("업무 시간")).toHaveClass("max-w-130"); // 520
+      expect(widthOf("점심 시간")).toHaveClass("max-w-130");
     });
 
     it("글자 수 제한이 원본 값 그대로 걸려 있다", () => {
@@ -208,6 +263,25 @@ describe("SettingsPage", () => {
   });
 
   describe("저장", () => {
+    it("[저장]은 머리가 아니라 하단 바에 하나뿐이다 — 두 구획을 한 번에", () => {
+      renderPage();
+
+      expect(
+        within(screen.getByRole("banner")).queryByRole("button", {
+          name: "저장",
+        }),
+      ).not.toBeInTheDocument();
+      expect(screen.getAllByRole("button", { name: "저장" })).toHaveLength(1);
+      // 마지막 입력칸보다 뒤(화면 아래)에 온다
+      expect(
+        field("점심 시간").compareDocumentPosition(saveButton()) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(
+        screen.queryByRole("button", { name: /^(목록|취소)$/ }),
+      ).not.toBeInTheDocument();
+    });
+
     it("고친 값을 저장하면 토스트가 뜨고 입력은 그대로 남는다", async () => {
       const { user } = renderPage();
 

@@ -862,8 +862,10 @@ export const SELLERS: Seller[] = [
     id: "S-0001",
     name: "베이비큐브",
     isHeadquarters: true,
-    ceo: "서지호",
-    phone: "1670-0114",
+    /* 대표자·전화는 원본 본사 셀러 `S-000`(proto.html:954 · rep/tel)과 설정 화면 `SET` 그대로 —
+       설정(`SettingsPage.data.ts`)과 같은 값이다. 서로 읽지는 않는다(2026-11-03) */
+    ceo: "BabyCube",
+    phone: "02-1588-0000",
     commission: 0,
     date: "2025-09-01 09:00",
     exitDate: null,

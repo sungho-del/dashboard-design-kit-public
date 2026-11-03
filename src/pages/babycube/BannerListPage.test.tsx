@@ -2,369 +2,217 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { BannerListPage } from "./BannerListPage";
+import { BANNERS, type Banner } from "./BannerListPage.data";
 
-/**
- * S23 배너 관리 — **동작** 테스트.
+/* -------------------------------------------------------------------------
+ * 배너 관리 — 목록형 · 기획 v0.4 `SCREENS.display`
  *
- * 렌더 여부만 보면 목록이 통째로 빠져도 통과한다. 여기서는 이 화면이
- * 실제로 하는 일을 본다 — 행 선택 · 선택 삭제 · **삭제 부분 실패** ·
- * 등록/수정 모달의 검증과 저장.
- *
- * ⚠️ `원본에 없는 축` 묶음은 **걷어낸 것이 되살아나지 않는지** 보는 회귀 테스트다.
- * 원본 `/display` 에는 필터·검색·관리 열이 없다(`BannerListPage.tsx` 상단 주석).
- *
- * jsdom 에는 레이아웃도 `ResizeObserver`/`IntersectionObserver` 도 없다.
- * DatePicker 가 쓰는 floating-ui `autoUpdate` 가 둘을 요구하므로 no-op 으로 채운다.
- */
-class ObserverStub {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-  takeRecords() {
-    return [];
-  }
-}
-
-beforeAll(() => {
-  vi.stubGlobal("ResizeObserver", ObserverStub);
-  vi.stubGlobal("IntersectionObserver", ObserverStub);
-});
-
-afterAll(() => {
-  vi.unstubAllGlobals();
-});
-
-function renderPage() {
+ * 동작을 본다: 원본 열 · 노출 순서 오름차순 + No · 시드 배열 불변 · 도구줄 버튼 순서 ·
+ * 행/제목 → 상세 · 체크박스는 행 클릭 아님 · 선택 삭제 = 확인 창 → 알림, **목록 불변** ·
+ * 게시/숨김 의미표(숨김은 fixture) · 데이터 상태.
+ * ---------------------------------------------------------------------- */
+function renderAt(path = "/display") {
+  window.history.replaceState(null, "", path);
   const onNavSelect = vi.fn();
-  const onNavOpenChange = vi.fn();
   const user = userEvent.setup();
-
   render(
     <ToastProvider position="bottom">
       <BannerListPage
         navOpen
-        onNavOpenChange={onNavOpenChange}
+        onNavOpenChange={vi.fn()}
         activeNav="/display"
         onNavSelect={onNavSelect}
       />
     </ToastProvider>,
   );
-
-  return { user, onNavSelect, onNavOpenChange };
+  return { user, onNavSelect };
 }
 
-/** 헤더 행을 뺀 데이터 행 */
-function bodyRows(): HTMLElement[] {
-  const table = screen.queryByRole("table");
-  if (!table) return [];
-  return within(table).getAllByRole("row").slice(1);
-}
+const bodyRows = () =>
+  within(screen.getByRole("table")).getAllByRole("row").slice(1);
+const cellsOf = (row: HTMLElement) =>
+  within(row)
+    .getAllByRole("cell")
+    .map((cell) => cell.textContent?.trim());
 
-/** 보이는 배너 제목 (2번째 컬럼 — 0번은 체크박스) */
-function visibleTitles(): string[] {
-  return bodyRows().map(
-    (row) => within(row).getAllByRole("cell")[1].textContent ?? "",
-  );
-}
+describe("BannerListPage (배너 관리)", () => {
+  it("원본 열 · 3건 · 노출 순서 순 · 기간 「상시」 · 점 표기", () => {
+    renderAt();
 
-/** 모달 푸터 — 헤더 X 와 이름이 겹치는 버튼을 콕 집기 위해 */
-function footerOf(dialog: HTMLElement): HTMLElement {
-  return dialog.querySelector('[data-slot="footer"]') as HTMLElement;
-}
-
-describe("BannerListPage", () => {
-  describe("목록·페이징", () => {
-    it("1페이지에 PAGE_SIZE 만큼 보이고 총 건수를 표시한다", async () => {
-      const { user } = renderPage();
-
-      expect(bodyRows()).toHaveLength(4);
-      // 원본 `ListHead` 와 같은 자리·같은 문구
-      expect(screen.getByText("목록 (총 6건)")).toBeVisible();
-
-      await user.click(screen.getByRole("button", { name: "2" }));
-      expect(bodyRows()).toHaveLength(2);
-    });
-
-    it("표는 원본 컬럼 5개 + 선택 체크박스로만 이뤄진다", () => {
-      renderPage();
-
-      const header = within(screen.getByRole("table")).getAllByRole("row")[0];
-      // 0번은 전체 선택 체크박스 셀 — 텍스트가 없다
-      expect(
-        within(header)
-          .getAllByRole("columnheader")
-          .map((cell) => cell.textContent),
-      ).toEqual(["", "배너 제목", "노출 순서", "상태", "노출 기간", "등록일"]);
-    });
-
-    it("종료일이 없는 배너의 노출 기간은 '상시'로 그린다", () => {
-      renderPage();
-
-      // BN-2026-0005 는 endAt 이 빈 문자열이다
-      expect(screen.getByText("2026.08.10 ~ 상시")).toBeVisible();
-    });
+    expect(
+      within(screen.getByRole("table"))
+        .getAllByRole("columnheader")
+        .map((th) => th.textContent?.trim()),
+    ).toEqual([
+      "",
+      "No",
+      "배너 제목",
+      "노출 순서",
+      "상태",
+      "노출 기간",
+      "등록일",
+    ]);
+    expect(screen.getByText("목록 (총 3건)")).toBeVisible();
+    expect(bodyRows().map(cellsOf)).toEqual([
+      [
+        "",
+        "1",
+        "성장 단계에 맞춰 필요한 것만 딱",
+        "1",
+        "게시",
+        "2026.07.01 ~ 상시",
+        "2026.07.01",
+      ],
+      [
+        "",
+        "2",
+        "필요한 건 바로 구매로 빠르게",
+        "2",
+        "게시",
+        "2026.07.01 ~ 상시",
+        "2026.07.01",
+      ],
+      [
+        "",
+        "3",
+        "여름 물놀이 용품 기획전",
+        "3",
+        "게시",
+        "2026.07.10 ~ 2026.08.20",
+        "2026.07.10",
+      ],
+    ]);
   });
 
-  describe("원본에 없는 축 — 되살아나지 않는지", () => {
-    it("상태 필터·검색·초기화가 툴바에 없다", () => {
-      renderPage();
-
-      // 검색 입력이 있었다면 모달이 닫힌 상태에서도 textbox 가 잡힌다
-      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-      // 세그먼트 필터가 있었다면 radio 가 잡힌다 (모달 안 SegmentedControl 은 닫혀 있다)
-      expect(screen.queryByRole("radio")).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", { name: "초기화" }),
-      ).not.toBeInTheDocument();
-    });
-
-    it("행 단위 '관리' 드롭다운이 없다 — 삭제는 선택 삭제 하나뿐이다", () => {
-      renderPage();
-
-      // GNB 메뉴에도 "…관리" 가 있으므로 표 안으로 범위를 좁힌다
-      expect(
-        within(screen.getByRole("table")).queryAllByRole("button"),
-      ).toHaveLength(0);
-      expect(
-        screen.getByRole("button", { name: "선택 삭제" }),
-      ).toBeInTheDocument();
-    });
+  it("노출 순서가 뒤섞여도 순서대로 그리고 No 는 1..N — 시드 배열은 정렬하지 않는다", () => {
+    const original = BANNERS.map((banner) => banner.order);
+    BANNERS[0].order = 9;
+    try {
+      renderAt();
+      expect(bodyRows().map((row) => cellsOf(row).slice(1, 4))).toEqual([
+        ["1", "필요한 건 바로 구매로 빠르게", "2"],
+        ["2", "여름 물놀이 용품 기획전", "3"],
+        ["3", "성장 단계에 맞춰 필요한 것만 딱", "9"],
+      ]);
+      expect(BANNERS[0].title).toBe("성장 단계에 맞춰 필요한 것만 딱");
+    } finally {
+      BANNERS.forEach((banner, index) => (banner.order = original[index]));
+    }
   });
 
-  describe("행 선택", () => {
-    it("행을 고르면 선택 건수가 함께 표시된다", async () => {
-      const { user } = renderPage();
-
-      await user.click(
-        screen.getByRole("checkbox", { name: "여름 정기 세일 안내 선택" }),
-      );
-
-      expect(screen.getByText("1건 선택")).toBeVisible();
-    });
-
-    it("전체 선택은 현재 페이지의 행만 고른다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("checkbox", { name: "전체 선택" }));
-
-      // 6건 중 1페이지에 보이는 4건만 — 보이지 않는 행이 조용히 선택되면 위험하다
-      expect(screen.getByText("4건 선택")).toBeVisible();
-    });
-
-    it("체크박스 클릭은 행 클릭(수정 모달)을 열지 않는다", async () => {
-      const { user } = renderPage();
-
-      await user.click(
-        screen.getByRole("checkbox", { name: "여름 정기 세일 안내 선택" }),
-      );
-
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    });
+  it("게시 = success · 숨김 = default (숨김은 fixture)", () => {
+    const hidden: Banner = {
+      ...BANNERS[2],
+      id: "BN-T",
+      title: "숨긴 배너",
+      order: 4,
+      status: "hidden",
+    };
+    BANNERS.push(hidden);
+    try {
+      renderAt();
+      const [first, , , last] = bodyRows();
+      expect(within(first).getByText("게시")).toHaveClass("text-text-success");
+      expect(within(last).getByText("숨김")).toHaveClass("text-text-sub");
+    } finally {
+      BANNERS.pop();
+    }
   });
 
-  describe("선택 삭제", () => {
-    it("아무것도 고르지 않고 누르면 안내 토스트만 뜬다", async () => {
-      const { user } = renderPage();
+  it("도구줄 — [배너 등록][선택 삭제] 순서(원본) · 머리에는 버튼·도움말 없음", async () => {
+    const { user, onNavSelect } = renderAt();
 
-      await user.click(screen.getByRole("button", { name: "선택 삭제" }));
+    const register = screen.getByRole("button", { name: "배너 등록" });
+    const remove = screen.getByRole("button", { name: "선택 삭제" });
+    expect(
+      register.compareDocumentPosition(remove) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "도움말" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: /페이지/ })).toBeNull();
 
-      const toast = await screen.findByText("선택된 배너가 없습니다.");
-      expect(toast).toHaveAttribute("data-tone", "critical");
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    });
-
-    it("고른 배너를 지우면 목록에서 사라진다", async () => {
-      const { user } = renderPage();
-
-      await user.click(
-        screen.getByRole("checkbox", { name: "여름 정기 세일 안내 선택" }),
-      );
-      await user.click(screen.getByRole("button", { name: "선택 삭제" }));
-
-      const dialog = await screen.findByRole("dialog");
-      expect(
-        within(dialog).getByText(/사용자 홈에서도 즉시 내려갑니다/),
-      ).toBeVisible();
-      // 위험 안내는 "즉시 내려간다"와 분리해 따로 세운다 (원본 대조)
-      expect(
-        within(dialog).getByText("삭제 후에는 되돌릴 수 없습니다."),
-      ).toBeVisible();
-
-      await user.click(
-        within(footerOf(dialog)).getByRole("button", { name: "삭제" }),
-      );
-
-      expect(await screen.findByText("삭제되었습니다.")).toBeVisible();
-      expect(visibleTitles()).not.toContain("여름 정기 세일 안내");
-      expect(screen.getByText("목록 (총 5건)")).toBeVisible();
-    });
-
-    it("2건 이상이면 제목과 토스트에 건수가 함께 붙는다", async () => {
-      const { user } = renderPage();
-
-      await user.click(
-        screen.getByRole("checkbox", { name: "여름 정기 세일 안내 선택" }),
-      );
-      await user.click(
-        screen.getByRole("checkbox", { name: "신생아 렌트 첫 달 무료 선택" }),
-      );
-      await user.click(screen.getByRole("button", { name: "선택 삭제" }));
-
-      const dialog = await screen.findByRole("dialog");
-      // 1건이면 `배너 삭제`, 2건 이상이면 `배너 삭제 (N건)` — 원본 규칙
-      expect(
-        within(dialog).getByRole("heading", { name: "배너 삭제 (2건)" }),
-      ).toBeVisible();
-
-      await user.click(
-        within(footerOf(dialog)).getByRole("button", { name: "삭제" }),
-      );
-
-      expect(await screen.findByText("2건 삭제되었습니다.")).toBeVisible();
-      expect(screen.getByText("목록 (총 4건)")).toBeVisible();
-    });
+    await user.click(register);
+    expect(onNavSelect).toHaveBeenCalledWith("/display/new");
   });
 
-  describe("삭제 취소 · 부분 실패", () => {
-    it("1건만 고르면 모달 제목에 건수가 붙지 않고 그 배너 제목이 남는다", async () => {
-      const { user } = renderPage();
+  it("행 어디를 눌러도 · 제목 링크도 상세로 — 체크박스는 아니다", async () => {
+    const { user, onNavSelect } = renderAt();
 
-      await user.click(
-        screen.getByRole("checkbox", {
-          name: "성장단계별 추천 상품 모음 선택",
-        }),
-      );
-      await user.click(screen.getByRole("button", { name: "선택 삭제" }));
+    await user.click(within(bodyRows()[1]).getAllByRole("cell")[5]);
+    expect(onNavSelect).toHaveBeenLastCalledWith("/display/BN-2");
 
-      const dialog = await screen.findByRole("dialog");
-      expect(
-        within(dialog).getByRole("heading", { name: "배너 삭제" }),
-      ).toBeVisible();
-      expect(
-        within(dialog).getByText("성장단계별 추천 상품 모음"),
-      ).toBeVisible();
-    });
+    await user.click(
+      screen.getByRole("button", { name: "여름 물놀이 용품 기획전" }),
+    );
+    expect(onNavSelect).toHaveBeenLastCalledWith("/display/BN-3");
 
-    it("'취소'는 아무것도 지우지 않는다", async () => {
-      const { user } = renderPage();
-
-      await user.click(
-        screen.getByRole("checkbox", {
-          name: "성장단계별 추천 상품 모음 선택",
-        }),
-      );
-      await user.click(screen.getByRole("button", { name: "선택 삭제" }));
-
-      const dialog = await screen.findByRole("dialog");
-      await user.click(
-        within(footerOf(dialog)).getByRole("button", { name: "취소" }),
-      );
-
-      await waitFor(() =>
-        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-      );
-      expect(screen.getByText("목록 (총 6건)")).toBeVisible();
-    });
-
-    it("삭제되지 않는 배너는 모달을 닫지 않고 재시도 안내를 남긴다", async () => {
-      const { user } = renderPage();
-
-      // DELETE_BLOCKED_IDS 에 든 배너 (BN-2026-0003)
-      await user.click(
-        screen.getByRole("checkbox", { name: "안심케어 가입 안내 선택" }),
-      );
-      await user.click(screen.getByRole("button", { name: "선택 삭제" }));
-
-      const dialog = await screen.findByRole("dialog");
-      await user.click(
-        within(footerOf(dialog)).getByRole("button", { name: "삭제" }),
-      );
-
-      const toast = await screen.findByText("배너를 삭제하지 못했습니다.");
-      expect(toast).toHaveAttribute("data-tone", "critical");
-      // 모달이 열린 채로 실패 이유 + 다음 행동을 남긴다 (원본: `삭제 실패 — …`)
-      const alert = await within(await screen.findByRole("dialog")).findByRole(
-        "alert",
-      );
-      expect(alert).toHaveTextContent("삭제 실패");
-      expect(alert).toHaveTextContent("배너를 삭제하지 못했습니다.");
-      expect(alert).toHaveTextContent("목록을 다시 확인한 뒤 재시도해 주세요.");
-      // 행은 그대로 남아 있어야 한다
-      expect(screen.getByText("목록 (총 6건)")).toBeVisible();
-    });
+    onNavSelect.mockClear();
+    await user.click(
+      screen.getByRole("checkbox", { name: "여름 물놀이 용품 기획전 선택" }),
+    );
+    expect(onNavSelect).not.toHaveBeenCalled();
   });
 
-  describe("등록 모달", () => {
-    it("제목 없이 저장하면 에러가 뜨고 등록되지 않는다", async () => {
-      const { user } = renderPage();
+  it("선택 없이 [선택 삭제] — 「선택된 배너가 없습니다.」 · 창 없음", async () => {
+    const { user } = renderAt();
 
-      await user.click(screen.getByRole("button", { name: "배너 등록" }));
-
-      const dialog = await screen.findByRole("dialog");
-      await user.click(
-        within(footerOf(dialog)).getByRole("button", { name: "저장" }),
-      );
-
-      expect(
-        await within(dialog).findByText("배너 제목을 입력해주세요."),
-      ).toBeVisible();
-      expect(screen.getByRole("dialog")).toBeInTheDocument();
-    });
-
-    it("시작일을 고르지 않으면 저장되지 않는다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("button", { name: "배너 등록" }));
-
-      const dialog = await screen.findByRole("dialog");
-      await user.type(
-        within(dialog).getByRole("textbox", { name: /배너 제목/ }),
-        "가을 렌트 프로모션",
-      );
-      await user.click(
-        within(footerOf(dialog)).getByRole("button", { name: "저장" }),
-      );
-
-      const toast = await screen.findByText("노출 시작일을 선택해주세요.");
-      expect(toast).toHaveAttribute("data-tone", "critical");
-      expect(screen.getByText("목록 (총 6건)")).toBeVisible();
-    });
+    await user.click(screen.getByRole("button", { name: "선택 삭제" }));
+    expect(await screen.findByText("선택된 배너가 없습니다.")).toBeVisible();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  describe("수정 모달", () => {
-    it("행을 클릭하면 그 배너 값이 채워진 수정 모달이 열린다", async () => {
-      const { user } = renderPage();
+  it("2건 선택 삭제 — 제목에 건수 · 원본 문구 → 「2건 삭제되었습니다.」, 목록은 그대로 · 선택 비움", async () => {
+    const { user } = renderAt();
 
-      await user.click(bodyRows()[0]);
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "성장 단계에 맞춰 필요한 것만 딱 선택",
+      }),
+    );
+    await user.click(
+      screen.getByRole("checkbox", { name: "여름 물놀이 용품 기획전 선택" }),
+    );
+    await user.click(screen.getByRole("button", { name: "선택 삭제" }));
 
-      const dialog = await screen.findByRole("dialog");
-      expect(
-        within(dialog).getByRole("heading", { name: "배너 수정" }),
-      ).toBeVisible();
-      expect(
-        within(dialog).getByRole("textbox", { name: /배너 제목/ }),
-      ).toHaveValue("여름 정기 세일 안내");
-    });
+    const modal = await screen.findByRole("dialog");
+    expect(
+      within(modal).getByRole("heading", { name: "배너 삭제 (2건)" }),
+    ).toBeVisible();
+    expect(
+      within(modal).getByText("삭제 후에는 되돌릴 수 없습니다."),
+    ).toBeVisible();
+    expect(modal).toHaveTextContent("잠시 내리려는 것이라면 [숨김]을 쓰세요.");
 
-    it("제목을 고쳐 저장하면 목록에 반영된다", async () => {
-      const { user } = renderPage();
+    await user.click(within(modal).getByRole("button", { name: "삭제" }));
 
-      await user.click(bodyRows()[0]);
+    expect(await screen.findByText("2건 삭제되었습니다.")).toBeVisible();
+    expect(bodyRows()).toHaveLength(3);
+    expect(
+      screen.getByRole("checkbox", { name: "전체 선택" }),
+    ).not.toBeChecked();
+  });
 
-      const dialog = await screen.findByRole("dialog");
-      const titleInput = within(dialog).getByRole("textbox", {
-        name: /배너 제목/,
-      });
-      await user.clear(titleInput);
-      await user.type(titleInput, "여름 정기 세일 (연장)");
-      await user.click(
-        within(footerOf(dialog)).getByRole("button", { name: "저장" }),
-      );
+  it("삭제 창 [취소] — 알림 없음 · 선택 유지", async () => {
+    const { user } = renderAt();
 
-      expect(await screen.findByText("수정되었습니다.")).toBeVisible();
-      expect(visibleTitles()).toContain("여름 정기 세일 (연장)");
-      // 건수는 그대로 — 수정이 등록으로 새 나가면 여기서 걸린다
-      expect(screen.getByText("목록 (총 6건)")).toBeVisible();
-    });
+    await user.click(screen.getByRole("checkbox", { name: "전체 선택" }));
+    await user.click(screen.getByRole("button", { name: "선택 삭제" }));
+    const modal = await screen.findByRole("dialog");
+    expect(
+      within(modal).getByRole("heading", { name: "배너 삭제 (3건)" }),
+    ).toBeVisible();
+    await user.click(within(modal).getByRole("button", { name: "취소" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.queryByText(/삭제되었습니다/)).toBeNull();
+    expect(screen.getByRole("checkbox", { name: "전체 선택" })).toBeChecked();
+  });
+
+  it("?preview=empty — 빈 상태 · 도구줄 버튼은 남는다", () => {
+    renderAt("/display?preview=empty");
+
+    expect(screen.getByText("등록된 배너가 없습니다")).toBeVisible();
+    expect(screen.getByText("목록 (총 0건)")).toBeVisible();
+    expect(screen.getByRole("button", { name: "배너 등록" })).toBeVisible();
   });
 });

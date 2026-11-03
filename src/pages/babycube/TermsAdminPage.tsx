@@ -15,12 +15,12 @@ import {
   Textarea,
   useToast,
 } from "../../components/ui";
-import { TERMS, updatedText, ymd, type TermsDoc } from "./TermsAdminPage.data";
+import { MESSAGES, TERMS, updatedText } from "./TermsAdminPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 import { cn } from "../../lib/cn";
 
 /* =========================================================================
- * S26 약관 관리 — 뼈대
+ * S26 약관 관리 — 뼈대 (원본 v0.4 `SCREENS.termsAdmin` 3566 · 저장 `termsSave` 3561)
  *
  * ## 화면 유형: 폼형 (`src/pages/ProductFormPage.tsx` 변형)
  *
@@ -34,7 +34,7 @@ import { cn } from "../../lib/cn";
  * | 좌측 목록에 필터·검색·페이징이 없다           | 조회 대상 집합이 아니라 **편집 대상 선택기**다 |
  *
  * §2 의 "판정이 갈리면 목록형 우선"은 **한 화면이 목록 신호와 상세 신호에 동시에 걸릴 때**의
- * 규칙이다. 여기서는 목록형 신호 자체가 약하다 — 표로 만들면 5행짜리 표 하나에
+ * 규칙이다. 여기서는 목록형 신호 자체가 약하다 — 표로 만들면 12행짜리 표 하나에
  * 필터도 페이징도 없는, 표일 이유가 없는 표가 된다.
  *
  * ## 폼형 템플릿에서 상속한 것 (`screen-templates.md` §3-4)
@@ -56,14 +56,17 @@ import { cn } from "../../lib/cn";
  * 원본도 좌(`term-list`) · 우(`term-edit`) 2단이고, 좌측이 유일한 문서 선택기다.
  *
  * 원본과 맞춘 것:
- * - 좌측 헤더는 `약관 목록 N종` — "총"이 붙지 않는다
- * - 좌측 항목은 **이름 + `필수` 배지(필수일 때만) + `미작성`** 이 전부다.
- *   `선택` 배지도 최종 수정일도 좌측에는 없다 — 둘 다 **우측 헤더**가 든다
+ * - 좌측 헤더는 `약관 목록 N종` — 건수가 제목 바로 옆, "총"이 붙지 않는다
+ * - 좌측 항목은 **이름(왼쪽) + `필수` 배지(필수일 때만)·`미작성`(오른쪽 끝)** 이 전부다.
+ *   선택 항목만 굵다. `선택` 배지도 최종 수정일도 좌측에는 없다 — 둘 다 **우측 헤더**가 든다
  * - 우측 헤더는 `약관 편집` 같은 고정 제목이 아니라 **고른 문서의 이름**이고,
- *   그 옆에 `필수`/`선택` 배지, 오른쪽 끝에 `최종 수정 YYYY-MM-DD` 또는 `미작성`
+ *   그 옆에 `필수`/`선택` 배지, 오른쪽 끝에 `최종 수정 YYYY.MM.DD` 또는 `미작성`
+ * - `미작성` 은 경고색(원본 warn) — 처리할 상태다. 필수/선택은 **분류**라 무채색 `Tag`
  * - 본문 placeholder 는 `{문서 이름} 내용을 입력하세요.`
  * - 저장 버튼은 **본문이 있으면 `수정 저장`, 비어 있으면 `등록`**
  * - 저장 토스트는 `약관이 등록되었습니다.` / `약관이 수정되었습니다.`
+ *   ⚠️ **저장은 알림만**(퍼블 범위) — 저장본·`미작성`·최종 수정일·버튼 라벨은 바뀌지 않는다.
+ *   편집 초안은 그 문서에 머무는 동안 남고, 문서를 바꾸면 저장본으로 돌아온다
  * - 빈 본문으로 저장 → 토스트 `약관 내용을 입력해주세요.`
  * - 문서가 하나도 없을 때 — `등록된 약관이 없습니다.` +
  *   `약관 문서가 하나도 없어 편집할 대상이 없습니다.`
@@ -75,8 +78,13 @@ import { cn } from "../../lib/cn";
  * 3. **본문 필드의 인라인 에러** — 원본은 토스트로만 알린다
  * 4. **PageHeader 도움말 툴팁** · 좌측 카드의 빈 상태
  *
+ * 5. **시행일·버전 이력·개정 공지** — 원본엔 최종 수정일 하나뿐이다(기획 확인 필요는 data 주석)
+ *
+ * ## 원본과 다르게 둔 것
+ * - 본문에 보이는 라벨 `약관 내용`(원본은 라벨 없음) — 편집기의 접근성 이름이다
+ *
  * ## 알려진 한계
- * 문서를 바꾸면 **저장하지 않은 본문은 사라진다.** 원본도 같다(`setDraft(null)`).
+ * 문서를 바꾸면 **저장하지 않은 본문은 사라진다.** 원본도 같다(경고 없음).
  * ====================================================================== */
 
 export interface TermsAdminPageProps {
@@ -94,7 +102,8 @@ export function TermsAdminPage({
 }: TermsAdminPageProps) {
   const { toast } = useToast();
 
-  const [terms, setTerms] = useState<TermsDoc[]>(TERMS);
+  /* 저장은 알림만이라 저장본은 원본 그대로 읽는다 — 로컬인 것은 선택과 편집 초안뿐 */
+  const terms = TERMS;
   const [selectedId, setSelectedId] = useState(TERMS[0]?.id ?? "");
   const [draft, setDraft] = useState(TERMS[0]?.body ?? "");
 
@@ -109,18 +118,11 @@ export function TermsAdminPage({
   const save = () => {
     if (!current) return;
     if (draft.trim() === "") {
-      toast({ message: "약관 내용을 입력해주세요.", tone: "critical" });
+      toast({ message: MESSAGES.needBody, tone: "critical" });
       return;
     }
-
-    // 저장 전 본문이 비어 있었으면 "등록", 있었으면 "수정"이다 (원본 규칙)
-    const firstWrite = current.body === "";
-    setTerms((prev) =>
-      prev.map((doc) =>
-        doc.id === current.id ? { ...doc, body: draft, updatedAt: ymd() } : doc,
-      ),
-    );
-    toast(`약관이 ${firstWrite ? "등록" : "수정"}되었습니다.`);
+    // 저장본이 비어 있으면 "등록", 있으면 "수정" (원본 규칙). 저장본·최종 수정일은 바꾸지 않는다
+    toast(MESSAGES.saved(current.body === ""));
   };
 
   return (
@@ -144,13 +146,13 @@ export function TermsAdminPage({
       */}
       <div className="flex items-start gap-6">
         <Card className="w-70 shrink-0">
-          {/* 원본 헤더는 `약관 목록 N종` — "총"이 붙지 않는다 */}
-          <CardHeader
-            title="약관 목록"
-            action={
+          {/* 원본 헤더는 `약관 목록 N종` — 건수가 제목 바로 옆, "총"이 붙지 않는다 */}
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <h3 className="heading-medium-bold text-text">약관 목록</h3>
               <span className="body-small text-text-sub">{terms.length}종</span>
-            }
-          />
+            </div>
+          </CardHeader>
           <CardBody>
             {/* 항목 간격 4 — 카드 본문 블록(20)이 아니라 리스트 내부 리듬이다 */}
             <ul aria-label="약관 문서 목록" className="flex flex-col gap-1">
@@ -163,7 +165,7 @@ export function TermsAdminPage({
                       aria-current={selected ? "true" : undefined}
                       onClick={() => selectDoc(doc.id)}
                       className={cn(
-                        "flex w-full cursor-pointer flex-wrap items-center gap-1 rounded-small px-3 py-2 text-left",
+                        "flex w-full cursor-pointer items-center justify-between gap-2 rounded-small px-3 py-2 text-left",
                         "transition-[background-color] duration-100 ease-in-out",
                         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus",
                         selected
@@ -172,7 +174,13 @@ export function TermsAdminPage({
                           : "bg-transparent hover:bg-action-secondary-hover",
                       )}
                     >
-                      <span className="label-medium-bold text-text">
+                      {/* 선택 항목만 굵게(원본 3202) · 긴 이름은 단어 단위로 줄바꿈 */}
+                      <span
+                        className={cn(
+                          "min-w-0 break-keep wrap-anywhere text-text",
+                          selected ? "label-medium-bold" : "label-medium",
+                        )}
+                      >
                         {doc.name}
                       </span>
                       {/*
@@ -181,10 +189,16 @@ export function TermsAdminPage({
                         필수/선택은 **상태가 아니라 분류**라 상태색을 쓰지 않는다
                         (`screen-templates.md` §3-1 "분류 배지").
                       */}
-                      {doc.required && <Tag size="small">필수</Tag>}
-                      {doc.body === "" && (
-                        <span className="body-small text-text-sub">미작성</span>
-                      )}
+                      {/* 메타는 오른쪽 끝에 고정(원본 `term-item-meta` flex-shrink:0) */}
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        {doc.required && <Tag size="small">필수</Tag>}
+                        {/* 미작성은 분류가 아니라 **처리할 상태**라 경고색(원본 warn) */}
+                        {doc.body === "" && (
+                          <span className="label-small-bold text-text-warning">
+                            미작성
+                          </span>
+                        )}
+                      </span>
                     </button>
                   </li>
                 );
@@ -219,7 +233,14 @@ export function TermsAdminPage({
                   </span>
                 }
                 action={
-                  <span className="body-small text-text-sub">
+                  <span
+                    className={cn(
+                      "body-small",
+                      current.updatedAt === ""
+                        ? "text-text-warning"
+                        : "text-text-sub",
+                    )}
+                  >
                     {updatedText(current)}
                   </span>
                 }

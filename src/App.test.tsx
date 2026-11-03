@@ -149,6 +149,9 @@ describe("App (전달본)", () => {
     ["/faq-admin", "FAQ"],
     ["/reviews-admin", "리뷰"],
     ["/support", "문의"],
+    /* 시스템·운영 — 배너·팝업 등록/수정 */
+    ["/display", "배너"],
+    ["/popups", "팝업"],
   ])("%s 의 첫 행을 누르면 %s 상세에 도착한다", async (list) => {
     renderAt(list);
 

@@ -2,7 +2,6 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { TermsAdminPage } from "./TermsAdminPage";
-import { ymd } from "./TermsAdminPage.data";
 
 /**
  * S26 약관 관리 — **동작** 테스트.
@@ -10,6 +9,7 @@ import { ymd } from "./TermsAdminPage.data";
  * 이 화면은 좌(선택) · 우(편집) 두 카드가 **같은 축**을 공유한다. 그래서
  * "고른 문서와 편집기 내용이 어긋나지 않는가"가 가장 중요한 검증이다.
  * 그 밖에 저장 버튼 라벨(`등록`/`수정 저장`)과 토스트 문구, 빈 상태를 본다.
+ * ⚠️ 저장은 **알림만** — 저장본·미작성·최종 수정일이 바뀌지 않는지 본다.
  *
  * ⚠️ `원본에 없는 축` 묶음은 **걷어낸 것이 되살아나지 않는지** 보는 회귀 테스트다.
  * 원본 `/terms-admin` 에는 문서 선택 Select 도, 되돌리기도, "편집 중" 배지도 없다.
@@ -93,65 +93,93 @@ function editorValue(): string {
   return (editor() as HTMLTextAreaElement).value;
 }
 
+/** 원본 12종 순서 */
+const ORIGINAL_NAMES = [
+  "서비스 이용약관",
+  "개인정보 처리방침",
+  "전자금융거래 이용약관",
+  "통신판매중개 이용약관",
+  "입점 판매자 이용약관",
+  "렌탈(대여) 이용약관",
+  "청약철회·취소·반품·교환 규정",
+  "개인정보 제3자 제공 동의",
+  "안전·위생·KC 인증 고지",
+  "안심케어 이용약관",
+  "마케팅 정보 수신 동의",
+  "청소년 보호정책",
+];
+
 describe("TermsAdminPage", () => {
   describe("좌측 목록", () => {
-    it("문서 5종과 개수를 보여준다", () => {
+    it("원본 12종을 원본 순서로 보여주고 건수는 제목 옆이다", () => {
       renderPage();
 
       // 원본 헤더는 `약관 목록 N종` — "총"이 붙지 않는다
-      expect(screen.getByText("5종")).toBeVisible();
-      expect(within(docList()).getAllByRole("button")).toHaveLength(5);
-      // `^` 로 첫 문서를 콕 집는다 — "렌트·반납 이용약관"·"전자금융거래 이용약관"도
-      // "이용약관"을 품고 있어 앵커가 없으면 셋이 걸린다
-      expect(docItem("^이용약관")).toBeVisible();
-      expect(docItem("마케팅 정보 수신 동의")).toBeVisible();
+      const count = screen.getByText("12종");
+      expect(count).toBeVisible();
+      expect(count.previousElementSibling).toHaveTextContent("약관 목록");
+
+      const names = within(docList())
+        .getAllByRole("button")
+        .map((item) => item.firstElementChild?.textContent);
+      expect(names).toEqual(ORIGINAL_NAMES);
     });
 
-    it("첫 문서가 선택된 채로 시작한다", () => {
+    it("첫 문서가 선택된 채로 시작하고, 선택 항목만 굵다", () => {
       renderPage();
 
-      expect(docItem("^이용약관")).toHaveAttribute("aria-current", "true");
-      expect(editorValue()).toContain("제1조(목적)");
+      const first = docItem("서비스 이용약관");
+      expect(first).toHaveAttribute("aria-current", "true");
+      expect(first.firstElementChild).toHaveClass("label-medium-bold");
+      expect(docItem("개인정보 처리방침").firstElementChild).toHaveClass(
+        "label-medium",
+      );
+      expect(editorValue()).toContain("제1조 (목적)");
     });
 
-    it("필수 문서에만 배지가 붙고, 본문이 비면 '미작성'을 적는다", () => {
+    it("필수 8 · 미작성 4 — 미작성은 경고색, 선택 문서엔 배지가 없다", () => {
       renderPage();
+
+      expect(within(docList()).getAllByText("필수")).toHaveLength(8);
+      const blanks = within(docList()).getAllByText("미작성");
+      expect(blanks).toHaveLength(4);
+      blanks.forEach((blank) => expect(blank).toHaveClass("text-text-warning"));
 
       const blank = docItem("전자금융거래 이용약관");
       expect(within(blank).getByText("필수")).toBeVisible();
       expect(within(blank).getByText("미작성")).toBeVisible();
 
-      // 선택 문서에는 좌측에서 배지를 붙이지 않는다 (원본 구조)
       const optional = docItem("마케팅 정보 수신 동의");
       expect(within(optional).queryByText("선택")).not.toBeInTheDocument();
-      expect(within(optional).getByText("미작성")).toBeVisible();
+      expect(within(optional).queryByText("필수")).not.toBeInTheDocument();
 
-      const written = docItem("렌트·반납 이용약관");
+      const written = docItem("렌탈\\(대여\\) 이용약관");
       expect(within(written).queryByText("미작성")).not.toBeInTheDocument();
     });
   });
 
   describe("우측 편집 카드 헤더", () => {
-    it("고정 제목이 아니라 고른 문서의 이름과 최종 수정일을 든다", async () => {
+    it("고른 문서의 이름과 최종 수정일(점 표기)을 든다", async () => {
       const { user } = renderPage();
 
       expect(
-        screen.getByRole("heading", { name: /이용약관/ }),
+        screen.getByRole("heading", { name: /서비스 이용약관/ }),
       ).toBeInTheDocument();
-      expect(screen.getByText("최종 수정 2026-07-14")).toBeVisible();
+      expect(screen.getByText("최종 수정 2026.06.20")).toBeVisible();
 
-      await user.click(docItem("렌트·반납 이용약관"));
+      await user.click(docItem("렌탈\\(대여\\) 이용약관"));
 
-      expect(screen.getByText("최종 수정 2026-08-01")).toBeVisible();
+      expect(screen.getByText("최종 수정 2026.06.22")).toBeVisible();
     });
 
-    it("한 번도 저장한 적 없으면 최종 수정일 자리에 '미작성'이 온다", async () => {
+    it("한 번도 저장한 적 없으면 최종 수정일 자리에 경고색 '미작성'이 온다", async () => {
       const { user } = renderPage();
 
       await user.click(docItem("전자금융거래 이용약관"));
 
-      // 좌측 항목과 우측 헤더 두 곳에 뜬다
-      expect(screen.getAllByText("미작성").length).toBeGreaterThanOrEqual(2);
+      const blanks = screen.getAllByText("미작성");
+      const header = blanks.find((blank) => !docList().contains(blank));
+      expect(header).toHaveClass("text-text-warning");
     });
   });
 
@@ -178,14 +206,15 @@ describe("TermsAdminPage", () => {
     it("좌측 항목을 누르면 편집기 내용이 그 문서로 바뀐다", async () => {
       const { user } = renderPage();
 
-      await user.click(docItem("렌트·반납 이용약관"));
+      await user.click(docItem("렌탈\\(대여\\) 이용약관"));
 
-      expect(docItem("렌트·반납 이용약관")).toHaveAttribute(
+      expect(docItem("렌탈\\(대여\\) 이용약관")).toHaveAttribute(
         "aria-current",
         "true",
       );
-      expect(docItem("^이용약관")).not.toHaveAttribute("aria-current");
-      expect(editorValue()).toContain("수거 신청");
+      expect(docItem("서비스 이용약관")).not.toHaveAttribute("aria-current");
+      // 원본 연체 정책 — 회사가 자동 산정하지 않는다
+      expect(editorValue()).toContain("연체료는 회사가 자동 산정하지 않으며");
     });
 
     it("미작성 문서를 고르면 편집기가 비고 placeholder 에 문서 이름이 들어간다", async () => {
@@ -204,14 +233,14 @@ describe("TermsAdminPage", () => {
       const { user } = renderPage();
 
       await user.type(editor(), " (검토 중)");
-      await user.click(docItem("렌트·반납 이용약관"));
-      await user.click(docItem("^이용약관"));
+      await user.click(docItem("렌탈\\(대여\\) 이용약관"));
+      await user.click(docItem("서비스 이용약관"));
 
       expect(editorValue()).not.toContain("(검토 중)");
     });
   });
 
-  describe("저장", () => {
+  describe("저장 — 알림만", () => {
     it("본문이 비어 있으면 저장되지 않는다", async () => {
       const { user } = renderPage();
 
@@ -221,44 +250,35 @@ describe("TermsAdminPage", () => {
 
       const toast = await screen.findByText("약관 내용을 입력해주세요.");
       expect(toast).toHaveAttribute("data-tone", "critical");
-      // 미작성 표시가 그대로 남아야 한다 — 저장이 새 나가면 여기서 걸린다
-      expect(
-        within(docItem("전자금융거래 이용약관")).getByText("미작성"),
-      ).toBeVisible();
     });
 
-    it("미작성 문서에 처음 쓰면 '등록', 토스트도 등록이다", async () => {
+    it("미작성 문서에 쓰고 '등록' — 등록 알림만 뜨고 미작성·버튼 라벨은 그대로다", async () => {
       const { user } = renderPage();
 
       await user.click(docItem("전자금융거래 이용약관"));
-      await user.type(
-        editor(),
-        "제1조(목적) 전자금융거래의 기본 사항을 정한다.",
-      );
+      await user.type(editor(), "제1조 (목적) 전자금융거래의 기본 사항.");
       await user.click(screen.getByRole("button", { name: "등록" }));
 
       expect(await screen.findByText("약관이 등록되었습니다.")).toBeVisible();
-
-      const item = docItem("전자금융거래 이용약관");
-      expect(within(item).queryByText("미작성")).not.toBeInTheDocument();
-      expect(screen.getByText(`최종 수정 ${ymd()}`)).toBeVisible();
-      // 본문이 생겼으니 버튼 라벨도 바뀐다
       expect(
-        screen.getByRole("button", { name: "수정 저장" }),
-      ).toBeInTheDocument();
+        within(docItem("전자금융거래 이용약관")).getByText("미작성"),
+      ).toBeVisible();
+      expect(screen.getByRole("button", { name: "등록" })).toBeInTheDocument();
+      // 초안은 이 문서에 머무는 동안 남는다
+      expect(editorValue()).toContain("전자금융거래의 기본 사항");
     });
 
-    it("본문이 있던 문서를 고치면 '수정 저장', 토스트도 수정이다", async () => {
+    it("본문이 있던 문서를 고치면 '수정 저장' — 수정 알림 · 최종 수정일 불변", async () => {
       const { user } = renderPage();
 
       await user.type(editor(), " (개정)");
       await user.click(screen.getByRole("button", { name: "수정 저장" }));
 
       expect(await screen.findByText("약관이 수정되었습니다.")).toBeVisible();
-      expect(editorValue()).toContain("(개정)");
+      expect(screen.getByText("최종 수정 2026.06.20")).toBeVisible();
     });
 
-    it("저장한 내용은 다른 문서를 다녀와도 남아 있다", async () => {
+    it("저장 후 다른 문서를 다녀오면 저장본(원본)으로 돌아온다", async () => {
       const { user } = renderPage();
 
       await user.click(docItem("마케팅 정보 수신 동의"));
@@ -266,10 +286,10 @@ describe("TermsAdminPage", () => {
       await user.click(screen.getByRole("button", { name: "등록" }));
       await screen.findByText("약관이 등록되었습니다.");
 
-      await user.click(docItem("^이용약관"));
+      await user.click(docItem("서비스 이용약관"));
       await user.click(docItem("마케팅 정보 수신 동의"));
 
-      expect(editor()).toHaveValue("광고성 정보 수신에 동의합니다.");
+      expect(editor()).toHaveValue("");
     });
   });
 

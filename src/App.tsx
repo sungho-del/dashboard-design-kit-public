@@ -16,6 +16,7 @@ import { CategoryListPage } from "./pages/babycube/CategoryListPage";
 import { CouponDetailPage } from "./pages/babycube/CouponDetailPage";
 import { CouponListPage } from "./pages/babycube/CouponListPage";
 import { BabycubeDashboardPage } from "./pages/babycube/DashboardPage";
+import { DisplayFormPage } from "./pages/babycube/DisplayFormPage";
 import { FaqFormPage } from "./pages/babycube/FaqFormPage";
 import { FaqListPage } from "./pages/babycube/FaqListPage";
 import { GrowthStageListPage } from "./pages/babycube/GrowthStageListPage";
@@ -218,6 +219,9 @@ const DETAIL_ROUTES: {
     parent: "/settle-statement",
     screen: SettlementStatementDetailPage,
   },
+  /* 시스템·운영 — 배너·팝업 등록/수정은 화면 하나가 맡는다(경로가 종류를 정한다 · 원본 `dispDetail`) */
+  { prefix: "/display/", parent: "/display", screen: DisplayFormPage },
+  { prefix: "/popups/", parent: "/popups", screen: DisplayFormPage },
 ];
 
 /** 없는 경로에서 보여줄 화면 — 저장소 색인이 가장 덜 당황스럽다 */
