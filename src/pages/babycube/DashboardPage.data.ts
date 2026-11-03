@@ -28,7 +28,7 @@ import { SETTLEMENT_SUMMARY } from "./settlement.data";
  *
  * | 실물 이름                  | 역할                                                     |
  * | -------------------------- | -------------------------------------------------------- |
- * | `METRIC_ROWS`              | 지표 타일 — **3줄 × 3장 = 9장**. 줄 = 집계 범위(회원/셀러/매출) |
+ * | `METRIC_GROUPS`              | 지표 — **3그룹 × 3장 = 9장**. 그룹 카드 제목 = `title`      |
  * | `PERIODS` · `DEFAULT_PERIOD` | 차트별 기간 세그먼트 (1주/1개월/3개월 · 기본 1개월)    |
  * | `ORDER_COUNT_TREND`        | 결제 건수 일별 추이 (기간 → 행 배열)                    |
  * | `REVENUE_TREND`            | 결제 금액 일별 추이                                      |
@@ -38,7 +38,7 @@ import { SETTLEMENT_SUMMARY } from "./settlement.data";
  * | `count` · `won` · `num` · `shortDay` | 단위·날짜 포맷                                 |
  *
  * ## 뼈대가 이 파일에 기대하는 계약
- * - `METRIC_ROWS[].metrics` 는 **줄마다 정확히 3장** — 뼈대가 3열로 깐다
+ * - `METRIC_GROUPS[].metrics` 는 **그룹마다 정확히 3장** — 뼈대가 그룹을 `grid-cols-3` 한 줄에 깐다
  * - `metrics[].navId` 는 **있을 때만** 그 타일이 링크가 된다(원본 `go`)
  * - 추이 행은 `{ label, rent, sale }` — `label` 은 **연도 포함 점 표기**(`2026.10.15`).
  *   툴팁 제목이 이 값을 그대로 쓰고, 축은 `shortDay` 로 줄여 그린다
@@ -301,17 +301,17 @@ const TODAY_VISITORS = 54;
 export const num = (value: number) => value.toLocaleString("ko-KR");
 
 /**
- * 지표 타일 — **3줄 × 3장 = 9장.**
+ * 지표 — **3그룹 × 3장 = 9장.** 그룹 카드 제목은 `title`(2026-09-18 배치 · 2026-11-03 되돌림)
  *
  * - `navId` 가 있을 때만 링크(원본 `go`). 오늘 방문자·오늘 가입자는 갈 곳이 없다
  * - ⚠️ 타일 수는 **도착 화면의 기본 탭 수와 다를 수 있다** — 전체 회원 30 은 정상 20 뿐 아니라
  *   정지·휴면·탈퇴를 포함하고, 입점 등록 상품 30 은 판매중 17 외 상태를 포함한다(원본 산식).
  *   기본 탭에 맞추려고 타일을 줄이지 않는다
  */
-export const METRIC_ROWS = [
+export const METRIC_GROUPS = [
   {
     id: "member",
-    name: "회원 현황",
+    title: "회원 지표",
     metrics: [
       { label: "오늘 방문자", value: num(TODAY_VISITORS), unit: "명" },
       {
@@ -333,7 +333,7 @@ export const METRIC_ROWS = [
   },
   {
     id: "seller",
-    name: "셀러 현황",
+    title: "셀러 지표",
     metrics: [
       {
         label: "입점 심사 요청",
@@ -362,7 +362,7 @@ export const METRIC_ROWS = [
   },
   {
     id: "sales",
-    name: "매출 현황",
+    title: "매출 지표",
     /*
       셀러 정산 「정산 요약」과 **같은 객체**를 읽는다 — 손으로 적거나 다시 계산하면 눌러 간
       화면과 숫자가 갈린다. 정산 회차(2026.09) 기준이라 차트(최근 n일 결제)와 범위가 다르다 — 정상이다.

@@ -27,7 +27,7 @@ import {
   count,
   COUNT_NOTE,
   DEFAULT_PERIOD,
-  METRIC_ROWS,
+  METRIC_GROUPS,
   num,
   orderCountSeriesTotals,
   orderCountTotals,
@@ -55,21 +55,18 @@ import { APP_CHROME, GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *
  * ## 화면 유형: 통계형
  *
- * ## 배치 = 원본 v0.4 2단 (proto.html:87·3087~3116 · 사용자 승인 2026-11-03)
+ * ## 배치 = 지표 3그룹 → 차트 → 흐름 (2026-09-18 결정 · 2026-11-03 원본 2단을 되돌림)
  *
  * ```
- * ┌ 지표 9장 (3 × 3) ─────────────┐ ┌ 총 매출 현황(건수) ──┐   ← 1줄: 두 칸이 위아래 끝을 맞춘다
- * │ 회원 3 / 셀러 3 / 매출 3      │ │                      │
- * └───────────────────────────────┘ └──────────────────────┘
- * ┌ 렌트 관리 (4단계) ────────────┐ ┌ 총 매출 현황(금액) ──┐   ← 2줄
- * ┌ 판매 관리 (4단계) ────────────┐ │                      │
- * └───────────────────────────────┘ └──────────────────────┘
+ * 회원 지표 | 셀러 지표 | 매출 지표         ← 1행 3열. 카드 안은 "라벨 ··· 값 단위" 3행
+ * 총 매출 현황(건수) | 총 매출 현황(금액) ← 1행 2열. **남는 세로 공간을 이 줄이 흡수한다**
+ * 렌트 관리 | 판매 관리                  ← 상태 흐름, 1행 2열 (각 4단계)
  * ```
- * 왼쪽 : 오른쪽 = 1.12 : 1 (원본 값). 2026-09-18 의 「지표 3그룹 카드 1행 3열」 배치를 대체한다.
- * 2단이 안 되는 폭(이 영역 60rem 미만)에서는 **지표 → 흐름 → 차트** 순으로 한 줄씩 쌓는다
- * (원본 `@media(max-width:1200px)` 와 같은 순서). 판단 기준은 뷰포트가 아니라 **이 영역의 폭**
- * (`@container`)이다 — GNB 를 접고 펴도 맞는다.
- * 원본의 706px 한 화면을 억지로 맞추지 않는다 — 글자·차트 최소 높이(240)를 줄이지 않는다.
+ * - **차트 2장을 붙였다** — 원본은 두 차트 사이에 흐름을 끼우는데, 그러면 같은 것을 두 단위로 보는
+ *   한 쌍(건수/금액)이 갈라진다.
+ * - **지표 3그룹을 한 줄에** — 그룹이 열, 항목이 행이라 세 수치가 한 세로줄에 선다.
+ * - 원본 v0.4 2단(지표 9장 + 흐름 / 차트 2장)을 2026-11-03 에 적용했다가 사용자가 되돌렸다
+ *   (「레이아웃은 기존으로」). 차트(일별 · 결제 기준 · 원 단위 · 최댓값 라벨)와 샘플 계산 숫자는 그대로다.
  *
  * ## 원본과 다르게 둔 것 (전부 결정됨)
  * - **차트 2계열(렌트·판매) + 토글 칩 + 기간 합계** — 원본은 전사 단일 계열·합계 없음.
@@ -78,7 +75,7 @@ import { APP_CHROME, GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * - 거래액 라벨 「(할인 후)」 — 정산 기준 결정
  *
  * ## 원본에 없어서 걷어낸 것 (되살리지 말 것)
- * 타일의 아이콘 · 증감(±%) · 비교 기준 문구 · 「회원 목록」 버튼 · 줄 제목(「회원 지표」) ·
+ * 타일의 아이콘 · 증감(±%) · 비교 기준 문구 · 「회원 목록」 버튼 ·
  * 흐름의 중요도 등급 · 「처리 대기」 합계 · 경보 배너 · 단계 아래 비중 막대(사용자 판단).
  *
  * ## 데이터 상태 — 실 API 를 붙이면 `status` 를 fetch 상태로 바꾼다 (§D8)
@@ -96,7 +93,7 @@ import { APP_CHROME, GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *
  * | 갈아끼울 것           | 위치                                                    |
  * | --------------------- | ------------------------------------------------------- |
- * | 지표 9장(3줄)         | `METRIC_ROWS`                                           |
+ * | 지표 9장(3그룹)       | `METRIC_GROUPS`                                         |
  * | 차트 데이터·계열      | `ORDER_COUNT_TREND` · `REVENUE_TREND` · `TREND_SERIES`  |
  * | 기간·계열 합계        | `*Totals` · `*SeriesTotals` (**뼈대가 세지 않는다**)    |
  * | 축 눈금 간격·날짜     | `TICK_EVERY` · `shortDay` · `periodRangeText`           |
@@ -104,7 +101,7 @@ import { APP_CHROME, GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * | 기간 기본값           | `DEFAULT_PERIOD` (**뼈대에 박지 않는다**)               |
  *
  * ## 그대로 두는 것 (도메인 무관)
- * 위 2단 배치 · 카드 표면 `soft`(흰 면) · 지표는 **갈 수 있는 타일에만** 화살표 ·
+ * 위 배치 순서 · **흰 카드 = 그룹 / 연한 그레이 상자 = 항목** 두 층 · 지표는 **갈 수 있는 항목에만** 화살표 ·
  * 단계를 chevron 으로 잇는 가로 체인 · 기간 세그먼트가 그 차트의 데이터만 바꾸는 흐름 ·
  * 계열이 2개 이상이면 범례 필수 · 차트는 흰 면 위(§D7-9)
  * ====================================================================== */
@@ -123,93 +120,166 @@ export interface BabycubeDashboardPageProps {
 const ordersHref = (kind: "렌트" | "판매", step: string) =>
   `${ORDERS_NAV_ID}?${new URLSearchParams({ stat: kind, flow: step })}`;
 
-/**
- * 지표 타일의 면 — `Card variant="soft"` 와 같은 흰 면 · radius 12 · 옅은 그림자 · 경계선.
- *
- * ## 왜 `Card` 나 `StatTile` 이 아닌가
- * 원본은 **카드 1장 = 수치 1개**다. `Card` 는 안쪽 24 가 고정이라 1280 에서 타일 안쪽이
- * 104px 로 줄어 `489,700원` 이 들어가지 않는다. `StatTile plain` 은 흰 카드 **안에** 드는 회색
- * 항목이고, `card` 는 표시 전용이라 누를 수 없다. 그래서 같은 토큰으로 면만 페이지 안에서 만든다
- * (`DESIGN-dashboard.md` §D3-6). 두 번째 화면이 쓰게 되면 `StatTile` variant 로 올린다.
- */
-const TILE_FACE =
-  "flex h-full w-full min-w-0 flex-col justify-center gap-2 rounded-large bg-surface p-4 text-left shadow-xsmall outline-1 -outline-offset-1 outline-border";
+/** 행 상자 — `StatTile plain` 과 같은 층(회색 면 · radius 8). 로딩 자리도 같은 상자를 쓴다 */
+const ROW_BOX =
+  "flex w-full items-center gap-3 rounded-medium bg-surface-sub px-4 py-3 text-left";
 
 /**
- * 지표 타일 한 장 — 라벨(위) · 값 + 단위(아래). 원본 `.dstat` (proto.html:95~100).
+ * 지표 한 행 — "라벨 ··· 값 단위 →".
  *
- * 줄 높이가 차트에 맞춰 늘어나도 라벨과 값을 **붙인 채 세로 가운데**에 둔다(원본
- * `.dstat{justify-content:center}`) — 위아래 끝으로 벌리면 1440 에서 둘 사이가 50px 넘게 떠 한 쌍으로 안 읽힌다.
- * 갈 곳이 있을 때만 버튼이 되고 화살표가 붙는다(§D3-5). hover 는 면, focus 는 테두리.
- * 라벨은 줄을 바꿔도 자르지 않는다 — 잘리면 무엇을 세는지 알 수 없다.
+ * ## 왜 `StatTile` 이 아니라 행인가
+ * `StatTile` 은 라벨을 좌상단, 수치를 우하단에 둔다(§D3). 그룹이 **열**이 되면서
+ * 항목은 세로로 쌓이는데, 그 배치로 쌓으면 상자 하나가 112px 이라 지표 영역 높이가
+ * 줄지 않는다. 행으로 두면 56px 이고, **세 수치가 오른쪽 한 세로줄에 서서** 그룹 안
+ * 비교가 된다. 모양은 `StatTile plain` 과 같은 층(회색 상자 · `metric-small` · 값/단위 분리)을 쓴다.
+ *
+ * ## 좁으면 두 줄로 접힌다 — 컨테이너 쿼리
+ * 1440px 에서 카드 안쪽이 약 315px 인데 `입점사 거래액(할인 후)` + 억 단위 금액(`824,000,000원`)은
+ * 한 줄에 들어가지 않는다. 뷰포트가 아니라 **목록 자신의 폭**(`@container`)으로 갈라
+ * 22rem(352px) 이상일 때만 한 줄로 편다 — 열 수가 바뀌어도 이 판단은 그대로 맞는다.
+ *
+ * ## 화살표 자리는 **모든 행에** 비워 둔다
+ * 갈 수 있는 행에만 화살표 폭(16)을 주면 그 행의 수치만 16px 왼쪽으로 밀려
+ * **세로줄이 깨진다.** 갈 곳이 없는 행은 같은 폭의 빈 칸을 둔다(아이콘 없음 — 테스트가 센다).
  */
-function MetricTile({
+function MetricRow({
   label,
   value,
   unit,
   status,
   onOpen,
+  openLabel,
 }: {
   label: string;
   value: string;
   unit: string;
   status: DataStatus;
   onOpen?: () => void;
+  openLabel: string;
 }) {
   const body = (
     <>
-      <span className="flex items-start justify-between gap-1">
+      <span className="flex min-w-0 flex-1 flex-col gap-1 @min-[22rem]:flex-row @min-[22rem]:items-baseline @min-[22rem]:justify-between @min-[22rem]:gap-3">
         <span className="body-medium break-keep text-text-sub">{label}</span>
-        {onOpen ? (
-          <ArrowUpRight
-            size={16}
-            strokeWidth={1.2}
-            aria-hidden
-            className="mt-0.5 shrink-0 text-icon-sub transition-colors duration-100 group-hover:text-icon"
-          />
-        ) : null}
-      </span>
-      {status === "loading" ? (
-        /* 줄높이(`h-lh`)를 감싼 수치 프리셋에서 받아 실제 값과 높이가 같다 */
-        <span className="metric-small w-24">
-          <Skeleton />
-        </span>
-      ) : (
-        /* 값은 비례폭이다 — 큰 글자에 등폭을 주면 `30` 이 헐거워 보인다 (§D6-2) */
+        {/* 값은 비례폭이다 — 큰 글자에 등폭을 주면 `128` 이 헐거워 보인다 (§D6-2) */}
+        {/* 갱신 중에는 값 묶음만 흐린다 — 라벨은 그대로(§D8) */}
         <span
-          className={cn(
-            "flex flex-wrap items-baseline gap-1",
-            dimWhile(status),
-          )}
+          className={cn("flex shrink-0 items-baseline gap-1", dimWhile(status))}
         >
           <strong className="metric-small text-text">{value}</strong>
           <span className="body-medium text-text-sub">{unit}</span>
         </span>
+      </span>
+      {onOpen ? (
+        <ArrowUpRight
+          size={16}
+          strokeWidth={1.2}
+          aria-hidden
+          className="shrink-0 text-icon-sub transition-colors duration-100 group-hover:text-icon"
+        />
+      ) : (
+        <span className="size-4 shrink-0" aria-hidden />
       )}
     </>
   );
 
-  if (!onOpen || status === "loading") {
-    return (
-      <div className={TILE_FACE} aria-busy={isBusy(status)}>
-        {body}
-      </div>
-    );
+  if (!onOpen) {
+    return <div className={ROW_BOX}>{body}</div>;
   }
 
+  /*
+    갈 곳이 있을 때만 버튼이 된다(§D3-5). hover 는 면, focus 는 테두리 —
+    `StatTile` 의 PRESSABLE 과 같은 규칙이다. `w-full` 은 버튼이 부모를 채우게 하는 필수값.
+  */
   return (
     <button
       type="button"
       onClick={onOpen}
-      aria-label={`${label} ${value}${unit} 목록 열기`}
-      aria-busy={isBusy(status)}
+      aria-label={openLabel}
       className={cn(
-        TILE_FACE,
-        "group cursor-pointer transition-colors duration-100 ease-out hover:bg-surface-sub focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus",
+        ROW_BOX,
+        "group cursor-pointer transition-colors duration-100 ease-out hover:bg-surface-slate-secondary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus",
       )}
     >
       {body}
     </button>
+  );
+}
+
+/**
+ * 지표 행의 로딩 자리. **실제 행과 높이가 같다**(py-3 + `metric-small` 줄높이 32 = 56) —
+ * 라벨은 **실제 글자**(안 바뀐다 · §D8-1), 값만 스켈레톤이다.
+ */
+function MetricRowSkeleton({ label }: { label: string }) {
+  return (
+    <div className={ROW_BOX}>
+      <span className="flex min-w-0 flex-1">
+        <span className="body-medium break-keep text-text-sub">{label}</span>
+      </span>
+      <span className="metric-small ml-auto w-28">
+        <Skeleton />
+      </span>
+      <span className="size-4 shrink-0" aria-hidden />
+    </div>
+  );
+}
+
+/**
+ * 지표 그룹 한 장 (원본 `dstat-grid`). 3열 중 한 칸이다.
+ *
+ * ## 왜 타일마다 카드를 세우지 않는가
+ * 9장이 전부 독립 **카드**였을 때 "회원 지표"라는 제목이 붙어 있어도 묶여 보이지 않았다 —
+ * 카드 경계 9개가 그룹 경계 3개보다 세서 그룹핑이 시각적으로 지고 있었다.
+ *
+ * 지금은 층이 둘이다: **흰 카드 = 그룹, 연한 그레이 상자 = 항목.**
+ * 면(fill)으로 항목을 가르면 경계선이 하나도 늘지 않아 그룹이 계속 이긴다.
+ */
+function MetricGroupCard({
+  group,
+  status,
+  onNavSelect,
+}: {
+  group: (typeof METRIC_GROUPS)[number];
+  status: DataStatus;
+  onNavSelect: (path: string) => void;
+}) {
+  return (
+    <Card variant="soft" aria-busy={isBusy(status)}>
+      <CardHeader title={group.title} />
+      <CardBody>
+        {/*
+          간격 8 — **카드 안 항목 묶음**이다(카드 사이 24 와 다른 축).
+          행은 타일보다 낮아서 12 를 주면 행 사이가 행 높이의 20% 가 되어
+          목록이 아니라 따로 떨어진 상자로 읽힌다.
+        */}
+        <ul className="@container flex flex-col gap-2">
+          {group.metrics.map((metric) => {
+            if (status === "loading") {
+              return (
+                <li key={metric.label}>
+                  <MetricRowSkeleton label={metric.label} />
+                </li>
+              );
+            }
+            /* 원본의 `go` 가 있는 타일만 눌린다 — 오늘 방문자·오늘 가입자는
+               그날치 집계라 대응하는 목록 화면이 없다 */
+            const navId = "navId" in metric ? metric.navId : undefined;
+            return (
+              <li key={metric.label}>
+                <MetricRow
+                  label={metric.label}
+                  value={metric.value}
+                  unit={metric.unit}
+                  status={status}
+                  onOpen={navId ? () => onNavSelect(navId) : undefined}
+                  openLabel={`${metric.label} ${metric.value}${metric.unit} 목록 열기`}
+                />
+              </li>
+            );
+          })}
+        </ul>
+      </CardBody>
+    </Card>
   );
 }
 
@@ -220,8 +290,6 @@ function MetricTile({
  * ## `<ol>` 이 아니라 `role="list"` 인 이유
  * 화살표를 **칸 밖**에 두어야 상자 4개의 폭이 같고 화살표가 두 상자 딱 중간에 온다.
  * `<ol>` 안에는 `<li>` 만 올 수 있어 화살표를 형제로 둘 수 없다.
- *
- * 줄 높이가 차트에 맞춰 늘어나면 본문을 **세로 가운데**에 둔다(원본 `align-content:center`).
  */
 function FlowCard({
   title,
@@ -237,7 +305,7 @@ function FlowCard({
   return (
     <Card variant="soft" aria-busy={isBusy(status)}>
       <CardHeader title={title} />
-      <CardBody className={cn("flex-1 justify-center", dimWhile(status))}>
+      <CardBody className={dimWhile(status)}>
         <div role="list" className="flex items-stretch">
           {steps.map((step, index) => (
             <Fragment key={step.value}>
@@ -428,15 +496,6 @@ const seriesValuesOf = (
     TREND_SERIES.map((s) => [s.key, format(totals[s.key] ?? 0)]),
   );
 
-/*
-  2단 자리 — 컨테이너 폭 60rem 이상에서만. 위치를 **명시**해 DOM 순서(지표 → 흐름 → 차트)와
-  2단 배치(왼쪽 지표·흐름 / 오른쪽 차트)를 함께 얻는다. 접히면 DOM 순서대로 쌓인다.
-*/
-const AT_TILES = "@min-[60rem]:col-start-1 @min-[60rem]:row-start-1";
-const AT_FLOWS = "@min-[60rem]:col-start-1 @min-[60rem]:row-start-2";
-const AT_COUNT = "@min-[60rem]:col-start-2 @min-[60rem]:row-start-1";
-const AT_REVENUE = "@min-[60rem]:col-start-2 @min-[60rem]:row-start-2";
-
 export function BabycubeDashboardPage({
   navOpen,
   onNavOpenChange,
@@ -470,100 +529,69 @@ export function BabycubeDashboardPage({
       }
     >
       {/*
-        `flex-1` — 큰 모니터에서 남는 세로 공간을 두 줄이 나눠 갖는다(차트가 늘어난다).
-        `@container` — 2단 전환을 뷰포트가 아니라 이 영역의 폭으로 판단한다.
+        ── 지표 9장 (회원 3 · 셀러 3 · 매출 3) — 그룹이 열이다 ─────────
+        거터 24 — 카드 사이 규격(§D2-2). 세 그룹이 같은 무게라 균등 3열이다.
       */}
-      <div className="@container flex flex-1 flex-col">
-        <div className="grid flex-1 gap-6 @min-[60rem]:grid-cols-[1.12fr_1fr]">
-          {/*
-            ── 지표 9장 — 줄 = 집계 범위(회원 · 셀러 · 매출) ──────────────
-            줄 제목은 없다(원본). 묶음 이름은 스크린리더에만 준다.
-            거터 24 — 카드 사이 규격(§D2-2).
-          */}
-          <section
-            aria-label="현황 지표"
-            className={cn("grid grid-rows-3 gap-6", AT_TILES)}
-          >
-            {METRIC_ROWS.map((row) => (
-              <div
-                key={row.id}
-                role="group"
-                aria-label={row.name}
-                className="grid grid-cols-3 gap-6"
-              >
-                {row.metrics.map((metric) => {
-                  /* 원본 `go` 가 있는 타일만 눌린다 — 오늘 방문자·가입자는 갈 곳이 없다 */
-                  const navId = "navId" in metric ? metric.navId : undefined;
-                  return (
-                    <MetricTile
-                      key={metric.label}
-                      label={metric.label}
-                      value={metric.value}
-                      unit={metric.unit}
-                      status={countsStatus}
-                      onOpen={navId ? () => onNavSelect(navId) : undefined}
-                    />
-                  );
-                })}
-              </div>
-            ))}
-          </section>
-
-          {/* ── 흐름 2장 — 렌트 · 판매 (각 4단계) ───────────────────────── */}
-          <div className={cn("grid grid-rows-2 gap-6", AT_FLOWS)}>
-            <FlowCard
-              title="렌트 관리"
-              steps={RENT_FUNNEL}
-              status={countsStatus}
-              onStepSelect={(step) =>
-                onNavSelect(ordersHref("렌트", step.label))
-              }
-            />
-            <FlowCard
-              title="판매 관리"
-              steps={SALE_FUNNEL}
-              status={countsStatus}
-              onStepSelect={(step) =>
-                onNavSelect(ordersHref("판매", step.label))
-              }
-            />
-          </div>
-
-          {/* ── 총 매출 현황 2종 — 결제 기준 일별 ───────────────────────── */}
-          <TrendChartCard
-            title="총 매출 현황(건수)"
-            measure="결제 건수"
-            className={AT_COUNT}
-            period={countPeriod}
-            onPeriodChange={(value) => setCountPeriod(asPeriod(value))}
-            total={{ value: num(orderCountTotals[countPeriod]), unit: "건" }}
-            seriesValues={seriesValuesOf(
-              orderCountSeriesTotals[countPeriod],
-              count,
-            )}
-            note={COUNT_NOTE}
-            status={status}
-            data={ORDER_COUNT_TREND[countPeriod]}
-            format={count}
-            integerTicks
+      <section aria-label="핵심 지표" className="grid grid-cols-3 gap-6">
+        {METRIC_GROUPS.map((group) => (
+          <MetricGroupCard
+            key={group.id}
+            group={group}
+            status={countsStatus}
+            onNavSelect={onNavSelect}
           />
-          <TrendChartCard
-            title="총 매출 현황(금액)"
-            measure="결제 금액"
-            className={AT_REVENUE}
-            period={revenuePeriod}
-            onPeriodChange={(value) => setRevenuePeriod(asPeriod(value))}
-            total={{ value: num(revenueTotals[revenuePeriod]), unit: "원" }}
-            seriesValues={seriesValuesOf(
-              revenueSeriesTotals[revenuePeriod],
-              won,
-            )}
-            note={REVENUE_NOTE}
-            status={status}
-            data={REVENUE_TREND[revenuePeriod]}
-            format={won}
-          />
-        </div>
+        ))}
+      </section>
+
+      {/*
+        ── 총 매출 현황 2종 — **같은 성격이라 나란히 둔다** ─────────────
+        `flex-1` — 이 줄이 **남는 세로 공간을 흡수한다**(차트가 `height="fill"`).
+      */}
+      <div className="grid flex-1 grid-cols-2 gap-6">
+        <TrendChartCard
+          title="총 매출 현황(건수)"
+          measure="결제 건수"
+          period={countPeriod}
+          onPeriodChange={(value) => setCountPeriod(asPeriod(value))}
+          total={{ value: num(orderCountTotals[countPeriod]), unit: "건" }}
+          seriesValues={seriesValuesOf(
+            orderCountSeriesTotals[countPeriod],
+            count,
+          )}
+          note={COUNT_NOTE}
+          status={status}
+          data={ORDER_COUNT_TREND[countPeriod]}
+          format={count}
+          integerTicks
+        />
+        <TrendChartCard
+          title="총 매출 현황(금액)"
+          measure="결제 금액"
+          period={revenuePeriod}
+          onPeriodChange={(value) => setRevenuePeriod(asPeriod(value))}
+          total={{ value: num(revenueTotals[revenuePeriod]), unit: "원" }}
+          seriesValues={seriesValuesOf(revenueSeriesTotals[revenuePeriod], won)}
+          note={REVENUE_NOTE}
+          status={status}
+          data={REVENUE_TREND[revenuePeriod]}
+          format={won}
+        />
+      </div>
+
+      {/* 흐름 2종 — 각 4단계라 절반 폭에 한 줄로 들어간다 */}
+      <div className="grid grid-cols-2 gap-6">
+        <FlowCard
+          title="렌트 관리"
+          steps={RENT_FUNNEL}
+          status={countsStatus}
+          onStepSelect={(step) => onNavSelect(ordersHref("렌트", step.label))}
+        />
+        <FlowCard
+          title="판매 관리"
+          steps={SALE_FUNNEL}
+          status={countsStatus}
+          onStepSelect={(step) => onNavSelect(ordersHref("판매", step.label))}
+        />
       </div>
     </AppShell>
   );

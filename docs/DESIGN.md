@@ -168,7 +168,7 @@ Variant 8종·상태 전이는 **Button과 완전히 동일**. 사이즈만 다�
 
 ### 5-2. 드롭다운 패널
 
-- 패널: `radius: large(12)` · `overflow: hidden` · `shadow-layer`
+- 패널: `radius: large(12)` · `overflow: hidden` · `shadow-layer` · 폭은 **`min-width` = 트리거 폭**(내용이 넓으면 따라 넓어진다 — 폭을 트리거와 같게 고정하면 짧은 트리거에서 옵션 108 + 여백이 넘쳐 가로 스크롤바가 생긴다)
 - 컬럼: padding 16 · 세로 gap 4 · `bg: surface` · 컬럼 구분선 `box-shadow: inset -1px 0 0 border`
 - 옵션: `min-width 108` · padding `8 12` · `radius: medium` · 14 / 24 / 400
   - hover `action-secondary-hover` (선택·비활성 아닐 때만) · **selected `action-primary-tonal`**

@@ -104,11 +104,12 @@ const triggerBaseClasses = cn(
  *
  * `overflow-hidden`(§5-2) 과 `overflow-y-auto` 를 각각 다른 요소에 나눠 달면
  * `role="listbox"` 와 `role="option"` 사이에 익명 div 가 끼어 소유 관계가 끊긴다.
- * 그래서 한 요소가 리스트박스이자 스크롤러다 — `overflow-y: auto` 만 지정해도
- * CSS 규칙상 `overflow-x` 가 `visible` 에서 `auto` 로 계산되어 radius 클리핑은 유지된다.
+ * 그래서 한 요소가 리스트박스이자 스크롤러다. `overflow-x` 는 **`hidden` 을 명시**한다 —
+ * `overflow-y: auto` 만 주면 `overflow-x` 가 `auto` 로 계산되어 옵션이 조금만 넘쳐도
+ * 가로 스크롤바가 생긴다(§5-2 `overflow: hidden`). radius 클리핑은 둘 다 유지된다.
  */
 const panelClasses = cn(
-  "flex flex-col gap-1 overflow-y-auto overscroll-contain p-1.5",
+  "flex flex-col gap-1 overflow-x-hidden overflow-y-auto overscroll-contain p-1.5",
   "rounded-large bg-surface shadow-layer",
   "z-(--z-sidesheet)",
 );
@@ -241,8 +242,13 @@ export function Select({
       size({
         padding: 8,
         apply({ rects, availableHeight, elements }) {
-          // 패널 폭을 트리거와 맞춘다. 값이 런타임 실측이라 토큰 대상이 아니다
-          elements.floating.style.width = `${rects.reference.width}px`;
+          /*
+            패널은 **트리거보다 좁아지지 않고, 내용이 더 넓으면 내용을 따른다**(최소 폭만 준다).
+            예전엔 폭을 트리거와 같게 고정했는데, 짧은 트리거(72~112)에서는 옵션 최소 폭 108(§5-2)
+            + 패널 여백 12 = 120 이 들어가지 않아 **가로 스크롤바**가 생겼다(2026-11-03 사용자 지적).
+            값이 런타임 실측이라 토큰 대상이 아니다
+          */
+          elements.floating.style.minWidth = `${rects.reference.width}px`;
           elements.floating.style.maxHeight = `${Math.min(
             availableHeight,
             panelMaxHeight,

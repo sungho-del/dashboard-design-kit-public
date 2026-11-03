@@ -318,6 +318,12 @@ export function Gnb({
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>(() =>
     initialExpandedIds(sections, activeId),
   );
+  /*
+   * 접기 직후 hover 확장 잠금 — 접기 버튼을 누른 순간 마우스는 **사이드바 위에** 있다.
+   * 그대로 두면 `hover:` 확장이 곧장 걸려 224 폭이 남아 "안 접힌다"로 보인다.
+   * 마우스가 사이드바를 한 번 벗어날 때까지 hover 확장을 끈다.
+   */
+  const [peekLocked, setPeekLocked] = useState(false);
 
   /*
    * 스크롤 위치 복원 — **`useLayoutEffect` 여야 한다.**
@@ -500,7 +506,10 @@ export function Gnb({
             <PanelLeftOpen strokeWidth={1.2} />
           )
         }
-        onClick={() => onOpenChange(!open)}
+        onClick={() => {
+          if (open) setPeekLocked(true);
+          onOpenChange(!open);
+        }}
       />
     </div>
   ) : null;
@@ -565,11 +574,14 @@ export function Gnb({
     <div className="sticky top-0 z-(--z-sidesheet) h-dvh min-w-(--size-gnb-collapsed) shrink-0">
       <div
         data-open={open}
+        onMouseLeave={peekLocked ? () => setPeekLocked(false) : undefined}
         className={cn(
           "@container flex h-full flex-col gap-6 bg-surface px-3 py-4 text-text shadow-gnb",
           open
             ? "relative w-(--size-gnb-expanded)"
-            : "absolute top-0 left-0 w-(--size-gnb-collapsed) hover:w-(--size-gnb-expanded)",
+            : peekLocked
+              ? "absolute top-0 left-0 w-(--size-gnb-collapsed)"
+              : "absolute top-0 left-0 w-(--size-gnb-collapsed) hover:w-(--size-gnb-expanded)",
           className,
         )}
       >

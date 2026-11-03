@@ -153,6 +153,8 @@ describe("Select", () => {
       }
       // 눌림을 막았으니 넘치는 만큼은 목록이 스크롤해야 한다
       expect(listbox.className).toContain("overflow-y-auto");
+      // 가로는 숨긴다 — 짧은 트리거에서 옵션 최소 폭 때문에 가로 스크롤바가 생기던 회귀 방지
+      expect(listbox.className.split(/\s+/)).toContain("overflow-x-hidden");
     });
   });
 

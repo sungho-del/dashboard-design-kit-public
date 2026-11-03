@@ -215,6 +215,26 @@ describe("Gnb", () => {
     expect(onOpenChange).toHaveBeenCalledWith(true);
   });
 
+  it("접기를 누른 직후에는 hover 확장을 끄고, 마우스가 한 번 나가면 다시 켠다", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    const { container, rerender } = render(
+      <Gnb sections={SECTIONS} open onOpenChange={onOpenChange} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "메뉴 접기" }));
+    rerender(
+      <Gnb sections={SECTIONS} open={false} onOpenChange={onOpenChange} />,
+    );
+    const wrapper = container.querySelector("[data-open]") as HTMLElement;
+    // 마우스가 아직 사이드바 위 — 여기서 hover 확장이 걸리면 "안 접힌다"로 보인다
+    expect(wrapper).toHaveClass("w-(--size-gnb-collapsed)");
+    expect(wrapper).not.toHaveClass("hover:w-(--size-gnb-expanded)");
+
+    await user.unhover(wrapper);
+    expect(wrapper).toHaveClass("hover:w-(--size-gnb-expanded)");
+  });
+
   it("onOpenChange가 없으면 토글을 만들지 않는다", () => {
     render(<Gnb sections={SECTIONS} />);
 

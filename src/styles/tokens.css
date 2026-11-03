@@ -91,6 +91,14 @@
     font-size: var(--text-base);
     line-height: var(--leading-6);
   }
+
+  /* 누를 수 있는 것은 손가락 커서 — DESIGN.md §1-3 전역 reset 규격.
+     Tailwind v4 preflight 가 button 을 `cursor: default` 로 되돌려서 명시한다.
+     disabled 는 각 컴포넌트의 `disabled:cursor-not-allowed` 가 이긴다(유틸리티 층이 base 보다 위). */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
 }
 
 /* ── 타이포그래피 프리셋 ─────────────────────────────────

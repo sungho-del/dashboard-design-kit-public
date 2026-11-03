@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BabycubeDashboardPage } from "./DashboardPage";
 import {
-  METRIC_ROWS,
+  METRIC_GROUPS,
   ORDER_COUNT_TREND,
   orderCountSeriesTotals,
   orderCountTotals,
@@ -254,16 +254,15 @@ describe("결제 집계 계약", () => {
 
 describe("BabycubeDashboardPage (S01 대시보드)", () => {
   describe("지표 9장", () => {
-    it("줄(회원·셀러·매출)마다 3장 — 줄 제목은 화면에 없고 묶음 이름만 있다", () => {
+    it("그룹 카드 3장(회원·셀러·매출)에 항목이 3개씩 — 그룹이 열, 항목이 행이다", () => {
       renderPage();
+      const metrics = screen.getByRole("region", { name: "핵심 지표" });
 
-      for (const name of ["회원 현황", "셀러 현황", "매출 현황"]) {
-        expect(screen.getByRole("group", { name }).children).toHaveLength(3);
+      for (const group of METRIC_GROUPS) {
+        expect(within(metrics).getByText(group.title)).toBeVisible();
+        expect(group.metrics).toHaveLength(3);
       }
-      // 원본에 없는 줄 제목(09-18 그룹 카드)이 되살아나지 않는다
-      for (const title of ["회원 지표", "셀러 지표", "매출 지표"]) {
-        expect(screen.queryByText(title)).not.toBeInTheDocument();
-      }
+      expect(metrics.querySelectorAll("li")).toHaveLength(9);
     });
 
     it("숫자는 샘플에서 나온다 — 타일을 눌러 간 화면과 같은 모집단", () => {
@@ -310,7 +309,7 @@ describe("BabycubeDashboardPage (S01 대시보드)", () => {
 
     it("값을 누르면 해당 목록 화면으로 나간다 — 7곳", async () => {
       const { user, onNavSelect } = renderPage();
-      const links = METRIC_ROWS.flatMap((row) => row.metrics).filter(
+      const links = METRIC_GROUPS.flatMap((group) => group.metrics).filter(
         (m): m is typeof m & { navId: string } => "navId" in m,
       );
       expect(links).toHaveLength(7);
@@ -328,7 +327,7 @@ describe("BabycubeDashboardPage (S01 대시보드)", () => {
     it("화살표는 갈 수 있는 타일에만 붙고, 갈 곳이 없는 타일은 버튼이 아니다", () => {
       renderPage();
 
-      const metrics = screen.getByRole("region", { name: "현황 지표" });
+      const metrics = screen.getByRole("region", { name: "핵심 지표" });
       expect(metrics.querySelectorAll(".lucide-arrow-up-right")).toHaveLength(
         7,
       );
