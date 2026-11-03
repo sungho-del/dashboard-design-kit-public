@@ -167,24 +167,29 @@ export const num = (value: number) => value.toLocaleString("ko-KR");
  * 라벨 괄호 설명까지 원본 문구다. 원본 색: 환급 대기액 = warn → `warning` ·
  * 차감 수익 = brand(우리 타일에 해당 색조 없음 — 무채색).
  */
+/**
+ * 요약 4값 — 라벨 괄호 안 설명(원본 문구 그대로)은 라벨이 아니라 값 아래 `caption` 으로.
+ * 환급 대기는 정상 진행 상태라 경고색을 쓰지 않는다(경고색은 실제 이상에만 — 정산 화면 공통).
+ */
 export const SUMMARY_STATS: {
   label: string;
   value: string;
   unit: string;
-  tone?: "warning";
+  caption?: string;
 }[] = [
   { label: "점유중 보증금 총액", value: num(holdingTotal), unit: "원" },
   {
-    label: "환급 대기액 (판정됨·실행 전)",
+    label: "환급 대기액",
     value: num(pendingRefundTotal),
     unit: "원",
-    tone: "warning",
+    caption: "판정됨·실행 전",
   },
   { label: "반환 완료액", value: num(returnedTotal), unit: "원" },
   {
-    label: "차감 수익 (연체료+손상 · 상한=보증금)",
+    label: "차감 수익",
     value: num(deductedTotal),
     unit: "원",
+    caption: "연체료+손상 · 상한=보증금",
   },
 ];
 
@@ -204,9 +209,9 @@ export const won = (value: number) => value.toLocaleString("ko-KR") + "원";
 /** 금액이 없는 칸 — 원본 그대로 `0원` 이 아니라 `-` */
 export const NONE = "-";
 
-/** 차감 칸 — 있으면 `- 25,000원`, 없으면 `-` */
+/** 차감 칸 — 있으면 `−25,000원`(U+2212 · 정산 화면 공통 부호), 없으면 `-`(원본) */
 export const deductText = (value: number) =>
-  value > 0 ? `- ${won(value)}` : NONE;
+  value > 0 ? `−${won(value)}` : NONE;
 
 /** 상태 변경일 — 원본 `depStatAt` 처럼 날짜만(`2026.09.19`), 점유중은 `-` */
 export const ymd = (dateText: string | null) =>

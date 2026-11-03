@@ -1,6 +1,10 @@
 import { depositOf, type DepositState } from "./deposit.data";
 import { periodText, type Order } from "./OrderListPage.data";
-import { CLAIM_ROWS, type CareClaimRow } from "./CareClaimListPage.data";
+import {
+  CLAIM_ROWS,
+  REVIEWABLE_STATUS,
+  type CareClaimRow,
+} from "./CareClaimListPage.data";
 
 /* -------------------------------------------------------------------------
  * S14-D 안심케어 청구 상세 — 도메인 층 (`/care-claims/{처리단위}`)
@@ -26,6 +30,7 @@ import { CLAIM_ROWS, type CareClaimRow } from "./CareClaimListPage.data";
  * ## 뼈대가 이 파일에 기대하는 계약
  * - **청구 접수만 [승인][반려]** — 종결 건(승인·반려)은 하단 바에 [목록]만(원본 UI-287)
  * - 승인 건만 「승인일」·「정산 반영」, 반려 건만 「반려 사유 (반려일)」 + 안내, 접수 건만 안내 한 줄
+ *   (안내는 `judgeNotesOf` — 공통 대조 안내와 함께 「청구 심사」 끝 안내 상자 하나. 결과는 증빙 **아래** 그대로)
  * - 이미지가 0장이면 빈 상자가 아니라 **문장**으로 말한다(원본 — 「미등록 = 대조 근거 없음」)
  *
  * ## 이미지 — 실제 파일이 없다
@@ -47,10 +52,14 @@ export const SECTIONS = {
   judge: "청구 심사",
 } as const;
 
-/** 원본 문구 그대로 */
+/**
+ * 원본 문구 그대로 — 단 `deductionHelp` 끝의 기획 내부 번호 `(#13)` 은 화면에서 뺐다(근거는 이 파일 머리 주석).
+ * 값 곁 설명(`deductionHelp`·`amountHelp`·`shipHelp`·`returnHelp`)은 그 값 옆에,
+ * 공통·상태별 안내(`evidenceNote` + `pendingNote`|`rejectedNote`)는 「청구 심사」 끝 안내 상자 하나에(`judgeNotesOf`)
+ */
 export const COPY = {
   deductionHelp:
-    "복원가능 파손 + 케어 가입 건은 본사 부담이라 차감하지 않습니다(#13).",
+    "복원가능 파손 + 케어 가입 건은 본사 부담이라 차감하지 않습니다.",
   amountHelp: "입점사 입력값 — 본사는 승인·반려만 합니다.",
   shipLabel: "발송 전 이미지",
   shipEmpty:
@@ -68,6 +77,16 @@ export const COPY = {
   pendingNote:
     "승인하면 익월 정산에 보전되고, 반려하면 보증금 차감 판단으로 되돌아갑니다.",
 };
+
+/**
+ * 「청구 심사」 끝 안내 상자 줄 — 공통 대조 안내 + 상태별 안내(접수 = 처리 안내 · 반려 = 반려 안내 · 승인 = 없음).
+ * 노출 조건은 원본 그대로다
+ */
+export const judgeNotesOf = (row: CareClaimRow): string[] => [
+  COPY.evidenceNote,
+  ...(row.status === "rejected" ? [COPY.rejectedNote] : []),
+  ...(row.status === REVIEWABLE_STATUS ? [COPY.pendingNote] : []),
+];
 
 /** 이용 기간 `2026.08.24 ~ 2026.09.13` */
 export const periodOf = (row: CareClaimRow) =>

@@ -124,6 +124,35 @@ describe("DataTableShell", () => {
       expect(screen.getByRole("button", { name: "검색" })).toBeVisible();
     });
 
+    it("오른쪽 묶음은 데스크톱에서 `ml-auto` — 줄이 바뀌거나 혼자여도 오른쪽에 남는다 (§7-1)", () => {
+      const both = render(
+        <DataTableShell
+          toolbarStart={<span>상태</span>}
+          toolbarEnd={<button type="button">추가</button>}
+        />,
+      );
+      const end = slot(both.container, "toolbar")?.lastElementChild;
+      expect(end?.className).toContain("sm:ml-auto");
+      expect(end?.className).toContain("w-full");
+      both.unmount();
+
+      const endOnly = render(
+        <DataTableShell toolbarEnd={<button type="button">추가</button>} />,
+      );
+      expect(
+        slot(endOnly.container, "toolbar")?.firstElementChild?.className,
+      ).toContain("sm:ml-auto");
+      endOnly.unmount();
+
+      /* 왼쪽 묶음에는 걸지 않는다 — start 만 있을 때 왼쪽 그대로 */
+      const startOnly = render(
+        <DataTableShell toolbarStart={<span>상태</span>} />,
+      );
+      expect(
+        slot(startOnly.container, "toolbar")?.firstElementChild?.className,
+      ).not.toContain("ml-auto");
+    });
+
     it("좌우 24 패딩과 gap 8을 갖는다 (§7-1)", () => {
       const { container } = render(
         <DataTableShell toolbar={<span>툴바</span>} />,

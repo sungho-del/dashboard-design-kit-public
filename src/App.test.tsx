@@ -142,6 +142,13 @@ describe("App (전달본)", () => {
     ["/rent-deposit", "보증금"],
     ["/care-claims", "안심케어"],
     ["/settle-statement", "명세서"],
+    /* 프로모션 · 게시판의 상세/폼 */
+    ["/promo", "쿠폰"],
+    ["/points", "포인트 현황"],
+    ["/notices", "공지"],
+    ["/faq-admin", "FAQ"],
+    ["/reviews-admin", "리뷰"],
+    ["/support", "문의"],
   ])("%s 의 첫 행을 누르면 %s 상세에 도착한다", async (list) => {
     renderAt(list);
 

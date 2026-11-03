@@ -4,6 +4,7 @@ import {
   ChevronUp,
   ClipboardCheck,
   Image as ImageIcon,
+  Info,
   ZoomIn,
 } from "lucide-react";
 import {
@@ -47,6 +48,7 @@ import {
   depositOfClaim,
   evidenceOf,
   findClaim,
+  judgeNotesOf,
   periodOf,
   SECTIONS,
 } from "./CareClaimDetailPage.data";
@@ -60,8 +62,9 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *
  * ```
  * 청구 근거   ← 주문번호 · 셀러 · 상품 · 이용 기간 · 검수 판정 · 보증금 · 보증금 차감(+도움말)
- * 청구 심사   ← 청구 상태 · 청구 복원비(+도움말) · 청구일 · 발송 전 이미지 · 파손 이미지 · 대조 안내 ·
- *               [승인] 승인일 · 정산 반영 / [반려] 반려 사유 (반려일) + 안내 / [접수] 안내
+ * 청구 심사   ← 청구 상태 · 청구 복원비(+도움말) · 청구일 · 발송 전 이미지 · 파손 이미지(각 도움말) ·
+ *               [승인] 승인일 · 정산 반영 / [반려] 반려 사유 (반려일) ·
+ *               안내 상자(대조 안내 + [반려] 반려 안내 / [접수] 처리 안내)
  * [목록]                                         [승인] [반려]   ← 하단 바 (청구 접수 건만 오른쪽)
  * ```
  * 원본은 조회 전용(`noSave`)이라 [저장하기]·[취소]가 없다 — 하단 바는 원본 그대로 [목록] + 접수 건의 [승인][반려].
@@ -346,7 +349,7 @@ function CareClaimDetailBody({
           <>
             <InfoList>
               <Item label="청구 상태">
-                <Tag tone={meta.tone} dot>
+                <Tag tone={meta.tone} dot size="small">
                   {meta.label}
                 </Tag>
               </Item>
@@ -380,8 +383,6 @@ function CareClaimDetailBody({
               help={COPY.returnHelp}
               onZoom={setZoomed}
             />
-            <Help>{COPY.evidenceNote}</Help>
-
             {claim.status === "approved" ? (
               <InfoList>
                 <Item label="승인일">
@@ -402,10 +403,22 @@ function CareClaimDetailBody({
                     </span>
                   </Item>
                 </InfoList>
-                <Help>{COPY.rejectedNote}</Help>
               </>
             ) : null}
-            {reviewable ? <Help>{COPY.pendingNote}</Help> : null}
+            {/* 공통 대조 안내 + 상태별 안내 — 한 상자(노출 조건은 `judgeNotesOf` 가 원본대로) */}
+            <div className="flex gap-2 rounded-medium bg-surface-sub px-4 py-3">
+              <Info
+                size={16}
+                strokeWidth={1.2}
+                aria-hidden
+                className="mt-0.5 shrink-0 text-icon-sub"
+              />
+              <ul className="body-small flex flex-col gap-1 text-text-sub">
+                {judgeNotesOf(claim).map((note) => (
+                  <li key={note}>{note}</li>
+                ))}
+              </ul>
+            </div>
           </>
         )}
       </Section>

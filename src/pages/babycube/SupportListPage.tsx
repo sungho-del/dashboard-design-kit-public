@@ -8,16 +8,15 @@ import {
   DataTableShell,
   DatePicker,
   EmptyState,
+  FilterBar,
   Gnb,
-  InfoItem,
-  InfoList,
   Input,
-  Modal,
-  ModalBody,
-  ModalHeader,
   PageHeader,
   Pagination,
+  PaginationSizeSelect,
+  SegmentedControl,
   Select,
+  Skeleton,
   StatGrid,
   StatTile,
   Table,
@@ -26,179 +25,229 @@ import {
   TableRow,
   TableTd,
   TableTh,
-  Tabs,
   Tag,
   TextButton,
   type DateRange,
 } from "../../components/ui";
 import {
+  asStatus,
+  dimWhile,
+  isBusy,
+  type DataStatus,
+} from "../../lib/dataStatus";
+import { PERIOD_PRESETS } from "../../lib/periodPresets";
+import { useSearchParams } from "../../lib/router";
+import {
   AUDIENCE_TABS,
   CUSTOMER_INQUIRIES,
-  customerHaystack,
+  DEFAULT_FILTER,
+  detailPathOf,
+  FILTERS,
+  filterSummary,
   PAGE_SIZE,
+  PAGE_SIZES,
   PERIOD_FIELDS,
-  REFERENCE_MONTH,
   SEARCH_FIELDS,
   SEARCH_PLACEHOLDER,
   SELLER_ASKS,
   SELLER_SUMMARY,
-  STATUS_FILTERS,
+  SELLER_TAB_QUERY,
   STATUS_META,
   TYPE_FILTERS,
   TYPE_LABELS,
+  UNIT,
   ymd,
-  type CustomerInquiry,
-  type SellerAsk,
   type SupportAudience,
+  type SupportStatus,
 } from "./SupportListPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
 /* =========================================================================
  * S22 문의 관리 (BabyCube 본사 운영 어드민) — 뼈대
+ * 기준 기획: v0.4 `SCREENS.support`(proto.html 4095~4119)
  *
- * ## 화면 유형: 목록형 (`docs/screen-templates.md` §3-1)
- *
- * ## ⚠️ 구성은 **원본 어드민 그대로**다 — 탭마다 몸통이 통째로 다르다
+ * ## 화면 유형: 목록형 — 탭마다 몸통이 통째로 다르다
  *
  * ```
- * 탭: [고객 문의][셀러 문의]                       ← 기본 "고객 문의"
+ * 탭 [고객 문의][셀러 문의]   ← 본문 맨 위 SegmentedControl(공지 화면과 같은 부품 · 원본 칩 탭 자리)
  *
- * 고객 문의 : 상태 대시(툴팁 O) → 검색조건 → [ 표 7열 | 총 N건 · 페이지네이션 ]
- * 셀러 문의 : 요약 2칸(미답변/전체) → [ 표 5열 ]   ← 필터도 페이저도 없다
+ * 고객 문의 : 상태 카드 2장(미답변·답변완료 — **전체 없음**, 기본 미답변)
+ *             → 검색조건(기본 펼침 · 기간 기준+빠른 선택 · 유형 · 검색조건+검색어)
+ *             → [ 목록 (총 N건) | 표 8열(No 포함) | 페이지 10/20/50/100 ]
+ * 셀러 문의 : 요약 2칸(미답변/전체 — 누를 수 없음) → [ 표 5열 ]   ← 필터·목록 머리·페이저 없다(원본)
  * ```
+ * 행 어디를 눌러도(제목 글자 포함) 상세 `/support/{문의 ID}` 로 간다. `?tab=seller` 면 셀러 탭으로 열린다
+ * (셀러 문의 상세의 [목록]이 돌아오는 곳).
  *
- * 원본이 두 컴포넌트(`j`, `y`)를 따로 두고 탭 칩으로 갈아 끼운다. 컬럼도 다르다 —
- * 셀러 표에는 **유형과 답변일이 없다.**
- *
- * ## 왜 탭이 `PageHeader` 에 있나 (공지 화면과 다른 이유)
- * 공지의 대상 칩(`SegmentedControl`)은 **같은 표에서 행만 바뀌는** 범위 전환이라
- * 표 위에 둔다. 여기 탭은 **컬럼·필터·요약이 전부 바뀌는** 화면 단위 전환이라
- * 페이지 제목에 붙는 탭이 맞다.
- *
- * ## 원본에 없어서 걷어낸 것들 (되살리지 말 것)
- *
- * - **셀러 요약의 증감(±건)·비교 기준.** 원본 `statrow` 는 라벨과 건수뿐이다
- * - **상태 세그먼트.** 원본이 `chip.dash: true` 라 상태 축은 **건수 카드로만** 그린다 —
- *   카드와 세그먼트를 함께 두면 한 축에 컨트롤이 둘이 된다
- * - **엑셀 다운로드.** 이 화면은 공용 목록 셸(`20013`)을 쓰지 않아 툴바 버튼이 없다
- * - **답변 등록**(모달 푸터 + 상태 변경). 원본 목록에 조치가 없다
- * - **행 전체 클릭.** 원본에서 눌리는 것은 `제목` 하나다(`className: "linkish"`)
- * - **PageHeader 안내 문장.** 원본 어드민에는 페이지 설명문이 없다
- *
- * ## 원본에 있었는데 빠뜨렸던 것 — 되살렸다
- * - **상태 대시의 설명 툴팁**(원본 `statusTips`)
- * - **검색 조건 셀렉트**(회원명 / 유형 / 제목+내용) — 검색 상자 하나로 뭉쳐 있었다
- * - **탭마다 다른 컬럼** — 한 표를 돌려쓰며 첫 열 이름만 바꾸고 있었다
- * - **날짜 표기**(`ymd`)와 답변일이 없을 때의 `-`
- *
- * ## 이 파일은 도메인을 모른다 — 도메인은 `./SupportListPage.data.ts` 에 있다
- *
- * | 갈아끼울 것           | 위치                                          |
- * | --------------------- | --------------------------------------------- |
- * | 데이터·타입·문구      | `SupportListPage.data.ts` **전체**            |
- * | 표 컬럼 구성          | `CustomerTab` · `SellerTab` 의 표             |
- * | 툴바 필터 구성        | `CustomerTab` 의 `toolbarEnd`                 |
- * | 화면 제목·탭          | `PageHeader`                                  |
+ * ## 갈아끼울 것 → `./SupportListPage.data.ts` (이 파일은 도메인을 모른다)
+ * 표 열 구성은 이 파일의 `colgroup` + `TableHead` + 본문 셀이다(셋이 짝이다).
  *
  * ## 그대로 두는 것 (도메인 무관)
- * `DataTableShell` 셸 구조 · `colgroup` 비율 배분 · 페이지 범위 클램프 ·
- * `inPeriod` 날짜 필터 · **흰 카드 = 그룹 / 연한 그레이 상자 = 항목** 두 층 ·
- * 상자 안 **라벨 좌상단 · 수치 우하단** ·
- * 대시 건수는 **상태 필터를 뺀 나머지 조건**에서 센다(아래 `scoped`)
+ * `inPeriod` · 상태 카드 건수는 **상태를 뺀 나머지 조건**으로 센다(원본 `applyFilters(scr,base,[stk])`) ·
+ * 상태 카드를 바꾸면 페이지 해제 · 페이지 범위 클램프 · `?preview=loading|empty|refreshing` ·
+ * 탭을 바꾸면 고객 탭 조건이 풀린다(탭 몸통이 언마운트된다 — 형제 규칙)
  *
- * ## 원본에 있으나 우리 컴포넌트로 표현하지 못한 것 (미해결)
- * - **문의 상세**(원본 제목 → `/inquiry-detail?id=` · `/support/seller-asks/{id}`,
- *   답변을 등록하는 화면) — 기획서 `gaps` 라 이 배치에 없다. 미리보기 모달로 받는다
- * - **기간 빠른 선택**(오늘/1주일/…) — `DatePicker` 에 프리셋 슬롯이 없다
+ * ## 원본에 없어서 걷어낸 것 (되살리지 말 것)
+ * - **행 클릭 미리보기 모달** — 원본은 07-29 「목록 + 상세」 2화면 구성이다. 상세는 `SupportDetailPage`
+ * - **[전체] 상태 카드** — 원본 `dash:true` · 기본 미답변
+ * - **엑셀 · 체크박스 · 정렬** — 원본 `EXPORT_SPEC`·선택 화면 목록에 문의가 없다. 정렬 머리도 없다
+ * - **셀러 요약의 증감·비교 기준 · 셀러 표의 유형·답변일 열** — 원본 셀러 탭은 라벨+건수 · 5열뿐
+ *
+ * ## 원본과 다르게 둔 곳 (형제 화면 규칙)
+ * - 검색조건은 입력 즉시 적용 · 기본 펼침(원본은 [검색] · 접힘)
+ * - 행 어디를 눌러도 상세(원본은 제목 링크만)
+ * - 열은 왼쪽 정렬(상태만 가운데)
  * ====================================================================== */
 
 /**
- * 날짜 문자열이 선택한 기간 안에 드는지.
- *
- * `null` 은 **필터에서 빠진다** — 답변일 기준으로 물었는데 답변이 없는 문의는
- * "그 기간에 처리한 문의"가 아니기 때문이다.
- * `"YYYY-MM-DD HH:mm"` 의 공백 구분자는 브라우저별 파싱이 갈려 `T` 로 바꿔 넘긴다.
+ * 날짜 문자열이 선택한 기간 안에 드는지. 시작일 00:00 ~ 종료일 23:59:59.
+ * `null`(미답변 건의 답변일)은 기간을 걸면 빠진다.
  */
 const inPeriod = (dateText: string | null, range?: DateRange) => {
   if (!range?.from) return true;
-  if (dateText === null) return false;
+  if (!dateText) return false;
 
   const at = new Date(dateText.replace(" ", "T"));
   if (Number.isNaN(at.getTime())) return true;
 
   const from = new Date(range.from);
   from.setHours(0, 0, 0, 0);
-
   const to = new Date(range.to ?? range.from);
   to.setHours(23, 59, 59, 999);
 
   return at >= from && at <= to;
 };
 
-/* ── 고객 문의 탭 (원본 컴포넌트 `j`) ─────────────────────────────────── */
+const EMPTY_TITLE = "해당 조건의 항목이 없습니다";
+const EMPTY_DESCRIPTION =
+  "조건을 변경하거나 필터를 초기화한 뒤 다시 조회해 주세요.";
+
+/** 로딩 뼈대 — 머리는 실제 글자, 본문만 가린다(§D8-1) */
+function LoadingTable({
+  cols,
+  heads,
+  rows,
+}: {
+  cols: string[];
+  heads: string[];
+  rows: number;
+}) {
+  return (
+    <Table>
+      <colgroup>
+        {cols.map((width, index) => (
+          <col key={index} className={width} />
+        ))}
+      </colgroup>
+      <TableHead sticky>
+        <TableRow>
+          {heads.map((head) => (
+            <TableTh key={head}>{head}</TableTh>
+          ))}
+        </TableRow>
+      </TableHead>
+      <TableBody>
+        {Array.from({ length: rows }, (_, row) => (
+          <TableRow key={row}>
+            {heads.map((head) => (
+              <TableTd key={head}>
+                <span className="body-small block">
+                  <Skeleton className="w-16" />
+                </span>
+              </TableTd>
+            ))}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+/* ── 고객 문의 탭 ───────────────────────────────────────────────────── */
+
+/**
+ * 열 폭 = 실측 글자 폭(4px 격자) · 합 976 = 1280 화면의 표 폭 — 상태 열까지 스크롤 없이 보인다
+ * (1440 에서는 비율대로 늘어난다). 제목은 한 줄(원본 nowrap)이라 실측 폭을 주고, 남는 폭은 내용(2줄 말줄임)
+ */
+const CUSTOMER_COLS = [
+  "w-14",
+  "w-18",
+  "w-24",
+  "w-61",
+  "w-51",
+  "w-26",
+  "w-26",
+  "w-24",
+];
+const CUSTOMER_HEADS = [
+  "No",
+  "회원명",
+  "유형",
+  "제목",
+  "내용",
+  "접수일",
+  "답변일",
+  "상태",
+];
 
 function CustomerTab({
+  status,
   onOpen,
 }: {
-  onOpen: (inquiry: CustomerInquiry) => void;
+  status: DataStatus;
+  onOpen: (id: string) => void;
 }) {
-  const [status, setStatus] = useState(STATUS_FILTERS[0].value);
+  const [filter, setFilter] = useState<SupportStatus>(DEFAULT_FILTER);
   const [type, setType] = useState(TYPE_FILTERS[0].value);
   const [periodField, setPeriodField] = useState(PERIOD_FIELDS[0].value);
   const [period, setPeriod] = useState<DateRange | undefined>();
   const [searchField, setSearchField] = useState(SEARCH_FIELDS[0].value);
   const [keyword, setKeyword] = useState("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  /** 검색조건 펼침 — **기본은 펼침**(형제 화면 결정. 원본은 접힘) */
+  const [filterOpen, setFilterOpen] = useState(true);
 
-  /* 원본 정렬은 `createdAt desc` 하나뿐이다(사용자가 바꿀 수 없다) */
-  const sorted = [...CUSTOMER_INQUIRIES].sort((a, b) =>
-    b.date.localeCompare(a.date),
-  );
+  const searchAxis =
+    SEARCH_FIELDS.find((field) => field.value === searchField) ??
+    SEARCH_FIELDS[0];
+  const periodAxis =
+    PERIOD_FIELDS.find((field) => field.value === periodField) ??
+    PERIOD_FIELDS[0];
+  const typeOption = TYPE_FILTERS.find((option) => option.value === type);
 
-  /*
-   * 상태를 **뺀** 나머지 조건으로 좁힌 집합. 상태별 건수를 여기서 센다.
-   * 이미 상태로 좁힌 결과에서 세면 "미답변"을 고르는 순간 나머지가 0 이 되어
-   * 대시가 비교할 것을 잃는다.
-   */
-  const scoped = sorted.filter((inquiry) => {
-    const matchType = type === "all" || inquiry.type === type;
-    const matchKeyword =
-      keyword.trim() === "" ||
-      customerHaystack(inquiry, searchField).includes(keyword.trim());
-    /* 접수일로 재는지 답변일로 재는지는 사용자가 고른다 */
-    const target =
-      periodField === "answered" ? inquiry.answeredAt : inquiry.date;
-    return matchType && matchKeyword && inPeriod(target, period);
-  });
+  /* 상태를 **뺀** 나머지 조건 — 카드 건수를 여기서 센다. 미리보기 `empty` 는 원장이 비었다는 뜻이다 */
+  const query = keyword.trim().toLowerCase();
+  const scoped =
+    status === "empty"
+      ? []
+      : CUSTOMER_INQUIRIES.filter(
+          (row) =>
+            (type === "all" || row.type === type) &&
+            (query === "" ||
+              searchAxis.pick(row).toLowerCase().includes(query)) &&
+            inPeriod(periodAxis.pick(row), period),
+        );
+  const filtered = scoped.filter((row) => row.status === filter);
 
-  const filtered = scoped.filter(
-    (inquiry) => status === "all" || inquiry.status === status,
-  );
-
-  const dash = STATUS_FILTERS.map((item) => ({
-    value: item.value,
-    label: item.label,
-    count:
-      item.value === "all"
-        ? scoped.length
-        : scoped.filter((inquiry) => inquiry.status === item.value).length,
-    /* 원본은 상태 카드에만 `tip` 을 단다 — "전체"에는 없다 */
-    tip:
-      item.value === "all"
-        ? undefined
-        : STATUS_META[item.value as keyof typeof STATUS_META].description,
-  }));
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const paged = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
   );
 
-  /* 초기화는 **한 곳에서만 정의한다** — 한쪽이 기간을 빠뜨리면 "초기화했는데 여전히 비어 있음"이 된다 */
+  /** 검색 조건이 바뀌면 1페이지로 */
+  const changed =
+    <T,>(set: (value: T) => void) =>
+    (value: T) => {
+      set(value);
+      setPage(1);
+    };
+
+  /* 초기화는 한 곳에서 — 「미답변」으로 돌아간다(원본 `resetFilt` · def) */
   const resetFilters = () => {
-    setStatus(STATUS_FILTERS[0].value);
+    setFilter(DEFAULT_FILTER);
     setType(TYPE_FILTERS[0].value);
     setPeriodField(PERIOD_FIELDS[0].value);
     setPeriod(undefined);
@@ -209,102 +258,97 @@ function CustomerTab({
 
   return (
     <>
-      {/*
-        상태 대시 — 원본 `StatDash`. 건수를 보여주면서 그 자체가 상태 필터다.
-        원본 필터 설정이 `chip.dash: true` 라, 상태를 고르는 컨트롤은 **이것뿐**이다.
-      */}
-      <Card>
-        <CardBody>
-          {/*
-            건수 대시 = 필터. 상자의 시각 규격 · 선택/hover 축 분리 · 접근가능 이름
-            조립 · 툴팁 분기는 전부 `StatGrid` 가 맡는다 (docs/DESIGN-dashboard.md §D4).
-          */}
+      {/* 상태 대시 — 건수가 곧 상태 필터다(안심케어 승인·입점 심사와 같은 모양) */}
+      <Card variant="soft" aria-busy={isBusy(status)}>
+        <CardBody className={dimWhile(status)}>
           <StatGrid
-            items={dash.map((item) => ({
+            items={FILTERS.map((item) => ({
               value: item.value,
               label: item.label,
-              /* 원본은 콤마를 넣지 않는다 — 포맷을 바꾸면 접근가능 이름이 달라진다 */
-              count: String(item.count),
-              unit: "건",
-              tip: item.tip,
+              count: scoped
+                .filter((row) => row.status === item.value)
+                .length.toLocaleString("ko-KR"),
+              unit: UNIT,
+              tip: STATUS_META[item.value].tip,
             }))}
-            selected={status}
-            onSelect={(value) => {
-              setStatus(value);
-              setPage(1);
-            }}
+            selected={filter}
+            onSelect={(value) => changed(setFilter)(value as SupportStatus)}
             ariaLabel="문의 상태"
-            columns={3}
+            columns={4}
           />
         </CardBody>
       </Card>
 
+      <FilterBar
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        summary={filterSummary({
+          dateLabel: periodAxis.label,
+          from: period?.from,
+          to: period?.to,
+          typeLabel: type === "all" ? undefined : typeOption?.label,
+          fieldLabel: searchAxis.label,
+          keyword,
+        })}
+        onReset={resetFilters}
+      >
+        <Select
+          aria-label="기간 기준"
+          options={PERIOD_FIELDS}
+          value={periodField}
+          onValueChange={changed(setPeriodField)}
+        />
+        <DatePicker
+          mode="range"
+          presets={PERIOD_PRESETS}
+          value={period}
+          onChange={changed(setPeriod)}
+          startPlaceholder={`${periodAxis.label} 시작`}
+          endPlaceholder={`${periodAxis.label} 종료`}
+        />
+        <Select
+          aria-label="문의 유형"
+          options={TYPE_FILTERS}
+          value={type}
+          onValueChange={changed(setType)}
+        />
+        <Select
+          aria-label="검색 조건"
+          options={SEARCH_FIELDS}
+          value={searchField}
+          onValueChange={changed(setSearchField)}
+        />
+        <Input
+          placeholder={SEARCH_PLACEHOLDER}
+          value={keyword}
+          onChange={(event) => changed(setKeyword)(event.target.value)}
+          leftIcon={<Search size={16} strokeWidth={1.2} aria-hidden />}
+        />
+      </FilterBar>
+
       <DataTableShell
-        toolbarEnd={
-          <>
-            {/* 원본 `date.fields` 가 2개라 **기간 기준 셀렉트**가 함께 뜬다 */}
-            <Select
-              aria-label="기간 기준"
-              options={PERIOD_FIELDS}
-              value={periodField}
-              onValueChange={(value) => {
-                setPeriodField(value);
-                setPage(1);
-              }}
-            />
-            <DatePicker
-              mode="range"
-              value={period}
-              defaultMonth={REFERENCE_MONTH}
-              onChange={(next) => {
-                setPeriod(next);
-                setPage(1);
-              }}
-              startPlaceholder="시작일"
-              endPlaceholder="종료일"
-            />
-            <Select
-              aria-label="문의 유형"
-              options={TYPE_FILTERS}
-              value={type}
-              onValueChange={(value) => {
-                setType(value);
-                setPage(1);
-              }}
-            />
-            {/* 검색은 "조건 선택 + 검색어" 2단이다(원본 `search.fieldOpts` + `ph`) */}
-            <Select
-              aria-label="검색 조건"
-              options={SEARCH_FIELDS}
-              value={searchField}
-              onValueChange={(value) => {
-                setSearchField(value);
-                setPage(1);
-              }}
-            />
-            <Input
-              placeholder={SEARCH_PLACEHOLDER}
-              aria-label="검색어"
-              value={keyword}
-              onChange={(event) => {
-                setKeyword(event.target.value);
-                setPage(1);
-              }}
-              leftIcon={<Search size={16} strokeWidth={1.2} aria-hidden />}
-            />
-            <TextButton tone="secondary" onClick={resetFilters}>
-              초기화
-            </TextButton>
-          </>
+        variant="soft"
+        bodyClassName={dimWhile(status)}
+        isLoading={status === "loading"}
+        loading={
+          <LoadingTable
+            cols={CUSTOMER_COLS}
+            heads={CUSTOMER_HEADS}
+            rows={PAGE_SIZE}
+          />
+        }
+        toolbarStart={
+          <h2 className="heading-medium-bold text-text">
+            목록 (총 {filtered.length}건)
+          </h2>
         }
         isEmpty={filtered.length === 0}
         empty={
           <EmptyState
             size="table"
             icon={<Search strokeWidth={1.2} aria-hidden />}
-            title="해당 조건의 문의가 없습니다"
-            /* 본문 문구는 원본 공용 빈 상태 그대로다 */
-            description="조건을 변경하거나 필터를 초기화한 뒤 다시 조회해 주세요."
+            title={EMPTY_TITLE}
+            description={EMPTY_DESCRIPTION}
           >
             <Button variant="secondary" onClick={resetFilters}>
               필터를 초기화
@@ -316,29 +360,27 @@ function CustomerTab({
             page={currentPage}
             totalPages={totalPages}
             onPageChange={setPage}
-            start={
-              /* 원본 `ListHead` 의 "목록 (총 N건)" 과 같은 정보다 */
-              <span className="body-small text-text-sub">
-                총 {filtered.length}건
-              </span>
+            end={
+              <PaginationSizeSelect
+                sizes={PAGE_SIZES}
+                value={pageSize}
+                onSizeChange={changed(setPageSize)}
+              />
             }
           />
         }
       >
         <Table>
-          {/* table-fixed 라 폭 지정 필수. 한 컬럼만 auto 로 두면 여백을 독식한다 */}
           <colgroup>
-            <col className="w-25" />
-            <col className="w-25" />
-            <col className="w-60" />
-            <col className="w-65" />
-            <col className="w-28" />
-            <col className="w-28" />
-            <col className="w-23" />
+            {CUSTOMER_COLS.map((width, index) => (
+              <col key={index} className={width} />
+            ))}
           </colgroup>
-          {/* 컬럼 이름·순서는 원본 `b = [...]` 그대로다 */}
-          <TableHead>
+          {/* 열 이름·순서는 원본 4117 그대로 */}
+          <TableHead sticky>
             <TableRow>
+              {/* 조회 결과의 역순 순번(원본 `total-start-i`) — 레코드 번호가 아니다 */}
+              <TableTh>No</TableTh>
               <TableTh>회원명</TableTh>
               <TableTh>유형</TableTh>
               <TableTh>제목</TableTh>
@@ -349,26 +391,33 @@ function CustomerTab({
             </TableRow>
           </TableHead>
           <TableBody>
-            {paged.map((inquiry) => {
-              const meta = STATUS_META[inquiry.status];
+            {paged.map((row, index) => {
+              const meta = STATUS_META[row.status];
               return (
-                <TableRow key={inquiry.id}>
-                  <TableTd>{inquiry.member}</TableTd>
-                  {/* 유형은 **대등한 분류**라 배지로 칠하지 않는다 (§3-1 · 원본도 맨 글자다) */}
-                  <TableTd>{TYPE_LABELS[inquiry.type]}</TableTd>
-                  {/*
-                    원본에서 제목은 `/inquiry-detail?id=` 로 가는 링크다.
-                    행 전체를 누르게 만들지 않는다 — 원본에 없는 어포던스다.
-                  */}
+                <TableRow key={row.id} clickable onClick={() => onOpen(row.id)}>
+                  <TableTd className="tabular-nums">
+                    {filtered.length - (currentPage - 1) * pageSize - index}
+                  </TableTd>
+                  <TableTd>{row.member}</TableTd>
+                  {/* 유형은 대등한 분류라 배지로 칠하지 않는다(원본도 맨 글자) */}
+                  <TableTd>{TYPE_LABELS[row.type]}</TableTd>
+                  {/* 원본에서 제목은 상세로 가는 링크다 — 한 줄(nowrap) */}
                   <TableTd>
-                    <TextButton onClick={() => onOpen(inquiry)}>
-                      {inquiry.title}
+                    <TextButton
+                      className="max-w-full"
+                      onClick={() => onOpen(row.id)}
+                    >
+                      <span className="truncate">{row.title}</span>
                     </TextButton>
                   </TableTd>
-                  <TableTd ellipsis>{inquiry.body}</TableTd>
-                  <TableTd>{ymd(inquiry.date)}</TableTd>
-                  {/* 답변이 없으면 원본과 같이 `-` 다 (상태 열이 이미 미답변을 말한다) */}
-                  <TableTd>{ymd(inquiry.answeredAt)}</TableTd>
+                  {/* 한국어 단어 중간에서 끊지 않는다(공백 없는 긴 문자열만 강제 줄바꿈) */}
+                  <TableTd ellipsis className="break-keep wrap-anywhere">
+                    {row.body}
+                  </TableTd>
+                  <TableTd className="tabular-nums">{ymd(row.date)}</TableTd>
+                  <TableTd className="tabular-nums">
+                    {ymd(row.answeredAt)}
+                  </TableTd>
                   <TableTd align="center">
                     <Tag tone={meta.tone} dot>
                       {meta.label}
@@ -384,71 +433,72 @@ function CustomerTab({
   );
 }
 
-/* ── 셀러 문의 탭 (원본 컴포넌트 `y`) ─────────────────────────────────── */
+/* ── 셀러 문의 탭 ───────────────────────────────────────────────────── */
 
-function SellerTab({ onOpen }: { onOpen: (ask: SellerAsk) => void }) {
-  /*
-   * 원본은 필터도 페이저도 두지 않고 `size: 100` 으로 한 번에 받아 전부 보여준다.
-   * 그래서 이 탭에는 상태가 하나도 없다. 정렬만 원본과 같이 `createdAt desc` 다.
-   */
-  const sorted = [...SELLER_ASKS].sort((a, b) => b.date.localeCompare(a.date));
+const SELLER_COLS = ["w-35", "w-65", "w-65", "w-28", "w-24"];
+const SELLER_HEADS = ["셀러", "제목", "내용", "접수일", "상태"];
+
+function SellerTab({
+  status,
+  onOpen,
+}: {
+  status: DataStatus;
+  onOpen: (id: string) => void;
+}) {
+  /* 원본은 필터도 페이저도 없이 배열 그대로(최신순) 전부 보여준다 */
+  const rows = status === "empty" ? [] : SELLER_ASKS;
 
   return (
     <>
-      {/*
-        셀러 요약 — 원본 `statrow`. **라벨과 건수뿐이다**(증감도 비교 기준도 없다).
-        건수는 목록에서 세므로 요약과 표가 어긋날 수 없다.
-      */}
-      <Card>
-        <CardBody>
-          {/*
-          거터 12 — **카드 안 항목 묶음**이다(카드 사이 24 와 다른 축).
-          묶음 안이 묶음 사이보다 좁아야 하나로 읽힌다. 규격: `DESIGN-dashboard.md` §D4-3
-          */}
+      {/* 셀러 요약 — 원본 `statrow`. 라벨과 건수뿐이고 누를 수 없다 */}
+      <Card variant="soft" aria-busy={isBusy(status)}>
+        <CardBody className={dimWhile(status)}>
+          {/* 거터 12 — 카드 안 항목 묶음(§D4-3) */}
           <div className="grid grid-cols-2 gap-3">
-            {SELLER_SUMMARY.map((item) => {
-              const count = sorted.filter(
-                (ask) => item.status === null || ask.status === item.status,
-              ).length;
-              return (
-                /* 고를 수 없는 요약이라 버튼이 아니다 — 상호작용 prop 을 주지 않는다 */
-                <StatTile
-                  key={item.label}
-                  label={item.label}
-                  value={String(count)}
-                  unit="건"
-                  compact
-                  /* 원본도 미답변 값에만 주의색을 준다(`color: var(--warn)`) */
-                  tone={item.warn ? "warning" : "default"}
-                />
-              );
-            })}
+            {SELLER_SUMMARY.map((item) => (
+              <StatTile
+                key={item.label}
+                label={item.label}
+                value={String(
+                  rows.filter(
+                    (ask) => item.status === null || ask.status === item.status,
+                  ).length,
+                )}
+                unit={UNIT}
+                compact
+                tone={item.warn ? "warning" : "default"}
+              />
+            ))}
           </div>
         </CardBody>
       </Card>
 
-      {/* 원본 셀러 카드는 표 하나뿐이다 — 목록 헤더도 페이지네이션도 없다 */}
+      {/* 원본 셀러 카드는 표 하나뿐이다 — 목록 머리도 페이지네이션도 없다 */}
       <DataTableShell
-        isEmpty={sorted.length === 0}
+        variant="soft"
+        bodyClassName={dimWhile(status)}
+        isLoading={status === "loading"}
+        loading={
+          <LoadingTable cols={SELLER_COLS} heads={SELLER_HEADS} rows={3} />
+        }
+        isEmpty={rows.length === 0}
         empty={
           <EmptyState
             size="table"
             icon={<Search strokeWidth={1.2} aria-hidden />}
-            title="접수된 셀러 문의가 없습니다"
-            description="셀러가 문의를 남기면 이곳에 표시됩니다."
+            title={EMPTY_TITLE}
+            description={EMPTY_DESCRIPTION}
           />
         }
       >
         <Table>
           <colgroup>
-            <col className="w-35" />
-            <col className="w-65" />
-            <col className="w-65" />
-            <col className="w-28" />
-            <col className="w-23" />
+            {SELLER_COLS.map((width, index) => (
+              <col key={index} className={width} />
+            ))}
           </colgroup>
-          {/* 컬럼 이름·순서는 원본 `m = [...]` 그대로다 — **유형과 답변일이 없다** */}
-          <TableHead>
+          {/* 열 이름·순서는 원본 4109 그대로 — 유형과 답변일이 없다 */}
+          <TableHead sticky>
             <TableRow>
               <TableTh>셀러</TableTh>
               <TableTh>제목</TableTh>
@@ -458,18 +508,23 @@ function SellerTab({ onOpen }: { onOpen: (ask: SellerAsk) => void }) {
             </TableRow>
           </TableHead>
           <TableBody>
-            {sorted.map((ask) => {
+            {rows.map((ask) => {
               const meta = STATUS_META[ask.status];
               return (
-                <TableRow key={ask.id}>
+                <TableRow key={ask.id} clickable onClick={() => onOpen(ask.id)}>
                   <TableTd>{ask.seller}</TableTd>
                   <TableTd>
-                    <TextButton onClick={() => onOpen(ask)}>
-                      {ask.title}
+                    <TextButton
+                      className="max-w-full"
+                      onClick={() => onOpen(ask.id)}
+                    >
+                      <span className="truncate">{ask.title}</span>
                     </TextButton>
                   </TableTd>
-                  <TableTd ellipsis>{ask.body}</TableTd>
-                  <TableTd>{ymd(ask.date)}</TableTd>
+                  <TableTd ellipsis className="break-keep wrap-anywhere">
+                    {ask.body}
+                  </TableTd>
+                  <TableTd className="tabular-nums">{ymd(ask.date)}</TableTd>
                   <TableTd align="center">
                     <Tag tone={meta.tone} dot>
                       {meta.label}
@@ -492,32 +547,21 @@ export interface SupportListPageProps {
   onNavSelect: (id: string) => void;
 }
 
-/** 미리보기 모달에 담기는 것 — 두 탭의 행이 공통으로 가진 것만 추린다 */
-type Preview = {
-  id: string;
-  /** 회원명 또는 셀러명 */
-  partyLabel: string;
-  party: string;
-  title: string;
-  body: string;
-  status: keyof typeof STATUS_META;
-  date: string;
-  /** 셀러 문의에는 답변일이 없다 */
-  answeredAt: string | null | undefined;
-  type: string | undefined;
-};
-
 export function SupportListPage({
   navOpen,
   onNavOpenChange,
   activeNav,
   onNavSelect,
 }: SupportListPageProps) {
-  /* 원본 기본 탭은 `k[0]` = 고객 문의다 — 뼈대에 문자열을 박지 않는다 */
+  const params = useSearchParams();
+  /* 실 API 를 붙이면 이 한 줄을 fetch 상태로 바꾼다 (`/support?preview=loading`) */
+  const status = asStatus(params.get("preview"));
+  /* 기본 고객 문의(원본 `supTab`) — `?tab=seller` 면 셀러 탭으로 연다 */
   const [audience, setAudience] = useState<SupportAudience>(
-    AUDIENCE_TABS[0].value,
+    params.get("tab") === SELLER_TAB_QUERY ? "seller" : AUDIENCE_TABS[0].value,
   );
-  const [preview, setPreview] = useState<Preview | null>(null);
+
+  const open = (id: string) => onNavSelect(detailPathOf(id));
 
   return (
     <AppShell
@@ -532,88 +576,22 @@ export function SupportListPage({
           collapsedLogo={GNB_LOGO_SLOTS.collapsed}
         />
       }
-      header={
-        <PageHeader
-          title="문의 관리"
-          tabs={
-            <Tabs
-              items={AUDIENCE_TABS}
-              value={audience}
-              onValueChange={(value) => {
-                setAudience(value as SupportAudience);
-                setPreview(null);
-              }}
-            />
-          }
-        />
-      }
+      header={<PageHeader title="문의 관리" />}
     >
+      {/* 원본 칩 탭 — 본문 맨 위(상태 카드 위). 공지 화면과 같은 부품 */}
+      <SegmentedControl
+        className="self-start"
+        aria-label="문의 대상"
+        items={AUDIENCE_TABS}
+        value={audience}
+        onValueChange={(value) => setAudience(value as SupportAudience)}
+      />
+
       {audience === "seller" ? (
-        <SellerTab
-          onOpen={(ask) =>
-            setPreview({
-              id: ask.id,
-              partyLabel: "셀러",
-              party: ask.seller,
-              title: ask.title,
-              body: ask.body,
-              status: ask.status,
-              date: ask.date,
-              answeredAt: undefined,
-              type: undefined,
-            })
-          }
-        />
+        <SellerTab status={status} onOpen={open} />
       ) : (
-        <CustomerTab
-          onOpen={(inquiry) =>
-            setPreview({
-              id: inquiry.id,
-              partyLabel: "회원명",
-              party: inquiry.member,
-              title: inquiry.title,
-              body: inquiry.body,
-              status: inquiry.status,
-              date: inquiry.date,
-              answeredAt: inquiry.answeredAt,
-              type: TYPE_LABELS[inquiry.type],
-            })
-          }
-        />
+        <CustomerTab status={status} onOpen={open} />
       )}
-
-      {/*
-        문의 미리보기 — 원본의 상세 화면 자리를 받는다.
-        표가 내용을 두 줄에서 자르므로, 이 모달의 값어치는 **본문 전문**에 있다.
-
-        ⚠️ 푸터를 두지 않는다. 원본 문의 목록에는 행 액션이 하나도 없고,
-        답변 등록은 상세 화면의 일이다.
-      */}
-      <Modal open={preview !== null} onClose={() => setPreview(null)}>
-        <ModalHeader title="문의 미리보기" description={preview?.title} />
-        <ModalBody>
-          <InfoList>
-            <InfoItem label={preview?.partyLabel ?? ""}>
-              {preview?.party}
-            </InfoItem>
-            {/* 유형은 고객 문의에만 있다 — 셀러 표에는 그 열 자체가 없다 */}
-            {preview?.type !== undefined ? (
-              <InfoItem label="유형">{preview.type}</InfoItem>
-            ) : null}
-            <InfoItem label="접수일">
-              {preview ? ymd(preview.date) : ""}
-            </InfoItem>
-            {preview?.answeredAt !== undefined ? (
-              <InfoItem label="답변일">{ymd(preview.answeredAt)}</InfoItem>
-            ) : null}
-            <InfoItem label="상태">
-              {preview ? STATUS_META[preview.status].label : ""}
-            </InfoItem>
-          </InfoList>
-          {/* 표에서 잘린 내용의 전문 */}
-          <p className="body-medium text-text-sub">{preview?.body}</p>
-        </ModalBody>
-      </Modal>
     </AppShell>
   );
 }

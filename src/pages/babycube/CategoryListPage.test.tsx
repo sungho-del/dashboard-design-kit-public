@@ -376,6 +376,25 @@ describe("CategoryListPage", () => {
   });
 
   describe("하위 카테고리 추가", () => {
+    /** 소분류만 [+ 하위]가 빠지면 [이름변경][삭제]가 당겨져 행마다 다른 세로줄에 선다 */
+    it("소분류도 [+ 하위] 자리를 남겨 관리 버튼이 행마다 같은 순번에 선다", () => {
+      renderPage();
+
+      const slotsOf = (name: string) =>
+        [
+          ...(within(rowOf(name)).getByRole("button", {
+            name: `${name} 이름변경`,
+          }).parentElement?.children ?? []),
+        ] as HTMLElement[];
+      const minor = slotsOf("바구니형");
+      const middle = slotsOf("신생아 카시트");
+      expect(minor).toHaveLength(middle.length);
+      /* 자리만 차지한다 — 읽기·누르기에서는 없다 */
+      expect(minor[2]).toHaveAttribute("aria-hidden", "true");
+      expect(minor[3]).toHaveAccessibleName("바구니형 이름변경");
+      expect(middle[3]).toHaveAccessibleName("신생아 카시트 이름변경");
+    });
+
     it("소분류에는 하위를 더 만들 수 없다 (3단계가 마지막)", () => {
       renderPage();
 
@@ -545,6 +564,21 @@ describe("CategoryListPage", () => {
 
   /** 원본 UI-325 — 막히면 **창 없이** 이유만 알리고, 빈 카테고리만 확인 창으로 간다 */
   describe("카테고리 삭제 규칙", () => {
+    it("행 [삭제]는 옅은 경고(tonal), 확인 창의 최종 [삭제]만 진한 경고다", async () => {
+      const { user } = renderPage();
+
+      const rowDelete = rowAction("바운서·스윙", "삭제");
+      expect(rowDelete.classList.contains("bg-action-critical-tonal")).toBe(
+        true,
+      );
+      expect(rowDelete.classList.contains("bg-action-critical")).toBe(false);
+
+      await user.click(rowDelete);
+      const dialog = await screen.findByRole("dialog");
+      const confirm = within(dialog).getByRole("button", { name: "삭제" });
+      expect(confirm.classList.contains("bg-action-critical")).toBe(true);
+    });
+
     it("하위도 상품도 없는 빈 카테고리는 확인 창을 거쳐 알림만 띄운다", async () => {
       const { user } = renderPage();
 

@@ -428,6 +428,65 @@ export const WithoutToolbar: Story = {
 };
 
 /**
+ * 툴바 줄바꿈 — 왼쪽 묶음(제목 + 필터)이 길어 오른쪽 묶음이 둘째 줄로 내려가도
+ * **오른쪽 끝에 남는다**(`sm:ml-auto`). `justify-between` 만으로는 한 줄에 혼자 남은
+ * 묶음이 왼쪽에 붙어, 주 버튼이 화면 왼쪽으로 튀었다(FAQ 관리 — 카테고리 추가 후 1280).
+ */
+export const ToolbarWrapped: Story = {
+  render: () => (
+    <div className="w-140">
+      <DataTableShell
+        aria-label="줄바꿈 툴바"
+        toolbarStart={
+          <>
+            <span className="heading-medium-bold text-text">
+              목록 (총 18건)
+            </span>
+            <SegmentedControl
+              items={FILTERS}
+              value="all"
+              onValueChange={() => {}}
+            />
+          </>
+        }
+        toolbarEnd={
+          <>
+            <Button>추가</Button>
+            <Button variant="secondary">선택 삭제</Button>
+          </>
+        }
+      >
+        <Table>
+          <OrderColgroup />
+          <OrderTableHead />
+          <TableBody>
+            {ORDERS.slice(0, 2).map((order) => (
+              <OrderRow key={order.id} order={order} />
+            ))}
+          </TableBody>
+        </Table>
+      </DataTableShell>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const toolbar = canvasElement.querySelector(
+      "[data-table-shell-toolbar]",
+    ) as HTMLElement;
+    const end = toolbar.lastElementChild as HTMLElement;
+    await expect(canvas.getByRole("button", { name: "추가" })).toBeVisible();
+    /* 둘째 줄로 내려갔고(위쪽이 왼쪽 묶음보다 아래) 오른쪽 끝은 툴바 안쪽 끝(패딩 24)에 붙는다 */
+    const first = (
+      toolbar.firstElementChild as HTMLElement
+    ).getBoundingClientRect();
+    const endBox = end.getBoundingClientRect();
+    const box = toolbar.getBoundingClientRect();
+    await expect(endBox.top).toBeGreaterThanOrEqual(first.bottom);
+    await expect(Math.round(box.right - endBox.right)).toBe(24);
+  },
+};
+
+/**
  * 더보기 버튼형 — 페이지네이션 대신 하단에 높이 48짜리 전체폭 버튼을 둔다.
  * (DESIGN.md §7-1) `footer`와 함께 쓰지 않는다.
  */

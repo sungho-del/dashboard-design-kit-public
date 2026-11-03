@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Info, Search } from "lucide-react";
+import { useId, useState } from "react";
+import { Search } from "lucide-react";
 import {
   AppShell,
   Button,
@@ -7,12 +7,10 @@ import {
   CardBody,
   CardHeader,
   DataTableShell,
-  Divider,
   EmptyState,
   FilterBar,
   FormField,
   Gnb,
-  IconButton,
   Input,
   Modal,
   ModalBody,
@@ -33,10 +31,8 @@ import {
   Tag,
   Textarea,
   TextButton,
-  Tooltip,
   useToast,
 } from "../../components/ui";
-import { cn } from "../../lib/cn";
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
 import { useSearchParams } from "../../lib/router";
 import {
@@ -50,7 +46,7 @@ import {
   GATE_BUTTON,
   GATE_COPY,
   gateOf,
-  LIST_HEADING,
+  listTitleOf,
   matchesFilters,
   num,
   PAGE_SIZE,
@@ -58,8 +54,7 @@ import {
   payLinesOf,
   ROWS,
   SEARCH_PLACEHOLDER,
-  SETTLE_FOOT,
-  sellerCountText,
+  SETTLE_NOTES,
   statementLinesOf,
   STATUS_META,
   STATUS_OPTIONS,
@@ -69,24 +64,35 @@ import {
   SUMMARY_TITLE,
   TOTAL_STATEMENT_SUB,
   TOTAL_STATEMENT_TITLE,
-  unpaidNoteOf,
+  UNPAID_SELLERS,
   type SettlementFilters,
   type SettlementRow,
-  type StatementLine,
+  NO_AMOUNT,
 } from "./SellerSettlementPage.data";
+import { SettlementCalc } from "./SettlementCalc";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
+
+/*
+  처리 열은 표 **오른쪽에 붙박는다** — 10열이라 좁은 화면(1280)에서는 표가 가로로 밀리는데,
+  업무 버튼([지급완료]·[수정 명세 재발송])이 스크롤 밖으로 사라지면 안 된다.
+  왼쪽 1px 선은 `border` 대신 가상 요소로(collapse 표에서 border 는 함께 스크롤돼 사라진다 — 주문 목록 고정 열과 같다)
+*/
+const ACTION_EDGE =
+  "before:absolute before:inset-y-0 before:left-0 before:w-px before:bg-divide before:content-['']";
+const ACTION_TH = `sticky right-0 z-2 ${ACTION_EDGE}`;
+/* 본문 셀 배경은 행에서 물려받는다(줄무늬·hover 를 따라가려면 상속뿐) */
+const ACTION_TD = `sticky right-0 z-1 bg-inherit ${ACTION_EDGE}`;
 
 /* =========================================================================
  * 셀러 정산 (BO-STL-002 · `/settle-seller`) — 목록형 · 뼈대
  *
- * ## 구성 — 원본 v0.4 `SCREENS.settleSeller` 순서 그대로
+ * ## 구성 — 원본 v0.4 `SCREENS.settleSeller` 를 정산 흐름 순서로 다시 묶었다(사용자 승인 2026-11-03)
  * ```
- * {회차} 정산 요약 · 지급일          ← 타일 4장(전체 셀러 — 필터와 무관)
- * 안심케어 금액 설정 · 플랫폼 공통    ← 금액 입력 하나(화면 안 값 + 알림)
- * {회차} 정산 명세 · 전 입점사 합산   ← 명세 줄 + 미회수 각주 + 각주
- * 정산 대상 입점사 · N개사            ← 소제목
+ * {2026년 9월} 정산            지급일 ← 한 카드: 요약 타일 4장 + 산출 내역(전 입점사 합산 · `SettlementCalc`)
+ *                                       전체 셀러 합 — 필터와 무관
  * 검색조건(펼침 · 요약 · 초기화)       ← 상태 셀렉트 · 셀러명
- * 목록 (총 N건) / 표 10열 / 페이지(10·20·50·100)
+ * 정산 대상 입점사 (총 N개사) / 표 10열 / 페이지(10·20·50·100)
+ * 정산 설정                            ← 안심케어 가입 금액 한 줄(화면 안 값 + 알림)
  * ```
  * 표 10열: 셀러 · 거래액 · 셀러쿠폰 · 수수료 · PG수수료 · 취소·반품 차감 · 안심케어 · 지급액 · 상태 · 처리.
  * 체크박스·No·정렬·엑셀은 **없다**(원본 그대로).
@@ -96,14 +102,15 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * | 갈아끼울 것             | 위치                                              |
  * | ----------------------- | ------------------------------------------------- |
  * | 행·요약·라벨·단위·문구  | `SellerSettlementPage.data.ts`                    |
- * | 명세 줄                 | 같은 파일 `statementLinesOf` (상세와 공용)        |
+ * | 산출 내역 줄            | 같은 파일 `statementLinesOf` (상세와 공용)        |
+ * | 산출 내역 모양          | `SettlementCalc.tsx` (3화면 공용 부품)            |
  * | 상태별 버튼·모달 문구   | 같은 파일 `gateOf` · `GATE_COPY` · `payLinesOf`   |
  * | 표 컬럼                 | 이 파일의 `<colgroup>` + `TableHead` + 본문 셀    |
  *
  * ## 상호작용
- * - 행 어디를 눌러도 상세(`/settle-seller/{셀러 id}`) — 셀러명 링크·[상세]도 같다.
+ * - 행 어디를 눌러도 상세(`/settle-seller/{셀러 id}`) — 셀러명 링크도 같다. 원본 [상세] 버튼은 행 클릭과 겹쳐 뺐다(1280 에서 업무 버튼이 밀려 안 보였다)
  *   처리 열의 업무 버튼은 행 클릭이 아니다(`TableRow clickable` 이 셀 안 버튼을 거른다)
- * - 처리 열: 확인완료·보류 → [지급완료] · 이의제기 → [수정 명세 재발송] · 그 밖은 [상세]만
+ * - 처리 열: 확인완료·보류 → [지급완료] · 이의제기 → [수정 명세 재발송] · 그 밖은 `-`
  * - 모달 3종(`SettlementGateModal` — 상세도 같은 것을 쓴다): 지급 실행(명세 미리보기) ·
  *   보류 종결(결론 요지 필수) · 수정 명세 재발송(검토 내용 필수, 이의 사유를 함께 보인다)
  * - **퍼블 범위**: 처리하면 알림만 — 상태·금액은 바뀌지 않는다. 사유는 앞뒤 공백을 빼고 검사하고,
@@ -114,7 +121,9 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * - 검색조건: 상태 칩 → 셀렉트, 기본 펼침, [검색] 없이 즉시 적용(목록 공통 규칙)
  * - 빈 사유는 입력칸 아래 오류(원본은 알림) — 다른 사유 창과 같다
  * - 상태 배지 톤은 공통 `SETTLEMENT_STATUS_META`(원본 b-prog/b-done/b-exc 아님) · 금액 셀 색 없음 ·
- *   열 왼쪽 정렬(목록 공통)
+ *   **금액 열은 머리글까지 오른쪽 정렬**(자릿수 비교 — 사용자 승인 2026-11-03)
+ * - 요약·합산 명세 두 카드 → 한 카드 · 소제목 「정산 대상 입점사 · N개사」 + 「목록 (총 N건)」 → 목록 머리 하나 ·
+ *   안심케어 금액 설정(플랫폼 전체 설정)은 정산 흐름 밖 맨 아래 「정산 설정」
  * - 행 클릭 → 상세(사용자 결정 2026-11-02 — 원본은 셀러명·[상세]만)
  *
  * ## ⚠️ 원본에 없어 걷어낸 것 — 되살리지 말 것
@@ -126,79 +135,6 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 const detailPathOf = (row: SettlementRow) => `/settle-seller/${row.sellerId}`;
 
 const COLUMN_COUNT = 10;
-
-/* =========================================================================
- * 명세 상자 — 합산 명세 · 상세 「정산 명세」 · 지급 모달이 같은 것을 그린다
- * ====================================================================== */
-
-const LABEL_CLASS: Record<StatementLine["tone"], string> = {
-  base: "body-medium text-text",
-  sub: "body-medium text-text-sub",
-  strong: "body-medium-bold text-text",
-  total: "body-large-bold text-text",
-  info: "body-medium text-text-sub",
-};
-
-const valueClassOf = (line: StatementLine) =>
-  line.tone === "total"
-    ? "body-large-bold text-text"
-    : line.tone === "strong"
-      ? "body-medium-bold text-text"
-      : line.minus
-        ? "body-medium text-text-critical"
-        : line.tone === "info"
-          ? "body-medium text-text-sub"
-          : "body-medium text-text";
-
-/** 줄 목록을 그린다 — 딸린 가감(`sub`·`info`)은 들여쓰고, 총액 위에 구분선 */
-export function StatementBox({ lines }: { lines: StatementLine[] }) {
-  return (
-    <dl className="flex flex-col gap-2">
-      {lines.map((line) => (
-        <div key={line.key} className="flex flex-col gap-2">
-          {line.tone === "total" && <Divider />}
-          <div
-            className={cn(
-              "flex min-h-7 items-center justify-between gap-4",
-              (line.tone === "sub" || line.tone === "info") && "pl-4",
-            )}
-          >
-            <dt
-              className={cn("flex items-center gap-1", LABEL_CLASS[line.tone])}
-            >
-              {line.label}
-              {line.tip ? (
-                <Tooltip content={line.tip}>
-                  <IconButton
-                    variant="ghost"
-                    size="xsmall"
-                    label={`${line.label} 도움말`}
-                    icon={<Info strokeWidth={1.2} aria-hidden />}
-                  />
-                </Tooltip>
-              ) : null}
-            </dt>
-            <dd className={cn("tabular-nums", valueClassOf(line))}>
-              {line.value}
-            </dd>
-          </div>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-/** 미회수 각주 — 미회수가 있을 때만 */
-export function UnpaidNote({ unpaid }: { unpaid: number }) {
-  const note = unpaidNoteOf(unpaid);
-  if (!note) return null;
-  return (
-    <p className="body-small text-text-sub">
-      <strong className="body-small-bold text-text">{note.strong}</strong>{" "}
-      {note.rest}
-    </p>
-  );
-}
 
 /* =========================================================================
  * 확인 모달 3종 — 목록 처리 열과 상세 하단 바가 같은 창을 쓴다(원본 `settleActBtn` 공유)
@@ -254,8 +190,7 @@ export function SettlementGateModal({
       <ModalBody>
         {kind === "pay" ? (
           <>
-            <StatementBox lines={payLinesOf(row)} />
-            <UnpaidNote unpaid={row.unpaid} />
+            <SettlementCalc lines={payLinesOf(row)} />
             <p className="body-small text-text-sub">{GATE_COPY.pay.note}</p>
           </>
         ) : (
@@ -325,6 +260,7 @@ export function SellerSettlementPage({
   const [gate, setGate] = useState<SettlementRow | null>(null);
 
   /* 안심케어 금액 — 화면 안 값. 확정(포커스 이탈·Enter)하면 알림만 */
+  const careId = useId();
   const [carePrice, setCarePrice] = useState(CARE_PRICE_COPY.initial);
   const [careText, setCareText] = useState(num(CARE_PRICE_COPY.initial));
   const commitCare = () => {
@@ -367,12 +303,14 @@ export function SellerSettlementPage({
       }
       header={<PageHeader title="셀러 정산" />}
     >
-      {/* 정산 요약 — 전체 셀러 합(필터와 무관 · 원본) */}
+      {/* 회차 정산 — 요약 4칸 + 산출 내역(전 입점사 합산) 한 카드. 전체 셀러 합 · 필터와 무관(원본) */}
       <Card>
-        <CardHeader>
-          <h2 className="heading-medium-bold text-text">{SUMMARY_TITLE}</h2>
-          <span className="body-small text-text-sub">{SUMMARY_SUB}</span>
-        </CardHeader>
+        <CardHeader
+          title={SUMMARY_TITLE}
+          action={
+            <span className="body-medium text-text-sub">{SUMMARY_SUB}</span>
+          }
+        />
         <CardBody>
           {/* 카드 안 항목 묶음 거터 12 (`DESIGN-dashboard.md` §D4-3) */}
           <div className="grid grid-cols-4 gap-3">
@@ -386,69 +324,26 @@ export function SellerSettlementPage({
               />
             ))}
           </div>
-        </CardBody>
-      </Card>
-
-      {/* 안심케어 금액 설정 — 원본 `settleSeller.care`. 값은 화면 안에만 산다 */}
-      <Card>
-        <CardHeader>
-          <h2 className="heading-medium-bold text-text">
-            {CARE_PRICE_COPY.title}
-          </h2>
-          <span className="body-small text-text-sub">
-            {CARE_PRICE_COPY.sub}
-          </span>
-        </CardHeader>
-        <CardBody>
-          <FormField
-            label={CARE_PRICE_COPY.label}
-            description={CARE_PRICE_COPY.help}
-            suffix="원"
-          >
-            <Input
-              className="w-60"
-              inputMode="numeric"
-              placeholder="0"
-              value={careText}
-              onChange={(event) => setCareText(event.target.value)}
-              onBlur={commitCare}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") commitCare();
-              }}
+          <section className="flex flex-col gap-3">
+            <h3 className="flex items-baseline gap-2">
+              <span className="label-large-bold text-text">
+                {TOTAL_STATEMENT_TITLE}
+              </span>
+              <span className="body-small text-text-sub">
+                {TOTAL_STATEMENT_SUB}
+              </span>
+            </h3>
+            <SettlementCalc
+              lines={statementLinesOf(SUMMARY, {
+                listLabel: "입점사 확정 거래액",
+                totalLabel: "지급 예정 총액",
+                unpaidBy: UNPAID_SELLERS,
+              })}
+              notes={SETTLE_NOTES}
             />
-          </FormField>
+          </section>
         </CardBody>
       </Card>
-
-      {/* 전 입점사 합산 명세 — 상세 「정산 명세」와 같은 줄 함수 */}
-      <Card>
-        <CardHeader>
-          <h2 className="heading-medium-bold text-text">
-            {TOTAL_STATEMENT_TITLE}
-          </h2>
-          <span className="body-small text-text-sub">
-            {TOTAL_STATEMENT_SUB}
-          </span>
-        </CardHeader>
-        <CardBody>
-          <StatementBox
-            lines={statementLinesOf(SUMMARY, {
-              listLabel: "입점사 확정 거래액 (할인 후)",
-              totalLabel: "지급 예정 총액",
-            })}
-          />
-          <UnpaidNote unpaid={SUMMARY.unpaid} />
-          <p className="body-small text-text-sub">{SETTLE_FOOT}</p>
-        </CardBody>
-      </Card>
-
-      {/* 소제목 — 원본 `정산 대상 입점사 · N개사` */}
-      <div className="flex items-baseline gap-2">
-        <h2 className="heading-medium-bold text-text">{LIST_HEADING}</h2>
-        <span className="body-small text-text-sub">
-          {sellerCountText(ROWS.length)}
-        </span>
-      </div>
 
       <FilterBar
         open={filterOpen}
@@ -478,7 +373,7 @@ export function SellerSettlementPage({
         aria-busy={isBusy(dataStatus)}
         toolbarStart={
           <h2 className="heading-medium-bold text-text">
-            목록 (총 {filtered.length}건)
+            {listTitleOf(filtered.length)}
           </h2>
         }
         isEmpty={filtered.length === 0}
@@ -515,30 +410,31 @@ export function SellerSettlementPage({
       >
         <Table>
           <colgroup>
-            <col className="w-35" />
-            <col className="w-32" />
+            {/* 합 1,056 — 1440 은 스크롤 없이 · 1280 은 표만 가로로 밀리고 처리 열은 오른쪽에 붙어 있다 */}
+            <col className="w-24" />
             <col className="w-28" />
+            <col className="w-24" />
+            <col className="w-24" />
+            <col className="w-24" />
             <col className="w-28" />
-            <col className="w-28" />
-            <col className="w-33" />
-            <col className="w-28" />
-            <col className="w-30" />
-            <col className="w-25" />
-            <col className="w-56" />
+            <col className="w-24" />
+            <col className="w-26" />
+            <col className="w-24" />
+            <col className="w-38" />
           </colgroup>
           <TableHead>
             <TableRow>
               <TableTh>셀러</TableTh>
-              <TableTh>거래액(할인 후)</TableTh>
-              <TableTh>셀러쿠폰</TableTh>
-              <TableTh>수수료</TableTh>
-              <TableTh>PG수수료</TableTh>
-              <TableTh>취소·반품 차감</TableTh>
-              <TableTh>안심케어</TableTh>
-              <TableTh>지급액</TableTh>
+              <TableTh align="right">거래액(할인 후)</TableTh>
+              <TableTh align="right">셀러쿠폰</TableTh>
+              <TableTh align="right">수수료</TableTh>
+              <TableTh align="right">PG수수료</TableTh>
+              <TableTh align="right">취소·반품 차감</TableTh>
+              <TableTh align="right">안심케어</TableTh>
+              <TableTh align="right">지급액</TableTh>
               {/* 배지만 들어가는 열은 가운데 (§7-2) */}
               <TableTh align="center">상태</TableTh>
-              <TableTh>처리</TableTh>
+              <TableTh className={ACTION_TH}>처리</TableTh>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -568,25 +464,46 @@ export function SellerSettlementPage({
                           {row.name}
                         </TextButton>
                       </TableTd>
-                      <TableTd className="tabular-nums">
+                      <TableTd
+                        align="right"
+                        className="whitespace-nowrap tabular-nums"
+                      >
                         {cellMoney.sales(row)}
                       </TableTd>
-                      <TableTd className="tabular-nums">
+                      <TableTd
+                        align="right"
+                        className="whitespace-nowrap tabular-nums"
+                      >
                         {cellMoney.coupon(row)}
                       </TableTd>
-                      <TableTd className="tabular-nums">
+                      <TableTd
+                        align="right"
+                        className="whitespace-nowrap tabular-nums"
+                      >
                         {cellMoney.fee(row)}
                       </TableTd>
-                      <TableTd className="tabular-nums">
+                      <TableTd
+                        align="right"
+                        className="whitespace-nowrap tabular-nums"
+                      >
                         {cellMoney.pg(row)}
                       </TableTd>
-                      <TableTd className="tabular-nums">
+                      <TableTd
+                        align="right"
+                        className="whitespace-nowrap tabular-nums"
+                      >
                         {cellMoney.clawback(row)}
                       </TableTd>
-                      <TableTd className="tabular-nums">
+                      <TableTd
+                        align="right"
+                        className="whitespace-nowrap tabular-nums"
+                      >
                         {cellMoney.care(row)}
                       </TableTd>
-                      <TableTd className="tabular-nums">
+                      <TableTd
+                        align="right"
+                        className="whitespace-nowrap tabular-nums"
+                      >
                         <span className="body-medium-bold">
                           {cellMoney.payout(row)}
                         </span>
@@ -596,21 +513,15 @@ export function SellerSettlementPage({
                           {meta.label}
                         </Tag>
                       </TableTd>
-                      <TableTd>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="small"
-                            variant="secondary"
-                            onClick={() => openDetail(row)}
-                          >
-                            상세
+                      <TableTd className={ACTION_TD}>
+                        {/* [상세]는 두지 않는다 — 행 클릭·셀러명이 이미 상세로 간다 */}
+                        {kind ? (
+                          <Button size="small" onClick={() => setGate(row)}>
+                            {GATE_BUTTON[kind]}
                           </Button>
-                          {kind ? (
-                            <Button size="small" onClick={() => setGate(row)}>
-                              {GATE_BUTTON[kind]}
-                            </Button>
-                          ) : null}
-                        </div>
+                        ) : (
+                          <span className="text-text-sub">{NO_AMOUNT}</span>
+                        )}
                       </TableTd>
                     </TableRow>
                   );
@@ -618,6 +529,37 @@ export function SellerSettlementPage({
           </TableBody>
         </Table>
       </DataTableShell>
+
+      {/* 정산 설정 — 플랫폼 전체 설정이라 정산 흐름 밖, 맨 아래 한 줄(원본 `settleSeller.care`) */}
+      <Card>
+        <CardHeader title={CARE_PRICE_COPY.title} />
+        <CardBody>
+          <div className="flex flex-wrap items-center gap-3">
+            <label htmlFor={careId} className="label-medium-bold text-text">
+              {CARE_PRICE_COPY.label}
+            </label>
+            <div className="flex items-center gap-2">
+              <Input
+                id={careId}
+                className="w-60"
+                inputClassName="text-right tabular-nums"
+                inputMode="numeric"
+                placeholder="0"
+                value={careText}
+                onChange={(event) => setCareText(event.target.value)}
+                onBlur={commitCare}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") commitCare();
+                }}
+              />
+              <span className="body-medium text-text">원</span>
+            </div>
+            <span className="body-small text-text-sub">
+              {CARE_PRICE_COPY.help}
+            </span>
+          </div>
+        </CardBody>
+      </Card>
 
       <SettlementGateModal row={gate} onClose={() => setGate(null)} />
     </AppShell>

@@ -26,8 +26,9 @@ import { CARE_FEE } from "./OrderListPage.data";
  * ## 뼈대가 이 파일에 기대하는 계약
  * - 행은 `SettlementRow`(키 `sellerId` — 상세 경로 `/settle-seller/{sellerId}`)
  * - `STATUS_OPTIONS[0].value` 는 `"all"`(필터 해제)
- * - 금액 칸은 문자열로 받는다(`cellMoney`) — 0 일 때 `-` 인 칸과 아닌 칸이 원본에서 갈린다
- * - `statementLinesOf` 가 명세 줄(라벨·값·층·도움말)을 준다 — 뼈대는 그리기만 한다
+ * - 금액 칸은 문자열로 받는다(`cellMoney`) — 0 일 때 `-` 인 칸과 `0원` 인 칸이 원본에서 갈린다
+ * - `statementLinesOf` 가 산출 내역 줄(묶음 `group` · 종류 `kind` · 보조 글자 `hint` · 도움말)을 준다 —
+ *   `SettlementCalc.tsx` 는 그리기만 한다. 묶음 순서·이름은 `STATEMENT_GROUPS`
  * - 상태별 업무 버튼은 `gateOf(status)` 가 정한다(없으면 버튼 없음)
  *
  * ## 원본과 다르게 둔 곳 (근거)
@@ -35,6 +36,11 @@ import { CARE_FEE } from "./OrderListPage.data";
  *   2026-11-02 ②). 정가라고 적으면 숫자와 라벨이 서로 다른 말을 한다. 도움말 `list`·`point` 문구도
  *   같은 이유로 「정가」를 뺐다. ⚠️ 기획 확인 필요(원본은 할인 전 정가 기준)
  * - 지급 모달 예시 문구의 날짜를 이 회차(2026.09 · 10.10 지급)에 맞췄다(원본 8/12 · 6/18)
+ * - **산출 내역 모양**(사용자 승인 2026-11-03 — 원본 줄 나열이 계산 구조를 못 보였다): 매출(… = 정산 매출
+ *   소계) · 차감 · 가산 세 묶음 → 지급액 → 미회수 경고 줄 → 참고(포인트). 괄호 설명은 보조 글자 `hint`,
+ *   ⓘ 는 환수·보전·미회수 3곳만, 차감은 빨강 대신 기본 글자색 `−`. 미회수 굵은 각주 문단은 없앴다(경고 줄 하나)
+ * - 날짜 `2026년 9월`(앞자리 0 없음 — 원본 `2026년 09월`) · 요약과 산출 내역을 한 카드로 ·
+ *   안심케어 금액 설정은 맨 아래 「정산 설정」 작은 카드
  *
  * ## ⚠️ 기획 확인 필요 (원본 그대로 둔 모순)
  * - 「지급 예정 총액」에 **이미 지급완료된** 셀러 금액도 더한다(원본 산식 그대로)
@@ -52,13 +58,13 @@ export type { SettlementRow, SettlementStatus };
 export const ROWS: SettlementRow[] = SELLER_SETTLEMENTS;
 
 /* =========================================================================
- * 단위 표기 — 원 · 천 단위 쉼표 · 차감 `- 1,000원` · 가산 `+ 1,000원`
+ * 단위 표기 — 원 · 천 단위 쉼표 · 차감 `−1,000원`(U+2212) · 가산 `+1,000원` · 0 은 부호 없이 `0원`
  * ====================================================================== */
 
 export const num = (value: number) => value.toLocaleString("ko-KR");
 export const won = (value: number) => num(value) + "원";
-export const minus = (value: number) => "- " + won(value);
-export const plus = (value: number) => "+ " + won(value);
+export const minus = (value: number) => (value ? "−" + won(value) : won(0));
+export const plus = (value: number) => (value ? "+" + won(value) : won(0));
 
 /** 금액 없는 칸 — 원본 `-` */
 export const NO_AMOUNT = "-";
@@ -68,7 +74,7 @@ export const dotted = (at: string) => at.replace(/-/g, ".");
 
 /**
  * 목록 금액 칸 — 원본 `SCREENS.settleSeller` 셀 그대로.
- * 쿠폰·취소반품·안심케어는 0 이면 `-`, **수수료·PG 는 0 이어도 `- 0원`**(원본에 조건이 없다).
+ * 쿠폰·취소반품·안심케어는 0 이면 `-`, **수수료·PG 는 0 이어도 `0원`**(원본 `- 0원` — 부호 없는 0 으로).
  */
 export const cellMoney = {
   sales: (row: SettlementRow) => won(row.sales),
@@ -86,8 +92,11 @@ export const cellMoney = {
  * 화면 머리 · 요약 (원본 `summary` 슬롯)
  * ====================================================================== */
 
-/** `2026년 09월 정산 요약` · 부제 `지급일 2026.10.10` — D-day 는 빼기로 했다(사용자 결정 ①) */
-export const SUMMARY_TITLE = `${roundLabel(SETTLE_ROUND)} 정산 요약`;
+/**
+ * 요약 + 산출 내역 한 카드 — 머리 `2026년 9월 정산` · 오른쪽 `지급일 2026.10.10`
+ * (D-day 는 빼기로 했다 — 사용자 결정 ①). 원본은 「정산 요약」·「정산 명세」 두 카드
+ */
+export const SUMMARY_TITLE = `${roundLabel(SETTLE_ROUND)} 정산`;
 export const SUMMARY_SUB = `지급일 ${dotted(PAYOUT_DATE)}`;
 
 /**
@@ -103,23 +112,23 @@ export const summaryStatsOf = (summary: SettlementSummary) => [
 export const SUMMARY_STATS = summaryStatsOf(SETTLEMENT_SUMMARY);
 export { SETTLEMENT_SUMMARY as SUMMARY };
 
-/** 합산 명세 머리 — 원본 `2026.06 정산 명세` · `전 입점사 합산` */
-export const TOTAL_STATEMENT_TITLE = `${SETTLE_ROUND} 정산 명세`;
+/** 카드 안 산출 내역 소제목 — 원본 `2026.06 정산 명세` · `전 입점사 합산` */
+export const TOTAL_STATEMENT_TITLE = "산출 내역";
 export const TOTAL_STATEMENT_SUB = "전 입점사 합산";
 
-/** 표 위 소제목 — 원본 `정산 대상 입점사` · `N개사` */
-export const LIST_HEADING = "정산 대상 입점사";
-export const sellerCountText = (count: number) => `${count}개사`;
+/** 목록 카드 머리 — 원본 소제목 `정산 대상 입점사 · N개사` 와 `목록 (총 N건)` 을 하나로 */
+export const listTitleOf = (count: number) =>
+  `정산 대상 입점사 (총 ${count}개사)`;
 
 /* =========================================================================
- * 안심케어 금액 설정 (원본 `setCarePrice` — 화면 안 값 + 알림만)
+ * 정산 설정 — 안심케어 금액 (원본 `setCarePrice` — 화면 안 값 + 알림만)
  * ====================================================================== */
 
+/** 페이지 맨 아래 「정산 설정」 작은 카드 한 줄 — 플랫폼 전체 설정이라 정산 흐름 밖에 둔다 */
 export const CARE_PRICE_COPY = {
-  title: "안심케어 금액 설정",
-  sub: "플랫폼 전체 공통 적용",
-  label: "가입 금액",
-  help: "렌트 주문의 안심케어 가입 금액으로, 플랫폼 전체에 동일하게 적용됩니다. 금액 입력 시 즉시 반영됩니다.",
+  title: "정산 설정",
+  label: "안심케어 가입 금액",
+  help: "렌트 주문의 안심케어 가입 금액 · 플랫폼 전체 공통 적용",
   /** 초기값 — 주문 명세의 가입 요금과 같은 값(원본은 0원 — 기획 확인 필요) */
   initial: CARE_FEE,
   /** 원본 `Number(String(v).replace(/[^0-9]/g,''))||0` */
@@ -178,38 +187,45 @@ export const PAGE_SIZE = 10;
 export const PAGE_SIZES = [10, 20, 50, 100];
 
 /* =========================================================================
- * 정산 명세 줄 — 합산 · 셀러별 상세 공용 (원본 `settleAmtRows` · `SETTLE_TIP`)
+ * 산출 내역 줄 — 합산 · 셀러별 상세 · 정산 명세서 상세 · 지급 모달 공용 (원본 `settleAmtRows` ·
+ * `SETTLE_TIP`). 그리는 것은 `SettlementCalc.tsx`
  * ====================================================================== */
 
-/** 각 줄 이름 옆 도움말 — 원본 `SETTLE_TIP` (list·point 는 정산 기준 결정에 맞춰 「정가」를 뺐다) */
+/**
+ * 도움말 — 원본 `SETTLE_TIP` 문구 그대로. 설명이 긴 **환수 · 보전 · 미회수 3곳만** ⓘ 로 단다
+ * (나머지 줄은 이름 옆 보조 글자 `hint` 로 충분하다 — 사용자 승인 2026-11-03)
+ */
 export const SETTLE_TIP = {
-  list: "정산월에 매출로 확정된 거래 금액입니다. 상품 할인을 뺀 상품 소계 기준입니다.",
-  coupon:
-    "셀러가 발행한 할인이라 셀러 부담입니다. 확정 거래액에서 빼서 정산 매출을 만듭니다.",
-  gmv: "판매·PG 수수료를 매기는 기준 금액입니다. 확정 거래액에서 셀러 쿠폰을 뺀 값입니다.",
-  fee: "셀러별 계약 요율로 정산 매출에 매기는 본사 수익입니다.",
-  pg: "결제대행사에 내는 수수료입니다. 요율이 아직 미정이라 데모에서는 3%로 계산합니다.",
   cancel:
     "전월 이전에 확정되어 이미 지급된 건이 취소·반품 완료로 종결되면, 그 금액을 이번 지급액에서 되돌려 받습니다(환수). 환수액은 지난 회차에 셀러가 실제로 받은 금액(정산 매출 − 판매 수수료 − PG 수수료)이며, 판매 수수료는 본사가 환입합니다. 확정된 적 없는 건의 취소·반품은 매출에서 빼기만 하고 차감하지 않습니다.",
   care: "안심케어 가입 건의 복원 가능 파손은 본사 부담이라, 복원비를 셀러에게 보전해 지급액에 더합니다.",
-  point:
-    "포인트 사용분은 본사가 부담합니다. 셀러는 포인트를 빼지 않은 금액으로 정산받으므로 지급액에는 영향이 없습니다.",
   unpaid:
     "환수액이 이번 회차 확정 매출보다 커서 지급액으로는 다 받아내지 못한 금액입니다. 지급액은 0원이 하한이고, 이 잔액은 차기 회차로 넘기지 않고 셀러에게 별도로 청구합니다.",
 } as const;
 
-/**
- * 줄의 층 — `base` 기준·소계 · `sub` 딸린 가감(들여쓰기) · `strong` 정산 매출 · `total` 지급액 ·
- * `info` 참고(정산 영향 없음). `minus` 는 차감·미회수(값 색)
- */
-export type StatementTone = "base" | "sub" | "strong" | "total" | "info";
+/** 묶음 — 매출(… = 소계) · 차감 · 가산. 순서가 곧 계산 순서다 */
+export type StatementGroup = "sales" | "deduct" | "add";
+export const STATEMENT_GROUPS: { key: StatementGroup; label: string }[] = [
+  { key: "sales", label: "매출" },
+  { key: "deduct", label: "차감" },
+  { key: "add", label: "가산" },
+];
+/** 지급액 아래 참고 줄(정산 영향 없음)의 묶음 이름 */
+export const NOTE_GROUP_LABEL = "참고";
 
+/**
+ * 줄 — `group` 이 있으면 그 묶음 안 줄(`kind: "subtotal"` 은 굵은 소계).
+ * 묶음 밖: `total` 지급액 · `unpaid` 미회수(경고색 — **경고색은 여기만**) · `note` 참고
+ */
 export interface StatementLine {
   key: string;
   label: string;
   value: string;
-  tone: StatementTone;
-  minus?: boolean;
+  group?: StatementGroup;
+  kind?: "subtotal" | "total" | "unpaid" | "note";
+  /** 이름 옆 작은 보조 글자 — 원본 괄호 설명 */
+  hint?: string;
+  /** ⓘ 도움말 */
   tip?: string;
 }
 
@@ -229,124 +245,110 @@ type StatementAmounts = Pick<
 >;
 
 /**
- * 명세 줄 — 원본 `settleAmtRows`. 쿠폰·환수·보전·포인트·미회수는 **0 이면 줄이 없다**.
- * `rate` 를 주면 판매 수수료 라벨이 `요율 N%`(셀러별 상세), 없으면 `셀러별 요율`(합산).
+ * 산출 내역 줄 — 원본 `settleAmtRows`. 쿠폰·환수·보전·포인트·미회수는 **0 이면 줄이 없다**
+ * (묶음에 줄이 없으면 묶음도 없다). 수수료·PG 는 0 이어도 `0원` 으로 보인다.
+ * `rate` 를 주면 판매 수수료 보조 글자가 `요율 N%`(셀러별), 없으면 `셀러별 요율 · 본사 수익`(합산).
+ * `unpaidBy` — 합산에서 미회수가 **어느 셀러**인지(미회수 줄 보조 글자 앞에 붙는다).
  */
 export const statementLinesOf = (
   d: StatementAmounts,
   {
-    listLabel = "확정 거래액 (할인 후)",
+    listLabel = "확정 거래액",
     totalLabel = "지급액",
     rate,
-  }: { listLabel?: string; totalLabel?: string; rate?: number } = {},
-): StatementLine[] => [
-  {
-    key: "list",
-    label: listLabel,
-    value: won(d.sales),
-    tone: "base",
-    tip: SETTLE_TIP.list,
-  },
-  ...(d.coupon > 0
-    ? [
-        {
-          key: "coupon",
-          label: "셀러 쿠폰 (셀러 부담)",
-          value: minus(d.coupon),
-          tone: "sub" as const,
-          minus: true,
-          tip: SETTLE_TIP.coupon,
-        },
-      ]
-    : []),
-  {
-    key: "gmv",
-    label: "정산 매출 (수수료 부과 기준)",
-    value: won(d.revenue),
-    tone: "strong",
-    tip: SETTLE_TIP.gmv,
-  },
-  {
-    key: "fee",
-    label:
-      rate === undefined
-        ? "판매 수수료 (셀러별 요율 · 본사 수익)"
-        : `판매 수수료 (요율 ${rate}% · 본사 수익)`,
-    value: minus(d.fee),
-    tone: "sub",
-    minus: true,
-    tip: SETTLE_TIP.fee,
-  },
-  {
-    key: "pg",
-    label: "PG 수수료 (요율 미정 · 데모 3%)",
-    value: minus(d.pg),
-    tone: "sub",
-    minus: true,
-    tip: SETTLE_TIP.pg,
-  },
-  ...(d.clawback > 0
-    ? [
-        {
-          key: "cancel",
-          label: "취소·반품 차감 (전월 확정분 환수)",
-          value: minus(d.clawback),
-          tone: "sub" as const,
-          minus: true,
-          tip: SETTLE_TIP.cancel,
-        },
-      ]
-    : []),
-  ...(d.care > 0
-    ? [
-        {
-          key: "care",
-          label: "안심케어 보전 (손상에 대한 본사 복원비)",
-          value: plus(d.care),
-          tone: "sub" as const,
-          tip: SETTLE_TIP.care,
-        },
-      ]
-    : []),
-  ...(d.point > 0
-    ? [
-        {
-          key: "point",
-          label: "포인트 사용분 본사 부담 (참고 · 정산 영향 없음)",
-          value: won(d.point),
-          tone: "info" as const,
-          tip: SETTLE_TIP.point,
-        },
-      ]
-    : []),
-  { key: "total", label: totalLabel, value: won(d.payout), tone: "total" },
-  /* 미회수 — 지급액과 별개 금액이라 총액 **아래** 따로 붙는다(원본 UI-272) */
-  ...(d.unpaid > 0
-    ? [
-        {
-          key: "unpaid",
-          label: "미회수 잔액 (별도 청구)",
-          value: won(d.unpaid),
-          tone: "sub" as const,
-          minus: true,
-          tip: SETTLE_TIP.unpaid,
-        },
-      ]
-    : []),
+    unpaidBy,
+  }: {
+    listLabel?: string;
+    totalLabel?: string;
+    rate?: number;
+    unpaidBy?: string;
+  } = {},
+): StatementLine[] => {
+  const lines: (StatementLine | false)[] = [
+    {
+      key: "list",
+      label: listLabel,
+      hint: "할인 후",
+      value: won(d.sales),
+      group: "sales",
+    },
+    d.coupon > 0 && {
+      key: "coupon",
+      label: "셀러 쿠폰",
+      hint: "셀러 부담",
+      value: minus(d.coupon),
+      group: "sales",
+    },
+    {
+      key: "gmv",
+      label: "정산 매출",
+      hint: "수수료 부과 기준",
+      value: won(d.revenue),
+      group: "sales",
+      kind: "subtotal",
+    },
+    {
+      key: "fee",
+      label: "판매 수수료",
+      hint: rate === undefined ? "셀러별 요율 · 본사 수익" : `요율 ${rate}%`,
+      value: minus(d.fee),
+      group: "deduct",
+    },
+    {
+      key: "pg",
+      label: "PG 수수료",
+      hint: "요율 미정 · 데모 3%",
+      value: minus(d.pg),
+      group: "deduct",
+    },
+    d.clawback > 0 && {
+      key: "cancel",
+      label: "취소·반품 환수",
+      hint: "전월 확정분",
+      value: minus(d.clawback),
+      group: "deduct",
+      tip: SETTLE_TIP.cancel,
+    },
+    d.care > 0 && {
+      key: "care",
+      label: "안심케어 보전",
+      hint: "본사 복원비",
+      value: plus(d.care),
+      group: "add",
+      tip: SETTLE_TIP.care,
+    },
+    { key: "total", label: totalLabel, value: won(d.payout), kind: "total" },
+    /* 미회수 — 지급액과 별개 금액이라 지급액 **아래** 따로 붙는다(원본 UI-272) */
+    d.unpaid > 0 && {
+      key: "unpaid",
+      label: "미회수",
+      hint: unpaidBy ? `${unpaidBy} · 별도 청구` : "별도 청구",
+      value: won(d.unpaid),
+      kind: "unpaid",
+      tip: SETTLE_TIP.unpaid,
+    },
+    /* 포인트 — 계산에 끼지 않는다. 지급액 아래 참고로만(원본은 계산 중간) */
+    d.point > 0 && {
+      key: "point",
+      label: "포인트 사용분 본사 부담",
+      hint: "정산 영향 없음",
+      value: won(d.point),
+      kind: "note",
+    },
+  ];
+  return lines.filter((line): line is StatementLine => line !== false);
+};
+
+/** 합산 미회수가 어느 셀러인지 — 원장 순서 그대로 */
+export const UNPAID_SELLERS = SELLER_SETTLEMENTS.filter((row) => row.unpaid > 0)
+  .map((row) => row.name)
+  .join(", ");
+
+/** 산출 내역 아래 안내 상자 — 원본 `SETTLE_FOOT` 를 두 줄로 */
+export const SETTLE_NOTES = [
+  "보증금·연체료·배상액은 매출 정산과 분리해 보증금 정산에서 처리합니다.",
+  "지급완료 시 수수료 세금계산서가 동시 발행됩니다.",
 ];
-
-/** 미회수 각주 — 원본 `settleUnpaidNote`. 0 이면 없다 */
-export const unpaidNoteOf = (unpaid: number) =>
-  unpaid > 0
-    ? {
-        strong: `환수액이 이번 회차 확정 매출을 넘어 ${won(unpaid)}을 회수하지 못했습니다.`,
-        rest: "지급액은 0원이 하한이며, 남은 잔액은 차기 회차로 넘기지 않고 셀러에게 별도 청구합니다(1회 지급 완결).",
-      }
-    : null;
-
-/** 명세 하단 각주 — 원본 `SETTLE_FOOT` */
-export const SETTLE_FOOT =
-  "보증금·연체료·배상액은 매출 정산과 분리해 보증금 정산에서 처리합니다. 정산 완료 시 수수료 세금계산서가 동시 발행됩니다.";
 
 /* =========================================================================
  * 상태별 업무 버튼 · 확인 모달 3종 (원본 `settleActBtn` · `gatePay` · `gateHold` · `gateReissue`)
@@ -372,46 +374,56 @@ export const GATE_BUTTON: Record<GateKind, string> = {
   reissue: "수정 명세 재발송",
 };
 
-/** 지급 실행 모달의 명세 — 원본 `gatePay`(정산 매출부터 · 환수 줄 이름 「환수액」 그대로) */
-export const payLinesOf = (row: SettlementRow): StatementLine[] => [
-  { key: "gmv", label: "정산 매출", value: won(row.revenue), tone: "base" },
-  {
-    key: "fee",
-    label: `판매 수수료 (요율 ${row.rate}%)`,
-    value: minus(row.fee),
-    tone: "sub",
-    minus: true,
-  },
-  {
-    key: "pg",
-    label: "PG 수수료",
-    value: minus(row.pg),
-    tone: "sub",
-    minus: true,
-  },
-  ...(row.clawback > 0
-    ? [
-        {
-          key: "cancel",
-          label: "환수액",
-          value: minus(row.clawback),
-          tone: "sub" as const,
-          minus: true,
-        },
-      ]
-    : []),
-  ...(row.care > 0
-    ? [
-        {
-          key: "care",
-          label: "안심케어 보전",
-          value: plus(row.care),
-          tone: "sub" as const,
-        },
-      ]
-    : []),
-  { key: "total", label: "지급 예정액", value: won(row.payout), tone: "total" },
-];
+/**
+ * 지급 실행 모달의 명세 — 원본 `gatePay`(정산 매출부터 · 환수 줄 이름 「환수액」 그대로).
+ * 같은 산출 내역 부품으로 그린다 — 미회수가 있으면 지급 예정액 아래 경고 줄
+ */
+export const payLinesOf = (row: SettlementRow): StatementLine[] => {
+  const lines: (StatementLine | false)[] = [
+    {
+      key: "gmv",
+      label: "정산 매출",
+      value: won(row.revenue),
+      group: "sales",
+      kind: "subtotal",
+    },
+    {
+      key: "fee",
+      label: "판매 수수료",
+      hint: `요율 ${row.rate}%`,
+      value: minus(row.fee),
+      group: "deduct",
+    },
+    { key: "pg", label: "PG 수수료", value: minus(row.pg), group: "deduct" },
+    row.clawback > 0 && {
+      key: "cancel",
+      label: "환수액",
+      value: minus(row.clawback),
+      group: "deduct",
+    },
+    row.care > 0 && {
+      key: "care",
+      label: "안심케어 보전",
+      value: plus(row.care),
+      group: "add",
+    },
+    {
+      key: "total",
+      label: "지급 예정액",
+      value: won(row.payout),
+      kind: "total",
+    },
+    row.unpaid > 0 && {
+      key: "unpaid",
+      label: "미회수",
+      hint: "별도 청구",
+      value: won(row.unpaid),
+      kind: "unpaid",
+      tip: SETTLE_TIP.unpaid,
+    },
+  ];
+  return lines.filter((line): line is StatementLine => line !== false);
+};
 
 export const GATE_COPY = {
   pay: {

@@ -43,8 +43,11 @@ import { SELLERS } from "./SellerListPage.data";
 export const SETTLE_ROUND = "2026.09";
 export const PAYOUT_DATE = "2026-10-10";
 
-/** `2026.09` → `2026년 09월` (원본 `SETTLE_MONTH_KO`) */
-export const roundLabel = (round: string) => round.replace(".", "년 ") + "월";
+/** `2026.09` → `2026년 9월` (원본 `SETTLE_MONTH_KO` 는 `2026년 09월` — 앞자리 0 은 뺐다 · 사용자 승인 2026-11-03) */
+export const roundLabel = (round: string) => {
+  const [year, month] = round.split(".");
+  return `${year}년 ${Number(month)}월`;
+};
 
 /** PG 수수료율 — 요율 미정 · 데모 3%(원본) */
 export const PG_RATE = 0.03;

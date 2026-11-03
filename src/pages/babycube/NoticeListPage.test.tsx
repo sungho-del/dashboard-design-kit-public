@@ -1,34 +1,30 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { NoticeListPage } from "./NoticeListPage";
-import { EXCERPT_LENGTH, NOTICES, excerpt } from "./NoticeListPage.data";
+import { EXCERPT_LENGTH, excerpt } from "./NoticeListPage.data";
 
 /**
- * S19 공지사항 관리 — **동작** 테스트.
+ * S19 공지사항 관리 — **동작** 테스트 (기획 v0.4 `SCREENS.notices` 대조 후).
  *
- * 원본 대조(`chunks/3ev97mnz8g4z1.js` 모듈 31590) 후의 계약을 지킨다.
- * 이 화면이 좁히는 축은 **대상 칩 하나뿐**이고, 정렬은 등록일 최신순 하나뿐이다.
- * 그래서 여기서는 (1) 대상 전환이 실제로 목록을 바꾸는가 (2) 제목 셀의 두 줄 구조가
- * 살아 있는가 (3) 한때 있던 상태 필터·고정 토글이 되살아나지 않았는가를 본다.
+ * 대상 탭 전환(주소 `?aud=`) · 원본 샘플 순서·건수(고객 3 · 셀러 5) · 셀 표기 ·
+ * 행 클릭 → 공지 상세 · `+ 공지 작성` → 지금 탭의 신규 폼 · 페이지네이션 없음 · `?preview=`.
  */
-function renderPage() {
+function renderPage(search = "") {
+  window.history.replaceState(null, "", `/notices${search}`);
   const onNavSelect = vi.fn();
-  const onNavOpenChange = vi.fn();
   const user = userEvent.setup();
-
   render(
     <ToastProvider position="bottom">
       <NoticeListPage
         navOpen
-        onNavOpenChange={onNavOpenChange}
+        onNavOpenChange={vi.fn()}
         activeNav="/notices"
         onNavSelect={onNavSelect}
       />
     </ToastProvider>,
   );
-
-  return { user, onNavSelect, onNavOpenChange };
+  return { user, onNavSelect };
 }
 
 function bodyRows(): HTMLElement[] {
@@ -37,276 +33,187 @@ function bodyRows(): HTMLElement[] {
   return within(table).getAllByRole("row").slice(1);
 }
 
-/** 제목 셀의 **링크 버튼** 텍스트. 같은 셀에 본문 발췌가 함께 있어 셀 전체를 읽으면 안 된다 */
-function visibleTitles(): string[] {
-  return bodyRows()
-    .map(
-      (row) =>
-        within(within(row).getAllByRole("cell")[1]).getAllByRole(
-          "button",
-        )[0] as HTMLElement,
-    )
-    .map((button) => button.textContent ?? "");
-}
+/** 컬럼 순서: 고정 · 제목 · 게시 기간 · 상태 · 등록일 */
+const cellOf = (row: HTMLElement, index: number) =>
+  within(row).getAllByRole("cell")[index];
 
-/** 행의 N번째 셀 텍스트. 컬럼 순서: 고정·제목·게시 기간·상태·등록일 */
-function cellText(row: HTMLElement, index: number): string {
-  return within(row).getAllByRole("cell")[index].textContent ?? "";
-}
+/** 제목 셀의 링크 버튼 글자(본문 발췌는 빼고) */
+const titles = () =>
+  bodyRows().map(
+    (row) => within(cellOf(row, 1)).getByRole("button").textContent,
+  );
 
-async function switchTo(
-  user: ReturnType<typeof userEvent.setup>,
-  label: string,
-) {
-  await user.click(
+const switchTo = (user: ReturnType<typeof userEvent.setup>, label: string) =>
+  user.click(
     within(screen.getByRole("radiogroup", { name: "대상" })).getByRole(
       "radio",
-      {
-        name: label,
-      },
+      { name: label },
     ),
   );
-}
 
 describe("NoticeListPage", () => {
-  describe("표 구성 — 원본 컬럼 5열", () => {
-    it("컬럼 이름과 순서가 원본과 같다 — 게시 기간이 상태보다 앞이다", () => {
-      renderPage();
-
-      const headers = within(screen.getByRole("table"))
-        .getAllByRole("columnheader")
-        .map((cell) => cell.textContent);
-
-      expect(headers).toEqual(["고정", "제목", "게시 기간", "상태", "등록일"]);
-    });
-
-    it("colgroup 의 열 개수가 컬럼 개수와 같다", () => {
-      renderPage();
-
-      const cols = screen.getByRole("table").querySelectorAll("colgroup col");
-      expect(cols).toHaveLength(5);
-    });
-
-    it("등록일은 날짜만, 점 구분자로 낸다 (원본 `ymd`)", () => {
-      renderPage();
-
-      // 첫 행 = 고객 공지 중 최신(2026-08-23 16:20)
-      expect(cellText(bodyRows()[0], 4)).toBe("2026.08.23");
-      expect(cellText(bodyRows()[0], 4)).not.toContain("16:20");
-    });
-
-    it("게시 기간도 점 구분자이고, 종료일이 없으면 꼬리만 '상시'가 된다", () => {
-      renderPage();
-
-      // 09-01 ~ 09-30 (기한 있음)
-      expect(cellText(bodyRows()[0], 2)).toBe("2026.09.01 ~ 2026.09.30");
-
-      // 08-10 ~ 상시 — 시작일은 실제 값이라 살아 있어야 한다
-      const openEnded = bodyRows()[2];
-      expect(cellText(openEnded, 2)).toBe("2026.08.10 ~ 상시");
-      const tail = within(openEnded).getByText("상시");
-      expect(tail.className.split(/\s+/)).toContain("text-text-minimal");
-    });
+  it("표 5열 — 원본 순서(게시 기간이 상태보다 앞)", () => {
+    renderPage();
+    expect(
+      screen.getAllByRole("columnheader").map((cell) => cell.textContent),
+    ).toEqual(["고정", "제목", "게시 기간", "상태", "등록일"]);
+    expect(
+      screen.getByRole("table").querySelectorAll("colgroup col"),
+    ).toHaveLength(5);
   });
 
-  describe("제목 셀은 두 줄이다 — 링크 + 본문 발췌 (원본 구조)", () => {
-    it("제목 아래에 본문 발췌가 함께 나온다", () => {
+  describe("대상 전환 — 고객 3 · 셀러 5", () => {
+    it("기본은 고객 공지 — 원본 순서 그대로(정렬 없음)", () => {
       renderPage();
-
-      const notice = NOTICES.find((item) => item.id === "N-2026-041");
-      expect(notice).toBeDefined();
-
-      const titleCell = within(bodyRows()[1]).getAllByRole("cell")[1];
-      expect(within(titleCell).getByRole("button")).toHaveTextContent(
-        notice!.title,
-      );
-      expect(titleCell.textContent).toContain(excerpt(notice!.body));
-    });
-
-    it("긴 본문은 60자에서 잘리고 말줄임표가 붙는다", () => {
-      const long = NOTICES.find((item) => item.body.length > EXCERPT_LENGTH);
-      expect(long).toBeDefined();
-
-      renderPage();
-
-      // 전문이 그대로 들어가면 안 된다 — 잘렸다는 증거
-      expect(screen.queryByText(long!.body)).not.toBeInTheDocument();
-      expect(excerpt(long!.body)).toHaveLength(EXCERPT_LENGTH + 1);
-      expect(screen.getByText(excerpt(long!.body))).toBeVisible();
-    });
-  });
-
-  describe("대상 칩 — 이 화면의 유일한 조건", () => {
-    it("고객 공지로 시작한다 (원본 기본값 `aud=고객`)", () => {
-      renderPage();
-
       expect(
-        within(screen.getByRole("radiogroup", { name: "대상" })).getByRole(
-          "radio",
-          { name: "고객 공지" },
-        ),
-      ).toBeChecked();
-      expect(screen.getByText("총 4건")).toBeVisible();
-    });
-
-    it("셀러 공지로 바꾸면 목록이 통째로 갈린다", async () => {
-      const { user } = renderPage();
-
-      await switchTo(user, "셀러 공지");
-
-      expect(visibleTitles()).toEqual([
-        "셀러 등급 개편 사전 안내",
-        "정산 지급일 변경 안내 (9월부터)",
-        "상품 등록 이미지 가이드 개정",
-      ]);
-      expect(screen.getByText("총 4건")).toBeVisible();
-    });
-
-    it("'전체' 칩은 없다 — 공지는 한쪽을 보고 쓰는 글이다", () => {
-      renderPage();
-
-      const chips = within(screen.getByRole("radiogroup", { name: "대상" }))
-        .getAllByRole("radio")
-        .map((chip) => chip.textContent);
-
-      expect(chips).toEqual(["고객 공지", "셀러 공지"]);
-    });
-
-    it("대상을 바꾸면 1페이지로 되돌아간다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("button", { name: "2" }));
-      await switchTo(user, "셀러 공지");
-
-      expect(screen.getByRole("button", { name: "1" })).toHaveAttribute(
-        "aria-current",
-        "page",
-      );
-    });
-  });
-
-  describe("정렬 — 등록일 최신순 하나뿐 (원본 `createdAt desc`)", () => {
-    it("고정 공지를 위로 올리지 않는다", () => {
-      renderPage();
-
-      // 고정된 N-2026-041(08-20)보다 더 최신인 N-2026-045(08-23)가 위에 온다
-      expect(visibleTitles()).toEqual([
-        "9월 신규 브랜드 입점 예고",
-        "추석 연휴 배송·회수 일정 안내",
-        "안심케어 서비스 이용약관 개정 안내",
-      ]);
-      // 고정 배지는 2번째 행에 있다
-      expect(cellText(bodyRows()[1], 0)).toBe("고정");
-      expect(cellText(bodyRows()[0], 0)).toBe("-");
-    });
-  });
-
-  describe("⚠️ 원본에 없어서 걷어낸 것 — 되살아나면 여기서 걸린다", () => {
-    it("상태 필터가 없다 — 원본 조건은 대상 칩 하나뿐이다", () => {
-      renderPage();
-
-      const groups = screen.getAllByRole("radiogroup");
-      expect(groups).toHaveLength(1);
-      expect(groups[0]).toHaveAccessibleName("대상");
-      expect(
-        screen.queryByRole("button", { name: "초기화" }),
-      ).not.toBeInTheDocument();
-    });
-
-    it("고정 토글이 없다 — 원본 `isPinned` 는 읽기 전용 배지다", async () => {
-      const { user } = renderPage();
-
-      // 목록에도, 모달에도 고정을 바꾸는 버튼이 없다
-      expect(
-        screen.queryByRole("button", { name: /고정/ }),
-      ).not.toBeInTheDocument();
-
-      await user.click(
-        screen.getByRole("button", { name: "추석 연휴 배송·회수 일정 안내" }),
-      );
-      const sheet = await screen.findByRole("dialog");
-
-      expect(
-        within(sheet).queryByRole("button", { name: /상단 고정/ }),
-      ).not.toBeInTheDocument();
-      // 남는 버튼은 모달을 닫는 것뿐이다
-      expect(within(sheet).getAllByRole("button")).toHaveLength(1);
-    });
-
-    it("PageHeader 에 안내 문장을 달지 않는다", () => {
-      renderPage();
-
-      const header = screen.getByRole("heading", { name: "공지사항 관리" });
-      expect(header.parentElement?.textContent).toBe("공지사항 관리");
-    });
-  });
-
-  describe("공지 작성", () => {
-    it("버튼 문구는 원본대로 '공지 작성'이고, 지금 대상을 알린다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("button", { name: "공지 작성" }));
-
-      expect(
-        await screen.findByText("고객 공지 작성 화면을 엽니다"),
+        screen.getByRole("heading", { name: "목록 (총 3건)" }),
       ).toBeVisible();
+      expect(titles()).toEqual([
+        "[안내] 여름 성수기 배송 일정 안내",
+        "[공지] 보증금 환급 안내 문구 개정",
+        "[이벤트] 첫 렌트 30% 쿠폰 오픈",
+      ]);
     });
 
-    it("대상을 바꾸면 알림 문구도 함께 바뀐다", async () => {
+    it("셀러 공지로 바꾸면 5건 + 주소에 `?aud=seller` — 다시 고객이면 쿼리가 빠진다", async () => {
       const { user } = renderPage();
-
       await switchTo(user, "셀러 공지");
-      await user.click(screen.getByRole("button", { name: "공지 작성" }));
 
       expect(
-        await screen.findByText("셀러 공지 작성 화면을 엽니다"),
+        screen.getByRole("heading", { name: "목록 (총 5건)" }),
       ).toBeVisible();
-    });
-  });
+      expect(titles()[0]).toBe(
+        "[정산] 7월 정산 명세 확인 요청 발송 안내 (7/1)",
+      );
+      expect(titles()[4]).toBe("[시스템] 셀러 어드민 정기 점검 안내 (6/12)");
+      expect(window.location.search).toBe("?aud=seller");
 
-  describe("페이지네이션", () => {
-    it("대상별 4건을 3건씩 나눠 2페이지로 보여준다", async () => {
-      const { user } = renderPage();
-
+      await switchTo(user, "고객 공지");
+      expect(window.location.search).toBe("");
       expect(bodyRows()).toHaveLength(3);
+    });
 
-      await user.click(screen.getByRole("button", { name: "2" }));
-
-      expect(visibleTitles()).toEqual(["여름 휴가철 고객센터 운영 시간 변경"]);
+    it("`?aud=seller` 로 들어오면 셀러 탭으로 열린다(상세에서 돌아온 경우)", () => {
+      renderPage("?aud=seller");
+      expect(screen.getByRole("radio", { name: "셀러 공지" })).toBeChecked();
+      expect(bodyRows()).toHaveLength(5);
     });
   });
 
-  describe("제목 → 공지 미리보기", () => {
-    it("제목을 누르면 본문 전문이 모달에 뜬다", async () => {
+  describe("셀 표기 — 사례표", () => {
+    it("고정 = 대상별 첫 글만 「고정」, 나머지 「-」", async () => {
       const { user } = renderPage();
-
-      const notice = NOTICES.find((item) => item.id === "N-2026-041");
-      await user.click(screen.getByRole("button", { name: notice!.title }));
-
-      const sheet = await screen.findByRole("dialog");
-      expect(
-        within(sheet).getByRole("heading", { name: "공지 미리보기" }),
-      ).toBeVisible();
-      expect(
-        within(sheet)
-          .getAllByRole("term")
-          .map((term) => term.textContent),
-      ).toEqual(["게시 기간", "상태", "등록일", "고정"]);
-      expect(
-        within(sheet)
-          .getAllByRole("definition")
-          .map((value) => value.textContent),
-      ).toEqual(["2026.08.20 ~ 2026.09.30", "게시중", "2026.08.20", "고정"]);
-      // 표에서 잘린 본문이 여기서는 전문으로 보인다
-      expect(within(sheet).getByText(notice!.body)).toBeVisible();
+      expect(bodyRows().map((row) => cellOf(row, 0).textContent)).toEqual([
+        "고정",
+        "-",
+        "-",
+      ]);
+      await switchTo(user, "셀러 공지");
+      expect(bodyRows().map((row) => cellOf(row, 0).textContent)).toEqual([
+        "고정",
+        "-",
+        "-",
+        "-",
+        "-",
+      ]);
     });
 
-    it("행 전체는 눌리지 않는다 — 원본에서 링크는 제목 하나다", async () => {
+    it("게시 기간 — 종료 없으면 꼬리만 흐린 「상시」, 있으면 종료일", () => {
+      renderPage();
+      const [first, , third] = bodyRows();
+      expect(cellOf(first, 2).textContent).toBe("2026.07.01 ~ 상시");
+      expect(within(cellOf(first, 2)).getByText("상시")).toHaveClass(
+        "text-text-minimal",
+      );
+      expect(cellOf(third, 2).textContent).toBe("2026.06.01 ~ 2026.08.31");
+      expect(cellOf(first, 4).textContent).toBe("2026.07.01");
+    });
+
+    it("상태 = 저장값 — 기간이 지난 N-U29 도 「게시」 · 숨김은 셀러 N-S22 하나", async () => {
       const { user } = renderPage();
+      expect(bodyRows().map((row) => cellOf(row, 3).textContent)).toEqual([
+        "게시",
+        "게시",
+        "게시",
+      ]);
+      await switchTo(user, "셀러 공지");
+      expect(bodyRows().map((row) => cellOf(row, 3).textContent)).toEqual([
+        "게시",
+        "게시",
+        "게시",
+        "게시",
+        "숨김",
+      ]);
+    });
 
-      await user.click(within(bodyRows()[0]).getAllByRole("cell")[2]);
+    it("제목 아래 본문 발췌 — 60자 넘으면 말줄임", () => {
+      renderPage();
+      expect(cellOf(bodyRows()[0], 1)).toHaveTextContent(
+        "7~8월 성수기에는 도서산간 지역 배송이 1~2일 지연될 수 있습니다.",
+      );
+      const long = "가".repeat(EXCERPT_LENGTH + 5);
+      expect(excerpt(long)).toBe(`${"가".repeat(EXCERPT_LENGTH)}…`);
+      expect(excerpt("짧은 본문")).toBe("짧은 본문");
+    });
+  });
 
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  describe("이동", () => {
+    it("행 어디를 눌러도 공지 상세로 — 제목 링크도 같은 곳", async () => {
+      const { user, onNavSelect } = renderPage();
+      await user.click(cellOf(bodyRows()[1], 2));
+      expect(onNavSelect).toHaveBeenLastCalledWith("/notices/N-U30");
+
+      await user.click(within(cellOf(bodyRows()[2], 1)).getByRole("button"));
+      expect(onNavSelect).toHaveBeenLastCalledWith("/notices/N-U29");
+    });
+
+    it("`+ 공지 작성` — 지금 탭의 대상으로 신규 폼", async () => {
+      const { user, onNavSelect } = renderPage();
+      await user.click(screen.getByRole("button", { name: "공지 작성" }));
+      expect(onNavSelect).toHaveBeenLastCalledWith("/notices/new");
+
+      await switchTo(user, "셀러 공지");
+      await user.click(screen.getByRole("button", { name: "공지 작성" }));
+      expect(onNavSelect).toHaveBeenLastCalledWith("/notices/new?aud=seller");
+    });
+  });
+
+  it("원본에 없는 것 — 페이지네이션·미리보기 모달이 없다", async () => {
+    const { user } = renderPage("?aud=seller");
+    expect(
+      screen.queryByRole("navigation", { name: "페이지네이션" }),
+    ).toBeNull();
+    await user.click(cellOf(bodyRows()[0], 2));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  describe("데이터 상태 (?preview=)", () => {
+    it("loading — 머리는 남기고 값은 스켈레톤", () => {
+      renderPage("?preview=loading");
+      expect(screen.getByRole("columnheader", { name: "제목" })).toBeVisible();
+      expect(
+        screen.queryByText("[안내] 여름 성수기 배송 일정 안내"),
+      ).toBeNull();
+      expect(
+        document.body.querySelectorAll("[data-skeleton]").length,
+      ).toBeGreaterThan(0);
+    });
+
+    it("empty — 「등록된 고객 공지가 없습니다」", () => {
+      renderPage("?preview=empty");
+      expect(screen.getByText("등록된 고객 공지가 없습니다")).toBeVisible();
+    });
+
+    it("refreshing — 값을 흐리게 둔다", async () => {
+      renderPage("?preview=refreshing");
+      expect(
+        screen.getByText("[안내] 여름 성수기 배송 일정 안내"),
+      ).toBeVisible();
+      await waitFor(() =>
+        expect(
+          document.body.querySelector("[data-table-shell-body]")?.className,
+        ).toContain("opacity-50"),
+      );
     });
   });
 });

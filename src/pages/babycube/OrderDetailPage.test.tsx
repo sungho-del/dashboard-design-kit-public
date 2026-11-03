@@ -1,10 +1,21 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { navigate } from "../../lib/router";
 import { STAGES } from "./GrowthStageListPage.data";
 import { OrderDetailPage } from "./OrderDetailPage";
-import { historyOf } from "./OrderDetailPage.data";
+import {
+  claimFeeOf,
+  historyOf,
+  statementBlocksOf,
+} from "./OrderDetailPage.data";
 import { ORDERS } from "./OrderListPage.data";
 import { draftOf } from "./ProductDetailPage.data";
 import { PRODUCTS } from "./ProductListPage.data";
@@ -75,18 +86,36 @@ function historyLabels(): string[] {
     .map((row) => within(row).getAllByRole("cell")[0].textContent ?? "");
 }
 
-/** 주문 명세 팝업을 열고 `라벨 → 값` 을 읽는다 */
+/**
+ * 주문 명세 팝업을 열고 묶음·줄을 읽는다(`CalcBreakdown`).
+ * 줄 이름은 `<dt>` 의 첫 글자 칸 — 보조 글자(`hints`)는 따로 읽는다. 값 없는 줄은 처리 문장(`messages`)이다.
+ */
 async function openStatement(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole("button", { name: "상세보기" }));
+  await user.click(screen.getByRole("button", { name: "주문 명세" }));
   const dialog = await screen.findByRole("dialog");
+  const blocks = [...dialog.querySelectorAll("[data-block]")].map((block) => ({
+    key: block.getAttribute("data-block"),
+    lines: [...block.querySelectorAll("[data-line]")].map((line) => ({
+      label: line.querySelector("dt > span")?.textContent ?? "",
+      hint: line.querySelector("dt > span:nth-of-type(2)")?.textContent ?? null,
+      value: line.querySelector("dd")?.textContent ?? null,
+    })),
+  }));
+  const all = blocks.flatMap((block) => block.lines);
   const lines = Object.fromEntries(
-    [...dialog.querySelectorAll("dt")].map((term) => [
-      term.textContent,
-      term.nextElementSibling?.textContent,
-    ]),
+    all.filter((line) => line.value !== null).map((l) => [l.label, l.value]),
   );
-  return { dialog, lines };
+  const hints = Object.fromEntries(all.map((l) => [l.label, l.hint]));
+  const messages = all.filter((l) => l.value === null).map((l) => l.label);
+  /** 묶음 하나의 줄 이름 순서 */
+  const labelsOf = (key: string) =>
+    blocks.find((block) => block.key === key)?.lines.map((l) => l.label);
+  return { dialog, blocks, lines, hints, messages, labelsOf };
 }
+
+/** 명세 문자열 금액 → 수 (`−12,000원` · `+3,000원` · `1,300원/일`) */
+const amount = (text: string | null | undefined) =>
+  Number((text ?? "").replace(/[^0-9]/g, ""));
 
 const RENT_FLOW_FULL = [
   "신규 주문",
@@ -170,7 +199,7 @@ describe("OrderDetailPage", () => {
     it("다른 처리단위로 가면 처음부터 다시 그린다", async () => {
       const { user } = renderAt("/orders-all/U-R01");
       await user.click(screen.getByRole("button", { name: "배송정보 접기" }));
-      await user.click(screen.getByRole("button", { name: "상세보기" }));
+      await user.click(screen.getByRole("button", { name: "주문 명세" }));
       expect(await screen.findByRole("dialog")).toBeVisible();
 
       act(() => navigate("/orders-all/U-R02"));
@@ -220,51 +249,88 @@ describe("OrderDetailPage", () => {
   });
 
   describe("주문 명세 팝업 (독립 예시로 계산 확인)", () => {
-    it("렌트 — 단가 × 렌트일, 보증금은 따로 보이고 결제금액에 들지 않는다", async () => {
+    it("렌트 — 단가 × 렌트일, 보증금은 「별도」 묶음이고 결제금액에 들지 않는다", async () => {
       const { user } = renderAt("/orders-all/U-R01");
 
-      const { dialog, lines } = await openStatement(user);
+      const { dialog, lines, hints, blocks, labelsOf } =
+        await openStatement(user);
 
       expect(dialog).toHaveAccessibleName("주문 명세 · 20261018143205");
-      /* BL240814 1,500 − 200 = 1,300원/일 × 14일 */
+      /* BL240814 1,500 − 200 = 1,300원/일 × 14일 — 일 단가 할인은 단가에서 끝난다 */
+      expect(labelsOf("product")).toEqual([
+        "렌트 원가",
+        "상품 할인",
+        "렌트가",
+        "렌트일",
+        "소계",
+      ]);
       expect(lines["렌트 원가"]).toBe("1,500원/일");
-      expect(lines["할인 금액"]).toBe("- 200원/일");
+      expect(lines["상품 할인"]).toBe("\u2212200원/일");
       expect(lines["렌트가"]).toBe("1,300원/일");
       expect(lines["렌트일"]).toBe("14일");
       expect(lines["소계"]).toBe("18,200원");
       expect(lines["배송비"]).toBe("무료");
       expect(lines["회수 배송비"]).toBe("무료");
-      expect(lines["보증금"]).toBe("120,000원");
       expect(lines["결제금액"]).toBe("18,200원");
+      expect(lines["보증금"]).toBe("120,000원");
+      expect(hints["보증금"]).toContain("결제금액에 포함 안 됨");
+      /* 묶음 순서 — 쿠폰·포인트가 없으면 「할인」 묶음은 없다 · 보증금은 결제금액 **아래** */
+      expect(blocks.map((block) => block.key)).toEqual([
+        "product",
+        "extra",
+        "pay",
+        "deposit",
+      ]);
+      /* 차감은 기본 글자색 — 명세에 경고색이 없다 */
+      expect(dialog.querySelector(".text-text-critical")).toBeNull();
 
       await user.click(within(dialog).getByRole("button", { name: "닫기" }));
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     });
 
-    it("렌트 — 쿠폰은 빼고 안심케어는 더한다", async () => {
+    it("본문 주문정보의 결제금액은 팝업과 같은 값이다", async () => {
+      const { user } = renderAt("/orders-all/U-R09");
+      expect(valueOf("결제금액")).toMatch(/^35,000원/);
+      const { lines } = await openStatement(user);
+      expect(lines["결제금액"]).toBe("35,000원");
+    });
+
+    it("렌트 — 쿠폰은 빼고 안심케어는 더한다 · 0원 상품 할인은 부호 없이", async () => {
       const { user } = renderAt("/orders-all/U-R09");
 
-      const { lines } = await openStatement(user);
+      const { lines, hints, labelsOf } = await openStatement(user);
 
       /* BH731058 1,100원/일 × 30일 = 33,000 − 쿠폰 3,000 + 안심케어 5,000 */
+      expect(lines["상품 할인"]).toBe("0원/일");
       expect(lines["소계"]).toBe("33,000원");
-      expect(lines["쿠폰 할인"]).toBe("- 3,000원");
-      expect(lines["안심케어 · (정산 미포함)"]).toBe("+ 5,000원");
+      expect(labelsOf("discount")).toEqual(["쿠폰 할인"]);
+      expect(lines["쿠폰 할인"]).toBe("\u22123,000원");
+      expect(lines["안심케어"]).toBe("+5,000원");
+      expect(hints["안심케어"]).toBe("정산 미포함");
       expect(lines["결제금액"]).toBe("35,000원");
+    });
+
+    it("포인트 할인은 「할인」 묶음 · 보조 글자 「플랫폼 부담」", async () => {
+      const { user } = renderAt("/orders-all/U-R11");
+      const { lines, hints } = await openStatement(user);
+      expect(lines["포인트 할인"]).toBe("\u22122,000원");
+      expect(hints["포인트 할인"]).toBe("플랫폼 부담");
+      expect(lines["결제금액"]).toBe("37,000원");
     });
 
     it("판매 — 판매가 × 수량 − 쿠폰 + 배송비 (원본은 0원으로 나왔다)", async () => {
       const { user } = renderAt("/orders-all/U-S07");
 
-      const { lines } = await openStatement(user);
+      const { lines, blocks } = await openStatement(user);
 
       /* GJ650283 99,000 − 10,000 = 89,000 × 2 = 178,000 − 5,000 + 3,000 */
       expect(lines["판매가"]).toBe("89,000원");
       expect(lines["수량"]).toBe("2개");
       expect(lines["소계"]).toBe("178,000원");
-      expect(lines["배송비"]).toBe("+ 3,000원");
+      expect(lines["배송비"]).toBe("+3,000원");
       expect(lines["결제금액"]).toBe("176,000원");
       expect(lines["보증금"]).toBeUndefined();
+      expect(blocks.map((block) => block.key)).not.toContain("deposit");
     });
   });
 
@@ -287,7 +353,7 @@ describe("OrderDetailPage", () => {
       expect(hasRow("송장번호")).toBe(false);
       expect(valueOf("반납 요금")).toBe("무료");
       /* 대여 시작일 = 이용 기간 시작일 */
-      expect(valueOf("대여 시작일")).toBe("2026.10.14 09:00:00");
+      expect(valueOf("대여 시작일")).toBe("2026.10.14 09:00");
     });
 
     it("배송 지연 건은 지연 사유가 채워진다", () => {
@@ -434,15 +500,25 @@ describe("클레임 모드", () => {
     expect(screen.getByText("찾을 수 없는 교환 건입니다")).toBeVisible();
   });
 
-  describe("명세 꼬리 — 클레임이 돈을 어떻게 움직이는가 (독립 예시)", () => {
-    it("렌트 취소(무료 취소) — 결제금액 전액 환불 + 보증금 반환을 따로", async () => {
+  describe("명세의 클레임 묶음 — 기준 → 차감 → 결과 (독립 예시)", () => {
+    it("렌트 취소(무료 취소) — 환불과 보증금 반환이 각자 묶음이다(합친 총액 없음)", async () => {
       const { user } = renderAt("/orders-cancel/U-R23");
-      const { lines } = await openStatement(user);
+      const { lines, labelsOf, blocks } = await openStatement(user);
 
       /* 렌트가 1,200원/일 × 14일 = 16,800원 · 보증금 90,000원 */
+      expect(labelsOf("refund")).toEqual(["결제금액", "환불 예정액"]);
+      expect(labelsOf("depositRefund")).toEqual([
+        "보증금",
+        "보증금 반환 예정액",
+      ]);
       expect(lines["결제금액"]).toBe("16,800원");
       expect(lines["환불 예정액"]).toBe("16,800원");
       expect(lines["보증금 반환 예정액"]).toBe("90,000원");
+      /* 클레임 모드에서 결제금액은 결과가 아니다 — 주문 상세의 결과 묶음(pay)이 없다 */
+      expect(blocks.map((block) => block.key)).not.toContain("pay");
+      /* 본문 결과 줄 = 팝업과 같은 값 */
+      expect(valueOf("환불 예정액")).toBe("16,800원");
+      expect(valueOf("보증금 반환 예정액")).toBe("90,000원");
     });
 
     it("취소 완료면 「예정」이 아니라 「완료」다", async () => {
@@ -454,27 +530,61 @@ describe("클레임 모드", () => {
       expect(lines["환불 예정액"]).toBeUndefined();
     });
 
-    it("판매 반품 고객 귀책 — 편도 배송비를 환불액에서 **한 번만** 뺀다 (별도 청구 줄 없음)", async () => {
+    it("판매 반품 고객 귀책 — 결제금액에서 편도 배송비를 **한 번만** 뺀다 (별도 청구 줄 없음)", async () => {
       const { user } = renderAt("/orders-return/U-S18");
-      const { lines } = await openStatement(user);
+      const { lines, hints, labelsOf } = await openStatement(user);
 
+      expect(labelsOf("refund")).toEqual([
+        "결제금액",
+        "반품 배송비",
+        "환불 예정액",
+      ]);
       expect(lines["결제금액"]).toBe("119,000원");
-      expect(lines["반품 배송비(편도) 차감 · 환불액에서"]).toBe("- 12,000원");
+      expect(lines["반품 배송비"]).toBe("\u221212,000원");
+      expect(hints["반품 배송비"]).toBe("편도 · 고객 귀책 · 환불액에서 차감");
       expect(lines["환불 예정액"]).toBe("107,000원");
-      expect(Object.keys(lines).some((label) => label?.includes("청구"))).toBe(
-        false,
-      );
+      expect(
+        Object.keys(hints).some((label) =>
+          `${label}${hints[label] ?? ""}`.includes("청구"),
+        ),
+      ).toBe(false);
       expect(valueOf("배송비 부담")).toBe(
         "반품 배송비(편도) 12,000원 · 환불액에서 차감",
       );
     });
 
-    it("렌트 반품 고객 귀책 — 보증금에서 뺀다", async () => {
+    it("렌트 반품 고객 귀책 — 보증금이 기준이고 거기서 뺀다", async () => {
       const { user } = renderAt("/orders-return/U-R26");
-      const { lines } = await openStatement(user);
+      const { lines, labelsOf } = await openStatement(user);
 
+      expect(labelsOf("pay")).toEqual(["결제금액"]);
+      expect(labelsOf("depositRefund")).toEqual([
+        "보증금",
+        "반품 배송비",
+        "보증금 반환 예정액",
+      ]);
       expect(lines["보증금 반환 예정액"]).toBe("142,000원");
+      expect(amount(lines["보증금"]) - amount(lines["반품 배송비"])).toBe(
+        142000,
+      );
       expect(valueOf("귀책 판정")).toBe("고객 귀책");
+    });
+
+    /** 차감 줄은 보이기만 한다 — 반환액은 보증금 함수가 정한다. 보이는 줄로 다시 셈해도 같아야 한다 */
+    it("렌트 반품은 모두 「보증금 − 반품 배송비 = 반환액」으로 읽힌다", () => {
+      const rentReturns = ORDERS.filter(
+        (order) => order.claim?.type === "return" && order.type === "rent",
+      );
+      expect(rentReturns.length).toBeGreaterThan(0);
+      rentReturns.forEach((order) => {
+        const block = statementBlocksOf(order, true).find(
+          (item) => item.key === "depositRefund",
+        );
+        if (!block) return; // 반려·거부 — 돈이 움직이지 않는다
+        const deposit = amount(block.lines[0].value);
+        const result = amount(block.lines[block.lines.length - 1].value);
+        expect(deposit - claimFeeOf(order)).toBe(result);
+      });
     });
 
     it("렌트 반품 판매자 귀책 · 완료 — 보증금 전액 반환 완료, 배송비는 판매자 부담", async () => {
@@ -482,38 +592,51 @@ describe("클레임 모드", () => {
       const { lines } = await openStatement(user);
 
       expect(lines["보증금 반환 완료"]).toBe("130,000원");
+      expect(lines["반품 배송비"]).toBeUndefined();
       expect(valueOf("배송비 부담")).toBe("판매자 부담");
       expect(valueOf("보증금 상태")).toBe("전액환급");
     });
 
-    it("거부·재반송은 돈이 움직이지 않는다 — 원본은 거부 건에도 환불 예정액을 붙였다", async () => {
+    it("거부·재반송은 돈이 움직이지 않는다 — 금액이 아니라 처리 문장 한 줄", async () => {
       const { user } = renderAt("/orders-return/U-S20");
-      const { lines } = await openStatement(user);
+      const { lines, messages } = await openStatement(user);
 
-      expect(lines["처리 결과"]).toBe("환불 없음 — 원거래 유지");
+      expect(messages).toEqual(["환불 없음 — 원거래 유지"]);
       expect(lines["환불 예정액"]).toBeUndefined();
+      expect(valueOf("처리 결과")).toBe("환불 없음 — 원거래 유지");
     });
 
-    it("교환 — 고객 귀책 왕복 배송비 · 환불 없이 재배송 / 거부는 교환 불가", async () => {
+    it("교환 — 고객 귀책 왕복 배송비 · 환불 없이 재배송 (환불액 줄을 만들지 않는다)", async () => {
       const { user } = renderAt("/orders-exchange/U-S12");
-      const { lines } = await openStatement(user);
+      const { lines, hints, messages } = await openStatement(user);
 
-      expect(lines["교환 배송비(왕복) · 고객 부담"]).toBe("12,000원");
-      expect(lines["처리 결과"]).toBe("환불 없음 — 검수 후 재배송");
+      expect(lines["교환 배송비"]).toBe("12,000원");
+      expect(hints["교환 배송비"]).toBe("왕복 · 고객 부담");
+      expect(messages).toEqual(["환불 없음 — 검수 후 재배송"]);
+      expect(valueOf("처리 결과")).toBe("환불 없음 — 검수 후 재배송");
+      expect(hasRow("환불 예정액")).toBe(false);
       expect(valueOf("발송 여부")).toBe("발송 후 · 한진택배 502610112137");
     });
 
     it("교환 거부는 「재배송」이라 말하지 않는다", async () => {
       const { user } = renderAt("/orders-exchange/U-S28");
-      const { lines } = await openStatement(user);
+      const { messages } = await openStatement(user);
 
-      expect(lines["처리 결과"]).toBe("교환 불가 — 원거래 유지");
+      expect(messages).toEqual(["교환 불가 — 원거래 유지"]);
     });
+  });
+
+  it("클레임 6항목은 주문정보 카드 안 소제목 「{유형} 정보」 아래 — 주문 상세에는 없다", () => {
+    renderAt("/orders-return/U-S18");
+    expect(screen.getByRole("heading", { name: "반품 정보" })).toBeVisible();
+    cleanup();
+    renderAt("/orders-all/U-S18");
+    expect(screen.queryByRole("heading", { name: "반품 정보" })).toBeNull();
   });
 
   it("같은 처리단위의 주문 상세 ↔ 클레임 상세 이동은 처음부터 다시 그린다", async () => {
     const { user } = renderAt("/orders-return/U-S18");
-    await user.click(screen.getByRole("button", { name: "상세보기" }));
+    await user.click(screen.getByRole("button", { name: "주문 명세" }));
     expect(await screen.findByRole("dialog")).toBeVisible();
 
     act(() => navigate("/orders-all/U-S18"));

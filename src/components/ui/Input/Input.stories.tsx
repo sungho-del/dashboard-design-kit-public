@@ -33,6 +33,18 @@ export const Small: Story = {
   args: { size: "small", placeholder: "0", className: "w-16" },
 };
 
+/**
+ * `noMinWidth` — 몇 자리 숫자만 받는 **폼 칸**(수수료율 % 등). 높이 40 은 그대로,
+ * 최소폭 240 만 풀고 폭은 `className` 으로 준다. 일반 폼 칸에는 쓰지 않는다.
+ */
+export const NoMinWidth: Story = {
+  args: { noMinWidth: true, placeholder: "0", className: "w-24" },
+  play: async ({ canvasElement }) => {
+    const field = canvasElement.querySelector("input")?.parentElement;
+    await expect(field?.getBoundingClientRect().width).toBe(96);
+  },
+};
+
 export const Default: Story = {};
 
 /** placeholder는 `text-minimal`로 값 텍스트보다 한 단계 흐리게 */

@@ -276,7 +276,10 @@ export function DataTableShell({
             </div>
           )}
           {toolbarEnd != null && (
-            <div className="flex w-full flex-wrap items-center gap-2 sm:w-fit">
+            // 오른쪽 묶음 — `sm:ml-auto`: 줄이 바뀌어 혼자 둘째 줄로 내려가도 **오른쪽에 남는다**
+            // (`justify-between` 은 한 줄에 하나 남은 항목을 왼쪽에 붙인다). end 만 있을 때도 오른쪽.
+            // 모바일(`w-full`)은 지금처럼 한 줄을 다 쓰고 안쪽은 왼쪽부터 — margin 이 먹지 않는 분기다
+            <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-fit">
               {toolbarEnd}
             </div>
           )}

@@ -10,7 +10,7 @@ import {
   STATUS_META as ORDER_STATUS_META,
   TYPE_META,
 } from "./OrderListPage.data";
-import { dotted, won } from "./SellerSettlementPage.data";
+import { dotted, minus, plus, won } from "./SellerSettlementPage.data";
 
 /* -------------------------------------------------------------------------
  * 셀러 정산 상세 (BO-STL-003 · `/settle-seller/{셀러 id}`) — **도메인 층**
@@ -22,7 +22,8 @@ import { dotted, won } from "./SellerSettlementPage.data";
  *
  * ## 뼈대가 이 파일에 기대하는 계약
  * - `findRow(id)` — 경로 마지막 조각(셀러 마스터 id)으로 이번 회차 행을 찾는다. 없으면 `undefined`
- * - `infoOf(row)` 가 「정산 정보」 줄을 준다(이의 사유·재발송 이력은 있을 때만)
+ * - `infoOf(row)` 가 「정산 정보」 줄을 준다(재발송 이력은 있을 때만) · `objectionOf(row)` 는 명세 위 경고 상자
+ * - `txNoteOf(tx)` 가 거래 내역 「정산 반영」 칸(앞 진하게 / 뒤 흐리게 · 환수 −N원 · 보전 +N원)
  * - 거래 내역은 `row.transactions`(반영 → 환수 → 제외 순으로 이미 정렬)
  *
  * ## ⚠️ 기획 확인 필요 (원본 그대로)
@@ -44,8 +45,9 @@ export const NOT_FOUND = {
     "주소가 잘못되었거나 이번 회차 정산 대상이 아닌 셀러일 수 있습니다.",
 };
 
-/** 머리 한 줄 — `{셀러} · {회차}` */
-export const headlineOf = (row: SettlementRow) => `${row.name} · ${row.round}`;
+/** 머리 한 줄 — `{셀러} · 2026년 9월` (날짜는 3화면 모두 `roundLabel` 표기) */
+export const headlineOf = (row: SettlementRow) =>
+  `${row.name} · ${roundLabel(row.round)}`;
 
 export const SECTIONS = {
   statement: "정산 명세",
@@ -64,20 +66,27 @@ export const accountOf = (row: SettlementRow) =>
 export const sellerPathOf = (row: SettlementRow) => `/sellers/${row.sellerId}`;
 export const orderPathOf = (tx: SettleTx) => `/orders-all/${tx.order.id}`;
 
-/** 「정산 정보」 값 — 이의 사유는 **이의제기 상태일 때만**, 재발송은 이력이 있을 때만(원본) */
+/** 「정산 정보」 값 — 재발송은 이력이 있을 때만(원본) */
 export const infoOf = (row: SettlementRow) => ({
   count: `${row.count}건`,
-  round: row.round,
+  round: roundLabel(row.round),
   payoutDate: dotted(PAYOUT_DATE),
   account: accountOf(row),
-  objection:
-    row.status === "disputed" && row.objection
-      ? { text: row.objection.reason, at: dotted(row.objection.at) }
-      : null,
   resend: row.resend
     ? { text: row.resend.note, at: dotted(row.resend.at) }
     : null,
 });
+
+/**
+ * 셀러 이의 사유 — **이의제기 상태이고 사유가 있을 때만**(원본 조건 그대로). 이 화면에서 할 일
+ * ([수정 명세 재발송])의 근거라 「정산 정보」 줄이 아니라 정산 명세 카드 맨 위 경고 상자로 그린다.
+ * 사유·일시를 함께 보존한다(한 곳에만 — 정산 정보에서는 뺐다)
+ */
+export const OBJECTION_LABEL = "셀러 이의 사유";
+export const objectionOf = (row: SettlementRow) =>
+  row.status === "disputed" && row.objection
+    ? { text: row.objection.reason, at: dotted(row.objection.at) }
+    : null;
 
 /* =========================================================================
  * 거래 내역 표 (원본 `settleTxTable` · `settleTxFoot`)
@@ -91,6 +100,25 @@ export const txCells = (tx: SettleTx) => ({
   status: ORDER_STATUS_META[tx.order.status],
   amount: won(tx.amount),
 });
+
+/**
+ * 「정산 반영」 칸 — 앞(`strong` · 기본 글자색) + 뒤(`muted` · 보조 글자색).
+ * 이번 회차 지급액을 실제로 바꾸는 줄은 흐리지 않는다:
+ * - 반영: `반영`(+ 승인 보전이 있으면 ` · 보전 +N원`) · 뒤에 클레임 불성립 등 사유
+ * - 환수: 원본 문구 `제외 · 반품 환수` + ` −N원`(그 건의 `clawback` 값 — 원거래 「금액」 칸은 그대로)
+ * - 그 밖 제외: 전부 흐리게(원본 `muted`). ⚠️ 환수 값이 없는 제외 건에 환수를 붙이지 않는다
+ * 정산 명세서 상세도 이 함수를 쓴다(두 화면의 같은 표가 같은 모양)
+ */
+export const txNoteOf = (tx: SettleTx): { strong: string; muted: string } => {
+  if (tx.kind === "clawback" && tx.clawback > 0) {
+    return { strong: `${tx.note} ${minus(tx.clawback)}`, muted: "" };
+  }
+  if (tx.kind === "included") {
+    const care = tx.care > 0 ? ` · 보전 ${plus(tx.care)}` : "";
+    return { strong: `반영${care}`, muted: tx.note.slice("반영".length) };
+  }
+  return { strong: "", muted: tx.note };
+};
 
 /** 표 아래 요약 — `반영 N건 · N원(= 확정 거래액) · 제외 N건` */
 export const txSummaryOf = (row: SettlementRow) => {

@@ -392,6 +392,27 @@ describe("MemberListPage (S02 회원 관리)", () => {
       );
     });
 
+    /** 1280 에서 표가 넘쳐도 [상세] 가 화면 안에 남게 관리 열은 오른쪽 고정이다 */
+    it("관리 열은 오른쪽에 고정되고 각 행의 [상세] 를 담는다", () => {
+      renderPage();
+      const table = screen.getByRole("table");
+      const th = within(table).getByRole("columnheader", { name: "관리" });
+      expect(th.className.split(/\s+/)).toEqual(
+        expect.arrayContaining(["sticky", "right-0"]),
+      );
+
+      const rows = within(table).getAllByRole("row").slice(1);
+      for (const row of rows) {
+        const last = row.querySelector("td:last-child") as HTMLElement;
+        expect(last.className.split(/\s+/)).toEqual(
+          expect.arrayContaining(["sticky", "right-0", "bg-inherit"]),
+        );
+        expect(
+          within(last).getByRole("button", { name: "상세" }),
+        ).toBeVisible();
+      }
+    });
+
     /** 원본 `ymd` 는 `2026.08.12` 처럼 **날짜만** 낸다 — 표에 시각을 내지 않는다 */
     it("가입일은 날짜만 점 표기로 낸다", () => {
       renderPage();

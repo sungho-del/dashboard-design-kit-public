@@ -6,7 +6,6 @@ import {
   Card,
   CardBody,
   CardHeader,
-  Divider,
   EmptyState,
   Gnb,
   IconButton,
@@ -17,7 +16,6 @@ import {
   Tag,
   TextButton,
 } from "../../components/ui";
-import { cn } from "../../lib/cn";
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
 import {
   lastPathSegment,
@@ -35,9 +33,9 @@ import {
   LIST_LABEL,
   LIST_PATH,
   OWNER_LABEL,
-  POLICY_TEXT,
+  POLICY_NOTES,
   SECTIONS,
-  calcLinesOf,
+  calcBlocksOf,
   findDeposit,
   headlineOf,
   inspectionOf,
@@ -48,6 +46,7 @@ import {
   procTextOf,
   sellerPathOf,
 } from "./RentDepositDetailPage.data";
+import { CalcBreakdown } from "./CalcBreakdown";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
 /* =========================================================================
@@ -56,6 +55,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * ## 구성
  * ```
  * 보증금 정보 · 정산 계산 · 처리 상태 (조회 전용)     (3구역, 각각 접기)
+ * 정산 계산 = 공용 `CalcBreakdown`(보증금 / 차감 / 반환 예정액 · 최대 폭 768 · 정책 안내 상자)
  * [목록]                               [취소] [확인]  ← 하단 고정 바
  * ```
  * 보증금 내역 행이 이 화면으로 온다(`/rent-deposit/{처리단위}`). 고치는 값이 없다 —
@@ -315,40 +315,8 @@ function RentDepositDetailBody({
         {loading ? (
           <LoadingLines rows={3} />
         ) : (
-          <>
-            {/* 계산 상자 — 주문 명세와 같은 줄 규격(라벨 왼쪽 · 금액 오른쪽 · 합계 위 구분선) */}
-            <dl className="flex flex-col gap-2">
-              {calcLinesOf(row).map((line) => (
-                <div key={line.label} className="flex flex-col gap-2">
-                  {line.tone === "total" && <Divider />}
-                  <div className="flex items-center justify-between gap-4">
-                    <dt
-                      className={
-                        line.tone === "total"
-                          ? "body-large-bold text-text"
-                          : "body-medium text-text-sub"
-                      }
-                    >
-                      {line.label}
-                    </dt>
-                    <dd
-                      className={cn(
-                        "tabular-nums",
-                        line.tone === "total"
-                          ? "body-large-bold text-text"
-                          : line.tone === "minus"
-                            ? "body-medium text-text-critical"
-                            : "body-medium text-text",
-                      )}
-                    >
-                      {line.value}
-                    </dd>
-                  </div>
-                </div>
-              ))}
-            </dl>
-            <p className="body-small text-text-sub">{POLICY_TEXT}</p>
-          </>
+          /* 정산 명세와 같은 계산 내역 부품 — 보증금 / 차감 / 반환 예정액 + 정책 안내 상자 */
+          <CalcBreakdown blocks={calcBlocksOf(row)} notes={POLICY_NOTES} />
         )}
       </Section>
 

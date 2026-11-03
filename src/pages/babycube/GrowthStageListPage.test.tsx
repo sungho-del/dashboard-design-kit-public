@@ -382,6 +382,22 @@ describe("GrowthStageListPage", () => {
   });
 
   describe("성장단계 삭제", () => {
+    /** 행마다 진한 빨강이면 표 전체가 경고로 읽힌다 — 진한 경고는 되돌릴 수 없는 마지막 한 번(확인 창)뿐 */
+    it("행 [삭제]는 옅은 경고(tonal), 확인 창의 최종 [삭제]만 진한 경고다", async () => {
+      const { user } = renderPage();
+
+      const rowDelete = rowAction("신생아", "삭제");
+      expect(rowDelete.classList.contains("bg-action-critical-tonal")).toBe(
+        true,
+      );
+      expect(rowDelete.classList.contains("bg-action-critical")).toBe(false);
+
+      await user.click(rowDelete);
+      const dialog = await screen.findByRole("dialog");
+      const confirm = within(dialog).getByRole("button", { name: "삭제" });
+      expect(confirm.classList.contains("bg-action-critical")).toBe(true);
+    });
+
     it("안내 두 줄을 원본 문구 그대로 보여준다", async () => {
       const { user } = renderPage();
 

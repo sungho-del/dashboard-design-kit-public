@@ -151,15 +151,20 @@ const nextSort = (
  * 선택 · No · 주문번호 · 셀러 · 상품 · 검수 판정 · 복원비 · 청구일 · [승인일|반려일] · 상태.
  * 승인일·반려일은 상호배타라 자리 하나만 끼어든다.
  */
+/*
+  열 폭 — 실제 글자 폭 + 좌우 여백 24(No·셀러·검수 판정·복원비를 글자만큼) · 남는 폭은 상품.
+  합 964(체크박스 칸은 실제 52) — 1280 카드 안쪽 폭(976)에 상태 열까지 들어간다. 승인일·반려일 열이 붙는 탭은 1080 이라
+  1280 에서는 표 안에서만 가로로 민다(1440 은 다 보인다)
+*/
 const colgroup = (withDecidedAt: boolean) => (
   <colgroup>
     <col className="w-12" />
-    <col className="w-16" />
+    <col className="w-12" />
     <col className="w-36" />
+    <col className="w-24" />
+    <col className="w-49" />
     <col className="w-28" />
-    <col className="w-50" />
-    <col className="w-32" />
-    <col className="w-28" />
+    <col className="w-24" />
     <col className="w-28" />
     {withDecidedAt ? <col className="w-28" /> : null}
     <col className="w-28" />

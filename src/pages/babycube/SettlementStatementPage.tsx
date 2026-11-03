@@ -56,6 +56,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * 목록 (총 N건) / 표 8열 / 페이지네이션 10·20·50·100      ← 엑셀·체크박스·No·정렬 없음(원본)
  * ```
  * 명세서번호 · [명세서] · 행 클릭 → 정산 명세서 상세(`/settle-statement/{명세서번호}`).
+ * [명세서] 열은 오른쪽 고정(1280 에서도 보인다) · 금액 3열은 오른쪽 정렬.
  *
  * ## 이 파일은 도메인을 모른다 — 도메인은 `./SettlementStatementPage.data.ts` 에 있다
  *
@@ -69,6 +70,16 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * 조건을 바꾸면 1페이지로 · 결과가 줄면 마지막 페이지로 당김 · 초기화는 한 곳 ·
  * `?preview=loading|empty|refreshing`
  * ====================================================================== */
+
+/*
+  [명세서] 열은 표 오른쪽에 붙박는다 — 1280 에서 표가 가로로 밀려도 버튼이 화면 밖으로 사라지지 않게.
+  셀러 정산 목록(`SellerSettlementPage.tsx` 의 `ACTION_*`)과 같은 값: 왼쪽 1px 선은 가상 요소,
+  본문 셀 배경은 행에서 물려받는다(줄무늬·hover 를 따라가려면 상속뿐)
+*/
+const ACTION_EDGE =
+  "before:absolute before:inset-y-0 before:left-0 before:w-px before:bg-divide before:content-['']";
+const ACTION_TH = `sticky right-0 z-2 ${ACTION_EDGE}`;
+const ACTION_TD = `sticky right-0 z-1 bg-inherit ${ACTION_EDGE}`;
 
 export interface SettlementStatementPageProps {
   navOpen: boolean;
@@ -197,12 +208,13 @@ export function SettlementStatementPage({
         }
       >
         <Table>
+          {/* 합 1032 — 1440 은 다 보이고, 1280(976)은 표 안에서 밀린다. 그래도 [명세서] 열은 오른쪽에 붙박는다 */}
           <colgroup>
             <col className="w-36" />
             <col className="w-44" />
             <col className="w-24" />
             <col className="w-32" />
-            <col className="w-44" />
+            <col className="w-34" />
             <col className="w-32" />
             <col className="w-28" />
             <col className="w-28" />
@@ -212,11 +224,12 @@ export function SettlementStatementPage({
               <TableTh>명세서번호</TableTh>
               <TableTh>정산 대상</TableTh>
               <TableTh>정산월</TableTh>
-              <TableTh>매출</TableTh>
-              <TableTh>차감(수수료·PG·취소)</TableTh>
-              <TableTh>지급액</TableTh>
+              {/* 금액 3열은 계산을 맞춰 읽는 열이라 오른쪽(§7-2 계산 영역 예외 — 셀러 정산과 같다) */}
+              <TableTh align="right">매출</TableTh>
+              <TableTh align="right">차감(수수료·PG·취소)</TableTh>
+              <TableTh align="right">지급액</TableTh>
               <TableTh align="center">상태</TableTh>
-              <TableTh>명세서</TableTh>
+              <TableTh className={ACTION_TH}>명세서</TableTh>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -251,14 +264,14 @@ export function SettlementStatementPage({
                         </span>
                       </TableTd>
                       <TableTd>{row.round}</TableTd>
-                      <TableTd className="tabular-nums">
+                      <TableTd align="right" className="tabular-nums">
                         {won(row.revenue)}
                       </TableTd>
-                      <TableTd className="tabular-nums">
+                      <TableTd align="right" className="tabular-nums">
                         {deductionText(row)}
                       </TableTd>
                       {/* 지급액은 굵게(원본 `<b>`) — TableTd 의 body-medium 과 겹치지 않게 span 에 */}
-                      <TableTd className="tabular-nums">
+                      <TableTd align="right" className="tabular-nums">
                         <span className="body-medium-bold">
                           {won(row.payout)}
                         </span>
@@ -268,7 +281,7 @@ export function SettlementStatementPage({
                           {status.label}
                         </Tag>
                       </TableTd>
-                      <TableTd>
+                      <TableTd className={ACTION_TD}>
                         <Button
                           size="small"
                           variant="secondary"

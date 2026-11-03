@@ -1,21 +1,19 @@
 import { useState } from "react";
-import { ArrowDownToLine, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import {
   AppShell,
   Button,
   DataTableShell,
   DatePicker,
   EmptyState,
+  FilterBar,
   Gnb,
-  InfoItem,
-  InfoList,
   Input,
-  Modal,
-  ModalBody,
-  ModalHeader,
   PageHeader,
   Pagination,
+  PaginationSizeSelect,
   Select,
+  Skeleton,
   Table,
   TableBody,
   TableHead,
@@ -23,61 +21,58 @@ import {
   TableTd,
   TableTh,
   TextButton,
-  useToast,
   type DateRange,
+  type TableSortDirection,
 } from "../../components/ui";
+import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
+import { PERIOD_PRESETS } from "../../lib/periodPresets";
+import { useSearchParams } from "../../lib/router";
 import {
+  DATE_LABEL,
+  EMPTY_DESCRIPTION,
+  EMPTY_TITLE,
   PAGE_SIZE,
-  POINT_ACCOUNTS,
+  PAGE_SIZES,
+  POINT_SUMMARIES,
   SEARCH_FIELDS,
   SEARCH_PLACEHOLDER,
-  balanceOf,
+  detailPathOf,
+  filterSummary,
+  matchesKeyword,
   point,
-  searchHaystack,
   ymdhm,
-  type PointAccount,
+  type PointSearchField,
+  type PointSummary,
 } from "./PointListPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
 /* =========================================================================
- * S18 포인트 관리 — 뼈대 (BabyCube 본사 운영 어드민)
+ * 포인트 관리 — 목록형 · 뼈대 (BabyCube 본사 운영 어드민 · 조회 전용)
  *
- * ## 화면 유형: 목록형 (`docs/screen-templates.md` §3-1)
- * 회원별 포인트 잔액과 누적 지급·차감을 조회한다. 조작보다 **조회**가 목적인 화면이라
- * 행 액션을 두지 않고, 회원명을 열면 미리보기 모달에서 값을 한 번에 본다.
+ * ## 구성 — 원본 v0.4 `SCREENS.points` (proto.html 4055~4064)
+ * ```
+ * 검색조건 (업데이트 기간 + 빠른 선택 · 검색 대상 + 검색어)   ← FilterBar, 펼친 채로 열린다
+ * 목록 (총 N건) / 표 7열(No · 보유↕ 누적 지급↕ 누적 차감↕ 업데이트 일시↕) / 페이지 10·20·50·100
+ * ```
+ * 행 어디를 눌러도(회원명 글자 포함) 포인트 현황 상세 `/points/{회원 id}` 로 간다.
  *
  * ## 이 파일은 도메인을 모른다 — 도메인은 `./PointListPage.data.ts` 에 있다
+ * | 갈아끼울 것            | 위치                                           |
+ * | ---------------------- | ---------------------------------------------- |
+ * | 원장·합계·라벨·단위    | `PointListPage.data.ts` **전체**               |
+ * | 표 컬럼 구성           | 이 파일의 `<colgroup>` + `TableHead` + 본문 셀 |
+ * | 정렬 열                | `COMPARATORS`                                  |
  *
- * | 갈아끼울 것           | 위치                                          |
- * | --------------------- | --------------------------------------------- |
- * | 데이터·타입·라벨·단위 | `PointListPage.data.ts` **전체**              |
- * | 표 컬럼 구성          | 이 파일의 `<colgroup>` + `TableHead` + 본문 셀 |
- * | 툴바 필터 구성        | `toolbarEnd` 슬롯                             |
- * | 화면 제목·액션        | `PageHeader` · 툴바의 엑셀 다운로드           |
- *
- * ## 그대로 두는 것 (도메인 무관)
- * `DataTableShell` 셸 구조 · `colgroup` 비율 배분 · 페이지 범위 클램프 ·
- * `inPeriod` 날짜 필터 · 검색 조건 스코프 · 회원명 클릭 → 미리보기 모달
- *
- * ## 숫자 세 개가 한 행에 있다
- * 보유 = 누적 지급 − 누적 차감. 뼈대는 이 계산을 하지 않고 `balanceOf()` 를 부른다.
- * 계산을 뼈대에서 하면 데이터가 바뀔 때 규칙이 두 곳에 흩어진다.
+ * ## 그대로 두는 것 (형제 목록과 같다)
+ * `inPeriod` · 3단 정렬(오름→내림→해제, 기본 정렬 없음 = 데이터 순서) · 조건·정렬을 바꾸면 1페이지 ·
+ * 결과가 줄면 마지막 페이지로 당김 · 초기화는 한 곳 · No 는 조회 결과의 역순 순번 ·
+ * `?preview=loading|empty|refreshing`
  *
  * ## ⚠️ 원본에 없어서 걷어낸 것 — 되살리지 말 것
- * **회원 등급이 통째로 발명이었다.** 원본(`chunks/0mbh3uyfg-osc.js` 모듈 7642)에는
- * 등급 컬럼도 등급 세그먼트 필터도 없고, 브론즈·실버·골드·VIP 라는 낱말이
- * 전 청크 어디에도 나오지 않는다. 필터 축은 **업데이트 기간 · 검색** 둘뿐이다.
- * 검색 조건의 `"전체"` 항목도 없다 — 원본 `fieldOpts` 는 회원명·아이디(이메일) 둘뿐이다.
- * 모달 푸터의 `회원 상세 보기`도 없다 — 지급·차감은 상세 화면의 일이고,
- * 원본 포인트 목록에는 행 액션이 없다. `PageHeader` 설명문도 원본에 없다.
+ * 엑셀 다운로드 · 체크박스(원본은 엑셀·일괄이 없어 꺼진다) · 회원명 미리보기 모달 · 「포인트 목록」 제목
  * ====================================================================== */
 
-/**
- * 업데이트 일시가 선택한 기간 안에 드는지.
- *
- * `date` 는 `"YYYY-MM-DD HH:mm"` 형식인데 공백 구분자는 브라우저별 파싱이 갈린다.
- * `T` 로 바꿔 ISO 형태로 만든 뒤 넘긴다. 시작일은 00:00, 종료일은 23:59:59 까지 포함한다.
- */
+/** 기간 판정 — 시작일 00:00 ~ 종료일 23:59:59 포함 */
 const inPeriod = (dateText: string, range?: DateRange) => {
   if (!range?.from) return true;
 
@@ -86,15 +81,41 @@ const inPeriod = (dateText: string, range?: DateRange) => {
 
   const from = new Date(range.from);
   from.setHours(0, 0, 0, 0);
-
   const to = new Date(range.to ?? range.from);
   to.setHours(23, 59, 59, 999);
 
   return at >= from && at <= to;
 };
 
-/** 모달의 라벨 열 폭. `누적 차감 포인트` 가 기본 80 에 들어가지 않아 다섯 행에 함께 준다 */
-const SHEET_LABEL_WIDTH = 112;
+/* 정렬 — 원본 `sortHead` 4열 */
+type SortKey = "balance" | "granted" | "deducted" | "updatedAt";
+
+interface SortState {
+  key: SortKey;
+  direction: TableSortDirection;
+}
+
+const COMPARATORS: Record<
+  SortKey,
+  (a: PointSummary, b: PointSummary) => number
+> = {
+  balance: (a, b) => a.balance - b.balance,
+  granted: (a, b) => a.granted - b.granted,
+  deducted: (a, b) => a.deducted - b.deducted,
+  updatedAt: (a, b) => a.updatedAt.localeCompare(b.updatedAt),
+};
+
+/** 오름 → 내림 → 해제 3단 */
+const nextSort = (
+  current: SortState | null,
+  key: SortKey,
+): SortState | null => {
+  if (current?.key !== key) return { key, direction: "asc" };
+  if (current.direction === "asc") return { key, direction: "desc" };
+  return null;
+};
+
+const COLUMN_COUNT = 7;
 
 export interface PointListPageProps {
   navOpen: boolean;
@@ -109,37 +130,66 @@ export function PointListPage({
   activeNav,
   onNavSelect,
 }: PointListPageProps) {
-  const { toast } = useToast();
-
-  /** 검색 조건의 기본값은 **첫 항목**이다 — 원본도 `fieldOpts[0]` 을 기본으로 쓴다 */
-  const [searchField, setSearchField] = useState(SEARCH_FIELDS[0].value);
-  const [keyword, setKeyword] = useState("");
+  const [filterOpen, setFilterOpen] = useState(true);
   const [period, setPeriod] = useState<DateRange | undefined>();
-  const [page, setPage] = useState(1);
-
-  const [preview, setPreview] = useState<PointAccount | null>(null);
-
-  const filtered = POINT_ACCOUNTS.filter((account) => {
-    const matchKeyword =
-      keyword.trim() === "" ||
-      searchHaystack(account, searchField).includes(keyword.trim());
-    return matchKeyword && inPeriod(account.date, period);
-  });
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const paged = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
+  const [searchField, setSearchField] = useState<PointSearchField>(
+    SEARCH_FIELDS[0].value,
   );
+  const [keyword, setKeyword] = useState("");
+  const [sort, setSort] = useState<SortState | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  const dataStatus = asStatus(useSearchParams().get("preview"));
 
-  /** 초기화는 한 곳에서만 정의한다 — 한쪽만 되돌리면 "초기화했는데 여전히 비어 있음"이 된다 */
+  /** 조건을 바꾸면 1페이지로 */
+  const changed =
+    <T,>(set: (value: T) => void) =>
+    (value: T) => {
+      set(value);
+      setPage(1);
+    };
+
   const resetFilters = () => {
+    setPeriod(undefined);
     setSearchField(SEARCH_FIELDS[0].value);
     setKeyword("");
-    setPeriod(undefined);
     setPage(1);
   };
+
+  const matched = POINT_SUMMARIES.filter(
+    (row) =>
+      matchesKeyword(row, searchField, keyword) &&
+      inPeriod(row.updatedAt, period),
+  );
+  /* 정렬은 페이지를 나누기 전에 — 모듈 상수라 복사한 뒤 정렬한다 */
+  const filtered = sort
+    ? [...matched].sort((a, b) => {
+        const order = COMPARATORS[sort.key](a, b);
+        return sort.direction === "asc" ? order : -order;
+      })
+    : matched;
+
+  const toggleSort = (key: SortKey) => {
+    setSort((current) => nextSort(current, key));
+    setPage(1);
+  };
+  const directionOf = (key: SortKey) =>
+    sort?.key === key ? sort.direction : undefined;
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const paged = filtered.slice(start, start + pageSize);
+
+  const sortTh = (key: SortKey, label: string) => (
+    <TableTh
+      sortable
+      sortDirection={directionOf(key)}
+      onSort={() => toggleSort(key)}
+    >
+      {label}
+    </TableTh>
+  );
 
   return (
     <AppShell
@@ -156,65 +206,63 @@ export function PointListPage({
       }
       header={<PageHeader title="포인트 관리" />}
     >
+      {/* 원본 순서: 기간 → 검색 */}
+      <FilterBar
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        summary={filterSummary({
+          from: period?.from,
+          to: period?.to,
+          field: searchField,
+          keyword,
+        })}
+        onReset={resetFilters}
+      >
+        <DatePicker
+          mode="range"
+          aria-label={DATE_LABEL}
+          presets={PERIOD_PRESETS}
+          value={period}
+          onChange={changed(setPeriod)}
+          startPlaceholder={`${DATE_LABEL} 시작`}
+          endPlaceholder={`${DATE_LABEL} 종료`}
+        />
+        <Select
+          className="w-36"
+          aria-label="검색 대상"
+          options={SEARCH_FIELDS}
+          value={searchField}
+          onValueChange={(value) =>
+            changed(setSearchField)(value as PointSearchField)
+          }
+        />
+        <Input
+          placeholder={SEARCH_PLACEHOLDER}
+          value={keyword}
+          onChange={(event) => changed(setKeyword)(event.target.value)}
+          leftIcon={<Search size={16} strokeWidth={1.2} aria-hidden />}
+        />
+      </FilterBar>
+
       <DataTableShell
+        variant="soft"
+        bodyClassName={dimWhile(dataStatus)}
+        aria-busy={isBusy(dataStatus)}
         toolbarStart={
-          <span className="heading-medium-bold text-text">포인트 목록</span>
+          <h2 className="heading-medium-bold text-text">
+            목록 (총 {filtered.length}건)
+          </h2>
         }
-        toolbarEnd={
-          <>
-            <DatePicker
-              mode="range"
-              value={period}
-              onChange={(next) => {
-                setPeriod(next);
-                setPage(1);
-              }}
-              startPlaceholder="업데이트 시작일"
-              endPlaceholder="종료일"
-            />
-            <Select
-              options={SEARCH_FIELDS}
-              value={searchField}
-              onValueChange={(value) => {
-                setSearchField(value);
-                setPage(1);
-              }}
-              aria-label="검색 조건"
-            />
-            <Input
-              placeholder={SEARCH_PLACEHOLDER}
-              aria-label="검색어"
-              value={keyword}
-              onChange={(event) => {
-                setKeyword(event.target.value);
-                setPage(1);
-              }}
-              leftIcon={<Search size={16} strokeWidth={1.2} aria-hidden />}
-            />
-            <TextButton tone="secondary" onClick={resetFilters}>
-              초기화
-            </TextButton>
-            <Button
-              variant="secondary"
-              onClick={() =>
-                toast(`조회 결과 ${filtered.length}건을 내려받았습니다`)
-              }
-            >
-              <ArrowDownToLine size={16} strokeWidth={1.2} aria-hidden />
-              엑셀 다운로드
-            </Button>
-          </>
-        }
-        isEmpty={filtered.length === 0}
+        isEmpty={dataStatus === "empty" || filtered.length === 0}
         empty={
           <EmptyState
             size="table"
             icon={<Search strokeWidth={1.2} aria-hidden />}
-            title="해당 조건의 회원이 없습니다"
-            description="업데이트 기간·검색어를 바꿔 다시 조회해 주세요."
+            title={EMPTY_TITLE}
+            description={EMPTY_DESCRIPTION}
           >
             <Button variant="secondary" onClick={resetFilters}>
-              필터를 초기화
+              필터 초기화
             </Button>
           </EmptyState>
         }
@@ -223,92 +271,86 @@ export function PointListPage({
             page={currentPage}
             totalPages={totalPages}
             onPageChange={setPage}
-            start={
-              <span className="body-small text-text-sub">
-                총 {filtered.length}건
-              </span>
+            end={
+              <PaginationSizeSelect
+                sizes={PAGE_SIZES}
+                value={pageSize}
+                onSizeChange={changed(setPageSize)}
+              />
             }
           />
         }
       >
         <Table>
-          {/* table-fixed 라 폭 지정 필수. 한 컬럼만 auto 로 두면 여백을 독식한다 — 합 100% */}
+          {/* 업데이트 일시는 날짜·시각 한 줄(실측 153) — 1280 의 표 폭 976 안에서 두 줄로 접히지 않게.
+              포인트 열은 값(≈70)보다 머리글+정렬 아이콘이 넓어 그 폭에 맞춘다 */}
           <colgroup>
+            <col className="w-16" />
             <col className="w-28" />
-            <col className="w-50" />
+            <col className="w-52" />
             <col className="w-28" />
-            <col className="w-33" />
-            <col className="w-33" />
-            <col className="w-35" />
+            <col className="w-36" />
+            <col className="w-36" />
+            <col className="w-40" />
           </colgroup>
           <TableHead>
             <TableRow>
+              {/* 조회 결과의 역순 순번(원본 `total-start-i`) — 정렬해도 위에서부터 큰 수 */}
+              <TableTh>No</TableTh>
               <TableTh>회원명</TableTh>
               <TableTh>아이디(이메일)</TableTh>
-              {/* 크기를 비교하는 수치 세 열 — §7-2 우측 정렬 (원본 `align: right`) */}
-              <TableTh>보유 포인트</TableTh>
-              <TableTh>누적 지급 포인트</TableTh>
-              <TableTh>누적 차감 포인트</TableTh>
-              <TableTh>업데이트 일시</TableTh>
+              {sortTh("balance", "보유 포인트")}
+              {sortTh("granted", "누적 지급 포인트")}
+              {sortTh("deducted", "누적 차감 포인트")}
+              {sortTh("updatedAt", "업데이트 일시")}
             </TableRow>
           </TableHead>
           <TableBody>
-            {paged.map((account) => (
-              <TableRow key={account.id}>
-                <TableTd>
-                  {/* 원본에서 링크는 이 셀 하나다 — 행 전체는 눌리지 않는다 */}
-                  <TextButton onClick={() => setPreview(account)}>
-                    {account.name}
-                  </TextButton>
-                </TableTd>
-                <TableTd>{account.email}</TableTd>
-                {/*
-                  세 수치 중 **보유만 굵다**(원본도 이 열만 `<b>`).
-                  나머지 둘은 보유를 설명하는 내역이라 같은 무게로 그리면
-                  어느 숫자를 먼저 읽어야 하는지가 사라진다.
-                */}
-                <TableTd>
-                  <span className="body-medium-bold text-text">
-                    {point(balanceOf(account))}
-                  </span>
-                </TableTd>
-                <TableTd>{point(account.granted)}</TableTd>
-                <TableTd>{point(account.used)}</TableTd>
-                <TableTd>{ymdhm(account.date)}</TableTd>
-              </TableRow>
-            ))}
+            {dataStatus === "loading"
+              ? Array.from({ length: pageSize }, (_, row) => (
+                  <TableRow key={`skeleton-${row}`}>
+                    {Array.from({ length: COLUMN_COUNT }, (_, cell) => (
+                      <TableTd key={cell}>
+                        <span className="body-small block">
+                          <Skeleton />
+                        </span>
+                      </TableTd>
+                    ))}
+                  </TableRow>
+                ))
+              : paged.map((row, index) => {
+                  const open = () => onNavSelect(detailPathOf(row.id));
+                  return (
+                    <TableRow key={row.id} clickable onClick={open}>
+                      <TableTd className="tabular-nums">
+                        {filtered.length - start - index}
+                      </TableTd>
+                      {/* 원본 링크는 회원명 — 행 클릭과 같은 곳으로 간다 */}
+                      <TableTd>
+                        <TextButton onClick={open}>{row.name}</TextButton>
+                      </TableTd>
+                      <TableTd ellipsis>{row.email}</TableTd>
+                      {/* 보유만 굵게(원본 `<b>`) — TableTd 의 body-medium 과 겹치지 않게 span 에 */}
+                      <TableTd className="tabular-nums">
+                        <span className="body-medium-bold">
+                          {point(row.balance)}
+                        </span>
+                      </TableTd>
+                      <TableTd className="tabular-nums">
+                        {point(row.granted)}
+                      </TableTd>
+                      <TableTd className="tabular-nums">
+                        {point(row.deducted)}
+                      </TableTd>
+                      <TableTd className="tabular-nums">
+                        {ymdhm(row.updatedAt)}
+                      </TableTd>
+                    </TableRow>
+                  );
+                })}
           </TableBody>
         </Table>
       </DataTableShell>
-
-      {/*
-        포인트 미리보기 — 표의 값을 한 자리에 모아 보는 빠른 확인용이다.
-        **푸터 액션을 두지 않는다** — 지급·차감은 상세 화면의 일이고,
-        원본 포인트 목록에는 행 액션이 없다. 남는 버튼은 모달을 닫는 것뿐이다.
-      */}
-      <Modal open={preview !== null} onClose={() => setPreview(null)}>
-        <ModalHeader title="포인트 미리보기" description={preview?.name} />
-        <ModalBody>
-          <InfoList>
-            {/* 라벨 폭은 다섯 행에 **똑같이** 준다 — 한 행만 넓히면 라벨 열이 어긋난다 */}
-            <InfoItem label="아이디" labelWidth={SHEET_LABEL_WIDTH}>
-              {preview?.email}
-            </InfoItem>
-            <InfoItem label="보유 포인트" labelWidth={SHEET_LABEL_WIDTH}>
-              {preview ? point(balanceOf(preview)) : ""}
-            </InfoItem>
-            <InfoItem label="누적 지급 포인트" labelWidth={SHEET_LABEL_WIDTH}>
-              {preview ? point(preview.granted) : ""}
-            </InfoItem>
-            <InfoItem label="누적 차감 포인트" labelWidth={SHEET_LABEL_WIDTH}>
-              {preview ? point(preview.used) : ""}
-            </InfoItem>
-            <InfoItem label="업데이트 일시" labelWidth={SHEET_LABEL_WIDTH}>
-              {preview ? ymdhm(preview.date) : ""}
-            </InfoItem>
-          </InfoList>
-        </ModalBody>
-      </Modal>
     </AppShell>
   );
 }

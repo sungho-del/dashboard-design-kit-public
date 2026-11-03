@@ -72,7 +72,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *
  * ```
  * 기본 정보   ← 이름 · 아이디(이메일) · 연락처 · 성별 · 생년월일 · 주소
- * 계정 상태   ← [정상][휴면][정지] 택1 · 가입일 · 최근 접속일 · 포인트 · 마케팅 수신
+ * 계정 상태   ← [정상][휴면][정지] 택1 · [휴면·정지 사유 · 일시] · 가입일 · 최근 접속일 · 포인트 · 마케팅 수신
  * 자녀 정보   ← 자녀 수 + 표(이름/태명 · 생년월일·개월수 · 성별)
  * 결제 내역 (N) ← [전체][렌트][판매] 탭 + 표
  *                (No · 주문번호 · 결제 일시 · 구분 · 상품명 · 결제금액 · 상태)
@@ -89,7 +89,10 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * - **휴면·정지로 저장하면 사유를 받는다**(원본 C-3 ⓐ) — 목록 일괄 변경과 **같은 모달**
  *   (`MemberReasonModal`)이다. 한때 이 자리에 "원본도 입력 자리를 그리지 않는다"고 적혀
  *   있었는데 기획 v0.4 와 어긋난 판단이었다(2026-10-15 대조).
- *   기록된 사유는 계정 상태에 `정지 사유  … (처리 일시)` 로 나온다
+ *   기록된 사유는 **상태 선택 바로 아래** `정지 사유  …  · 처리 일시`(보조 글자)로 나온다 —
+ *   정지 회원에서 가장 먼저 읽을 값이라 가입일·접속일 뒤에 묻지 않는다(2026-11-03 UX 검수).
+ *   ⚠️ **저장된** 상태·사유다 — 고르는 중인 값(`draftStatus`)과 짝짓지 않는다. 정지 회원이
+ *   [정상] 을 골라도 줄은 그대로, 정상 회원이 [정지] 를 골라도 줄은 생기지 않는다
  *
  * ## ⚠️ 네 번째 섹션은 "이용 이력"이 아니라 **"결제 내역"** 이다 (2026-09-21 정정)
  * 원본 주석(`sec.members_hist`)은 "이용 이력 / 번호·주문번호·셀러·상품·유형·금액·상태"라고
@@ -130,12 +133,11 @@ export interface MemberDetailPageProps {
 const LIST_PATH = "/members";
 
 /**
- * 기본 정보 블록만 라벨 폭을 넓힌다 — `아이디(이메일)` 이 실측 83px 라 기본 80 에서
- * **두 줄로 쪼개졌다**(`아이디(이메 / 일)`). §30-3 대로 `labelWidth` 는 항목이 아니라
- * **블록 전체가 함께** 가져간다 — 항목마다 다르면 값 시작선이 어긋나 정렬의 이점이 사라진다.
- * 다른 세 블록은 가장 긴 라벨이 68px(`진행 중 렌트`)이라 기본 80 을 그대로 쓴다.
+ * 이 화면 InfoList 의 라벨 폭(**화면 상수 하나**) — `아이디(이메일)` 이 실측 83px 라 기본 80 에서
+ * **두 줄로 쪼개졌다**(`아이디(이메 / 일)`). 한때 기본 정보에만 96 을 줘 다른 카드(80)와
+ * 값 시작선이 16px 어긋났다 — 세 카드가 같은 값을 쓴다(2026-11-03 UX 검수).
  */
-const BASIC_LABEL_WIDTH = 96;
+const LABEL_WIDTH = 96;
 
 /**
  * 접을 수 있는 섹션 한 장.
@@ -344,22 +346,22 @@ export function MemberDetailPage({
           <LoadingLines rows={6} />
         ) : (
           <InfoList>
-            <InfoItem label="이름" labelWidth={BASIC_LABEL_WIDTH}>
+            <InfoItem label="이름" labelWidth={LABEL_WIDTH}>
               {member.name}
             </InfoItem>
-            <InfoItem label="아이디(이메일)" labelWidth={BASIC_LABEL_WIDTH}>
+            <InfoItem label="아이디(이메일)" labelWidth={LABEL_WIDTH}>
               {member.id}
             </InfoItem>
-            <InfoItem label="연락처" labelWidth={BASIC_LABEL_WIDTH}>
+            <InfoItem label="연락처" labelWidth={LABEL_WIDTH}>
               {member.phone}
             </InfoItem>
-            <InfoItem label="성별" labelWidth={BASIC_LABEL_WIDTH}>
+            <InfoItem label="성별" labelWidth={LABEL_WIDTH}>
               {GENDER_LABEL[member.gender]}
             </InfoItem>
-            <InfoItem label="생년월일" labelWidth={BASIC_LABEL_WIDTH}>
+            <InfoItem label="생년월일" labelWidth={LABEL_WIDTH}>
               {ymd(member.birth)}
             </InfoItem>
-            <InfoItem label="주소" labelWidth={BASIC_LABEL_WIDTH}>
+            <InfoItem label="주소" labelWidth={LABEL_WIDTH}>
               {member.address}
             </InfoItem>
           </InfoList>
@@ -420,21 +422,33 @@ export function MemberDetailPage({
             )}
 
             <InfoList>
-              <InfoItem label="가입일">{ymd(member.date)}</InfoItem>
-              <InfoItem label="최근 접속일">{ymd(member.lastVisit)}</InfoItem>
-              <InfoItem label="포인트">{won(member.points)}</InfoItem>
-              <InfoItem label="마케팅 수신">
-                {marketingLabel(member.marketingOptIn)}
-              </InfoItem>
-              {/* 원본: `정지 사유  <사유> (처리 일시)` — 상태에 따라 라벨만 갈린다 */}
+              {/*
+                사유 — 상태 선택 바로 아래 첫 줄(위 「원본 정책」). **저장된** 상태의 사유라
+                고르는 중인 값과 무관하게 나온다. 라벨은 상태에 따라 갈린다(`정지 사유`·`휴면 사유`)
+              */}
               {showReason ? (
-                <InfoItem label={`${meta.label} 사유`}>
-                  {member.statusReason}{" "}
-                  <span className="text-text-sub tabular-nums">
-                    ({member.statusAt ? dateTimeText(member.statusAt) : "-"})
-                  </span>
+                <InfoItem label={`${meta.label} 사유`} labelWidth={LABEL_WIDTH}>
+                  {member.statusReason}
+                  {member.statusAt ? (
+                    <span className="body-small text-text-sub tabular-nums">
+                      {" "}
+                      · {dateTimeText(member.statusAt)}
+                    </span>
+                  ) : null}
                 </InfoItem>
               ) : null}
+              <InfoItem label="가입일" labelWidth={LABEL_WIDTH}>
+                {ymd(member.date)}
+              </InfoItem>
+              <InfoItem label="최근 접속일" labelWidth={LABEL_WIDTH}>
+                {ymd(member.lastVisit)}
+              </InfoItem>
+              <InfoItem label="포인트" labelWidth={LABEL_WIDTH}>
+                {won(member.points)}
+              </InfoItem>
+              <InfoItem label="마케팅 수신" labelWidth={LABEL_WIDTH}>
+                {marketingLabel(member.marketingOptIn)}
+              </InfoItem>
             </InfoList>
           </>
         )}
@@ -445,8 +459,11 @@ export function MemberDetailPage({
           <LoadingLines rows={3} />
         ) : (
           <>
-            <InfoList>
-              <InfoItem label="자녀 수">{people(member.kids)}</InfoItem>
+            {/* 아래 표와 같은 폭(max-w-160)으로 — 전폭 상자 + 640 표가 서로 다른 덩어리로 보였다 */}
+            <InfoList className="max-w-160">
+              <InfoItem label="자녀 수" labelWidth={LABEL_WIDTH}>
+                {people(member.kids)}
+              </InfoItem>
             </InfoList>
             {/*
               열이 셋뿐이라 섹션 전폭(1600 화면에서 약 1350)으로 늘면 열 사이가 600 넘게

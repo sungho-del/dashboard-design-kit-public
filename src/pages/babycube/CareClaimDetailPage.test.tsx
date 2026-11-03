@@ -146,6 +146,40 @@ describe("CareClaimDetailPage (S14-D 안심케어 청구 상세)", () => {
       expect(bottomButtons()).toEqual(["목록", "승인", "반려"]);
     });
 
+    it("안내 상자 하나 — 대조 안내 + 상태별 안내 · 결과보다 아래(증빙 → 결과 → 안내) · 화면 문구에 (#13) 없음 · 청구 상태 배지 small", () => {
+      renderAt("/care-claims/U-R18");
+
+      const note = screen.getByText(COPY.pendingNote).closest("ul")!;
+      expect(
+        [...note.querySelectorAll("li")].map((li) => li.textContent),
+      ).toEqual([COPY.evidenceNote, COPY.pendingNote]);
+      expect(document.body.textContent).not.toContain("#13");
+      /* 증빙(파손 이미지)이 안내 상자보다 앞 */
+      const evidence = screen.getByRole("list", { name: COPY.returnLabel });
+      expect(
+        evidence.compareDocumentPosition(note) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      const statusTag = screen
+        .getAllByText("청구 접수")
+        .find((element) => element.closest("dd"))!;
+      expect(statusTag.closest("[class*='label-xsmall']")).not.toBeNull();
+    });
+
+    it("반려 건 — 안내 상자에 반려 안내, 반려 사유 줄은 증빙 아래 그대로", () => {
+      renderAt("/care-claims/U-R19");
+
+      const note = screen.getByText(COPY.rejectedNote).closest("ul")!;
+      expect(note.querySelectorAll("li")).toHaveLength(2);
+      expect(screen.queryByText(COPY.pendingNote)).toBeNull();
+      const evidence = screen.getByRole("list", { name: COPY.returnLabel });
+      const reason = screen.getByText("반려 사유");
+      expect(
+        evidence.compareDocumentPosition(reason) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+
     it("[승인] — 목록과 같은 창(1건 · 9,000원), 처리하면 토스트만", async () => {
       const { user } = renderAt("/care-claims/U-R18");
 

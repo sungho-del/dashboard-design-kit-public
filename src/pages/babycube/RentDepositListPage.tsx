@@ -89,7 +89,9 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *
  * ## 원본과 다르게 둔 것
  * - 주문번호까지 좌측 고정(체크박스·주문번호) — 12열이 화면 폭을 넘어 가로로 밀면 어느 건인지 사라진다
- * - 열은 왼쪽 정렬, 배지만 든 열(구분·주문 상태·보증금 상태)은 가운데(형제 규칙 §7-2)
+ * - 열은 왼쪽 정렬, 배지만 든 열(구분·주문 상태·보증금 상태)은 가운데(형제 규칙 §7-2) ·
+ *   금액 3열(보증금액·차감·반환 예정액)만 오른쪽 + `tabular-nums`(§7-2 계산 영역 예외 — 셀러 정산·정산 명세서와 같다)
+ * - 차감 부호 `−N원`(U+2212 · 원본 `- N원`) — 정산 화면 공통 부호
  * - 차감 칸에 경고색을 칠하지 않는다(금액 강조색 토큰 없음 — 형제와 같다)
  * ====================================================================== */
 
@@ -242,14 +244,14 @@ export function RentDepositListPage({
         ⚠️ 목록 범위(반납 이후)보다 넓다 — 원본 그대로, 기획 확인 사항(.data.ts 머리 주석)
       */}
       <section className="grid grid-cols-4 gap-6" aria-label="보증금 요약">
-        {SUMMARY_STATS.map(({ label, value, unit, tone }) => (
+        {SUMMARY_STATS.map(({ label, value, unit, caption }) => (
           <StatTile
             key={label}
             variant="card"
             label={label}
             value={value}
             unit={unit}
-            tone={tone}
+            caption={caption}
           />
         ))}
       </section>
@@ -349,19 +351,24 @@ export function RentDepositListPage({
         }
       >
         <Table>
-          {/* table-fixed 라 폭 지정 필수. ⚠️ 앞 2개는 `FROZEN_LEFT` 와 짝이다(합 196) */}
+          {/*
+            table-fixed 라 폭 지정 필수. ⚠️ 앞 2개는 `FROZEN_LEFT` 와 짝이다(합 196).
+            합 1136 = 1440 카드 안쪽 폭(주문번호는 실제 글자 폭으로 147 — 그만큼 상품이 양보) — 스크롤 없이 보증금 상태·상태 변경일까지 보인다.
+            폭은 실제 글자 폭 + 좌우 여백 24 로 잡고(금액 `160,000원` 68 → 92), 남는 폭은 긴 글 열(상품 — 두 줄까지)에.
+            1280 에서는 표 안에서만 가로로 민다(주문번호까지 고정)
+          */}
           <colgroup>
             <col className="w-13" />
             <col className="w-36" />
+            <col className="w-16" />
+            <col className="w-14" />
+            <col className="w-22" />
+            <col className="w-29" />
             <col className="w-23" />
-            <col className="w-20" />
-            <col className="w-28" />
-            <col className="w-56" />
-            <col className="w-25" />
-            <col className="w-25" />
-            <col className="w-28" />
-            <col className="w-25" />
-            <col className="w-40" />
+            <col className="w-23" />
+            <col className="w-23" />
+            <col className="w-22" />
+            <col className="w-34" />
             <col className="w-28" />
           </colgroup>
           <TableHead>
@@ -381,9 +388,10 @@ export function RentDepositListPage({
               <TableTh align="center">구분</TableTh>
               <TableTh>셀러명</TableTh>
               <TableTh>상품</TableTh>
-              <TableTh>보증금액</TableTh>
-              <TableTh>차감</TableTh>
-              <TableTh>반환 예정액</TableTh>
+              {/* 금액 3열은 계산을 맞춰 읽는 열이라 오른쪽 · tabular-nums(§7-2 계산 영역 예외) */}
+              <TableTh align="right">보증금액</TableTh>
+              <TableTh align="right">차감</TableTh>
+              <TableTh align="right">반환 예정액</TableTh>
               <TableTh align="center">주문 상태</TableTh>
               <TableTh align="center">보증금 상태</TableTh>
               <TableTh>상태 변경일</TableTh>
@@ -434,15 +442,39 @@ export function RentDepositListPage({
                       </TableTd>
                       <TableTd>{row.seller}</TableTd>
                       <TableTd>
-                        {/* 안심케어는 열이 아니라 상품 옆 표식이다 — 이름이 길면 이름 쪽이 준다 */}
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span className="truncate">{row.product}</span>
-                          {row.care && <Tag size="small">안심케어</Tag>}
+                        {/*
+                          안심케어는 열이 아니라 상품 옆 표식이다. 상품 열은 남는 폭(116)이라 긴 이름은
+                          낱말 단위로 두 줄까지 접는다. ⚠️ 글자 폭을 열 안쪽 폭(116 − 여백 24 = 92, `w-23`)에
+                          묶어야 한다 — `w-max` 표는 셀 내용의 한 줄 폭만큼 열을 늘린다. 열 폭과 함께 고친다
+                        */}
+                        <span className="line-clamp-2 block w-23 break-keep">
+                          {row.product}
+                          {row.care && (
+                            <>
+                              {" "}
+                              <Tag size="small">안심케어</Tag>
+                            </>
+                          )}
                         </span>
                       </TableTd>
-                      <TableTd>{won(row.deposit)}</TableTd>
-                      <TableTd>{deductText(row.deduction)}</TableTd>
-                      <TableTd>{won(row.refund)}</TableTd>
+                      <TableTd
+                        align="right"
+                        className="whitespace-nowrap tabular-nums"
+                      >
+                        {won(row.deposit)}
+                      </TableTd>
+                      <TableTd
+                        align="right"
+                        className="whitespace-nowrap tabular-nums"
+                      >
+                        {deductText(row.deduction)}
+                      </TableTd>
+                      <TableTd
+                        align="right"
+                        className="whitespace-nowrap tabular-nums"
+                      >
+                        {won(row.refund)}
+                      </TableTd>
                       <TableTd align="center">
                         <Tag tone={orderMeta.tone} dot size="small">
                           {orderMeta.label}

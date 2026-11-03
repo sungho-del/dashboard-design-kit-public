@@ -1,34 +1,52 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
+import { MEMBERS } from "./MemberListPage.data";
+import { DEMO_TODAY, ORDERS } from "./OrderListPage.data";
+import { POINT_LEDGER } from "./PointListPage.data";
 import { ReviewListPage } from "./ReviewListPage";
 import { REVIEWS } from "./ReviewListPage.data";
 
-/**
- * S21 리뷰 관리 — **동작** 테스트.
+/* -------------------------------------------------------------------------
+ * 리뷰 관리 — 목록형 · 기획 v0.4 `SCREENS.reviewsAdmin`
  *
- * 원본 대조(`chunks/1gh8hvu-ixb27.js` 모듈 17716·26766) 후 이 화면은
- * **툴바가 없는 순수 조회 목록**이 되었다. 그래서 이 파일의 상당수는
- * "무엇이 **없어야** 하는가"를 본다 — 한때 있던 대시·증감·검색·답글 등록이
- * 되살아나면 여기서 걸린다.
- */
-function renderPage() {
-  const onNavSelect = vi.fn();
-  const onNavOpenChange = vi.fn();
-  const user = userEvent.setup();
+ * 렌더 여부가 아니라 **내용과 동작**을 본다: 원본 7열 · 사례표(작성자·셀러·상품·작성일·상태) ·
+ * 노출/숨김 · `숨김` 접두어(흐림) · 작성일 최신순 · 페이지 크기 · 행/내용 클릭 → 상세 ·
+ * 원본에 없는 것(대시·검색·엑셀·체크박스·No·미리보기 모달·답글 상태) · 원장과 맞물림 · `?preview=`.
+ * ---------------------------------------------------------------------- */
+class ObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords() {
+    return [];
+  }
+}
 
+beforeAll(() => {
+  vi.stubGlobal("ResizeObserver", ObserverStub);
+  vi.stubGlobal("IntersectionObserver", ObserverStub);
+});
+
+afterAll(() => {
+  vi.unstubAllGlobals();
+});
+
+function renderPage(search = "") {
+  window.history.replaceState(null, "", `/reviews-admin${search}`);
+  const onNavSelect = vi.fn();
+  const user = userEvent.setup();
   render(
     <ToastProvider position="bottom">
       <ReviewListPage
         navOpen
-        onNavOpenChange={onNavOpenChange}
+        onNavOpenChange={vi.fn()}
         activeNav="/reviews-admin"
         onNavSelect={onNavSelect}
       />
     </ToastProvider>,
   );
-
-  return { user, onNavSelect, onNavOpenChange };
+  return { user, onNavSelect };
 }
 
 function bodyRows(): HTMLElement[] {
@@ -37,244 +55,235 @@ function bodyRows(): HTMLElement[] {
   return within(table).getAllByRole("row").slice(1);
 }
 
-/** 행의 N번째 셀 텍스트. 컬럼 순서: 작성자·셀러·상품·별점·내용·작성일·상태 */
-function cellText(row: HTMLElement, index: number): string {
-  return within(row).getAllByRole("cell")[index].textContent ?? "";
-}
+/** 컬럼 순서: 작성자·셀러·상품·별점·내용·작성일·상태 */
+const cellsOf = (row: HTMLElement) =>
+  within(row)
+    .getAllByRole("cell")
+    .map((cell) => cell.textContent ?? "");
 
-describe("ReviewListPage", () => {
-  describe("표 구성 — 원본 컬럼 7열", () => {
-    it("컬럼 이름과 순서가 원본과 같다", () => {
-      renderPage();
+describe("표 (원본 7열 · 표 하나뿐)", () => {
+  it("제목 「리뷰 관리」, 목록 머리 「목록 (총 4건)」, 열 이름·순서가 원본 그대로", () => {
+    renderPage();
 
-      const headers = within(screen.getByRole("table"))
+    expect(
+      screen.getByRole("heading", { level: 1, name: "리뷰 관리" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "목록 (총 4건)" }),
+    ).toBeVisible();
+    expect(
+      within(screen.getByRole("table"))
         .getAllByRole("columnheader")
-        .map((cell) => cell.textContent);
-
-      expect(headers).toEqual([
-        "작성자",
-        "셀러",
-        "상품",
-        "별점",
-        "내용",
-        "작성일",
-        "상태",
-      ]);
-    });
-
-    it("colgroup 의 열 개수가 컬럼 개수와 같다", () => {
-      renderPage();
-
-      const cols = screen.getByRole("table").querySelectorAll("colgroup col");
-      expect(cols).toHaveLength(7);
-    });
-
-    it("작성일은 날짜만, 점 구분자로 낸다 (원본 `ymd`)", () => {
-      renderPage();
-
-      expect(cellText(bodyRows()[0], 5)).toBe("2026.08.24");
-      expect(cellText(bodyRows()[0], 5)).not.toContain("09:12");
-    });
-
-    it("내용 셀은 말줄임 처리된다 (원본 `cell-ell`)", () => {
-      renderPage();
-
-      const contentCell = within(bodyRows()[0]).getAllByRole("cell")[4];
-      expect(contentCell.querySelector("[data-table-ellipsis]")).not.toBeNull();
-    });
-
-    /**
-     * 이 화면에는 **자릿수를 비교하는 수치 열이 없다** — 별점은 별 그림이고
-     * 나머지는 전부 글자다. 그래서 우측 정렬은 한 열도 없어야 한다.
-     *
-     * 상태만 가운데다(`DESIGN.md` §7-2) — 배지만 들어가는 열이라 왼쪽 모서리에
-     * 정보가 없다. 이 규칙은 이 테스트보다 나중에 정해졌다.
-     */
-    it("우측 정렬 열이 없다 · 배지만 든 상태 열만 가운데다", () => {
-      renderPage();
-
-      const headers = within(screen.getByRole("table")).getAllByRole(
-        "columnheader",
-      );
-      for (const header of headers) {
-        expect(header.className.split(/\s+/)).not.toContain("text-right");
-      }
-
-      // 작성자·셀러·상품·별점·내용·작성일 = 좌측, 상태(6) = 가운데
-      headers.forEach((header, index) => {
-        const centered = header.className.split(/\s+/).includes("text-center");
-        expect(centered).toBe(index === 6);
-      });
-    });
+        .map((cell) => cell.textContent),
+    ).toEqual(["작성자", "셀러", "상품", "별점", "내용", "작성일", "상태"]);
+    expect(
+      screen.getByRole("table").querySelectorAll("colgroup col"),
+    ).toHaveLength(7);
   });
 
-  describe("별점", () => {
-    it("별 5개를 그리고 점수는 접근가능 이름으로 준다", () => {
-      renderPage();
+  it("사례표 — 작성일 최신순, 작성자 = 회원 실명, 셀러·상품 = 그 주문, 숨김 리뷰도 남는다", () => {
+    renderPage();
 
-      // 첫 행 = 5점
-      const rating = within(bodyRows()[0]).getByRole("img");
-      expect(rating).toHaveAccessibleName("별점 5점 (5점 만점)");
-      expect(rating.querySelectorAll("svg")).toHaveLength(5);
-    });
+    expect(
+      bodyRows().map((row) => {
+        const cells = cellsOf(row);
+        return [cells[0], cells[1], cells[2], cells[4], cells[5], cells[6]];
+      }),
+    ).toEqual([
+      [
+        "노하린",
+        "리틀베이비",
+        "디럭스 유모차 클래식",
+        "성장단계 추천으로 골랐는데 우리 아이한테 딱 맞아요.",
+        "2026.09.21",
+        "노출",
+      ],
+      [
+        "노하린",
+        "아기별상사",
+        "기내반입 유모차 포켓",
+        "숨김 (욕설·비방 내용)",
+        "2026.09.14",
+        "숨김",
+      ],
+      [
+        "서하준",
+        "아이랑",
+        "바구니형 카시트 코지",
+        "상태가 새것 같아요. 벨트가 살짝 빡빡한 것 빼면 만족합니다.",
+        "2026.09.04",
+        "노출",
+      ],
+      [
+        "임채원",
+        "베베하우스",
+        "베드사이드 침대 코모",
+        "조립 기사님이 친절했고 위생 상태 최고예요.",
+        "2026.08.27",
+        "노출",
+      ],
+    ]);
+  });
 
-    it("채운 별의 개수가 점수와 같다", () => {
-      renderPage();
+  it("별점 — 별 5개 중 채운 별 개수 = 점수, 점수는 접근가능 이름으로", () => {
+    renderPage();
 
-      // 2번째 행 = 2점 (이준서)
-      const rating = within(bodyRows()[1]).getByRole("img");
-      expect(rating).toHaveAccessibleName("별점 2점 (5점 만점)");
-
-      const filled = [...rating.querySelectorAll("svg")].filter((star) =>
+    const ratings = bodyRows().map((row) => within(row).getByRole("img"));
+    expect(ratings.map((rating) => rating.getAttribute("aria-label"))).toEqual([
+      "별점 5점 (5점 만점)",
+      "별점 1점 (5점 만점)",
+      "별점 4점 (5점 만점)",
+      "별점 5점 (5점 만점)",
+    ]);
+    const filled = (rating: HTMLElement) =>
+      [...rating.querySelectorAll("svg")].filter((star) =>
         star.getAttribute("class")?.split(/\s+/).includes("fill-current"),
+      ).length;
+    expect(ratings.map(filled)).toEqual([5, 1, 4, 5]);
+    expect(ratings[2].querySelectorAll("svg")).toHaveLength(5);
+  });
+
+  it("내용 셀은 한 줄 말줄임 · 열은 상태만 가운데", () => {
+    renderPage();
+
+    const cell = within(bodyRows()[0]).getAllByRole("cell")[4];
+    /* 버튼은 줄바꿈을 안 하므로 안쪽 span 이 한 줄로 자른다(열 폭을 밀어내지 않게) */
+    expect(cell.querySelector(".truncate")).not.toBeNull();
+    within(screen.getByRole("table"))
+      .getAllByRole("columnheader")
+      .forEach((header, index) => {
+        expect(header.className.split(/\s+/).includes("text-center")).toBe(
+          index === 6,
+        );
+      });
+  });
+
+  it("원본에 없는 대시·검색·엑셀·체크박스·No·답글 상태가 없다", () => {
+    renderPage();
+
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByRole("button", { name: /엑셀/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "초기화" })).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "No" })).toBeNull();
+    expect(screen.queryByText(/답글 대기|답글 완료/)).toBeNull();
+  });
+});
+
+describe("페이지 (원본 기본 10 · 10/20/50/100)", () => {
+  it("4건 = 1페이지, 크기 선택지 4종", async () => {
+    const { user } = renderPage();
+
+    expect(bodyRows()).toHaveLength(4);
+    expect(screen.queryByRole("button", { name: "2" })).toBeNull();
+    await user.click(screen.getByRole("combobox", { name: "페이지당 개수" }));
+    expect(
+      screen.getAllByRole("option").map((option) => option.textContent),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("10"),
+        expect.stringContaining("20"),
+        expect.stringContaining("50"),
+        expect.stringContaining("100"),
+      ]),
+    );
+    expect(screen.getAllByRole("option")).toHaveLength(4);
+  });
+});
+
+describe("상세로 가는 길 (내용 · 행)", () => {
+  it("행 어디를 눌러도 그 리뷰 상세로", async () => {
+    const { user, onNavSelect } = renderPage();
+
+    await user.click(within(bodyRows()[2]).getByText("아이랑"));
+    expect(onNavSelect).toHaveBeenCalledWith("/reviews-admin/RV-30");
+  });
+
+  it("내용 링크도 같은 곳 — 한 번만 가고, 미리보기 모달이 없다", async () => {
+    const { user, onNavSelect } = renderPage();
+
+    const hiddenLink = screen.getByRole("button", {
+      name: "숨김 (욕설·비방 내용)",
+    });
+    /* 접두어는 흐리게 — 상태 열에 이미 「숨김」 배지가 있다 */
+    expect(within(hiddenLink).getByText("숨김").className).toContain(
+      "text-text-minimal",
+    );
+    await user.click(hiddenLink);
+    expect(onNavSelect).toHaveBeenCalledTimes(1);
+    expect(onNavSelect).toHaveBeenLastCalledWith("/reviews-admin/RV-28");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("공통 데이터와 맞물림", () => {
+  it("작성자 = 그 주문의 구매자 회원 · 작성일 = 원장의 그 주문 리뷰 지급 시각 · 결제 뒤 · 기준일 전", () => {
+    for (const review of REVIEWS) {
+      const order = ORDERS.find((item) => item.id === review.unit)!;
+      const member = MEMBERS.find((item) => item.id === order.buyerId)!;
+      const paid = POINT_LEDGER.filter(
+        (entry) =>
+          entry.kind === "earn" &&
+          entry.orderNo === order.orderNo &&
+          entry.memberId === member.id,
       );
-      expect(filled).toHaveLength(2);
-    });
-  });
-
-  describe("숨김 리뷰 — 목록에서 사라지지 않고 표시가 달라진다 (원본 규칙)", () => {
-    it("내용 앞에 '(숨김)' 이 붙는다", async () => {
-      const { user } = renderPage();
-
-      const hidden = REVIEWS.find((review) => review.hidden);
-      expect(hidden).toBeDefined();
-
-      // 08-17 21:14 → 최신순 8번째라 2페이지 마지막 행
-      await user.click(screen.getByRole("button", { name: "2" }));
-
-      const row = bodyRows()[3];
-      expect(cellText(row, 0)).toBe(hidden!.author);
-      expect(cellText(row, 4)).toBe(`(숨김) ${hidden!.content}`.trim());
-    });
-
-    it("숨김 리뷰도 목록에서 빠지지 않는다", () => {
-      renderPage();
-
-      expect(screen.getByText(`총 ${REVIEWS.length}건`)).toBeVisible();
-    });
-  });
-
-  describe("⚠️ 원본에 없어서 걷어낸 것 — 되살아나면 여기서 걸린다", () => {
-    it("툴바가 통째로 없다 — 검색·초기화·엑셀 다운로드가 모두 없다", () => {
-      renderPage();
-
-      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", { name: "엑셀 다운로드" }),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", { name: "초기화" }),
-      ).not.toBeInTheDocument();
-    });
-
-    it("상태 요약 대시와 증감 수치가 없다 — 지어낸 값이었다", () => {
-      renderPage();
-
-      expect(
-        screen.queryByRole("region", { name: "답글 상태 요약" }),
-      ).not.toBeInTheDocument();
-      expect(screen.queryByText("어제 대비")).not.toBeInTheDocument();
-      expect(screen.queryByText(/^\+\d+건$/)).not.toBeInTheDocument();
-      // 상태로 좁히는 토글 버튼도 없다
-      expect(
-        screen.queryByRole("button", { pressed: false }),
-      ).not.toBeInTheDocument();
-    });
-
-    it("답글 등록이 없다 — 원본 목록에 조치가 하나도 없다", async () => {
-      const { user } = renderPage();
-
-      await user.click(
-        screen.getByRole("button", {
-          name: "설치가 쉬워서 좋았어요. 아이도 편해합니다.",
-        }),
-      );
-      const sheet = await screen.findByRole("dialog");
-
-      expect(
-        within(sheet).queryByRole("button", { name: "답글 등록" }),
-      ).not.toBeInTheDocument();
-      // 남는 버튼은 모달을 닫는 것뿐이다
-      expect(within(sheet).getAllByRole("button")).toHaveLength(1);
-    });
-
-    it("낮은 별점 강조 문구가 없다 — 원본에 없는 운영 규칙이었다", () => {
-      renderPage();
-
-      expect(
-        screen.queryByText(/답글을 먼저 달아 주세요/),
-      ).not.toBeInTheDocument();
-    });
-
-    it("PageHeader 에 안내 문장을 달지 않는다", () => {
-      renderPage();
-
-      const header = screen.getByRole("heading", { name: "리뷰 관리" });
-      expect(header.parentElement?.textContent).toBe("리뷰 관리");
-    });
-  });
-
-  describe("정렬·페이지네이션", () => {
-    it("작성일 최신순으로 줄 세운다 (원본 `createdAt desc`)", () => {
-      renderPage();
-
-      const dates = bodyRows().map((row) => cellText(row, 5));
-      expect(dates).toEqual([
-        "2026.08.24",
-        "2026.08.23",
-        "2026.08.22",
-        "2026.08.21",
+      expect(review.author).toBe(member.name);
+      expect([review.seller, review.product]).toEqual([
+        order.seller,
+        order.productName,
       ]);
-    });
-
-    it("9건을 4건씩 나눠 3페이지로 보여준다", async () => {
-      const { user } = renderPage();
-
-      expect(bodyRows()).toHaveLength(4);
-
-      await user.click(screen.getByRole("button", { name: "3" }));
-
-      expect(bodyRows()).toHaveLength(1);
-      expect(cellText(bodyRows()[0], 0)).toBe("서다온");
-    });
+      expect(paid.map((entry) => entry.at)).toEqual([review.date]);
+      expect(review.date > order.date).toBe(true);
+      expect(review.date.slice(0, 10) <= DEMO_TODAY).toBe(true);
+    }
   });
 
-  describe("내용 → 리뷰 미리보기", () => {
-    it("내용을 누르면 본문 전문이 모달에 뜬다", async () => {
-      const { user } = renderPage();
+  it("처리단위 4개 = U-R19 · U-R30 · U-S35 · U-R28, 노출 3 · 숨김 1", () => {
+    expect(REVIEWS.map((review) => [review.id, review.unit])).toEqual([
+      ["RV-31", "U-R19"],
+      ["RV-30", "U-R30"],
+      ["RV-28", "U-S35"],
+      ["RV-27", "U-R28"],
+    ]);
+    expect(REVIEWS.filter((review) => review.hidden)).toHaveLength(1);
+  });
 
-      const review = REVIEWS[1]; // 이준서 · 2점
-      await user.click(screen.getByRole("button", { name: review.content }));
+  it("숨김 리뷰는 원장 「리뷰 삭제로 회수」와 잇지 않는다 — 숨김은 삭제가 아니다", () => {
+    const clawbackOrders = POINT_LEDGER.filter(
+      (entry) => entry.kind === "clawback",
+    ).map((entry) => entry.orderNo);
+    for (const review of REVIEWS) {
+      const order = ORDERS.find((item) => item.id === review.unit)!;
+      expect(clawbackOrders).not.toContain(order.orderNo);
+    }
+  });
+});
 
-      const sheet = await screen.findByRole("dialog");
+describe("데이터 상태 미리보기 (?preview=)", () => {
+  it("loading — 머리는 남기고 값만 스켈레톤", () => {
+    renderPage("?preview=loading");
+
+    expect(screen.getByRole("columnheader", { name: "작성자" })).toBeVisible();
+    expect(screen.queryByText("서하준")).toBeNull();
+    expect(
+      document.body.querySelectorAll("[data-skeleton]").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("empty — 원본 공용 빈 상태 문구", () => {
+    renderPage("?preview=empty");
+    expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "필터 초기화" })).toBeNull();
+  });
+
+  it("refreshing — 값을 흐리게 둔다", async () => {
+    renderPage("?preview=refreshing");
+
+    expect(screen.getByText("서하준")).toBeVisible();
+    await waitFor(() =>
       expect(
-        within(sheet).getByRole("heading", { name: "리뷰 미리보기" }),
-      ).toBeVisible();
-      expect(
-        within(sheet)
-          .getAllByRole("term")
-          .map((term) => term.textContent),
-      ).toEqual(["작성자", "셀러", "별점", "작성일", "상태"]);
-      expect(
-        within(sheet)
-          .getAllByRole("definition")
-          .map((value) => value.textContent),
-      ).toEqual([
-        "이준서",
-        "베이비루션",
-        "별점 2점 (5점 만점)",
-        "2026.08.23",
-        "답글 대기",
-      ]);
-      expect(within(sheet).getByText(review.content)).toBeVisible();
-    });
-
-    it("행 전체는 눌리지 않는다 — 원본에서 링크는 내용 하나다", async () => {
-      const { user } = renderPage();
-
-      await user.click(within(bodyRows()[0]).getAllByRole("cell")[2]);
-
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    });
+        document.body.querySelector("[data-table-shell-body]")?.className,
+      ).toContain("opacity-50"),
+    );
   });
 });

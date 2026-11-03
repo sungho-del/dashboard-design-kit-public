@@ -100,19 +100,37 @@ describe("Textarea", () => {
       expect(screen.getByText("5/5")).toBeInTheDocument();
     });
 
-    it("카운터는 실측 위치(bottom 8 / right 12)에 절대배치되고 클릭을 가로채지 않는다", () => {
+    /*
+     * 절대배치(bottom 8 / right 12)였을 때 세로 리사이즈 손잡이와 카운터가 같은 모서리에
+     * 포개졌다. 카운터를 textarea **다음 형제 줄**로 내 겹칠 수 없게 한다.
+     */
+    it("카운터는 textarea 아래 자기 줄에 오른쪽 정렬로 놓인다 — 리사이즈는 그대로", () => {
       const { container } = render(<Textarea maxLength={10} />);
-      const className =
-        container.querySelector('[data-part="count"]')?.className ?? "";
-      expect(className).toContain("absolute");
-      expect(className).toContain("bottom-2");
-      expect(className).toContain("right-3");
-      expect(className).toContain("pointer-events-none");
+      const count = container.querySelector('[data-part="count"]');
+      const classes = (count?.className ?? "").split(/\s+/);
+
+      expect(count?.previousElementSibling).toBe(screen.getByRole("textbox"));
+      expect(classes).not.toContain("absolute");
+      expect(classes).toContain("block");
+      expect(classes).toContain("text-right");
+      expect(screen.getByRole("textbox").className).toContain("resize-y");
     });
 
-    it("카운터가 보이면 텍스트가 겹치지 않도록 아래 여백을 확보한다", () => {
-      render(<Textarea maxLength={10} />);
-      expect(screen.getByRole("textbox").className).toContain("pb-4");
+    it("카운터 줄은 필드 기준 bottom 8 — 래퍼 아래 패딩을 하나만 낸다", () => {
+      const { container } = render(<Textarea maxLength={10} />);
+      const field = (container.firstChild as HTMLElement).className.split(
+        /\s+/,
+      );
+      expect(field.filter((c) => /^(pb|p)-/.test(c))).toEqual(["pb-2"]);
+      expect(screen.getByRole("textbox").className).not.toContain("pb-4");
+    });
+
+    it("카운터가 없으면 아래 패딩은 12", () => {
+      const { container } = render(<Textarea />);
+      const field = (container.firstChild as HTMLElement).className.split(
+        /\s+/,
+      );
+      expect(field.filter((c) => /^(pb|p)-/.test(c))).toEqual(["pb-3"]);
     });
   });
 

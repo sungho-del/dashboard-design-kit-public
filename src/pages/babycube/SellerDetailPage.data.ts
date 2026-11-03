@@ -162,6 +162,9 @@ export const PRODUCT_PAGE_SIZES = [10, 20, 50, 100];
 export const HEADQUARTERS_NOTICE =
   "본사 행 — 퇴점·심사 관리 대상이 아닙니다 (수수료율 0% 확정)";
 
+/** 본사 계정 수수료율 줄의 보조 글자 — 0% 는 입력값이 아니라 정해진 값이다 */
+export const HQ_COMMISSION_NOTE = "본사 고정";
+
 /** 수수료율 입력 아래 안내 — 원본 문구 그대로 */
 export const COMMISSION_HINT =
   "셀러 정산(플랫폼 수수료) 계산의 기준 요율입니다.";

@@ -33,7 +33,7 @@ import {
  * ## 원본과 다르게 둔 곳 (공통 규칙·사용자 결정)
  * - 정산 대상·상태 체크 칩(다중) → **셀렉트 하나씩**(택일) · 검색은 입력 즉시(대소문자 무시는 원본)
  * - 검색조건 바는 펼친 채로 열린다 · 행 어디를 눌러도 상세로 간다
- * - 정산 대상 배지 무채색(원본 자체 = 파랑) · 열 왼쪽 정렬
+ * - 정산 대상 배지 무채색(원본 자체 = 파랑) · 열 왼쪽 정렬 — 금액 3열(매출·차감·지급액)만 오른쪽(§7-2 계산 영역 예외) · 차감 부호 `−N원`
  *
  * ## ⚠️ 원본에 없어서 걷어낸 것 — 되살리지 말 것
  * 행 클릭 「명세서 미리보기」 모달 · 엑셀 다운로드(`EXPORT_SPEC` 미등록) · 명세 확정 일시 · 손으로 적은 억 단위 샘플
@@ -146,10 +146,10 @@ export const NO_AMOUNT = "-";
 export const deductionOf = (row: SettlementRow) =>
   row.fee + row.pg + row.clawback;
 
-/** 차감 칸 — 0 이면 `-`, 아니면 `- N원` */
+/** 차감 칸 — 0 이면 `-`(원본), 아니면 `−N원`(U+2212 · 정산 화면 공통 부호 — 원본 `- N원`) */
 export const deductionText = (row: SettlementRow) => {
   const value = deductionOf(row);
-  return value === 0 ? NO_AMOUNT : `- ${won(value)}`;
+  return value === 0 ? NO_AMOUNT : `−${won(value)}`;
 };
 
 export const PAGE_SIZE = 10;

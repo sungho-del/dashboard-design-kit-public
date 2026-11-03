@@ -1,3 +1,4 @@
+import type { CalcBlock, CalcLine } from "./CalcBreakdown";
 import { monthRangeText, STAGES } from "./GrowthStageListPage.data";
 import {
   CARE_FEE,
@@ -27,7 +28,14 @@ import {
  *
  * 짝이 되는 뼈대: `OrderDetailPage.tsx`
  * 기준 기획: v0.4 `hqOrderDetailPage` — 구역 5개(주문정보·상품정보·배송정보·배송지 정보·
- * 주문 처리 이력) + 주문정보의 [상세보기] → 「주문 명세」 팝업 + 하단 [목록]. **본사는 조회 전용.**
+ * 주문 처리 이력) + 주문정보의 [상세보기](우리 이름 [주문 명세]) → 「주문 명세」 팝업 + 하단 [목록].
+ * **본사는 조회 전용.**
+ *
+ * ## 주문 명세 — `CalcBreakdown` 어댑터(`statementBlocksOf`)
+ * 묶음: 상품(원가 → 상품 할인 → 단가 → 일수/수량 → 소계) · 할인(쿠폰·포인트) · 추가(안심케어·배송비) ·
+ * 결제금액(결과) · 별도(보증금 — 결제금액에 들지 않는다). 클레임 모드는 결제금액을 원거래 금액으로 낮추고
+ * 클레임 묶음(`claimBlocksOf`)이 기준 → 차감 → 결과를 보인다. 부호는 읽기용 `−`/`+`(0 은 부호 없음).
+ * 본문 주문정보의 결제금액·클레임 결과 줄은 **팝업과 같은 함수**(`payTotalOf`·`claimResultsOf`)를 읽는다.
  *
  * ## 레코드
  * 주문 목록의 `ORDERS` 한 행(**처리단위**)이다. 경로 `/orders-all/{처리단위}`.
@@ -242,10 +250,14 @@ export const historyOf = (
   ];
 };
 
-/** 그 단계에 도달했으면 시각, 아니면 `-` (배송정보의 날짜 칸) */
+/**
+ * 그 단계에 도달했으면 시각, 아니면 `-` (배송정보의 날짜 칸).
+ * 읽기 칸의 일시는 **분까지** — 주문정보의 결제일시·신청일시와 같은 형식이다.
+ * 초까지 남기는 것은 처리 이력 표(`stamp`) 하나다(원본 로그 형식).
+ */
 export const reachedAt = (order: Order, status: OrderStatus) => {
   const row = historyOf(order).find((item) => item.status === status);
-  return row ? stamp(row.at) : NONE;
+  return row ? stamp(row.at).slice(0, 16) : NONE;
 };
 
 /* =========================================================================
@@ -312,26 +324,27 @@ export const feeText = (amount: number) => (amount > 0 ? won(amount) : "무료")
  */
 export { CARE_FEE };
 
-export type StatementTone = "plain" | "strong" | "minus" | "total";
+/** 읽기용 부호 — 차감 `−`(U+2212, 붙여 씀) · 가산 `+` · 0 은 부호 없이 (정산 명세와 같은 규칙) */
+const MINUS = "−";
+const less = (amount: number, format: (value: number) => string = won) =>
+  amount > 0 ? `${MINUS}${format(amount)}` : format(0);
+const more = (amount: number) => `+${won(amount)}`;
+/** 배송비 줄 — 0 이면 「무료」(원본 문구) */
+const shipLine = (amount: number) => (amount > 0 ? more(amount) : "무료");
 
-export interface StatementLine {
-  label: string;
-  value: string;
-  tone: StatementTone;
-}
-
-const line = (
+const calcLine = (
+  key: string,
   label: string,
   value: string,
-  tone: StatementTone = "plain",
-): StatementLine => ({ label, value, tone });
+  extra: Partial<CalcLine> = {},
+): CalcLine => ({ key, label, value, ...extra });
 
 /** 배송비 · 회수 배송비 — 택배만 상품 배송비를 받는다(방문·공항은 무료) */
 const shipFeeOf = (order: Order) => (isParcel(order) ? order.shipFee : 0);
 
 /**
  * 결제금액 = 상품 소계 − 쿠폰 − 포인트 + 안심케어 + 배송비 + 회수 배송비.
- * ⚠️ **보증금은 들지 않는다**(원본 명세) — 명세에 따로 한 줄로 보인다.
+ * ⚠️ **보증금은 들지 않는다**(원본 명세) — 명세에 「별도」 묶음으로 따로 보인다.
  */
 export const payTotalOf = (order: Order) => {
   const ship = shipFeeOf(order);
@@ -351,50 +364,113 @@ export const payTotalOf = (order: Order) => {
   );
 };
 
-export const statementOf = (order: Order): StatementLine[] => {
+/** 보증금 줄의 보조 글자 — 결제금액과의 관계(상품 상세 「반납 검수 후 환급되는 금액」과 같은 뜻) */
+const DEPOSIT_HINT = "결제금액에 포함 안 됨 · 반납 검수 후 환급";
+
+/**
+ * 주문 몫 — 「상품」(원가 → 상품 할인 → 단가 → 일수/수량 → 소계) · 「할인」(쿠폰·포인트) ·
+ * 「추가」(안심케어·배송비·회수 배송비). 일 단가 할인은 단가에서 끝난다 — 총액에서 또 빼지 않는다.
+ * 상품 할인은 늘 보이는 줄이라 0 이면 「0원/일」·「0원」, 쿠폰·포인트·안심케어는 있을 때만(원본).
+ */
+const orderBlocksOf = (order: Order): CalcBlock[] => {
   const ship = shipFeeOf(order);
-  const plus = (amount: number) => (amount > 0 ? `+ ${won(amount)}` : "무료");
-  const discounts = [
-    ...(order.coupon
-      ? [line("쿠폰 할인", `- ${won(order.coupon)}`, "minus")]
-      : []),
-    ...(order.point
-      ? [line("포인트 할인 · (플랫폼 부담)", `- ${won(order.point)}`, "minus")]
-      : []),
-    ...(order.care
-      ? [line("안심케어 · (정산 미포함)", `+ ${won(order.care.fee)}`)]
-      : []),
-  ];
-
-  if (order.type === "rent") {
-    const price = rentPriceOf(order) ?? 0;
-    return [
-      line("렌트 원가", perDay(order.rentBasePrice ?? 0)),
-      line("할인 금액", `- ${perDay(order.rentDiscount ?? 0)}`, "minus"),
-      line("렌트가", perDay(price), "strong"),
-      line("렌트일", `${order.rentDays}일`),
-      line("소계", won(price * (order.rentDays ?? 0)), "strong"),
-      ...discounts,
-      line("배송비", plus(ship)),
-      line("회수 배송비", plus(ship)),
-      line("보증금", won(order.deposit ?? 0)),
-      line("결제금액", won(payTotalOf(order)), "total"),
-    ];
-  }
-
-  const price = Math.max(
+  const rent = order.type === "rent";
+  const salePrice = Math.max(
     0,
     (order.saleBasePrice ?? 0) - (order.saleDiscount ?? 0),
   );
+  const rentPrice = rentPriceOf(order) ?? 0;
+  const product: CalcLine[] = rent
+    ? [
+        calcLine("base", "렌트 원가", perDay(order.rentBasePrice ?? 0)),
+        calcLine(
+          "discount",
+          "상품 할인",
+          less(order.rentDiscount ?? 0, perDay),
+        ),
+        calcLine("price", "렌트가", perDay(rentPrice)),
+        calcLine("days", "렌트일", `${order.rentDays}일`),
+        calcLine("subtotal", "소계", won(rentPrice * (order.rentDays ?? 0)), {
+          kind: "subtotal",
+          hint: "렌트가 × 렌트일",
+        }),
+      ]
+    : [
+        calcLine("base", "판매 원가", won(order.saleBasePrice ?? 0)),
+        calcLine("discount", "상품 할인", less(order.saleDiscount ?? 0)),
+        calcLine("price", "판매가", won(salePrice)),
+        calcLine("qty", "수량", `${order.qty}개`),
+        calcLine("subtotal", "소계", won(salePrice * order.qty), {
+          kind: "subtotal",
+          hint: "판매가 × 수량",
+        }),
+      ];
+  const discounts: CalcLine[] = [
+    ...(order.coupon
+      ? [calcLine("coupon", "쿠폰 할인", less(order.coupon))]
+      : []),
+    ...(order.point
+      ? [
+          calcLine("point", "포인트 할인", less(order.point), {
+            hint: "플랫폼 부담",
+          }),
+        ]
+      : []),
+  ];
+  const extras: CalcLine[] = [
+    ...(order.care
+      ? [
+          calcLine("care", "안심케어", more(order.care.fee), {
+            hint: "정산 미포함",
+          }),
+        ]
+      : []),
+    calcLine("ship", "배송비", shipLine(ship)),
+    ...(rent ? [calcLine("returnShip", "회수 배송비", shipLine(ship))] : []),
+  ];
   return [
-    line("판매 원가", won(order.saleBasePrice ?? 0)),
-    line("할인 금액", `- ${won(order.saleDiscount ?? 0)}`, "minus"),
-    line("판매가", won(price), "strong"),
-    line("수량", `${order.qty}개`),
-    line("소계", won(price * order.qty), "strong"),
-    ...discounts,
-    line("배송비", plus(ship)),
-    line("결제금액", won(payTotalOf(order)), "total"),
+    { key: "product", label: "상품", lines: product },
+    { key: "discount", label: "할인", lines: discounts },
+    { key: "extra", label: "추가", lines: extras },
+  ];
+};
+
+/** 결제금액 줄 — 주문 상세는 결과(가장 굵게), 클레임 상세는 원거래 금액(소계 굵기) */
+const payLineOf = (order: Order, kind: "total" | "subtotal"): CalcLine =>
+  calcLine("pay", "결제금액", won(payTotalOf(order)), { kind });
+
+/** 「별도」 보증금 — 결제금액 계산 밖의 돈이라 결과 묶음 **아래** 따로 (보조 글자색) */
+const depositAsideOf = (order: Order): CalcBlock[] =>
+  order.type === "rent"
+    ? [
+        {
+          key: "deposit",
+          label: "별도",
+          lines: [
+            calcLine("deposit", "보증금", won(order.deposit ?? 0), {
+              kind: "note",
+              hint: DEPOSIT_HINT,
+            }),
+          ],
+        },
+      ]
+    : [];
+
+/**
+ * 주문 명세 — `CalcBreakdown` 묶음. 주문 상세는 주문 몫 + 결제금액(결과) + 별도 보증금,
+ * 클레임 상세는 주문 몫 + 클레임 몫(`claimBlocksOf` — 결제금액은 거기서 기준 줄이 된다).
+ */
+export const statementBlocksOf = (
+  order: Order,
+  claimMode = false,
+): CalcBlock[] => {
+  if (claimMode && order.claim) {
+    return [...orderBlocksOf(order), ...claimBlocksOf(order)];
+  }
+  return [
+    ...orderBlocksOf(order),
+    { key: "pay", emphasis: true, lines: [payLineOf(order, "total")] },
+    ...depositAsideOf(order),
   ];
 };
 
@@ -469,75 +545,185 @@ export const claimTypeTextOf = (order: Order) =>
   order.claim ? CLAIM_TYPE_LABEL[order.claim.type] : NONE;
 
 /**
- * 명세 꼬리 — 결제금액 **아래에** 클레임이 돈을 어떻게 움직이는지.
+/**
+ * 클레임 몫 — 돈이 **무엇을 기준으로** 움직이는지 묶음마다 기준 → 차감 → 결과로 보인다.
+ * 결과가 둘이면(렌트 취소: 환불 + 보증금 반환) 묶음도 둘 — 둘을 합친 총액은 만들지 않는다.
  *
- * | 단계             | 취소                   | 반품                                              | 교환 |
- * | ---------------- | ---------------------- | ------------------------------------------------- | ---- |
- * | 진행 중          | 환불 예정액 = 결제금액 | (고객 귀책) 편도 배송비 차감 → 환불/보증금 반환 예정액 | (고객 귀책) 왕복 배송비 · 환불 없음 — 검수 후 재배송 |
- * | 완료             | 환불 완료              | 환불 완료 / 보증금 반환 완료                      | 환불 없음 — 재배송 완료 |
- * | 반려·거부·재반송 | (없음)                 | 환불 없음 — 원거래 유지                           | 교환 불가 — 원거래 유지 |
+ * | 경우             | 묶음                                                                                  |
+ * | ---------------- | ------------------------------------------------------------------------------------- |
+ * | 취소             | 「환불」 결제금액 → 환불 예정액/완료 · (렌트) 「보증금」 보증금 → 반환 예정액/완료        |
+ * | 판매 반품        | 「환불」 결제금액 → (고객 귀책) 반품 배송비 − → 환불 예정액/완료                          |
+ * | 렌트 반품        | 「결제」 결제금액 · 「보증금」 보증금 → (고객 귀책) 반품 배송비 − → 반환 예정액/완료       |
+ * | 교환             | 「결제」 결제금액 · 「교환」 (고객 귀책) 왕복 배송비 · 처리 문장                            |
+ * | 반려·거부·재반송 | 「결제」 결제금액 · 「결과」 처리 문장 (+ 렌트면 「별도」 보증금)                          |
  *
+ * 처리 문장(「환불 없음 — 원거래 유지」 류)은 금액이 아니라 `message` 줄이다.
  * - 렌트 취소는 **무료 취소**(출고 전·위약금 없음)만 다룬다 — 결제금액 전액 + 보증금 반환을 따로
  *   (사용자 결정 2026-11-02). 원본은 렌트 취소에 보증금 반환만 있어 렌트료 환불이 빠졌다
  * - 환불은 **그 처리단위의 결제금액** 기준이다 — 같은 주문번호의 다른 처리단위를 끌어오지 않는다
- * - 렌트 반품은 원본처럼 보증금만 돌려준다. 차감액이 보증금보다 크면 0원 — 추가 청구로 넓히지 않는다
+ * - 렌트 반품은 원본처럼 보증금만 돌려준다. 반환액은 보증금 함수(`depositOf`) 하나가 정한다 —
+ *   배송비를 여기서 다시 빼지 않는다(차감 줄은 보이기만 한다)
  */
-export const claimStatementOf = (order: Order): StatementLine[] => {
+const claimBlocksOf = (order: Order): CalcBlock[] => {
   const claim = order.claim;
   if (!claim) return [];
   const done = isClaimDone(order);
-  /* 렌트 보증금 반환액은 보증금 함수 하나가 정한다 — 반품 배송비를 여기서 다시 빼지 않는다 */
   const depositRefund = depositOf(order)?.refund ?? 0;
   const pay = payTotalOf(order);
   const fee = claimFeeOf(order);
   const rent = order.type === "rent";
+  const payBlock: CalcBlock = {
+    key: "pay",
+    label: "결제",
+    lines: [payLineOf(order, "subtotal")],
+  };
+  const depositBase = calcLine("deposit", "보증금", won(order.deposit ?? 0), {
+    hint: "결제금액에 포함 안 됨",
+  });
+  const depositResult = calcLine(
+    "depositRefund",
+    done ? "보증금 반환 완료" : "보증금 반환 예정액",
+    won(depositRefund),
+    { kind: "total" },
+  );
+  const message = (label: string): CalcLine => ({
+    key: "result",
+    label,
+    kind: "message",
+  });
 
   if (claim.type === "cancel") {
-    const depositLine = rent
-      ? [
-          line(
-            done ? "보증금 반환 완료" : "보증금 반환 예정액",
-            won(depositRefund),
-            "strong",
-          ),
-        ]
-      : [];
+    const refund: CalcBlock = {
+      key: "refund",
+      label: "환불",
+      emphasis: true,
+      lines: [
+        payLineOf(order, "subtotal"),
+        calcLine("refund", done ? "환불 완료" : "환불 예정액", won(pay), {
+          kind: "total",
+          hint: "결제금액 전액",
+        }),
+      ],
+    };
+    if (!rent) return [refund];
     return [
-      line(done ? "환불 완료" : "환불 예정액", won(pay), "total"),
-      ...depositLine,
+      refund,
+      {
+        key: "depositRefund",
+        label: "보증금",
+        emphasis: true,
+        lines: [depositBase, depositResult],
+      },
     ];
   }
 
   if (isClaimRefused(order)) {
-    const result =
-      claim.type === "return"
-        ? "환불 없음 — 원거래 유지"
-        : "교환 불가 — 원거래 유지";
-    return [line("처리 결과", result, "total")];
+    return [
+      payBlock,
+      {
+        key: "result",
+        label: "결과",
+        emphasis: true,
+        lines: [
+          message(
+            claim.type === "return"
+              ? "환불 없음 — 원거래 유지"
+              : "교환 불가 — 원거래 유지",
+          ),
+        ],
+      },
+      ...depositAsideOf(order),
+    ];
   }
 
   if (claim.type === "exchange") {
-    const feeLine =
-      fee > 0 ? [line("교환 배송비(왕복) · 고객 부담", won(fee))] : [];
-    const result = done
-      ? "환불 없음 — 재배송 완료"
-      : "환불 없음 — 검수 후 재배송";
-    return [...feeLine, line("처리 결과", result, "total")];
+    const feeLines =
+      fee > 0
+        ? [
+            calcLine("exchangeFee", "교환 배송비", won(fee), {
+              hint: "왕복 · 고객 부담",
+            }),
+          ]
+        : [];
+    return [
+      payBlock,
+      {
+        key: "result",
+        label: "교환",
+        emphasis: true,
+        lines: [
+          ...feeLines,
+          message(
+            done ? "환불 없음 — 재배송 완료" : "환불 없음 — 검수 후 재배송",
+          ),
+        ],
+      },
+    ];
   }
 
-  /* 반품 — 렌트는 보증금, 판매는 결제금액에서 고객 귀책 배송비를 뺀다 */
-  const from = rent ? "보증금에서" : "환불액에서";
-  const feeLine =
+  /* 반품 — 렌트는 보증금, 판매는 결제금액이 기준이다 */
+  const feeLines = (from: string) =>
     fee > 0
-      ? [line(`반품 배송비(편도) 차감 · ${from}`, `- ${won(fee)}`, "minus")]
+      ? [
+          calcLine("returnFee", "반품 배송비", less(fee), {
+            hint: `편도 · 고객 귀책 · ${from} 차감`,
+          }),
+        ]
       : [];
-  const label = rent
-    ? done
-      ? "보증금 반환 완료"
-      : "보증금 반환 예정액"
-    : done
-      ? "환불 완료"
-      : "환불 예정액";
-  const amount = rent ? depositRefund : Math.max(0, pay - fee);
-  return [...feeLine, line(label, won(amount), "total")];
+  if (rent) {
+    return [
+      payBlock,
+      {
+        key: "depositRefund",
+        label: "보증금",
+        emphasis: true,
+        lines: [depositBase, ...feeLines("보증금에서"), depositResult],
+      },
+    ];
+  }
+  return [
+    {
+      key: "refund",
+      label: "환불",
+      emphasis: true,
+      lines: [
+        payLineOf(order, "subtotal"),
+        ...feeLines("환불액에서"),
+        calcLine(
+          "refund",
+          done ? "환불 완료" : "환불 예정액",
+          won(Math.max(0, pay - fee)),
+          { kind: "total" },
+        ),
+      ],
+    },
+  ];
 };
+
+/**
+ * 클레임 결과 줄만 — 본문 주문정보의 결과 줄이 읽는다(팝업과 **같은 값·같은 문구**).
+ * 환불·반환 금액(`total`)과 처리 문장(`message`)만 — 교환에 환불액을 새로 만들지 않는다.
+ */
+export const claimResultsOf = (order: Order): CalcLine[] =>
+  claimBlocksOf(order)
+    .flatMap((block) => block.lines)
+    .filter((line) => line.kind === "total" || line.kind === "message");
+
+export interface StatementLine {
+  label: string;
+  value: string;
+  tone: "plain" | "total";
+}
+
+/**
+ * 클레임 몫을 평평한 줄로 — 보증금 순수 함수 테스트(`deposit.data.test.ts`)가 결과 줄(`total`)
+ * 값을 읽어 보증금 함수와 맞춰 본다. 화면은 `statementBlocksOf` 를 쓴다.
+ */
+export const claimStatementOf = (order: Order): StatementLine[] =>
+  claimBlocksOf(order)
+    .flatMap((block) => block.lines)
+    .map((line) => ({
+      label: line.label,
+      value: line.value ?? "",
+      tone: line.kind === "total" ? "total" : "plain",
+    }));

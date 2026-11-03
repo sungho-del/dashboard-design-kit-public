@@ -149,7 +149,10 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
       const price = section(/가격 · 렌트 기간/);
 
       expect(within(price).getByText("1,300원/일")).toBeVisible();
-      expect(within(price).getByText("(200원 할인)")).toBeVisible();
+      /* 할인은 렌트가 곁의 보조 글자(괄호 없이) — 할인 입력칸 설명에도 같은 글자가 있어 렌트가 줄 안에서 찾는다 */
+      const rateRow = within(price).getByText("1,300원/일")
+        .parentElement as HTMLElement;
+      expect(within(rateRow).getByText("200원 할인")).toBeVisible();
       /* 기간 옵션의 정가(취소선)에도 같은 금액이 있어 「최종 렌트 금액」 줄 안에서 찾는다 */
       const finalRow = () =>
         within(price).getByText("최종 렌트 금액").parentElement as HTMLElement;
@@ -325,9 +328,9 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
 
   describe("하단 바 — 상태가 처분 버튼을 정한다", () => {
     it.each([
-      ["BL240814", ["목록", "반려 처리", "수정 저장", "취소"]],
-      ["MC240812", ["목록", "승인 처리", "수정 저장", "취소"]],
-      ["LS240809", ["목록", "승인 처리", "반려 처리", "수정 저장", "취소"]],
+      ["BL240814", ["목록", "반려 처리", "취소", "수정 저장"]],
+      ["MC240812", ["목록", "승인 처리", "취소", "수정 저장"]],
+      ["LS240809", ["목록", "승인 처리", "반려 처리", "취소", "수정 저장"]],
     ])("%s → %j", (code, buttons) => {
       renderAt(code);
 

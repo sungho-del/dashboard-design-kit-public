@@ -1,23 +1,35 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
+import { MEMBERS } from "./MemberListPage.data";
+import { ORDERS } from "./OrderListPage.data";
 import { PointListPage } from "./PointListPage";
-import { POINT_ACCOUNTS, balanceOf, point } from "./PointListPage.data";
+import {
+  POINT_LEDGER,
+  POINT_SUMMARIES,
+  ledgerBalanceOf,
+} from "./PointListPage.data";
 
-/**
- * S18 포인트 관리 — **동작** 테스트.
+/* -------------------------------------------------------------------------
+ * 포인트 관리 (목록) — 기획 v0.4 `SCREENS.points` · 조회 전용
  *
- * 이 화면에서 조용히 틀리기 쉬운 것은 두 가지다.
- * 1. 검색 조건 스코프가 **실제로 목록을 좁히는가**
- * 2. 한 행의 세 숫자(보유·지급·차감)가 **서로 모순되지 않는가**
- * 렌더 여부만 보면 둘 다 통과해 버린다.
+ * 렌더 여부가 아니라 **동작과 숫자**를 본다: 원장에서 나온 합계(사례표) · 원장 ↔ 주문 ↔ 회원 상세 정합 ·
+ * 검색조건(펼침·요약·대소문자 무시·기간 빠른 선택) · 정렬 3단 · 페이지 · 빈 상태·초기화 ·
+ * 행/회원명 → 상세 · 원본에 없는 엑셀·체크박스·미리보기가 없다 · `?preview=`.
  *
- * 원본 대조(`chunks/0mbh3uyfg-osc.js` 모듈 7642) 후에는 "무엇이 **없어야** 하는가"도 본다 —
- * 한때 있던 회원 등급 축이 통째로 발명이었다.
- *
- * jsdom 에는 레이아웃도 `ResizeObserver`/`IntersectionObserver` 도 없다.
- * DatePicker·Select 가 쓰는 floating-ui `autoUpdate` 가 둘을 요구하므로 no-op 으로 채운다.
- */
+ * 사례표 (원장 25행 → 11명, 기본 순서 = 최근 업데이트 순)
+ * | 회원   | 보유  | 누적 지급 | 누적 차감 | 업데이트          |
+ * | 임채원 | 1,200 | 1,200     | 0         | 2026.10.16 20:15  |
+ * | 황보라 | 1,100 | 1,100     | 0         | 2026.10.15 09:40  |
+ * | 안지성 | 500   | 2,500     | 2,000     | 2026.10.08 16:44  | ← U-R11 사용 2,000
+ * | 홍다인 | 1,600 | 1,600     | 0         | 2026.10.06 14:00  |
+ * | 오세린 | 0     | 500       | 500       | 2026.10.02 10:05  | ← 리뷰 회수
+ * | 장시우 · 최유나 · 송예린 · 유가은 500 | (백도윤은 리뷰 지급 없음 — 문의 Q-8835) |
+ * | 노하린 | 600   | 3,600     | 3,000     | 2026.09.21 10:05  | ← U-S35 사용 3,000
+ * | 서하준 | 100   | 500       | 400       | 2026.09.07 10:30  | ← 관리자 회수 400
+ * ---------------------------------------------------------------------- */
+type User = ReturnType<typeof userEvent.setup>;
+
 class ObserverStub {
   observe() {}
   unobserve() {}
@@ -36,23 +48,21 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-function renderPage() {
+function renderPage(search = "") {
+  window.history.replaceState(null, "", `/points${search}`);
   const onNavSelect = vi.fn();
-  const onNavOpenChange = vi.fn();
   const user = userEvent.setup();
-
   render(
     <ToastProvider position="bottom">
       <PointListPage
         navOpen
-        onNavOpenChange={onNavOpenChange}
+        onNavOpenChange={vi.fn()}
         activeNav="/points"
         onNavSelect={onNavSelect}
       />
     </ToastProvider>,
   );
-
-  return { user, onNavSelect, onNavOpenChange };
+  return { user, onNavSelect };
 }
 
 function bodyRows(): HTMLElement[] {
@@ -61,367 +71,375 @@ function bodyRows(): HTMLElement[] {
   return within(table).getAllByRole("row").slice(1);
 }
 
-/** 남아 있는 회원명(1번째 열) */
-function visibleNames(): string[] {
-  return bodyRows().map(
-    (row) => within(row).getAllByRole("cell")[0].textContent ?? "",
-  );
+const cellsOf = (row: HTMLElement) =>
+  within(row)
+    .getAllByRole("cell")
+    .map((cell) => cell.textContent ?? "");
+
+const CELL = { no: 0, name: 1, email: 2, balance: 3, granted: 4, deducted: 5 };
+const column = (index: number) => bodyRows().map((row) => cellsOf(row)[index]);
+const visibleNames = () => column(CELL.name);
+
+const rowOf = (name: string) => {
+  const row = bodyRows().find((item) => cellsOf(item)[CELL.name] === name);
+  if (!row) throw new Error(`행을 찾지 못했습니다: ${name}`);
+  return row;
+};
+
+const sortButton = (label: string) =>
+  screen
+    .getByRole("columnheader", { name: new RegExp(label) })
+    .querySelector("button")!;
+
+async function chooseOption(user: User, selectLabel: string, option: string) {
+  await user.click(screen.getByRole("combobox", { name: selectLabel }));
+  const listbox = await screen.findByRole("listbox");
+  await user.click(within(listbox).getByRole("option", { name: option }));
 }
 
-function searchBox(): HTMLElement {
-  return screen.getByRole("textbox", { name: "검색어" });
-}
+const searchBox = () =>
+  screen.getByPlaceholderText("회원명·아이디(이메일) 검색");
 
-/** 검색 조건 셀렉트에서 한 항목을 고른다 */
-async function pickSearchField(
-  user: ReturnType<typeof userEvent.setup>,
-  name: string,
-) {
-  await user.click(screen.getByRole("combobox", { name: "검색 조건" }));
-  await user.click(await screen.findByRole("option", { name }));
-}
+const PAGE_ONE = [
+  "임채원",
+  "황보라",
+  "안지성",
+  "홍다인",
+  "오세린",
+  "장시우",
+  "최유나",
+  "노하린",
+  "송예린",
+  "유가은",
+];
 
-describe("PointListPage", () => {
-  describe("표 구성 — 원본 컬럼 6열", () => {
-    it("컬럼 이름과 순서가 원본과 같다", () => {
-      renderPage();
+describe("표 (원본 7열 · 조회 전용)", () => {
+  it("열 이름·순서가 원본 그대로고, 체크박스·엑셀이 없다", () => {
+    renderPage();
 
-      const headers = within(screen.getByRole("table"))
+    expect(
+      within(screen.getByRole("table"))
         .getAllByRole("columnheader")
-        .map((cell) => cell.textContent);
+        .map((cell) => cell.textContent),
+    ).toEqual([
+      "No",
+      "회원명",
+      "아이디(이메일)",
+      "보유 포인트",
+      "누적 지급 포인트",
+      "누적 차감 포인트",
+      "업데이트 일시",
+    ]);
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: /엑셀/ })).toBeNull();
+  });
 
-      expect(headers).toEqual([
-        "회원명",
-        "아이디(이메일)",
-        "보유 포인트",
-        "누적 지급 포인트",
-        "누적 차감 포인트",
-        "업데이트 일시",
+  it("기본 순서는 최근 업데이트 순 · No 는 역순 순번 · 11명", () => {
+    renderPage();
+
+    expect(screen.getByText("목록 (총 11건)")).toBeVisible();
+    expect(visibleNames()).toEqual(PAGE_ONE);
+    expect(column(CELL.no)).toEqual([
+      "11",
+      "10",
+      "9",
+      "8",
+      "7",
+      "6",
+      "5",
+      "4",
+      "3",
+      "2",
+    ]);
+  });
+
+  it.each([
+    // 회원, 보유, 누적 지급, 누적 차감, 업데이트
+    ["임채원", "1,200P", "1,200P", "0P", "2026.10.16 20:15"],
+    ["안지성", "500P", "2,500P", "2,000P", "2026.10.08 16:44"],
+    ["오세린", "0P", "500P", "500P", "2026.10.02 10:05"],
+    ["노하린", "600P", "3,600P", "3,000P", "2026.09.21 10:05"],
+  ])("사례표 %s — 보유 %s · 지급 %s · 차감 %s", (name, ...expected) => {
+    renderPage();
+
+    expect(cellsOf(rowOf(name)).slice(3)).toEqual(expected);
+  });
+
+  it("보유만 굵다 (원본 `<b>`)", () => {
+    renderPage();
+    const cells = within(rowOf("임채원")).getAllByRole("cell");
+
+    expect(within(cells[CELL.balance]).getByText("1,200P").className).toContain(
+      "body-medium-bold",
+    );
+    expect(cells[CELL.granted].querySelector(".body-medium-bold")).toBeNull();
+  });
+});
+
+describe("원장 정합 — 한 원천에서 목록·상세·회원 상세·주문이 같은 말을 한다", () => {
+  it("보유 = 누적 지급 − 누적 차감 = 원장 합", () => {
+    for (const row of POINT_SUMMARIES) {
+      expect(row.balance).toBe(row.granted - row.deducted);
+      expect(row.balance).toBe(ledgerBalanceOf(row.id));
+    }
+  });
+
+  it("회원 상세 「포인트」 값 = 원장 합 (원장이 없는 회원은 0)", () => {
+    for (const member of MEMBERS) {
+      expect([member.name, member.points]).toEqual([
+        member.name,
+        ledgerBalanceOf(member.id),
       ]);
-    });
+    }
+  });
 
-    it("colgroup 의 열 개수가 컬럼 개수와 같다", () => {
-      renderPage();
+  it("원장 회원은 모두 회원 샘플(MEMBERS)에 있다", () => {
+    const ids = new Set(MEMBERS.map((member) => member.id));
+    for (const entry of POINT_LEDGER)
+      expect(ids.has(entry.memberId)).toBe(true);
+  });
 
-      const cols = screen.getByRole("table").querySelectorAll("colgroup col");
-      expect(cols).toHaveLength(6);
-    });
+  it("사용 행 = 주문의 포인트 할인 그대로 (U-R11 2,000 · U-S35 3,000)", () => {
+    const uses = POINT_LEDGER.filter((entry) => entry.kind === "use");
+    const pointOrders = ORDERS.filter((order) => order.point > 0);
 
-    /**
-     * 원본은 포인트 세 열에 `align: right` 를 주지만, 이 저장소는 **표 전체를 한
-     * 기준선**에 세운다(`DESIGN.md` §7-2). 이 화면에는 배지 열도 없어 전부 좌측이다.
-     */
-    it("포인트 세 열도 좌측이다 — 우측 정렬은 어느 열에도 없다", () => {
-      renderPage();
+    expect(pointOrders.map((order) => order.id).sort()).toEqual([
+      "U-R11",
+      "U-S35",
+    ]);
+    expect(
+      uses.map(({ memberId, orderNo, amount, at }) => ({
+        memberId,
+        orderNo,
+        amount,
+        at,
+      })),
+    ).toEqual(
+      pointOrders.map((order) => ({
+        memberId: order.buyerId,
+        orderNo: order.orderNo,
+        amount: -order.point,
+        at: order.date,
+      })),
+    );
+  });
 
-      const headers = within(screen.getByRole("table")).getAllByRole(
-        "columnheader",
+  it("연관 거래는 그 회원의 실제 주문이고, 처리일은 결제 뒤 · 시연 기준일(10-19) 전이다", () => {
+    for (const entry of POINT_LEDGER) {
+      expect(entry.at < "2026-10-19").toBe(true);
+      if (!entry.orderNo) continue;
+      const order = ORDERS.find(
+        (item) =>
+          item.orderNo === entry.orderNo && item.buyerId === entry.memberId,
       );
-      const cells = within(bodyRows()[0]).getAllByRole("cell");
-
-      for (const el of [...headers, ...cells]) {
-        expect(el.className.split(/\s+/)).not.toContain("text-right");
-        expect(el.className.split(/\s+/)).not.toContain("text-center");
-      }
-    });
-
-    it("업데이트 일시는 분까지, 점 구분자로 낸다 (원본 포맷터)", () => {
-      renderPage();
-
-      const cells = within(bodyRows()[0]).getAllByRole("cell");
-      expect(cells[5].textContent).toBe("2026.08.24 10:12");
-    });
-
-    it("보유 포인트만 굵게 낸다 — 원본도 이 열만 `<b>` 다", () => {
-      renderPage();
-
-      const cells = within(bodyRows()[0]).getAllByRole("cell");
-      const balance = within(cells[2]).getByText("22,400P");
-
-      expect(balance.className.split(/\s+/)).toContain("body-medium-bold");
-      // 누적 지급 열에는 굵은 요소가 없다
-      expect(cells[3].querySelector("strong")).toBeNull();
-    });
+      expect(order, entry.id).toBeDefined();
+      expect(entry.at >= order!.date.slice(0, 16)).toBe(true);
+    }
   });
 
-  describe("⚠️ 원본에 없어서 걷어낸 것 — 되살아나면 여기서 걸린다", () => {
-    it("회원 등급 열이 없다 — 원본 컬럼은 6열이다", () => {
-      renderPage();
+  it("구분 4종이 다 있고, 지급은 리뷰 500·100P · 잔액이 음수로 내려가지 않는다", () => {
+    expect(new Set(POINT_LEDGER.map((entry) => entry.kind))).toEqual(
+      new Set(["earn", "use", "clawback", "manual"]),
+    );
+    for (const entry of POINT_LEDGER.filter((item) => item.kind === "earn")) {
+      expect([500, 100]).toContain(entry.amount);
+    }
+    const running = new Map<string, number>();
+    for (const entry of [...POINT_LEDGER].reverse()) {
+      const next = (running.get(entry.memberId) ?? 0) + entry.amount;
+      expect(next, entry.id).toBeGreaterThanOrEqual(0);
+      running.set(entry.memberId, next);
+    }
+  });
+});
 
-      const headers = within(screen.getByRole("table"))
-        .getAllByRole("columnheader")
-        .map((cell) => cell.textContent);
+describe("검색조건 (펼친 채로 · 즉시 적용)", () => {
+  it("펼친 채로 열리고, 걸린 조건을 요약한다", async () => {
+    const { user } = renderPage();
 
-      expect(headers).not.toContain("등급");
-    });
+    expect(screen.getByRole("button", { name: /검색 닫기/ })).toBeVisible();
+    expect(screen.getByText("조건 없음 (전체)")).toBeVisible();
 
-    it("등급 세그먼트 필터가 없다 — 원본 필터는 기간·검색 두 축뿐이다", () => {
-      renderPage();
+    await user.type(searchBox(), "안지");
 
-      expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
-      ["브론즈", "실버", "골드", "VIP"].forEach((label) => {
-        expect(screen.queryByText(label)).not.toBeInTheDocument();
-      });
-    });
-
-    it("검색 조건에 '전체'가 없다 — 원본 fieldOpts 는 두 항목뿐이다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("combobox", { name: "검색 조건" }));
-
-      const options = (await screen.findAllByRole("option")).map(
-        (option) => option.textContent,
-      );
-      expect(options).toEqual(["회원명", "아이디(이메일)"]);
-    });
-
-    it("PageHeader 에 안내 문장을 달지 않는다", () => {
-      renderPage();
-
-      const header = screen.getByRole("heading", { name: "포인트 관리" });
-      expect(header.parentElement?.textContent).toBe("포인트 관리");
-    });
+    expect(visibleNames()).toEqual(["안지성"]);
+    expect(screen.getByText("회원명 «안지»")).toBeVisible();
   });
 
-  describe("검색 조건 스코프", () => {
-    it("기본 조건은 회원명이다 — 원본도 fieldOpts 의 첫 항목을 기본으로 쓴다", () => {
-      renderPage();
+  it("검색 대상 기본은 회원명 — 이메일 글자는 걸리지 않는다", async () => {
+    const { user } = renderPage();
 
-      expect(
-        screen.getByRole("combobox", { name: "검색 조건" }),
-      ).toHaveTextContent("회원명");
-      expect(bodyRows()).toHaveLength(4); // 전체 6건 / PAGE_SIZE 4
-      expect(screen.getByText("총 6건")).toBeVisible();
-    });
+    await user.type(searchBox(), "harin");
 
-    it("회원명 스코프에서는 이메일이 매칭되지 않는다", async () => {
-      const { user } = renderPage();
-
-      await user.type(searchBox(), "bora");
-
-      // 스코프가 실제로 좁혀졌다는 증거 — 안 좁혀지면 김보라가 남는다
-      expect(screen.getByText("해당 조건의 회원이 없습니다")).toBeVisible();
-    });
-
-    it("아이디(이메일)로 바꾸면 이메일로 검색된다", async () => {
-      const { user } = renderPage();
-
-      await pickSearchField(user, "아이디(이메일)");
-      await user.type(searchBox(), "bora");
-
-      expect(visibleNames()).toEqual(["김보라"]);
-    });
-
-    it("아이디(이메일) 스코프에서 한글 이름은 매칭되지 않는다", async () => {
-      const { user } = renderPage();
-
-      await pickSearchField(user, "아이디(이메일)");
-      await user.type(searchBox(), "박하늘");
-
-      expect(screen.getByText("해당 조건의 회원이 없습니다")).toBeVisible();
-    });
+    expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
   });
 
-  /*
-   * ⚠️ 업데이트 기간(DatePicker) 필터는 여기서 검증하지 못한다 —
-   * 달력을 열어 두 날짜를 고르는 조작이 jsdom 에서 안정적으로 재현되지 않는다.
-   * 같은 이유로 `MemberListPage.test.tsx` 도 기간을 다루지 않는다.
-   * 렌더 여부만 확인하는 테스트는 두지 않았다(있으나 마나 한 통과를 만든다).
-   */
+  it("아이디(이메일)로 바꾸면 대소문자 없이 찾는다 (원본 toLowerCase)", async () => {
+    const { user } = renderPage();
 
-  describe("숫자 정합 — 보유 = 누적 지급 − 누적 차감", () => {
-    it("표에 찍힌 세 숫자가 서로 어긋나지 않는다", () => {
-      renderPage();
+    await chooseOption(user, "검색 대상", "아이디(이메일)");
+    await user.type(searchBox(), "HARIN");
 
-      // 첫 페이지 4행을 원본 데이터와 하나씩 맞춰 본다
-      bodyRows().forEach((row, index) => {
-        const account = POINT_ACCOUNTS[index];
-        const cells = within(row).getAllByRole("cell");
-
-        expect(cells[2]).toHaveTextContent(point(balanceOf(account)));
-        expect(cells[3]).toHaveTextContent(point(account.granted));
-        expect(cells[4]).toHaveTextContent(point(account.used));
-        // 계산 결과가 아니라 **눈에 보이는 문자열**로 다시 확인한다
-        expect(account.granted - account.used).toBe(balanceOf(account));
-      });
-    });
-
-    it("전액 사용한 회원은 보유 0P 로 표시된다", async () => {
-      const { user } = renderPage();
-
-      await user.type(searchBox(), "최시우");
-
-      const cells = within(bodyRows()[0]).getAllByRole("cell");
-      expect(cells[2]).toHaveTextContent("0P");
-      expect(cells[3]).toHaveTextContent("6,000P");
-      expect(cells[4]).toHaveTextContent("6,000P");
-    });
-
-    it("천 단위 구분자는 쉼표다", () => {
-      renderPage();
-
-      expect(screen.getByText("22,400P")).toBeVisible();
-      expect(screen.getByText("156,000P")).toBeVisible();
-    });
+    expect(visibleNames()).toEqual(["노하린"]);
   });
 
-  describe("빈 상태와 초기화", () => {
-    it("매칭이 없으면 EmptyState 를 띄우고 표·페이지네이션을 걷어낸다", async () => {
-      const { user } = renderPage();
+  it("빈 상태의 [필터 초기화]와 바의 [초기화]가 전부 되돌린다", async () => {
+    const { user } = renderPage();
 
-      expect(
-        screen.getByRole("navigation", { name: "페이지네이션" }),
-      ).toBeInTheDocument();
+    await user.type(searchBox(), "없는회원");
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(
+      screen.getByText(
+        "조건을 변경하거나 필터를 초기화한 뒤 다시 조회해 주세요.",
+      ),
+    ).toBeVisible();
 
-      await user.type(searchBox(), "없는회원");
+    await user.click(screen.getByRole("button", { name: "필터 초기화" }));
+    expect(bodyRows()).toHaveLength(10);
+    expect(searchBox()).toHaveValue("");
 
-      expect(screen.getByText("해당 조건의 회원이 없습니다")).toBeVisible();
-      expect(screen.queryByRole("table")).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("navigation", { name: "페이지네이션" }),
-      ).not.toBeInTheDocument();
-    });
-
-    it("빈 상태에서도 툴바는 남는다 — 조건을 되돌릴 수단이 필요하다", async () => {
-      const { user } = renderPage();
-
-      await user.type(searchBox(), "없는회원");
-
-      expect(searchBox()).toBeVisible();
-      expect(screen.getByRole("button", { name: "초기화" })).toBeVisible();
-    });
-
-    it("초기화는 검색 조건과 검색어를 한꺼번에 되돌린다", async () => {
-      const { user } = renderPage();
-
-      await pickSearchField(user, "아이디(이메일)");
-      await user.type(searchBox(), "bora");
-      expect(screen.getByText("총 1건")).toBeVisible();
-
-      await user.click(screen.getByRole("button", { name: "초기화" }));
-
-      expect(screen.getByText("총 6건")).toBeVisible();
-      expect(searchBox()).toHaveValue("");
-      // 검색 조건 셀렉트도 함께 돌아와야 다음 검색이 어긋나지 않는다
-      expect(
-        screen.getByRole("combobox", { name: "검색 조건" }),
-      ).toHaveTextContent("회원명");
-    });
-
-    it("빈 상태의 '필터를 초기화' 버튼으로도 전체가 돌아온다", async () => {
-      const { user } = renderPage();
-
-      await user.type(searchBox(), "없는회원");
-      await user.click(screen.getByRole("button", { name: "필터를 초기화" }));
-
-      expect(bodyRows()).toHaveLength(4);
-      expect(screen.getByText("총 6건")).toBeVisible();
-    });
+    await chooseOption(user, "검색 대상", "아이디(이메일)");
+    await user.type(searchBox(), "seo");
+    expect(visibleNames()).toEqual(["서하준"]);
+    await user.click(screen.getByRole("button", { name: "초기화" }));
+    expect(bodyRows()).toHaveLength(10);
+    expect(
+      screen.getByRole("combobox", { name: "검색 대상" }),
+    ).toHaveTextContent("회원명");
   });
 
-  describe("페이지네이션", () => {
-    it("6건을 4건씩 나눠 2페이지로 보여준다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("button", { name: "2" }));
-
-      expect(bodyRows()).toHaveLength(2);
-      expect(visibleNames()).toEqual(["정다인", "한서윤"]);
+  describe("업데이트 기간 빠른 선택", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ now: new Date(2026, 9, 19, 12), toFake: ["Date"] });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
     });
 
-    it("검색어를 넣으면 1페이지로 되돌아간다", async () => {
+    it("1주일(10.13~10.19) — 그 사이 업데이트된 두 명만", async () => {
       const { user } = renderPage();
 
-      await user.click(screen.getByRole("button", { name: "2" }));
-      await user.type(searchBox(), "이준서");
+      await user.click(screen.getByRole("button", { name: "업데이트 기간" }));
+      const panel = await screen.findByRole("dialog");
+      await user.click(within(panel).getByRole("button", { name: "1주일" }));
 
-      expect(screen.getByRole("button", { name: "1" })).toHaveAttribute(
-        "aria-current",
-        "page",
-      );
-      expect(visibleNames()).toEqual(["이준서"]);
-    });
-  });
-
-  describe("회원명 → 포인트 미리보기", () => {
-    it("회원명을 누르면 그 회원의 포인트가 모달에 뜬다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("button", { name: "박하늘" }));
-
-      const sheet = await screen.findByRole("dialog");
+      expect(visibleNames()).toEqual(["임채원", "황보라"]);
       expect(
-        within(sheet).getByRole("heading", { name: "포인트 미리보기" }),
-      ).toBeVisible();
-      expect(
-        within(sheet)
-          .getAllByRole("term")
-          .map((term) => term.textContent),
-      ).toEqual([
-        "아이디",
-        "보유 포인트",
-        "누적 지급 포인트",
-        "누적 차감 포인트",
-        "업데이트 일시",
-      ]);
-      expect(
-        within(sheet)
-          .getAllByRole("definition")
-          .map((value) => value.textContent),
-      ).toEqual([
-        "haneul.park@example.com",
-        "58,000P",
-        "156,000P",
-        "98,000P",
-        "2026.08.22 09:05",
-      ]);
-    });
-
-    it("라벨 폭을 다섯 행에 똑같이 준다 — 한 행만 넓히면 라벨 열이 어긋난다", async () => {
-      const { user } = renderPage();
-
-      await user.click(screen.getByRole("button", { name: "박하늘" }));
-      const sheet = await screen.findByRole("dialog");
-
-      const widths = within(sheet)
-        .getAllByRole("term")
-        .map((term) => term.style.width);
-      expect(new Set(widths)).toEqual(new Set(["112px"]));
-    });
-
-    it("행 전체는 눌리지 않는다 — 원본에서 링크는 회원명 하나다", async () => {
-      const { user } = renderPage();
-
-      await user.click(within(bodyRows()[0]).getAllByRole("cell")[3]);
-
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    });
-
-    it("모달에 행 액션 버튼을 두지 않는다 — 지급·차감은 상세 화면의 일이다", async () => {
-      const { user, onNavSelect } = renderPage();
-
-      await user.click(screen.getByRole("button", { name: "김보라" }));
-      const sheet = await screen.findByRole("dialog");
-
-      expect(
-        within(sheet).queryByRole("button", { name: "회원 상세 보기" }),
-      ).not.toBeInTheDocument();
-      // 남는 버튼은 모달을 닫는 것뿐이다
-      expect(within(sheet).getAllByRole("button")).toHaveLength(1);
-      expect(onNavSelect).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("엑셀 다운로드", () => {
-    it("지금 조회된 건수를 밝혀 토스트로 알린다", async () => {
-      const { user } = renderPage();
-
-      await user.type(searchBox(), "김보라");
-      await user.click(screen.getByRole("button", { name: "엑셀 다운로드" }));
-
-      expect(
-        await screen.findByText("조회 결과 1건을 내려받았습니다"),
+        screen.getByText("업데이트 기간 2026.10.13~2026.10.19"),
       ).toBeVisible();
     });
+  });
+});
+
+describe("정렬 (보유 · 누적 지급 · 누적 차감 · 업데이트 일시)", () => {
+  it("보유 포인트 — 오름 → 내림 → 해제, No 는 정렬해도 위에서부터 큰 수", async () => {
+    const { user } = renderPage();
+
+    await user.click(sortButton("보유 포인트"));
+    expect(column(CELL.balance).slice(0, 3)).toEqual(["0P", "100P", "500P"]);
+    expect(visibleNames()[0]).toBe("오세린");
+    expect(column(CELL.no)[0]).toBe("11");
+
+    await user.click(sortButton("보유 포인트"));
+    expect(visibleNames().slice(0, 3)).toEqual(["홍다인", "임채원", "황보라"]);
+
+    await user.click(sortButton("보유 포인트"));
+    expect(
+      screen.getByRole("columnheader", { name: /보유 포인트/ }),
+    ).toHaveAttribute("aria-sort", "none");
+    expect(visibleNames()).toEqual(PAGE_ONE);
+  });
+
+  it("누적 차감 내림차순 — 노하린 3,000 · 안지성 2,000 · 오세린 500 · 서하준 400", async () => {
+    const { user } = renderPage();
+
+    await user.click(sortButton("누적 차감 포인트"));
+    await user.click(sortButton("누적 차감 포인트"));
+
+    expect(visibleNames().slice(0, 4)).toEqual([
+      "노하린",
+      "안지성",
+      "오세린",
+      "서하준",
+    ]);
+  });
+
+  it("업데이트 일시 오름차순 — 가장 오래된 서하준이 맨 위, 정렬하면 1페이지로", async () => {
+    const { user } = renderPage();
+
+    await user.click(screen.getByRole("button", { name: "2" }));
+    await user.click(sortButton("업데이트 일시"));
+
+    expect(visibleNames()[0]).toBe("서하준");
+    expect(
+      screen.getByRole("button", { name: "1", current: "page" }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("페이지 (10 · 20 · 50 · 100)", () => {
+  it("2페이지가 이어서 세고, 20개씩이면 한 페이지에 다 들어간다", async () => {
+    const { user } = renderPage();
+
+    await user.click(screen.getByRole("button", { name: "2" }));
+    expect(visibleNames()).toEqual(["서하준"]);
+    expect(column(CELL.no)).toEqual(["1"]);
+
+    await chooseOption(user, "페이지당 개수", "20개씩 보기");
+    expect(bodyRows()).toHaveLength(11);
+    expect(column(CELL.no)[0]).toBe("11");
+  });
+});
+
+describe("상세로 이동 — 행 어디를 눌러도 · 회원명 링크도", () => {
+  it("행을 누르면 그 회원의 포인트 현황 상세로", async () => {
+    const { user, onNavSelect } = renderPage();
+
+    await user.click(within(rowOf("안지성")).getByText("2,500P"));
+
+    expect(onNavSelect).toHaveBeenCalledWith(
+      "/points/jisung.ahn%40example.com",
+    );
+  });
+
+  it("회원명 링크도 같은 곳으로 — 한 번만 이동한다", async () => {
+    const { user, onNavSelect } = renderPage();
+
+    await user.click(screen.getByRole("button", { name: "노하린" }));
+
+    expect(onNavSelect).toHaveBeenCalledTimes(1);
+    expect(onNavSelect).toHaveBeenCalledWith("/points/harin.noh%40example.com");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("데이터 상태 미리보기 (?preview=)", () => {
+  afterEach(() => window.history.replaceState(null, "", "/points"));
+
+  it("loading — 머리 글자는 남기고 값만 스켈레톤이다", () => {
+    renderPage("?preview=loading");
+
+    expect(screen.getByRole("columnheader", { name: "회원명" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "임채원" })).toBeNull();
+    expect(
+      document.body.querySelectorAll("[data-skeleton]").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("empty — 값이 있어도 빈 상태를 보여준다", () => {
+    renderPage("?preview=empty");
+
+    expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
+  });
+
+  it("refreshing — 이전 값을 흐리게 둔다", async () => {
+    renderPage("?preview=refreshing");
+
+    expect(screen.getByRole("button", { name: "임채원" })).toBeVisible();
+    await waitFor(() =>
+      expect(
+        document.body.querySelector("[data-table-shell-body]")?.className,
+      ).toContain("opacity-50"),
+    );
   });
 });

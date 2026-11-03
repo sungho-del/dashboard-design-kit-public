@@ -13,13 +13,16 @@ import { BannerListPage } from "./pages/babycube/BannerListPage";
 import { CareClaimDetailPage } from "./pages/babycube/CareClaimDetailPage";
 import { CareClaimListPage } from "./pages/babycube/CareClaimListPage";
 import { CategoryListPage } from "./pages/babycube/CategoryListPage";
+import { CouponDetailPage } from "./pages/babycube/CouponDetailPage";
 import { CouponListPage } from "./pages/babycube/CouponListPage";
 import { BabycubeDashboardPage } from "./pages/babycube/DashboardPage";
+import { FaqFormPage } from "./pages/babycube/FaqFormPage";
 import { FaqListPage } from "./pages/babycube/FaqListPage";
 import { GrowthStageListPage } from "./pages/babycube/GrowthStageListPage";
 import { HolidayListPage } from "./pages/babycube/HolidayListPage";
 import { MemberDetailPage } from "./pages/babycube/MemberDetailPage";
 import { MemberListPage } from "./pages/babycube/MemberListPage";
+import { NoticeFormPage } from "./pages/babycube/NoticeFormPage";
 import { NoticeListPage } from "./pages/babycube/NoticeListPage";
 import { OrderCancelListPage } from "./pages/babycube/OrderCancelListPage";
 import { OrderExchangeListPage } from "./pages/babycube/OrderExchangeListPage";
@@ -27,11 +30,13 @@ import { OrderExchangeListPage } from "./pages/babycube/OrderExchangeListPage";
 import { OrderDetailPage as BcOrderDetailPage } from "./pages/babycube/OrderDetailPage";
 import { OrderListPage as BcOrderListPage } from "./pages/babycube/OrderListPage";
 import { OrderReturnListPage } from "./pages/babycube/OrderReturnListPage";
+import { PointDetailPage } from "./pages/babycube/PointDetailPage";
 import { PointListPage } from "./pages/babycube/PointListPage";
 import { PopupListPage } from "./pages/babycube/PopupListPage";
 import { ProductListPage } from "./pages/babycube/ProductListPage";
 import { RentDepositDetailPage } from "./pages/babycube/RentDepositDetailPage";
 import { RentDepositListPage } from "./pages/babycube/RentDepositListPage";
+import { ReviewDetailPage } from "./pages/babycube/ReviewDetailPage";
 import { ReviewListPage } from "./pages/babycube/ReviewListPage";
 import { ScriptSettingsPage } from "./pages/babycube/ScriptSettingsPage";
 import { SellerDetailPage } from "./pages/babycube/SellerDetailPage";
@@ -44,6 +49,7 @@ import { SellerSettlementPage } from "./pages/babycube/SellerSettlementPage";
 import { SettingsPage } from "./pages/babycube/SettingsPage";
 import { SettlementStatementDetailPage } from "./pages/babycube/SettlementStatementDetailPage";
 import { SettlementStatementPage } from "./pages/babycube/SettlementStatementPage";
+import { SupportDetailPage } from "./pages/babycube/SupportDetailPage";
 import { SupportListPage } from "./pages/babycube/SupportListPage";
 import { TaxInvoiceListPage } from "./pages/babycube/TaxInvoiceListPage";
 import { TermsAdminPage } from "./pages/babycube/TermsAdminPage";
@@ -194,6 +200,18 @@ const DETAIL_ROUTES: {
     prefix: "/care-claims/",
     parent: "/care-claims",
     screen: CareClaimDetailPage,
+  },
+  /* 프로모션 — 쿠폰 상세(조회 전용) */
+  { prefix: "/promo/", parent: "/promo", screen: CouponDetailPage },
+  { prefix: "/points/", parent: "/points", screen: PointDetailPage },
+  /* 게시판 — 등록/수정 폼 · 상세 */
+  { prefix: "/notices/", parent: "/notices", screen: NoticeFormPage },
+  { prefix: "/faq-admin/", parent: "/faq-admin", screen: FaqFormPage },
+  { prefix: "/support/", parent: "/support", screen: SupportDetailPage },
+  {
+    prefix: "/reviews-admin/",
+    parent: "/reviews-admin",
+    screen: ReviewDetailPage,
   },
   {
     prefix: "/settle-statement/",

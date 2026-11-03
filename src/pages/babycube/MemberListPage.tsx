@@ -90,6 +90,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *   상태별 **건수**뿐이고 증감도 비교 기준 문구도 없다
  * - **행 드롭다운 3종**(상세 보기 · 연락처 복사 · 이용 정지)과 **이용 정지 확인 모달**.
  *   원본 `관리` 컬럼은 `상세` 링크 버튼 하나다. 한 사람의 상태는 회원 상세에서 바꾼다.
+ *   **오른쪽 고정 열**이다(`ACTION_TH`·`ACTION_TD`) — 1280 에서도 [상세] 가 화면 안에 남는다.
  *   ⚠️ 원본 주석(`screen.members`)에는 "행별 상태 드롭다운"이 적혀 있지만 **원본 화면의
  *   상태 칸은 배지뿐이다**(v0.4 실물 대조). 주석이 구현보다 앞서 있는 것이라 따르지 않는다 —
  *   여럿을 한꺼번에 바꾸는 길은 아래 **체크 + 일괄 변경**으로 열려 있다
@@ -242,6 +243,16 @@ const nextSort = (
  * 110·200·130·110·70·90·140·80 을 4px 격자로 올림했다(§DESIGN.md §7-2).
  * 표가 `width:auto; min-width:100%` 라, 합(940)이 화면보다 좁으면 비율대로 늘어난다.
  */
+/**
+ * 「관리」 열은 **오른쪽에 고정**한다 — 1280 에서 표가 84px 넘쳐 [상세] 가 통째로 화면 밖이었다
+ * (2026-11-03 UX 검수). 셀러 정산의 처리 열과 같은 모양: 왼쪽 1px 구분선 · 본문 셀은 행 배경을
+ * 물려받아(`bg-inherit`) 줄무늬·hover 가 가려지지 않는다. 내용 열은 그대로 표 안에서 스크롤된다.
+ */
+const ACTION_EDGE =
+  "before:absolute before:inset-y-0 before:left-0 before:w-px before:bg-divide before:content-['']";
+const ACTION_TH = `sticky right-0 z-2 ${ACTION_EDGE}`;
+const ACTION_TD = `sticky right-0 z-1 bg-inherit ${ACTION_EDGE}`;
+
 const COLGROUP = (
   <colgroup>
     {/* 체크박스 열 — 원본 `rowchk`. 값이 아니라 조작이라 가장 좁게 둔다 */}
@@ -291,14 +302,20 @@ const loadingTable = (
         <TableTh>자녀</TableTh>
         <TableTh align="center">상태</TableTh>
         <TableTh>이용</TableTh>
-        <TableTh>관리</TableTh>
+        <TableTh className={ACTION_TH}>관리</TableTh>
       </TableRow>
     </TableHead>
     <TableBody>
       {Array.from({ length: PAGE_SIZE }, (_, row) => (
         <TableRow key={row}>
           {SKELETON_WIDTHS.map((width, cell) => (
-            <TableTd key={cell}>
+            <TableTd
+              key={cell}
+              /* 마지막 = 관리 열 — 도착한 표와 같이 오른쪽 고정 */
+              className={
+                cell === SKELETON_WIDTHS.length - 1 ? ACTION_TD : undefined
+              }
+            >
               <span className="body-small block">
                 <Skeleton className={width} />
               </span>
@@ -823,7 +840,7 @@ export function MemberListPage({
               </TableTh>
               <TableTh align="center">상태</TableTh>
               <TableTh>이용</TableTh>
-              <TableTh>관리</TableTh>
+              <TableTh className={ACTION_TH}>관리</TableTh>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -888,8 +905,8 @@ export function MemberListPage({
                   <TableTd className="tabular-nums">
                     {usageText(member)}
                   </TableTd>
-                  <TableTd>
-                    {/* 원본 `관리` 컬럼은 `상세` 버튼 하나다 (`btn line sm`) */}
+                  <TableTd className={ACTION_TD}>
+                    {/* 원본 `관리` 컬럼은 `상세` 버튼 하나다 (`btn line sm`) — 오른쪽 고정(ACTION_TD) */}
                     <Button
                       variant="secondary"
                       size="small"

@@ -186,15 +186,34 @@ describe("SellerReviewDetailPage (S04-D 입점 심사 상세)", () => {
       expect(within(result).getByText("인증")).toBeVisible();
     });
 
-    /** 원본: 반려 건은 「반려 사유」 줄에 경고색 사유 + (반려일) */
-    it("반려된 건은 반려 사유와 반려일을 낸다", () => {
+    /** 원본: 반려 건은 「반려 사유」 줄에 경고색 사유 + 반려일 — 심사 상태 바로 아래 줄 */
+    it("반려된 건은 반려 사유와 반려일을 심사 상태 바로 아래에 낸다", () => {
       renderAt(REJECTED);
       const result = section(RESULT);
 
       const reason = within(result).getByText("KC 미인증 품목 포함");
       expect(reason.className.split(/\s+/)).toContain("text-text-warning");
-      expect(within(result).getByText("(2026.06.11)")).toBeVisible();
+      expect(within(result).getByText("· 2026.06.11")).toBeVisible();
       expect(within(result).queryByText("승인일")).toBeNull();
+
+      const labels = Array.from(result.querySelectorAll("dt")).map(
+        (dt) => dt.textContent,
+      );
+      expect(labels.slice(0, 3)).toEqual([
+        "심사 상태",
+        "반려 사유",
+        "수수료율",
+      ]);
+    });
+
+    it("두 카드의 라벨 폭이 같다 — 값 시작선이 맞는다", () => {
+      renderAt(REJECTED);
+      const widths = new Set(
+        Array.from(document.querySelectorAll("dt")).map(
+          (dt) => (dt as HTMLElement).style.width,
+        ),
+      );
+      expect(widths.size).toBe(1);
     });
   });
 

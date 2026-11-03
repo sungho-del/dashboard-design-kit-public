@@ -1,347 +1,198 @@
 import type { TagTone } from "../../components/ui";
+import { DEMO_TODAY } from "./OrderListPage.data";
 
 /* -------------------------------------------------------------------------
- * S17 쿠폰 관리 — **도메인 층** (BabyCube 본사 운영 어드민)
+ * 쿠폰관리 — **도메인 층** (BabyCube 본사 운영 어드민 · 조회 전용)
+ * 기준 기획: v0.4 `plan-members/proto.html` 3906~3948 (`COUPONS` · `SCREENS.promo`)
  *
- * 짝이 되는 뼈대: `CouponListPage.tsx` (레이아웃·상호작용, 도메인 무관)
- * 화면 유형: **목록형** (`OrderListPage` 계열 — `docs/screen-templates.md` §3-1)
+ * 짝이 되는 뼈대: `CouponListPage.tsx` · 상세: `CouponDetailPage.*`(`/promo/{쿠폰코드}`)
+ *
+ * ## 이 화면이 무엇인가
+ * 입점사·본사가 발행한 쿠폰 원장을 **표 하나로** 본다. 생성·수정·중지는 입점사 어드민 몫이라
+ * 본사에는 [등록]도 행 액션도 없다(원본 annotations `screen.promo` · 3949 등록 함수 제거).
  *
  * ## 갈아끼울 것 — 이 파일 전체
- * | 역할                     | 실물 이름                          |
- * | ------------------------ | ---------------------------------- |
- * | 표 한 행의 타입          | `Coupon`                           |
- * | 상태 → 라벨·톤           | `STATUS_META` · `couponStatus`     |
- * | 상태 요약 대시           | `DASHES`                           |
- * | 샘플 데이터              | `COUPONS`                          |
- * | 값 없음의 표기           | `conditionText` · `periodParts`    |
- * | 수치 포맷                | `won` · `num` · `count` · `ymd`    |
- * | 페이지당 행 수           | `PAGE_SIZE`                        |
- *
- * ## 그대로 두는 것
- * 이 파일에는 JSX·클래스·색이 없다. 라벨과 값만 둔다.
+ * | 역할                 | 실물 이름                                         |
+ * | -------------------- | ------------------------------------------------- |
+ * | 표 한 행의 타입      | `Coupon`                                          |
+ * | 상태 파생·라벨·톤    | `couponStatus` · `STATUS_META`                    |
+ * | 샘플(원장)           | `COUPONS` — 원본 16건 + 보충 2건                  |
+ * | 셀 표기              | `discountParts` · `conditionText` · `periodParts` · `ymd` |
+ * | 상세 경로            | `detailPathOf`                                    |
+ * | 페이지 크기·빈 상태  | `PAGE_SIZE` · `PAGE_SIZES` · `EMPTY_TITLE`        |
  *
  * ## 뼈대가 이 파일에 기대하는 계약
- * - 행 타입은 `id`(고유키) · `date`(`YYYY-MM-DD HH:mm`) 를 갖는다
+ * - 행 키는 `id`(= 쿠폰코드, 원본 `c.id`) · 표 순서는 **배열 순서 그대로**(원본 원장 순서 — 정렬 없음)
  * - `STATUS_META` 의 키는 `CouponStatus` 와 정확히 일치한다
- * - `DASHES[]` 는 `STATUS_META` 의 **키만** 들고 있다 — 라벨·톤은 그쪽에서 가져오므로
- *   여기에 다시 적지 않는다(두 곳에 적으면 하나만 고쳐 어긋난다)
- * - `conditionText` 는 `{ text, unset }` 을, `periodParts` 는 `{ lead, tail, tailMuted }` 를
- *   돌려준다. `unset`·`tailMuted` 가 `true` 일 때만 뼈대가 글자를 `text-minimal` 로 낮춘다
- *   ("조건 없음"·"기한 없음"·"상시"는 **결측이 아니라 의미 있는 상태**라 빈칸으로 두지 않는다)
+ * - `discountParts` → `{ main, note }` · `conditionText` → `{ text, unset }` ·
+ *   `periodParts` → `{ lead, tail, tailMuted }`. `note`·`unset`·`tailMuted` 만 뼈대가 흐리게 그린다
+ *   (원본 `muted` — 「조건 없음」·「기한 없음」·「상시」는 결측이 아니라 의미 있는 상태다)
+ * - 상세(`CouponDetailPage.data.ts`)도 **같은 함수**로 조건·기간을 그린다 — 원본 주석(5306)의 요구
  *
- * ## 원본 어드민 대조 (`_plan/babycube-admin/chunks/2kq5rs018or94.js` 모듈 32262)
- * 원본 컬럼 정의(`o = [...]`)는 **7열**이다 —
- * `sellerName 셀러명` · `name 쿠폰명` · `content 내용` · `cond 조건` · `period 기간` ·
- * `issuedOn 발행일` · `status 상태`. 우리 표가 이 순서 그대로다.
+ * ## 상태 = 저장값 2종 + 파생 1종 (원본 3928~3943 판정 ⑴)
+ * 저장값은 `사용`·`사용중지` 둘뿐이고, 종료일이 기준일보다 앞선 `사용` 쿠폰만 화면에서 `만료`다.
+ * **중지가 만료보다 앞선다**(셀러가 내린 쿠폰은 기한과 무관하게 사용중지). 시작일이 미래여도 `사용`이다
+ * (옛 화면의 「발행대기」 분기는 원본에 없다).
+ * 기준일은 원본 `CP_TODAY`(2026-08-04) 대신 **시연 기준일 `DEMO_TODAY`(2026-10-19)** 하나로 맞춘다.
+ * → 사용 7 · 만료 8 · 사용중지 3. 종료일 10.31·12.31 은 예정된 기한이라 그대로 둔다(사용자 결정).
  *
- * ### ⚠️ 원본에 없어서 걷어낸 것 — 되살리지 말 것
- * 원본 페이지 컴포넌트는 공용 목록 셸(`20013`)에 이렇게 넘긴다:
- * ```js
- * { api: couponsApi, columns: o, filter: c, defaultStat: "",
- *   rowKey: e => e.id, exportName: "쿠폰관리" }
- * ```
- * 그리고 바로 윗줄이 `c = {}` 다.
- * **`filter` 가 빈 객체다.** 즉 이 화면에는 검색 축이 하나도 없다 —
- * 기간·검색어·유형 어느 것도 원본에 없다. 한때 이 파일에는 `ISSUER_FILTERS`(발행 주체
- * 라디오) · `DISCOUNT_TYPES`(할인 유형 체크박스) · `SEARCH_FIELDS` · `QUICK_PERIODS` ·
- * `presetRange` · `searchHaystack` · `PILL_LABELS` 가 있었는데 **전부 발명**이라 지웠다.
- * 좁히는 수단은 상태 대시(`DASHES`) 하나뿐이고, 그것이 원본의 `StatDash` 다.
+ * ## 상태 배지 톤 (형제 규칙 — 원본 b-prog → success, b-done → default)
+ * `사용` success · `사용중지` default(무채색 — 사용자 결정, 셀러가 내린 정상 처리) · `만료` default
  *
- * `COPY_TOAST`("쿠폰 코드를 복사했습니다")도 지웠다 — 원본 쿠폰 레코드에 **코드 필드가
- * 아예 없다**(sellerName·name·discountType·discountValue·maxDiscountAmount·
- * minOrderAmount·startOn·endOn·issuedOn·status 가 전부다). 없는 필드를 복사하는
- * 버튼이었다.
+ * ## 샘플 (원본 원장 16건 + 보충 2건)
+ * 원본 16건을 필드·순서 그대로 옮겼다(셀러 7곳은 모두 `SELLERS` 에 있다). 본사 발행분은 원본처럼 `"본사"`.
+ * **보충 2건**(맨 위): 주문 샘플에서 쿠폰을 쓴 처리단위 중 원장에 대응 쿠폰이 없던 두 건을 위해 넣었다.
+ * 주문·정산 숫자는 그대로다 — 쿠폰 금액이 주문의 `coupon` 과 같고, 그 날짜에 유효하고, 조건을 만족한다.
+ * | 쿠폰           | 셀러     | 맞물리는 주문                                         |
+ * | -------------- | -------- | ----------------------------------------------------- |
+ * | CP-2610-01     | 베베하우스 | U-R09 · 2026-10-12 · 렌트 33,000 · 쿠폰 3,000       |
+ * | CP-2609-01     | 아기별상사 | U-S35 · 2026-09-10 · 할인 후 200,000 · 쿠폰 10,000  |
+ * | CP-2608-01(원본) | 리틀베이비 | U-S07 · U-S31 · 할인 후 89,000 · 쿠폰 5,000       |
  *
- * ### 상태를 저장하지 않고 **날짜에서 파생**하는 이유
- * 원본 `status` 는 API 가 주는 값이라 청크에 목록이 없다. 우리는 기간과 같은
- * 값(`startsOn`·`endsOn`)에서 계산해 **두 열이 정의상 모순될 수 없게** 만든다.
- * 날짜로 알 수 없는 것은 운영자가 중단시킨 `suspended` 하나뿐이라 그것만 데이터로 든다.
- * 어휘는 원본 전역 배지 맵(`15312`)에 실제로 있는 단어만 골랐다 —
- * `발행대기` · `발행완료` · `만료` · `정지`.
+ * ## ⚠️ 기획 확인 필요 (원본대로 둠)
+ * - 주문의 쿠폰 할인이 원장 쿠폰과 연결되지 않는다(원본은 해시 10% — 4831·4166). 주문에 쿠폰코드가 없다
+ * - 원장 순서가 발행일 순이 아니다(CP-24xx 5건이 맨 아래) · 코드는 24xx 인데 발행은 2026년
+ * - 정책은 「본사는 쿠폰을 만들지 않는다」인데 본사 발행분(CP-2404-01)이 있다 · 본사 쿠폰의 부담 주체 미정
+ * - 스토리보드 설명과 코드가 다르다(목록 「조건」 열 · 상태 「만료」 · 사용 기간 한 줄) — 코드를 따랐다
  *
- * ### 상태 색 배정 (§3-1 로 다시 판단 — 원본 색은 쓰지 않는다)
- * 원본은 `발행대기 b-prog` · `발행완료 b-done` · `만료 b-done` · `정지 b-exc` 로 칠한다.
- * 우리 규칙으로 다시 판단하면:
- * - `issued`(발행완료) = **진행 중이고 정상** → `success` (§3-1 항목 4)
- * - `scheduled`(발행대기) = 시작일이 오면 자동으로 시작된다. 사람이 할 일이 없으므로
- *   `warning` 이 아니다 → `default`
- * - `expired`(만료) = 제대로 끝난 일 → `default` (§3-1 항목 3)
- * - `suspended`(정지) = 운영자가 중간에 끊은 **비정상 종료** → `critical` (§3-1 항목 2)
+ * ## 원본과 다르게 둔 곳 (형제 규칙)
+ * 머리글·값 왼쪽 정렬(상태만 가운데) · `?preview=` 데이터 상태 · 행 어디를 눌러도 상세로
+ *
+ * ## ⚠️ 원본에 없어서 걷어낸 것 — 되살리지 말 것
+ * 상태 대시 · 검색조건(`FILTERS.promo={}`, `filterBar` 미호출) · 엑셀(`EXPORT_SPEC` 미등록) ·
+ * 체크박스 · 정렬 · 쿠폰 미리보기 모달 · 쿠폰코드 복사 · [등록] · 원본에 없는 셀러의 손 샘플
  * ---------------------------------------------------------------------- */
 
-/** 할인 방식 — 원본 어휘 그대로 "정률" / "원 할인" */
+export const LIST_PATH = "/promo";
+export const detailPathOf = (code: string) =>
+  `${LIST_PATH}/${encodeURIComponent(code)}`;
+
+/** 할인 방식 — 원본 `dcType`(`rate` / `amt`) */
 export type DiscountType = "rate" | "amount";
 
-/** 쿠폰 상태 — `suspended` 외에는 기간에서 파생한다(`couponStatus`) */
-export type CouponStatus = "scheduled" | "issued" | "expired" | "suspended";
+/** 원장 저장값 — 원본 `stat` 2종 */
+export type StoredStatus = "사용" | "사용중지";
+
+/** 화면 상태 — 저장값 2종 + 파생 `expired` */
+export type CouponStatus = "active" | "suspended" | "expired";
 
 export interface Coupon {
-  /** 고유 키 — 뼈대가 행 key 로 쓴다 (원본 `rowKey: e => e.id`) */
+  /** 쿠폰코드 = 행 키 (원본 `id`) */
   id: string;
+  /** 셀러명 — 본사 발행분은 `"본사"`(원본 그대로) */
+  seller: string;
   name: string;
-  /**
-   * 셀러명. 본사 발행이면 `null`.
-   * 원본에도 발행 주체 필드가 따로 없다 — `sellerName` 이 비었으면 본사 발행이다.
-   */
-  seller: string | null;
   discountType: DiscountType;
   /** 정률이면 %, 정액이면 원 */
   discountValue: number;
-  /** 정률 쿠폰의 최대 할인 한도(원). 한도가 없으면 `null` */
+  /** 정률 최대 할인 한도(원). 없으면 `null` */
   discountMax: number | null;
   /** 최소 주문 금액(원). `null` 이면 **조건 없음** */
   minOrderAmount: number | null;
-  /** 사용 시작일 `YYYY-MM-DD`. `null` 이면 **상시**(기간 제한 없음) */
+  /** 시작일 `YYYY-MM-DD`. `null` 이면 **상시** */
   startsOn: string | null;
-  /** 사용 종료일. `null` 이면 **기한 없음** */
+  /** 종료일. `null` 이면 **기한 없음** */
   endsOn: string | null;
-  /**
-   * 운영자가 중간에 끊었는가. 기간으로는 알 수 없는 **유일한** 상태라
-   * 이것만 데이터로 든다 — 나머지는 `couponStatus()` 가 날짜에서 계산한다.
-   */
-  suspended: boolean;
-  /** 발행일시 `YYYY-MM-DD HH:mm`. 표에는 `ymd` 로 날짜만 낸다(원본 `issuedOn`) */
-  date: string;
+  /** 발행일 `YYYY-MM-DD` */
+  issuedOn: string;
+  stored: StoredStatus;
 }
 
-/**
- * 본사 발행 쿠폰의 셀러 열 표기.
- *
- * 원본은 이 자리를 `sellerName || "-"` 로 비운다. 빈 대시는 "셀러 정보가 없다"로
- * 읽혀 본사 발행이라는 사실이 화면에서 사라지므로 낱말을 채웠다.
- * `본사` 는 원본 다른 화면(상품 목록의 판매자 열)이 쓰는 어휘라 지어낸 말이 아니다.
- * **배지로 칠하지는 않는다** — 본사↔셀러는 대등한 분류다(§3-1 분류 배지).
- */
-export const HQ_LABEL = "본사";
+/** 만료 판정 기준일 — 시연 기준일(주문·정산과 같은 값) */
+export const REFERENCE_TODAY = DEMO_TODAY;
 
-/** 상태 대시·모달에 쓰는 단위 */
-export const COUPON_UNIT = "건";
-
-/** 상태값 → 표시 라벨과 Tag tone. 키는 `CouponStatus` 와 일치해야 한다 */
 export const STATUS_META: Record<
   CouponStatus,
   { label: string; tone: TagTone }
 > = {
-  scheduled: { label: "발행대기", tone: "default" },
-  issued: { label: "발행완료", tone: "success" },
+  active: { label: "사용", tone: "success" },
+  suspended: { label: "사용중지", tone: "default" },
   expired: { label: "만료", tone: "default" },
-  suspended: { label: "정지", tone: "critical" },
 };
 
-/**
- * 상태 요약 대시에 놓을 순서 — 쿠폰의 생애주기 순이다.
- *
- * **건수를 여기 적지 않는다.** 뼈대가 현재 목록에서 세므로 목록과 대시가 어긋날 수 없다.
- * 증감(전주 대비 등)도 붙이지 않는다 — 원본 `StatDash` 는 `{ value, label, count }` 만
- * 받아 **건수만** 보여준다.
- *
- * ⚠️ `전체` 카드는 두지 않는다. 원본 카드 목록은 `api.statusCounts()` 가 주는 값이라
- * 청크에서 확인할 수 없어(**값 출처 불명**), 없는 카드를 지어내는 대신 카드를 다시 눌러
- * 해제하는 방식으로 뒀다.
- */
-export const DASHES: CouponStatus[] = [
-  "scheduled",
-  "issued",
-  "expired",
-  "suspended",
-];
+/** 원본 `cpExpired` — 종료일이 기준일보다 **앞서면**(당일은 아직 사용) */
+export const isExpired = (coupon: Coupon, today: string = REFERENCE_TODAY) =>
+  coupon.endsOn !== null && coupon.endsOn < today;
 
-export const COUPONS: Coupon[] = [
-  {
-    id: "CP-2026-0151",
-    name: "9월 신학기 유아식탁 15% 쿠폰",
-    seller: null,
-    discountType: "rate",
-    discountValue: 15,
-    discountMax: 25000,
-    minOrderAmount: 80000,
-    startsOn: "2026-09-01",
-    endsOn: "2026-09-30",
-    suspended: false,
-    date: "2026-08-24 15:10",
-  },
-  {
-    id: "CP-2026-0142",
-    name: "여름맞이 전 품목 10% 쿠폰",
-    seller: null,
-    discountType: "rate",
-    discountValue: 10,
-    discountMax: 20000,
-    minOrderAmount: 50000,
-    startsOn: "2026-08-01",
-    endsOn: "2026-08-31",
-    suspended: false,
-    date: "2026-08-24 09:00",
-  },
-  {
-    id: "CP-2026-0141",
-    name: "첫 대여 3천원 할인",
-    seller: "아이몽컴퍼니",
-    discountType: "amount",
-    discountValue: 3000,
-    discountMax: null,
-    minOrderAmount: null,
-    startsOn: "2026-08-20",
-    endsOn: null,
-    suspended: false,
-    date: "2026-08-20 14:20",
-  },
-  {
-    id: "CP-2026-0138",
-    name: "유모차 카테고리 15% 쿠폰",
-    seller: "베이비루션",
-    discountType: "rate",
-    discountValue: 15,
-    discountMax: 30000,
-    minOrderAmount: 100000,
-    startsOn: "2026-08-18",
-    endsOn: "2026-09-17",
-    suspended: false,
-    date: "2026-08-18 11:05",
-  },
-  {
-    id: "CP-2026-0136",
-    name: "베베팜 단독 2만원 쿠폰",
-    seller: "베베팜",
-    discountType: "amount",
-    discountValue: 20000,
-    discountMax: null,
-    minOrderAmount: 150000,
-    startsOn: "2026-08-15",
-    endsOn: "2026-09-14",
-    /* 기간은 아직 남았지만 운영자가 끊었다 — 날짜로는 알 수 없는 유일한 상태 */
-    suspended: true,
-    date: "2026-08-15 13:00",
-  },
-  {
-    id: "CP-2026-0129",
-    name: "재구매 감사 5천원 쿠폰",
-    seller: null,
-    discountType: "amount",
-    discountValue: 5000,
-    discountMax: null,
-    minOrderAmount: 30000,
-    startsOn: "2026-08-11",
-    endsOn: "2026-08-25",
-    suspended: false,
-    date: "2026-08-11 10:00",
-  },
-  {
-    id: "CP-2026-0117",
-    name: "신규 회원 상시 5% 쿠폰",
-    seller: "쿠쿠베베",
-    discountType: "rate",
-    discountValue: 5,
-    discountMax: null,
-    minOrderAmount: null,
-    /* 시작일이 없으면 **상시** — 원본 기간 열의 세 번째 분기다 */
-    startsOn: null,
-    endsOn: null,
-    suspended: false,
-    date: "2026-07-30 16:40",
-  },
-  {
-    id: "CP-2026-0098",
-    name: "여름 특가 1만원 쿠폰",
-    seller: null,
-    discountType: "amount",
-    discountValue: 10000,
-    discountMax: null,
-    minOrderAmount: 200000,
-    startsOn: "2026-06-15",
-    endsOn: "2026-06-30",
-    suspended: false,
-    date: "2026-06-15 09:30",
-  },
-];
-
-/**
- * 샘플 데이터의 **기준일**. 상태 파생이 이 날짜에서 계산된다.
- *
- * 실서비스로 이식하면 서버가 준 `status` 를 그대로 쓴다. 샘플은 날짜가 고정돼 있어
- * 실제 오늘을 쓰면 시간이 지날수록 모든 쿠폰이 만료로 굳는다.
- */
-export const REFERENCE_TODAY = "2026-08-24";
-
-/**
- * 쿠폰 상태를 **기간에서 파생**한다. 기간 열과 상태 열이 같은 값에서 나오므로
- * 두 열이 서로 다른 말을 할 수 없다.
- *
- * `YYYY-MM-DD` 는 사전순 비교가 곧 날짜 비교라 `Date` 로 바꾸지 않는다.
- */
+/** 원본 `cpStatBadge` — 중지가 만료보다 앞선다 */
 export const couponStatus = (
   coupon: Coupon,
   today: string = REFERENCE_TODAY,
 ): CouponStatus => {
-  if (coupon.suspended) return "suspended";
-  if (coupon.startsOn !== null && today < coupon.startsOn) return "scheduled";
-  if (coupon.endsOn !== null && today > coupon.endsOn) return "expired";
-  return "issued";
+  if (coupon.stored === "사용중지") return "suspended";
+  return isExpired(coupon, today) ? "expired" : "active";
 };
 
-/** 표의 주요 수치 포맷. 천 단위 구분자는 **쉼표** (§3-1) */
+/** 원장 한 줄 — 원본 필드 순서 `id|seller|name|dcType|dcVal|cap|min|start|end|issued|stat` */
+const row = (line: string): Coupon => {
+  const [id, seller, name, type, value, cap, min, start, end, issued, stat] =
+    line.split("|");
+  return {
+    id,
+    seller,
+    name,
+    discountType: type === "rate" ? "rate" : "amount",
+    discountValue: Number(value),
+    discountMax: cap ? Number(cap) : null,
+    minOrderAmount: min ? Number(min) : null,
+    startsOn: start || null,
+    endsOn: end || null,
+    issuedOn: issued,
+    stored: stat as StoredStatus,
+  };
+};
+
+export const COUPONS: Coupon[] = [
+  /* ── 보충 2건(샘플 보충 — 주문 U-R09 · U-S35 의 쿠폰) ── */
+  "CP-2610-01|베베하우스|렌트 3,000원 할인|amt|3000|||2026-10-01|2026-12-31|2026-10-01|사용",
+  "CP-2609-01|아기별상사|가을맞이 1만원 할인|amt|10000||100000|2026-09-01|2026-10-31|2026-09-01|사용",
+  /* ── 원본 원장 16건(proto.html 3906~3921, 순서 그대로) ── */
+  "CP-2608-01|리틀베이비|리틀베이비 여름맞이 5,000원|amt|5000||30000|2026-08-01|2026-10-31|2026-08-01|사용",
+  "CP-2608-02|베이비노리터|전 상품 7% 할인|rate|7|||2026-08-01|2026-10-31|2026-08-01|사용",
+  "CP-2608-03|리틀베이비|리틀베이비 상시 5% 할인|rate|5|||2026-08-01||2026-08-01|사용",
+  "CP-2608-04|리틀베이비|리틀베이비 재구매 10% 할인|rate|10|10000||2026-08-02|2026-09-30|2026-08-02|사용중지",
+  "CP-2607-01|장난감아저씨|주말 완구 5%|rate|5|||2026-07-01|2026-07-20|2026-07-01|사용",
+  "CP-2606-03|리틀베이비|리틀베이비 웰컴 15%|rate|15|15000||2026-06-01|2026-08-31|2026-06-01|사용",
+  "CP-2606-04|베이비노리터|베이비노리터 5,000원|amt|5000||20000|2026-06-10|2026-08-31|2026-06-10|사용",
+  "CP-2606-05|포근하우스|수면용품 7,000원 할인|amt|7000||50000|2026-06-04|2026-09-04|2026-06-04|사용",
+  "CP-2605-03|장난감아저씨|장난감아저씨 10%|rate|10|||2026-05-15|2026-07-15|2026-05-15|사용",
+  "CP-2605-04|쑥쑥마켓|수유·위생용품 10%|rate|10|10000||2026-05-01|2026-09-15|2026-05-01|사용",
+  "CP-2604-02|장난감아저씨|봄맞이 완구 15%|rate|15|10000||2026-04-26|2026-07-26|2026-04-26|사용",
+  "CP-2406-01|리틀베이비|첫 렌트 30% 할인|rate|30|20000|50000|2026-06-01|2026-12-31|2026-06-01|사용",
+  "CP-2406-02|포근하우스|여름 시즌 세척비 지원|amt|5000|||2026-06-15|2026-07-31|2026-06-15|사용",
+  "CP-2405-01|베이비노리터|재렌트 감사 5% 할인|rate|5|10000|30000|2026-05-01||2026-05-01|사용",
+  "CP-2405-02|하이베베|웰컴 베이비 1만원 할인|amt|10000||100000|2026-05-10|2026-08-15|2026-05-10|사용중지",
+  "CP-2404-01|본사|봄맞이 유모차 기획전 15%|rate|15|50000||2026-04-01|2026-04-30|2026-04-01|사용중지",
+].map(row);
+
+export const findCoupon = (code: string) =>
+  COUPONS.find((coupon) => coupon.id === code);
+
+/** 금액 — 천 단위 쉼표 + `원` */
 export const won = (value: number) => `${value.toLocaleString("ko-KR")}원`;
 
-/** 건수 포맷 — 대시의 수치는 값과 단위를 따로 그리므로 숫자만 돌려준다 */
-export const num = (value: number) => value.toLocaleString("ko-KR");
+/** 날짜 — 점 구분자(원본 `cpFmtD`) */
+export const ymd = (date: string) => date.replace(/-/g, ".");
 
-/** 건수 + 단위. 접근가능 이름처럼 **한 문자열이어야 하는 자리**에 쓴다 */
-export const count = (value: number) => `${num(value)}${COUPON_UNIT}`;
+/** 내용 — 원본 `cpContent`. 한도(`note`)는 둘째 줄 보조 글자(원본 `(최대 N원)` 괄호는 줄을 나누며 뺐다) */
+export const discountParts = (coupon: Coupon) =>
+  coupon.discountType === "rate"
+    ? {
+        main: `${coupon.discountValue}% 할인`,
+        note:
+          coupon.discountMax !== null && coupon.discountMax > 0
+            ? `최대 ${won(coupon.discountMax)}`
+            : null,
+      }
+    : { main: `${won(coupon.discountValue)} 할인`, note: null };
 
-/**
- * 날짜 표기 — **날짜만, 점 구분자**로 낸다.
- *
- * 원본 공용 포맷터를 그대로 옮긴 것이다(모듈 32916):
- * `e => e ? e.slice(0, 10).replace(/-/g, ".") : "-"`.
- * 발행일 열과 기간 열이 **같은 이 함수**를 쓴다 — 원본도 그렇다.
- */
-export const ymd = (dateTimeText: string) =>
-  dateTimeText.slice(0, 10).replace(/-/g, ".");
-
-/**
- * 할인 내용 — 원본과 같은 두 조각이다.
- * `note`(최대 한도)는 부가 정보라 뼈대가 농도를 낮춰 그린다(원본 `muted`).
- */
-export const discountParts = (coupon: Coupon) => {
-  if (coupon.discountType === "rate") {
-    return {
-      main: `${coupon.discountValue}% 할인`,
-      note:
-        coupon.discountMax === null
-          ? null
-          : `(최대 ${won(coupon.discountMax)})`,
-    };
-  }
-  return { main: `${won(coupon.discountValue)} 할인`, note: null };
-};
-
-/** 모달용으로 두 조각을 이어 붙인 한 줄 */
-export const discountText = (coupon: Coupon) => {
-  const { main, note } = discountParts(coupon);
-  return note === null ? main : `${main} ${note}`;
-};
-
-/**
- * 적용 조건. **비어 있는 것도 의미다** — 최소 주문 금액이 없는 쿠폰은
- * "미입력"이 아니라 "조건 없이 쓸 수 있는 쿠폰"이다(원본 어휘 "조건 없음").
- * `unset` 을 함께 돌려주어 뼈대가 글자 농도를 낮춰 구별하게 한다.
- */
+/** 조건 — 원본 `cpCond` */
 export const conditionText = (coupon: Coupon) =>
-  coupon.minOrderAmount === null
-    ? { text: "조건 없음", unset: true }
-    : { text: `${won(coupon.minOrderAmount)} 이상 구매`, unset: false };
+  coupon.minOrderAmount !== null && coupon.minOrderAmount > 0
+    ? { text: `${won(coupon.minOrderAmount)} 이상 구매`, unset: false }
+    : { text: "조건 없음", unset: true };
 
-/**
- * 사용 기간 — 원본 기간 열의 **세 분기**를 그대로 옮겼다.
- * | 데이터                  | 표기                             |
- * | ----------------------- | -------------------------------- |
- * | 시작일 없음             | `상시` (전체 농도 낮춤)          |
- * | 시작일만 있음           | `2026.08.20 ~ ` + `기한 없음`    |
- * | 둘 다 있음              | `2026.08.18 ~ 2026.09.17`        |
- *
- * 날짜는 발행일 열과 **같은 `ymd`** 로 찍는다(원본도 기간 열에서 `ymd` 를 부른다).
- * 농도를 낮추는 것은 **꼬리(`tail`)뿐**이다 — 시작일은 실제 값이라 그대로 둔다.
- */
+/** 기간 — 원본 `cpPeriod` 세 분기(둘 다 · 시작만 · 없음=상시) */
 export const periodParts = (coupon: Coupon) => {
   if (coupon.startsOn === null) {
     return { lead: "", tail: "상시", tailMuted: true };
@@ -360,15 +211,9 @@ export const periodParts = (coupon: Coupon) => {
   };
 };
 
-/** 모달용으로 이어 붙인 한 줄 */
-export const periodText = (coupon: Coupon) => {
-  const { lead, tail } = periodParts(coupon);
-  return `${lead}${tail}`;
-};
+/** 빈 상태 — 원본 공용 `tableEmpty`(검색조건이 없어 「필터 초기화」는 두지 않는다) */
+export const EMPTY_TITLE = "해당 조건의 항목이 없습니다";
 
-/**
- * 한 페이지에 보여줄 행 수.
- * 실서비스라면 원본 `DEFAULT_PAGE_SIZE` 지만 **샘플이 8건뿐이라 페이징 동작이
- * 보이도록** 작게 잡았다.
- */
-export const PAGE_SIZE = 4;
+/** 한 페이지 행 수 — 원본 기본 10, 고를 수 있는 크기 4종 */
+export const PAGE_SIZE = 10;
+export const PAGE_SIZES = [10, 20, 50, 100];

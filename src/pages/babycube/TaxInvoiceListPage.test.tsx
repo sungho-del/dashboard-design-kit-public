@@ -223,6 +223,21 @@ describe("처리 열 — 토스트만, 상태는 그대로", () => {
       }),
     ).toBeNull();
   });
+
+  it("처리 열은 오른쪽 고정 — 머리글·본문 셀이 sticky 이고 버튼이 그 안에 있다(1280 에서도 보이게)", () => {
+    renderPage();
+
+    const heads = within(screen.getByRole("table")).getAllByRole(
+      "columnheader",
+    );
+    expect(heads[8]).toHaveTextContent("처리");
+    expect(heads[8].className.split(" ")).toContain("sticky");
+    const action = rowOf("TX-2609-0230").querySelectorAll("td")[8];
+    expect(action.className.split(" ")).toContain("sticky");
+    expect(
+      within(action).getByRole("button", { name: "TX-2609-0230 발행" }),
+    ).toBeVisible();
+  });
 });
 
 describe("원본에 없는 것", () => {

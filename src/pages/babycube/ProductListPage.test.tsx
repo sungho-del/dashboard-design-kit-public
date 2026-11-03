@@ -1017,9 +1017,10 @@ describe("ProductListPage", () => {
     it("렌트 건은 판매 열이, 판매 건은 렌트 열이 비어 있고 파생가는 원가−할인이다", () => {
       renderPage();
 
-      expect(cellText("BL240814", CELL.rentBase)).toBe("1,500원");
+      // 렌트 세 열은 모두 일 단가다(원가·할인·렌트가) — 1,500 − 200 = 1,300원/일. 보증금은 원
+      expect(cellText("BL240814", CELL.rentBase)).toBe("1,500원/일");
+      expect(cellText("BL240814", CELL.rentDiscount)).toBe("200원/일");
       expect(cellText("BL240814", CELL.deposit)).toBe("120,000원");
-      // 렌트는 일 단가다 — 1,500 − 200 = 1,300원/일
       expect(cellText("BL240814", CELL.rentPrice)).toBe("1,300원/일");
       expect(cellText("BL240814", CELL.salePrice)).toBe("—");
 

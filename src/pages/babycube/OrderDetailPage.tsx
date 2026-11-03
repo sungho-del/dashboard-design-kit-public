@@ -6,7 +6,6 @@ import {
   Card,
   CardBody,
   CardHeader,
-  Divider,
   EmptyState,
   Gnb,
   IconButton,
@@ -25,14 +24,15 @@ import {
   TableTd,
   TableTh,
   Tag,
+  TextButton,
 } from "../../components/ui";
-import { cn } from "../../lib/cn";
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
 import {
   lastPathSegment,
   usePathname,
   useSearchParams,
 } from "../../lib/router";
+import { CalcBreakdown } from "./CalcBreakdown";
 import { STATUS_META, won, type Order } from "./OrderListPage.data";
 import {
   DEPOSIT_STATUS_META,
@@ -40,7 +40,7 @@ import {
   NONE,
   SECTIONS,
   UNREGISTERED,
-  claimStatementOf,
+  claimResultsOf,
   claimTypeTextOf,
   delayReasonOf,
   depositStatusOf,
@@ -53,13 +53,14 @@ import {
   isParcel,
   modeOfPath,
   paidAtText,
+  payTotalOf,
   placeOf,
   reachedAt,
   requestedAtText,
   shippedTextOf,
   stageTextOf,
   stamp,
-  statementOf,
+  statementBlocksOf,
   statementTitleOf,
   titleOf,
   type DetailMode,
@@ -71,16 +72,19 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *
  * ## 구성 — 원본 v0.4 `hqOrderDetailPage` (본사 조회 전용)
  * ```
- * 주문정보 [상세보기] · 상품정보 · 배송정보 · 배송지 정보 · 주문 처리 이력   (5구역, 각각 접기)
+ * 주문정보(결제금액 [주문 명세]) · 상품정보 · 배송정보 · 배송지 정보 · 주문 처리 이력   (5구역, 각각 접기)
  * [목록]                                                                    ← 하단 고정 바
  * ```
+ * 원본 [상세보기]는 이미 상세 화면이라 무엇의 상세인지 몰라 **[주문 명세]** 로 부른다 — 결제금액 줄 곁에 둔다.
+ * 명세 팝업은 `CalcBreakdown`(묶음·소계·결과) — 묶음은 `.data.ts` `statementBlocksOf` 가 준다.
  * 주문 목록의 주문번호가 이 화면으로 온다(`/orders-all/{처리단위}`). 렌트·판매는 한 화면에서 갈린다 —
  * 렌트만 렌트일·보증금·회수 배송비·대여 시작일이, 판매만 수량·구매확정일이 있다.
  *
  * ## 클레임 모드 — 취소·반품·교환 상세도 이 화면이다 (원본 `hqOrderDetailPage(u, {rma})`)
  * `/orders-cancel|return|exchange/{처리단위}` 로 들어오면 경로가 모드를 정한다(`.data.ts` `MODES`).
- * 주문정보에 신청 구분·신청일시·발송 여부·귀책·사유·배송비 부담, 상품정보에 상태 두 칸,
- * 명세 끝에 환불·반환 줄, 처리 이력에 클레임이 **실제로 거친 단계**가 붙는다. [목록]은 그 클레임 목록으로.
+ 주문정보 카드 **안에** 소제목 「{취소|반품|교환} 정보」 묶음(신청 구분·신청일시·발송 여부·귀책·사유·
+ * 배송비 부담 + 팝업과 같은 환불·반환 결과 줄 `claimResultsOf`)이 따로 선다(새 카드가 아니다 — 원본 구획 유지),
+ * 상품정보에 상태 두 칸, 명세에 클레임 묶음, 처리 이력에 클레임이 **실제로 거친 단계**가 붙는다. [목록]은 그 클레임 목록으로.
  * 모드와 맞지 않는 처리단위(취소 경로로 반품 건 · 렌트 교환)는 「찾을 수 없음」이다.
  *
  * ## 퍼블 범위
@@ -92,6 +96,8 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * - 원본 결함은 의도대로 고쳤다 — `.data.ts` 머리 주석(처리 이력·시각·방문/공항·명세 금액·배지)
  * - 클레임 건은 처리 이력 끝에 클레임 상태 한 줄(원본은 주문 목록에서 들어오면 안 보인다)
  * - 브랜드는 상품 샘플에 없어 `-` 다(원본 행은 남긴다)
+ * - 주문정보에 결제금액 한 줄(원본은 팝업 안에만) — 팝업과 같은 `payTotalOf`
+ * - 처리 이력 표는 읽기 폭 `max-w-3xl` · 상태 열 160 — 배지와 시각이 화면 양 끝으로 벌어지지 않게
  * ====================================================================== */
 
 export interface OrderDetailPageProps {
@@ -102,10 +108,11 @@ export interface OrderDetailPageProps {
 }
 
 /**
- * 라벨 폭 — 가장 긴 라벨(「보증금 (고정액)」·「수령인 연락처」)이 기본 80 에서 두 줄로 쪼개진다.
+ * 라벨 폭 — 가장 긴 라벨(「보증금 반환 예정액」·「보증금 (고정액)」)이 기본 80 에서 두 줄로 쪼개진다.
  * §30-3 대로 **모든 블록이 같은 폭**을 쓴다 — 구역마다 다르면 값 시작선이 어긋난다.
+ * 120 = 「보증금 반환 예정액」 실측 104 + 여유(104 에서는 값에 붙어 읽혔다).
  */
-const LABEL_WIDTH = 104;
+const LABEL_WIDTH = 120;
 
 /** 접을 수 있는 구역 한 장 — 회원 상세와 같은 규격. 열림은 구역이 쥔다(고치는 값이 없다) */
 function Section({
@@ -254,9 +261,6 @@ function OrderDetailBody({
   /* 상품주문상태 — 클레임 모드는 주문 자체의 단계(원래 단계), 클레임 상태는 옆 칸이 말한다 */
   const orderMeta = claimMode ? STATUS_META[order.baseStatus] : meta;
   const history = historyOf(order, claimMode ? "all" : "last");
-  const statement = claimMode
-    ? [...statementOf(order), ...claimStatementOf(order)]
-    : statementOf(order);
 
   return (
     <AppShell
@@ -297,8 +301,26 @@ function OrderDetailBody({
               <Item label="구매자명">{order.buyerName}</Item>
               <Item label="구매자 ID">{order.buyerId}</Item>
               <Item label="연락처">{order.buyerPhone}</Item>
-              {claimMode && (
-                <>
+              {/* 원본 [상세보기] — 결제금액이 어떻게 나왔는지 명세 팝업으로. 값 곁에 둔다 */}
+              <Item label="결제금액">
+                <span className="flex items-center gap-3">
+                  <span className="body-medium-bold tabular-nums">
+                    {won(payTotalOf(order))}
+                  </span>
+                  <TextButton
+                    size="small"
+                    onClick={() => setStatementOpen(true)}
+                  >
+                    주문 명세
+                  </TextButton>
+                </span>
+              </Item>
+            </InfoList>
+            {/* 클레임 6항목 + 결과 — 같은 카드 안에서 소제목·간격으로 가른다(원본 구획 유지) */}
+            {claimMode && (
+              <section className="flex flex-col gap-3">
+                <h3 className="label-large-bold text-text">{noun} 정보</h3>
+                <InfoList>
                   <Item label="신청 구분">
                     <Tag tone="default" size="small">
                       {claimTypeTextOf(order)}
@@ -309,18 +331,23 @@ function OrderDetailBody({
                   <Item label="귀책 판정">{faultTextOf(order)}</Item>
                   <Item label="신청 사유">{order.claim?.reason}</Item>
                   <Item label="배송비 부담">{feeBurdenOf(order)}</Item>
-                </>
-              )}
-            </InfoList>
-            {/* 원본 [상세보기] — 결제 금액이 어떻게 나왔는지 명세 팝업으로 */}
-            <div>
-              <Button
-                variant="secondary"
-                onClick={() => setStatementOpen(true)}
-              >
-                상세보기
-              </Button>
-            </div>
+                  {/* 팝업 결과 줄과 같은 값·문구 — 금액이면 굵게, 처리 문장이면 그대로 */}
+                  {claimResultsOf(order).map((line) =>
+                    line.kind === "message" ? (
+                      <Item key={line.key} label="처리 결과">
+                        {line.label}
+                      </Item>
+                    ) : (
+                      <Item key={line.key} label={line.label}>
+                        <span className="body-medium-bold tabular-nums">
+                          {line.value}
+                        </span>
+                      </Item>
+                    ),
+                  )}
+                </InfoList>
+              </section>
+            )}
           </>
         )}
       </Section>
@@ -432,33 +459,38 @@ function OrderDetailBody({
         {loading ? (
           <LoadingLines rows={4} />
         ) : (
-          <Table>
-            <colgroup>
-              <col className="w-1/2" />
-              <col className="w-1/2" />
-            </colgroup>
-            <TableHead>
-              <TableRow>
-                <TableTh>처리 상태</TableTh>
-                <TableTh>처리 일시</TableTh>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {history.map((row) => {
-                const rowMeta = STATUS_META[row.status];
-                return (
-                  <TableRow key={row.status}>
-                    <TableTd>
-                      <Tag tone={rowMeta.tone} dot size="small">
-                        {rowMeta.label}
-                      </Tag>
-                    </TableTd>
-                    <TableTd className="tabular-nums">{stamp(row.at)}</TableTd>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          /* 읽기 폭을 묶고 상태 열을 160 으로 — 배지와 시각이 1,000px 넘게 벌어지지 않게 */
+          <div className="w-full max-w-3xl">
+            <Table>
+              <colgroup>
+                <col className="w-40" />
+                <col />
+              </colgroup>
+              <TableHead>
+                <TableRow>
+                  <TableTh>처리 상태</TableTh>
+                  <TableTh>처리 일시</TableTh>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {history.map((row) => {
+                  const rowMeta = STATUS_META[row.status];
+                  return (
+                    <TableRow key={row.status}>
+                      <TableTd>
+                        <Tag tone={rowMeta.tone} dot size="small">
+                          {rowMeta.label}
+                        </Tag>
+                      </TableTd>
+                      <TableTd className="tabular-nums">
+                        {stamp(row.at)}
+                      </TableTd>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </Section>
 
@@ -471,49 +503,18 @@ function OrderDetailBody({
         </div>
       </Card>
 
-      {/* 주문 명세 — 원본 `udPriceBox`. 보증금은 한 줄로 보이지만 결제금액에 들지 않는다 */}
+      {/* 주문 명세 — 원본 `udPriceBox`. 보증금은 「별도」 묶음 — 결제금액에 들지 않는다 */}
       <Modal
         open={statementOpen}
         onClose={() => setStatementOpen(false)}
-        size="small"
+        size="medium"
       >
         <ModalHeader
           closeLabel="대화상자 닫기"
           title={statementTitleOf(order)}
         />
         <ModalBody>
-          <dl className="flex flex-col gap-2">
-            {statement.map((item) => (
-              <div key={item.label} className="flex flex-col gap-2">
-                {item.tone === "total" && <Divider />}
-                <div className="flex items-center justify-between gap-4">
-                  <dt
-                    className={cn(
-                      item.tone === "total"
-                        ? "body-large-bold text-text"
-                        : "body-medium text-text-sub",
-                    )}
-                  >
-                    {item.label}
-                  </dt>
-                  <dd
-                    className={cn(
-                      "tabular-nums",
-                      item.tone === "total"
-                        ? "body-large-bold text-text"
-                        : item.tone === "strong"
-                          ? "body-medium-bold text-text"
-                          : item.tone === "minus"
-                            ? "body-medium text-text-critical"
-                            : "body-medium text-text",
-                    )}
-                  >
-                    {item.value}
-                  </dd>
-                </div>
-              </div>
-            ))}
-          </dl>
+          <CalcBreakdown blocks={statementBlocksOf(order, claimMode)} />
         </ModalBody>
         <ModalFooter>
           <Button size="large" onClick={() => setStatementOpen(false)}>

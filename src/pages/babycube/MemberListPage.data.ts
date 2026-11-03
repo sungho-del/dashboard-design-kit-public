@@ -127,7 +127,10 @@ export interface Member {
   address: string;
   /** 최근 접속일 `YYYY-MM-DD`. **1년 이상이면 휴면 전환 대상**이다(원본 정책) */
   lastVisit: string;
-  /** 보유 포인트(원) */
+  /**
+   * 보유 포인트(원) — **포인트 원장(`PointListPage.data.ts` `POINT_LEDGER`) 합과 같은 값**이다.
+   * 원장이 회원을 읽으므로(순환 import) 계산 대신 값으로 적는다 — 어긋나면 포인트 목록 테스트가 잡는다
+   */
   points: number;
   marketingOptIn: boolean;
   children: MemberChild[];
@@ -199,6 +202,8 @@ interface BriefRow {
   kids: number;
   lastVisit: string;
   reason?: [text: string, at: string];
+  /** 보유 포인트 — 포인트 원장 합(`PointListPage.data.ts`). 원장이 없으면 생략 = 0 */
+  points?: number;
 }
 
 const BRIEF_PRODUCTS: Record<PaymentKind, string> = {
@@ -257,6 +262,7 @@ const BRIEF_ROWS: BriefRow[] = [
     uses: ["rent", "sale"],
     kids: 2,
     lastVisit: "2026-09-17",
+    points: 1200,
   },
   {
     name: "구민재",
@@ -277,6 +283,7 @@ const BRIEF_ROWS: BriefRow[] = [
     uses: ["rent", "rent"],
     kids: 1,
     lastVisit: "2026-09-08",
+    points: 1100,
   },
   {
     name: "안지성",
@@ -287,6 +294,7 @@ const BRIEF_ROWS: BriefRow[] = [
     uses: ["sale"],
     kids: 3,
     lastVisit: "2026-09-02",
+    points: 500,
   },
   {
     name: "전소율",
@@ -307,6 +315,7 @@ const BRIEF_ROWS: BriefRow[] = [
     uses: ["rent"],
     kids: 2,
     lastVisit: "2026-09-14",
+    points: 1600,
   },
   {
     name: "고은찬",
@@ -338,6 +347,7 @@ const BRIEF_ROWS: BriefRow[] = [
     uses: [],
     kids: 2,
     lastVisit: "2026-07-21",
+    points: 100,
   },
   {
     name: "유가은",
@@ -348,6 +358,7 @@ const BRIEF_ROWS: BriefRow[] = [
     uses: ["rent"],
     kids: 1,
     lastVisit: "2026-09-10",
+    points: 500,
   },
   {
     name: "조은우",
@@ -379,6 +390,7 @@ const BRIEF_ROWS: BriefRow[] = [
     uses: ["rent", "rent", "sale"],
     kids: 2,
     lastVisit: "2026-09-18",
+    points: 500,
   },
   {
     name: "윤서아",
@@ -419,6 +431,7 @@ const BRIEF_ROWS: BriefRow[] = [
     uses: ["rent"],
     kids: 1,
     lastVisit: "2026-09-13",
+    points: 600,
   },
   {
     name: "마준서",
@@ -446,7 +459,7 @@ const toMember = (row: BriefRow, index: number): Member => {
     birth: `199${index % 10}-0${(index % 9) + 1}-15`,
     address: "서울 강남구 테헤란로 152",
     lastVisit: row.lastVisit,
-    points: (index % 5) * 3000,
+    points: row.points ?? 0,
     marketingOptIn: index % 2 === 0,
     activeRents: 0,
     statusReason: row.reason?.[0],
@@ -486,7 +499,7 @@ export const MEMBERS: Member[] = [
     birth: "1991-04-18",
     address: "서울 마포구 월드컵북로 396",
     lastVisit: "2026-09-18",
-    points: 24500,
+    points: 0,
     marketingOptIn: true,
     /* 진행 중인 렌트가 있어 **휴면으로 바꿀 수 없다** — 상세의 가드 문구가 이 값을 읽는다 */
     activeRents: 1,
@@ -544,7 +557,7 @@ export const MEMBERS: Member[] = [
     birth: "1988-12-02",
     address: "경기 성남시 분당구 판교로 174",
     lastVisit: "2026-09-12",
-    points: 39000,
+    points: 0,
     marketingOptIn: true,
     activeRents: 0,
     /* 사서만 쓰는 회원 — 렌트 0 이라 목록 `이용` 열이 "구매 3" 만 낸다 */
@@ -585,7 +598,7 @@ export const MEMBERS: Member[] = [
     address: "부산 해운대구 센텀중앙로 90",
     /* 1년 넘게 접속이 없어 휴면으로 전환된 회원이다(원본 정책) */
     lastVisit: "2025-06-02",
-    points: 1200,
+    points: 0,
     marketingOptIn: false,
     activeRents: 0,
     /* 빌려만 쓰는 회원 — 구매 0 이라 "렌트 2" 만 낸다 */
@@ -671,7 +684,7 @@ export const MEMBERS: Member[] = [
     birth: "1990-05-25",
     address: "대전 유성구 대학로 99",
     lastVisit: "2026-09-16",
-    points: 8300,
+    points: 500,
     marketingOptIn: true,
     activeRents: 0,
     payments: [
@@ -721,7 +734,7 @@ export const MEMBERS: Member[] = [
     birth: "1992-09-14",
     address: "서울 송파구 올림픽로 300",
     lastVisit: "2026-09-17",
-    points: 15600,
+    points: 500,
     marketingOptIn: true,
     activeRents: 1,
     payments: [
@@ -756,7 +769,7 @@ export const MEMBERS: Member[] = [
     birth: "1989-03-27",
     address: "경기 고양시 일산동구 중앙로 1275",
     lastVisit: "2026-09-10",
-    points: 4200,
+    points: 0,
     marketingOptIn: false,
     activeRents: 0,
     payments: [

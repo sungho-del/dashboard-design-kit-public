@@ -12,8 +12,6 @@ import {
   FormField,
   Gnb,
   IconButton,
-  InfoItem,
-  InfoList,
   Input,
   Modal,
   ModalBody,
@@ -21,6 +19,7 @@ import {
   ModalHeader,
   PageHeader,
   SegmentedControl,
+  Skeleton,
   Table,
   TableBody,
   TableHead,
@@ -31,59 +30,65 @@ import {
   TextButton,
   useToast,
 } from "../../components/ui";
+import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
+import { useSearchParams } from "../../lib/router";
 import {
   ALL_CATEGORY,
   CATEGORIES,
   CATEGORY_NAME_MAX,
   FAQS,
   MESSAGES,
+  NEW_ID,
+  detailPathOf,
   nextCategoryId,
-  type Faq,
   type FaqCategory,
 } from "./FaqListPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
 /* =========================================================================
- * S20 FAQ 관리 — 뼈대 (BabyCube 본사 운영 어드민)
+ * S20 FAQ 관리 — 뼈대 (BabyCube 본사 운영 어드민 · 원본 v0.4 `SCREENS.faqAdmin`)
  *
  * ## 화면 유형: 목록형 (`docs/screen-templates.md` §3-1)
  * 카드 두 장을 직접 조립한 화면이다(공용 목록 셸을 쓰지 않는다).
  * ```
  * 카드1 FAQ 카테고리 : 제목 + "N개" + [+ 카테고리 추가]
  *                      태그마다  이름 · FAQ 건수 · ✎ 이름 변경 · ✕ 삭제
- * 카드2 FAQ 목록     : 목록 (총 N건) + 카테고리 칩 | [+ FAQ 추가][선택 삭제]
- *                      표 3열 + 행 선택 체크박스
+ * 카드2 목록 (총 N건) + 카테고리 칩 | [+ FAQ 추가][선택 삭제]
+ *                      표 [체크] 카테고리 · 질문 · 답변 — 행 클릭 → `/faq-admin/{id}`
  * ```
  *
  * ## 이 파일은 도메인을 모른다 — 도메인은 `./FaqListPage.data.ts` 에 있다
  *
  * | 갈아끼울 것            | 위치                                           |
  * | ---------------------- | ---------------------------------------------- |
- * | 데이터·타입·문구       | `FaqListPage.data.ts` **전체**                 |
- * | 표 컬럼 구성           | 이 파일의 `<colgroup>` + `TableHead` + 본문 셀 |
- * | 카테고리 태그의 액션   | `categoryTag` 렌더                             |
+ * | 데이터·타입·문구·경로  | `FaqListPage.data.ts` **전체**                 |
+ * | 표 컬럼 구성           | 이 파일의 `COLGROUP` + `TableHead` + 본문 셀   |
+ * | 카테고리 태그의 액션   | 카드1 태그 렌더                                |
  * | 화면 제목·액션         | `PageHeader` · 툴바의 FAQ 추가 / 선택 삭제     |
  *
  * ## 그대로 두는 것 (도메인 무관)
- * `DataTableShell` 셸 구조 · `colgroup` 비율 배분 ·
- * 행 선택 → 확인 모달 흐름 · 카테고리 편집 모달의 검증
+ * `DataTableShell` 셸 구조 · `colgroup` 비율 배분 · 행 선택 → 확인 모달 흐름 ·
+ * 카테고리 편집 모달의 검증(빈 값 · 중복) · `?preview=loading|empty|refreshing`
  *
- * ## 이 화면이 지키는 세 가지 약속
- * 1. **편집은 태그 자신에 붙는다.** 카테고리마다 ✎·✕ 를 달면 "무엇을 고치는지"가
- *    누르는 자리에서 결정된다. 칩을 고른 뒤 카드 머리의 버튼을 누르는 간접 조작은
- *    `전체` 를 고른 동안 대상이 없어 버튼이 잠기는 죽은 상태를 만든다.
- * 2. **빈 카테고리만 삭제된다.** 규칙은 버튼을 잠그는 대신 **눌렀을 때 이유로** 답한다
- *    (원본도 그렇다) — 몇 건이 남아 무엇을 먼저 해야 하는지까지 함께 말해야 한다.
- * 3. **선택은 보이는 목록에 매인다.** 카테고리를 바꾸면 선택을 비운다. 안 그러면
- *    화면에 없는 행이 선택된 채 삭제되어 무엇을 지웠는지 알 수 없다.
+ * ## 이 화면이 지키는 약속
+ * 1. **편집은 태그 자신에 붙는다.** 카테고리마다 ✎·✕ 를 단다(원본 3515).
+ * 2. **빈 카테고리만 삭제된다.** 버튼을 잠그지 않고 **눌렀을 때 이유로** 답한다(원본 3488).
+ * 3. **선택은 보이는 목록에 매인다.** 카테고리를 바꾸면 선택을 비운다(원본 3460).
+ * 4. **삭제 확인은 하나다.** 목록 [선택 삭제]와 상세 [삭제]가 `FaqDeleteModal` 하나를 쓴다
+ *    (원본 3471 「통로가 여럿이어도 게이트 하나」).
+ *
+ * ## 원본과 다르게 둔 것
+ * - **행 어디를 눌러도 상세**(사용자 결정 2026-11-02 — 원본은 질문 글자만 링크). 질문 글자도 링크로 남긴다.
+ *   체크박스 클릭은 행 클릭이 아니다(`TableRow clickable`)
+ * - 카테고리명 빈 값·중복은 **입력칸 아래 오류**(원본은 알림 — 형제 규칙)
+ * - 카테고리 칩은 `SegmentedControl`(공지·공휴일과 같은 대체) · 질문·답변 열 왼쪽 정렬(원본 가운데 — UI-293 위반)
+ * - 답변 셀 말줄임은 표 공용 2줄(원본 1줄 — 사용자 결정)
+ * - `?preview=` 데이터 상태(형제 목록과 같다 — 원본엔 없음)
  *
  * ## ⚠️ 원본에 없어서 걷어낸 것 — 되살리지 말 것
- * 원본(`chunks/3sxnfshlohpx5.js` 모듈 61180) 컬럼은 `categoryName`·`question`·
- * `answer` **3열**이다.
- * - **등록일 열** — 데이터 층에서 `date` 필드도 함께 지웠다
- * - **페이지네이션과 `PAGE_SIZE`** — 원본 카드는 목록 헤더 + 표뿐이다
- * - **상시 노출 안내문** — "빈 카테고리만 삭제됩니다"는 삭제 확인 모달의 말이다
- * - `PageHeader` 설명문
+ * - 등록일 열 · 페이지네이션 · 엑셀 · 검색조건 · `PageHeader` 설명문 · 상시 안내문
+ * - **FAQ 미리보기 모달** — 원본은 07-29 에 모달을 걷고 상세 페이지로 바꿨다(2280·3461)
+ * - 카테고리 삭제 창의 대상 이름(원본 UI-323 「대상 표기 없음」)
  * ====================================================================== */
 
 /** 카테고리 편집 모달의 대상. `undefined` 면 닫힘, `null` 이면 추가 */
@@ -96,6 +101,64 @@ export interface FaqListPageProps {
   onNavSelect: (id: string) => void;
 }
 
+/* table-fixed 라 폭 지정 필수 — 비율로 나뉜다. 「취소/교환/반품」 배지가 들어갈 폭을 준다 */
+const COLGROUP = (
+  <colgroup>
+    <col className="w-10" />
+    <col className="w-32" />
+    <col className="w-90" />
+    <col className="w-100" />
+  </colgroup>
+);
+
+/** 로딩 자리의 셀 폭 — 실제 값의 글자 수에 가깝게 */
+const SKELETON_WIDTHS = ["w-4", "w-16", "w-56", "w-72"];
+
+/**
+ * FAQ 삭제 확인 — **목록 [선택 삭제]와 상세 [삭제]가 함께 쓴다**(원본 `gateFaqDel` 2362~2369).
+ * 제목은 2건 이상일 때만 건수를 붙인다. 대상 이름은 적지 않는다(UI-323).
+ */
+export function FaqDeleteModal({
+  count,
+  onClose,
+  onConfirm,
+}: {
+  /** 지울 건수. `null` 이면 닫힘 */
+  count: number | null;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Modal open={count !== null} onClose={onClose} size="small">
+      <ModalHeader
+        closeLabel="대화상자 닫기"
+        title={`FAQ 삭제${count !== null && count > 1 ? ` (${count}건)` : ""}`}
+      />
+      <ModalBody>
+        {/* 강조 구간이 **되돌릴 수 없는 조치의 범위**다 — 한 문장으로 이어 붙이지 않는다 */}
+        <p className="body-medium text-text-sub">
+          {MESSAGES.faqDelete.lead}
+          <strong className="body-medium-bold text-text">
+            {MESSAGES.faqDelete.emphasis}
+          </strong>
+          {MESSAGES.faqDelete.tail}
+        </p>
+        <p className="body-medium-bold text-text-critical">
+          {MESSAGES.irreversible}
+        </p>
+      </ModalBody>
+      <ModalFooter>
+        <Button variant="secondary" size="large" onClick={onClose}>
+          취소
+        </Button>
+        <Button variant="critical" size="large" onClick={onConfirm}>
+          삭제
+        </Button>
+      </ModalFooter>
+    </Modal>
+  );
+}
+
 export function FaqListPage({
   navOpen,
   onNavOpenChange,
@@ -103,6 +166,8 @@ export function FaqListPage({
   onNavSelect,
 }: FaqListPageProps) {
   const { toast } = useToast();
+  /* `?preview=loading|empty|refreshing` 으로 데이터 상태를 미리 본다(형제 목록과 같다) */
+  const dataStatus = asStatus(useSearchParams().get("preview"));
 
   const [categories, setCategories] = useState(CATEGORIES);
   const [faqs, setFaqs] = useState(FAQS);
@@ -116,8 +181,6 @@ export function FaqListPage({
   const [categoryDeleteTarget, setCategoryDeleteTarget] =
     useState<FaqCategory | null>(null);
   const [faqDeleteIds, setFaqDeleteIds] = useState<string[] | null>(null);
-
-  const [preview, setPreview] = useState<Faq | null>(null);
 
   const isAllSelected = categoryId === ALL_CATEGORY.id;
   const filtered = faqs.filter(
@@ -165,6 +228,15 @@ export function FaqListPage({
       setNameError(MESSAGES.categoryNameRequired);
       return;
     }
+    /* 중복은 자기 자신을 빼고 센다 — 이름을 그대로 두고 저장해도 막히지 않게(원본 3482) */
+    if (
+      categories.some(
+        (item) => item.name === name && item.id !== formTarget?.id,
+      )
+    ) {
+      setNameError(MESSAGES.categoryNameDuplicate);
+      return;
+    }
 
     if (formTarget) {
       const targetId = formTarget.id;
@@ -185,10 +257,7 @@ export function FaqListPage({
     setFormTarget(undefined);
   };
 
-  /**
-   * 삭제 요청 — 버튼을 잠그지 않고 **눌렀을 때 이유로 답한다**(약속 2).
-   * 몇 건이 남았는지와 다음에 할 일을 함께 말해야 막다른 길이 되지 않는다.
-   */
+  /** 삭제 요청 — 버튼을 잠그지 않고 **눌렀을 때 이유로 답한다**(약속 2) */
   const requestCategoryDelete = (category: FaqCategory) => {
     const count = countOf(category.id);
     if (count > 0) {
@@ -209,7 +278,7 @@ export function FaqListPage({
   };
 
   const requestFaqDelete = () => {
-    /* 보이는 목록 안의 선택만 대상이다 — 화면에 없는 행을 지우지 않는다 */
+    /* 보이는 목록 안의 선택만 대상이다 — 화면에 없는 행을 지우지 않는다(원본 3497) */
     const visible = new Set(filtered.map((faq) => faq.id));
     const targets = selected.filter((id) => visible.has(id));
     if (targets.length === 0) {
@@ -243,13 +312,14 @@ export function FaqListPage({
       header={<PageHeader title="FAQ 관리" />}
     >
       {/* 카드1 — 카테고리. 태그마다 이름 변경·삭제가 붙는다(약속 1) */}
-      <Card>
+      <Card variant="soft" aria-busy={isBusy(dataStatus)}>
         <CardHeader
           action={
-            <TextButton tone="secondary" onClick={() => openCategoryForm(null)}>
+            /* 원본 `btn line sm` — 테두리 버튼 */
+            <Button variant="secondary" onClick={() => openCategoryForm(null)}>
               <Plus size={16} strokeWidth={1.2} aria-hidden />
               카테고리 추가
-            </TextButton>
+            </Button>
           }
         >
           <div className="flex items-center gap-2">
@@ -259,7 +329,7 @@ export function FaqListPage({
             </span>
           </div>
         </CardHeader>
-        <CardBody>
+        <CardBody className={dimWhile(dataStatus)}>
           <div className="flex flex-wrap items-center gap-2">
             {categories.map((category) => (
               <span
@@ -293,12 +363,15 @@ export function FaqListPage({
 
       {/* 카드2 — FAQ 목록. 원본 카드에는 페이지네이션이 없다 */}
       <DataTableShell
+        variant="soft"
+        bodyClassName={dimWhile(dataStatus)}
+        aria-busy={isBusy(dataStatus)}
         toolbarStart={
           <>
-            <span className="heading-medium-bold text-text">FAQ 목록</span>
-            <span className="body-medium text-text-sub">
-              총 {filtered.length}건
-            </span>
+            {/* 페이지네이션이 없는 화면이라 총 건수를 툴바가 든다(원본 3517) */}
+            <h2 className="heading-medium-bold text-text">
+              목록 (총 {filtered.length}건)
+            </h2>
             <SegmentedControl
               size="small"
               aria-label="카테고리"
@@ -313,7 +386,8 @@ export function FaqListPage({
         }
         toolbarEnd={
           <>
-            <Button onClick={() => toast(MESSAGES.faqAddOpened)}>
+            {/* 원본 key `'new'` — 등록 폼 페이지로 간다(3462) */}
+            <Button onClick={() => onNavSelect(detailPathOf(NEW_ID))}>
               <Plus size={16} strokeWidth={1.2} aria-hidden />
               FAQ 추가
             </Button>
@@ -324,31 +398,25 @@ export function FaqListPage({
             </Button>
           </>
         }
-        isEmpty={filtered.length === 0}
+        isEmpty={
+          dataStatus !== "loading" &&
+          (dataStatus === "empty" || filtered.length === 0)
+        }
         empty={
           <EmptyState
             size="table"
             icon={<HelpCircle strokeWidth={1.2} aria-hidden />}
-            title="등록된 FAQ가 없습니다"
-            description="이 카테고리에는 아직 FAQ가 없습니다. 새 FAQ를 등록해 주세요."
+            title={MESSAGES.emptyTitle}
+            description={MESSAGES.emptyDescription}
           />
         }
       >
         <Table>
-          {/* table-fixed 라 폭 지정 필수. 한 컬럼만 auto 로 두면 여백을 독식한다 — 합 100% */}
-          <colgroup>
-            <col className="w-10" />
-            <col className="w-20" />
-            <col className="w-60" />
-            <col className="w-100" />
-          </colgroup>
+          {COLGROUP}
           <TableHead>
             <TableRow>
               <TableTh>
-                {/*
-                  라벨 텍스트를 띄우면 5% 폭 컬럼이 무너진다. `label` 대신
-                  `aria-label` 을 쓰면 이름은 남고 글자는 나오지 않는다.
-                */}
+                {/* 좁은 열이라 글자 라벨 대신 `aria-label` */}
                 <Checkbox
                   size="small"
                   aria-label="전체 선택"
@@ -365,33 +433,54 @@ export function FaqListPage({
           </TableHead>
           <TableBody>
             {/* 원본 카드에는 페이저가 없다 — 조회된 FAQ 를 한 화면에 모두 낸다 */}
-            {filtered.map((faq) => (
-              <TableRow key={faq.id}>
-                <TableTd>
-                  <Checkbox
-                    size="small"
-                    aria-label={`${faq.question} 선택`}
-                    checked={selected.includes(faq.id)}
-                    onChange={() => toggleRow(faq.id)}
-                  />
-                </TableTd>
-                <TableTd align="center">
-                  <Tag size="small">{nameOf(faq.categoryId)}</Tag>
-                </TableTd>
-                {/* 원본에서 링크는 이 셀 하나다 — 행 전체는 눌리지 않는다 */}
-                <TableTd>
-                  <TextButton onClick={() => setPreview(faq)}>
-                    {faq.question}
-                  </TextButton>
-                </TableTd>
-                <TableTd ellipsis>{faq.answer}</TableTd>
-              </TableRow>
-            ))}
+            {dataStatus === "loading"
+              ? Array.from({ length: 5 }, (_, row) => (
+                  <TableRow key={`skeleton-${row}`}>
+                    {SKELETON_WIDTHS.map((width, cell) => (
+                      <TableTd key={cell}>
+                        <span className="body-small block">
+                          <Skeleton className={width} />
+                        </span>
+                      </TableTd>
+                    ))}
+                  </TableRow>
+                ))
+              : filtered.map((faq) => (
+                  <TableRow
+                    key={faq.id}
+                    clickable
+                    onClick={() => onNavSelect(detailPathOf(faq.id))}
+                  >
+                    <TableTd>
+                      <Checkbox
+                        size="small"
+                        aria-label={`${faq.question} 선택`}
+                        checked={selected.includes(faq.id)}
+                        onChange={() => toggleRow(faq.id)}
+                      />
+                    </TableTd>
+                    <TableTd align="center">
+                      <Tag size="small">{nameOf(faq.categoryId)}</Tag>
+                    </TableTd>
+                    {/* 원본 링크는 질문 글자 — 행 클릭과 같은 곳으로 간다 */}
+                    <TableTd>
+                      <TextButton
+                        onClick={() => onNavSelect(detailPathOf(faq.id))}
+                      >
+                        {faq.question}
+                      </TextButton>
+                    </TableTd>
+                    {/* 2줄 말줄임 — 한국어 단어 중간에서 끊지 않는다(공백 없는 긴 문자열만 강제 줄바꿈) */}
+                    <TableTd ellipsis className="break-keep wrap-anywhere">
+                      {faq.answer}
+                    </TableTd>
+                  </TableRow>
+                ))}
           </TableBody>
         </Table>
       </DataTableShell>
 
-      {/* 카테고리 추가 · 이름 변경 — 같은 폼을 쓰고 제목만 갈린다 */}
+      {/* 카테고리 추가 · 이름 변경 — 같은 폼을 쓰고 제목만 갈린다(원본 `catForm` 2282) */}
       <Modal
         open={formTarget !== undefined}
         onClose={() => setFormTarget(undefined)}
@@ -402,12 +491,13 @@ export function FaqListPage({
           title={`FAQ 카테고리 ${formTarget ? "수정" : "추가"}`}
         />
         <ModalBody>
-          {/* FormField 는 Input·Textarea·Select 전용이다 */}
+          {/* 원본엔 라벨이 없지만 접근성상 둔다. FormField 는 Input·Textarea·Select 전용이다 */}
           <FormField label="카테고리명" error={nameError ?? undefined}>
             <Input
               placeholder={MESSAGES.categoryNamePlaceholder}
               maxLength={CATEGORY_NAME_MAX}
               value={categoryName}
+              invalid={nameError !== null}
               onChange={(event) => {
                 setCategoryName(event.target.value);
                 if (nameError !== null) setNameError(null);
@@ -429,22 +519,14 @@ export function FaqListPage({
         </ModalFooter>
       </Modal>
 
-      {/* 카테고리 삭제 확인 — 원본 `GateBody`: 규칙 + 되돌릴 수 없다는 경고 */}
+      {/* 카테고리 삭제 확인 — 원본 `gateFaqCatDel`(2406~2413) · 대상 이름 없음(UI-323) */}
       <Modal
         open={categoryDeleteTarget !== null}
         onClose={() => setCategoryDeleteTarget(null)}
         size="small"
       >
-        <ModalHeader
-          closeLabel="대화상자 닫기"
-          title="FAQ 카테고리 삭제"
-          description={categoryDeleteTarget?.name}
-        />
+        <ModalHeader closeLabel="대화상자 닫기" title="FAQ 카테고리 삭제" />
         <ModalBody>
-          {/*
-            강조 구간을 나눠 두는 이유는 그 구간이 **되돌릴 수 없는 조치의 범위**를
-            말하기 때문이다. 한 문장으로 이어 붙이면 범위가 읽히지 않는다.
-          */}
           <p className="body-medium text-text-sub">
             {MESSAGES.categoryDelete.lead}
             <strong className="body-medium-bold text-text">
@@ -474,62 +556,11 @@ export function FaqListPage({
         </ModalFooter>
       </Modal>
 
-      {/* FAQ 선택 삭제 확인 — 파급 범위를 먼저 말한다 */}
-      <Modal
-        open={faqDeleteIds !== null}
+      <FaqDeleteModal
+        count={faqDeleteIds?.length ?? null}
         onClose={() => setFaqDeleteIds(null)}
-        size="small"
-      >
-        <ModalHeader
-          closeLabel="대화상자 닫기"
-          /* 2건 이상일 때만 건수를 붙인다 — 1건이면 대상이 하나라 셀 것이 없다 */
-          title={`FAQ 삭제${
-            faqDeleteIds && faqDeleteIds.length > 1
-              ? ` (${faqDeleteIds.length}건)`
-              : ""
-          }`}
-        />
-        <ModalBody>
-          <p className="body-medium text-text-sub">
-            {MESSAGES.faqDelete.lead}
-            <strong className="body-medium-bold text-text">
-              {MESSAGES.faqDelete.emphasis}
-            </strong>
-            {MESSAGES.faqDelete.tail}
-          </p>
-          <p className="body-medium-bold text-text-critical">
-            {MESSAGES.irreversible}
-          </p>
-        </ModalBody>
-        <ModalFooter>
-          <Button
-            variant="secondary"
-            size="large"
-            onClick={() => setFaqDeleteIds(null)}
-          >
-            취소
-          </Button>
-          <Button variant="critical" size="large" onClick={confirmFaqDelete}>
-            삭제
-          </Button>
-        </ModalFooter>
-      </Modal>
-
-      {/*
-        FAQ 미리보기 — 표에서 두 줄로 잘리는 답변을 온전히 보여 준다.
-        **푸터 액션을 두지 않는다** — 수정은 FAQ 상세 화면의 일이다.
-      */}
-      <Modal open={preview !== null} onClose={() => setPreview(null)}>
-        <ModalHeader title="FAQ 미리보기" description={preview?.question} />
-        <ModalBody>
-          <InfoList>
-            <InfoItem label="카테고리">
-              {preview ? nameOf(preview.categoryId) : ""}
-            </InfoItem>
-          </InfoList>
-          <p className="body-medium text-text-sub">{preview?.answer}</p>
-        </ModalBody>
-      </Modal>
+        onConfirm={confirmFaqDelete}
+      />
     </AppShell>
   );
 }

@@ -80,8 +80,9 @@ function ScreenCard({
           <strong className="heading-medium-bold text-text">{name}</strong>
           <span className="body-small text-text-sub">{summary}</span>
 
-          {/* 소스를 찾아갈 단서 — 이 화면의 독자는 개발자·기획자다 */}
-          <span className="body-small text-text-minimal">{file}</span>
+          {/* 소스를 찾아갈 단서 — 이 화면의 독자는 개발자·기획자다.
+              경로는 띄어쓰기가 없어 줄이 안 바뀐다 — 긴 파일명이 카드 밖으로 나가지 않게 아무 데서나 꺾는다 */}
+          <span className="body-small text-text-minimal break-all">{file}</span>
 
           {entryNote && (
             <span className="body-small text-text-minimal">{entryNote}</span>

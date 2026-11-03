@@ -42,6 +42,7 @@ import {
   TextButton,
   useToast,
 } from "../../components/ui";
+import { cn } from "../../lib/cn";
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
 import {
   lastPathSegment,
@@ -112,7 +113,7 @@ import { ProductRejectModal } from "./shared/ProductRejectModal";
  * ```
  * 상품명 · 유형 · 카테고리 · 가격(· 렌트 기간) · 렌트 수량 | 재고 수량 ·
  * 상품이미지 · 상세설명 · 상품 주요정보 · 배송 · 옵션 · 노출 관리                (11개)
- * [목록]                 [승인 처리] [반려 처리] [수정 저장] [취소]   ← 하단 고정 바
+ * [목록]                 [승인 처리] [반려 처리] [취소] [수정 저장]   ← 하단 고정 바(주 버튼 맨 오른쪽)
  * ```
  * 섹션은 **전부 펼친 채로** 시작하고 각각 접을 수 있다(원본 `nvSec`).
  * 렌트 수량과 재고 수량은 서로 대체된다 — 렌트면 렌트 수량, 판매면 재고 수량 하나만 나온다.
@@ -234,6 +235,12 @@ function Section({
 }
 
 /** 계산된 값 — 고치는 칸이 아니라 읽는 줄이다(원본 렌트가·최종 렌트 금액) */
+/**
+ * 도움말 읽기 폭 — 입력칸은 240 인데 설명 문단만 카드 폭(1,090px)으로 퍼지면 한 줄을 끝까지 따라 읽기 어렵다.
+ * 입력이 좁은 필드와 페이지가 직접 쓰는 도움말 문단에만 건다(넓은 입력·표·인증 줄은 그대로).
+ */
+const HELP_WIDTH = "max-w-3xl";
+
 function ReadField({
   label,
   children,
@@ -967,6 +974,7 @@ function ProductDetailBody({
         ) : rent ? (
           <>
             <FormField
+              className={HELP_WIDTH}
               label="렌트 원가"
               required
               htmlFor={fieldId("rentBase")}
@@ -989,10 +997,13 @@ function ProductDetailBody({
             <ReadField label="렌트가">
               <span className="label-large-bold">{won(dayRate)}/일</span>
               {rentDisc > 0 ? (
-                <span className="text-text-sub">({won(rentDisc)} 할인)</span>
+                <span className="body-small text-text-sub">
+                  {won(rentDisc)} 할인
+                </span>
               ) : null}
             </ReadField>
             <FormField
+              className={HELP_WIDTH}
               label="기본 렌트일"
               required
               description={COPY.baseRentDaysHelp}
@@ -1017,10 +1028,11 @@ function ProductDetailBody({
                   : COPY.finalRentEmpty}
               </span>
             </ReadField>
-            <p className="body-small -mt-3 text-text-sub">
+            <p className={cn("body-small -mt-3 text-text-sub", HELP_WIDTH)}>
               {COPY.finalRentHelp}
             </p>
             <FormField
+              className={HELP_WIDTH}
               label="보증금"
               description={COPY.depositHelp}
               suffix="원"
@@ -1044,7 +1056,9 @@ function ProductDetailBody({
             </FormField>
             {draft.periodOn ? (
               <div className="flex flex-col gap-3">
-                <p className="body-small text-text-sub">{COPY.periodHelp}</p>
+                <p className={cn("body-small text-text-sub", HELP_WIDTH)}>
+                  {COPY.periodHelp}
+                </p>
                 {draft.periods.map((row, index) => {
                   const summary = periodSummary(row, dayRate);
                   const label = `기간 옵션 ${index + 1}`;
@@ -1146,6 +1160,7 @@ function ProductDetailBody({
         ) : (
           <>
             <FormField
+              className={HELP_WIDTH}
               label="판매 원가"
               required
               htmlFor={fieldId("saleBase")}
@@ -1168,7 +1183,9 @@ function ProductDetailBody({
             <ReadField label="판매가">
               <span className="label-large-bold">{won(salePrice)}</span>
               {saleDisc > 0 ? (
-                <span className="text-text-sub">({won(saleDisc)} 할인)</span>
+                <span className="body-small text-text-sub">
+                  {won(saleDisc)} 할인
+                </span>
               ) : null}
             </ReadField>
           </>
@@ -1189,6 +1206,7 @@ function ProductDetailBody({
         ) : rent ? (
           <>
             <FormField
+              className={HELP_WIDTH}
               label="렌트 수량"
               required
               htmlFor={fieldId("rentQty")}
@@ -1239,6 +1257,7 @@ function ProductDetailBody({
         ) : (
           /* 원본도 재고 수량을 검사하지 않는다 — 0 은 품절이라는 정상 상태다 */
           <FormField
+            className={HELP_WIDTH}
             label="재고 수량"
             required
             description={COPY.stockHelp}
@@ -1284,7 +1303,9 @@ function ProductDetailBody({
               ) : (
                 <EmptyImageSlot label="대표이미지" onPending={imagePending} />
               )}
-              <p className="body-small text-text-sub">{COPY.imageHelp}</p>
+              <p className={cn("body-small text-text-sub", HELP_WIDTH)}>
+                {COPY.imageHelp}
+              </p>
             </div>
             <div className="flex flex-col gap-1.5">
               <span className="label-medium-bold text-text">
@@ -1309,7 +1330,7 @@ function ProductDetailBody({
                   <EmptyImageSlot label="추가이미지" onPending={imagePending} />
                 ) : null}
               </div>
-              <p className="body-small text-text-sub">
+              <p className={cn("body-small text-text-sub", HELP_WIDTH)}>
                 {COPY.imageHelp} {COPY.imageDragHelp}
               </p>
             </div>
@@ -1370,6 +1391,7 @@ function ProductDetailBody({
               />
             </FormField>
             <FormField
+              className={HELP_WIDTH}
               label="성장단계"
               required
               htmlFor={fieldId("stage")}
@@ -1639,6 +1661,7 @@ function ProductDetailBody({
             </FormField>
             <div className="flex flex-col gap-2">
               <Checkbox
+                className={HELP_WIDTH}
                 label="방문 수령 추가 제공"
                 description={COPY.pickupHelp}
                 checked={draft.pickupOn}
@@ -1705,6 +1728,7 @@ function ProductDetailBody({
             ) : null}
             <div className="flex flex-col gap-2">
               <Checkbox
+                className={HELP_WIDTH}
                 label="공항 픽업 추가 제공"
                 description={COPY.airportHelp}
                 checked={draft.airportOn}
@@ -1778,6 +1802,7 @@ function ProductDetailBody({
         ) : (
           <>
             <FormField
+              className={HELP_WIDTH}
               label="옵션 설정"
               group
               description={draft.optionOn ? COPY.optionHelp : undefined}
@@ -2129,7 +2154,9 @@ function ProductDetailBody({
               </Tag>
             </ReadField>
             <div className="-mt-3 flex flex-col gap-2">
-              <p className="body-small text-text-sub">{saleStatusHelp}</p>
+              <p className={cn("body-small text-text-sub", HELP_WIDTH)}>
+                {saleStatusHelp}
+              </p>
               {locked ? (
                 <p className="body-medium text-text-warning">
                   {product.reject?.reason ?? "등록된 반려 사유가 없습니다."}
@@ -2206,8 +2233,9 @@ function ProductDetailBody({
       </Section>
 
       {/*
-        하단 고정 바 (원본 `nv-bar`) — `[목록]  …  [처분] [수정 저장] [취소]`.
-        진한 버튼은 [수정 저장] 하나다. 처분 버튼은 상태가 정한다(목록과 같은 자격 규칙).
+        하단 고정 바 (원본 `nv-bar`) — `[목록]  …  [처분] [취소] [수정 저장]`.
+        진한 버튼은 [수정 저장] 하나고 **맨 오른쪽**이다 — 공지·FAQ·셀러 상세의 [취소][저장]과 같은 순서
+        (원본은 [수정 저장] 뒤에 [취소]). 처분 버튼은 상태가 정한다(목록과 같은 자격 규칙).
       */}
       <Card variant="soft" className="sticky bottom-6 z-10">
         <div className="flex items-center justify-between gap-2">
@@ -2231,10 +2259,10 @@ function ProductDetailBody({
                 반려 처리
               </Button>
             ) : null}
-            <Button onClick={save}>수정 저장</Button>
             <Button variant="secondary" onClick={() => onNavSelect(LIST_PATH)}>
               취소
             </Button>
+            <Button onClick={save}>수정 저장</Button>
           </div>
         </div>
       </Card>

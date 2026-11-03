@@ -6,7 +6,6 @@ import {
   Card,
   CardBody,
   CardHeader,
-  Divider,
   EmptyState,
   Gnb,
   IconButton,
@@ -23,10 +22,8 @@ import {
   TableTh,
   Tag,
   TextButton,
-  Tooltip,
   useToast,
 } from "../../components/ui";
-import { cn } from "../../lib/cn";
 import { lastPathSegment, usePathname } from "../../lib/router";
 import {
   STATUS_META as ORDER_STATUS_META,
@@ -39,11 +36,12 @@ import {
   LIST_PATH,
   PAGE_SIZE,
   PAGE_SIZES,
-  POLICY,
+  POLICY_ITEMS,
   SECTIONS,
   SELLER_SETTLE_PATH,
   TX_EMPTY,
   calcLinesOf,
+  calcNotesOf,
   downloadMessageOf,
   findStatementByNo,
   headlineOf,
@@ -52,12 +50,12 @@ import {
   payNotesOf,
   sellerSettlePathOf,
   txFootOf,
-  txNoteParts,
+  txNoteOf,
   txRulesOf,
   txTitleOf,
-  unpaidNoteOf,
   type Rich,
 } from "./SettlementStatementDetailPage.data";
+import { SettlementCalc } from "./SettlementCalc";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
 /* =========================================================================
@@ -65,14 +63,16 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *
  * ## 구성 — 원본 v0.4 `hqStmtPage` (proto.html 5472~5490)
  * ```
- * 머리: 정산 명세서 상세 · {번호} · {대상} · {회차} 명세서 · 매출 · 지급액 · 지급일 + 상태 배지
- * 지급 정보 · 정산 명세(계산 박스) · {YYYY년 MM월} 거래 내역(표 + 페이저 + 각주) · 정산 정책   (각각 접기)
- * [목록]                [다운로드] [셀러 정산에서 처리](셀러만) [확인] [취소]                   ← 하단 바
+ * 머리: 정산 명세서 상세 · {번호} · {대상} · {회차} + 상태 배지
+ * 정산 명세(공용 `SettlementCalc` + 계산 기준 안내 상자) · 지급 정보(+ 상태 안내 상자) ·
+ * {2026년 9월} 거래 내역(표 + 페이저 + 각주 · 행 클릭 → 주문 상세) · 정산 정책(목록)   (각각 접기)
+ * [목록]                [다운로드] [셀러 정산에서 처리](셀러만) [취소] [확인]                   ← 하단 바
  * ```
  * 경로 `/settle-statement/{명세서번호}` — 마지막 조각으로 찾고, 없거나 조각이 둘 이상이면 「찾을 수 없음」.
  *
  * ## 퍼블 범위
  * 고치는 값이 없다 — 접기 · 거래 내역 페이지 · [다운로드] 알림 · 이동뿐. [확인]·[취소]는 원본처럼 둘 다 목록으로.
+ * 카드 순서는 셀러 정산 상세와 같게 명세 먼저(원본은 지급 정보 먼저) — 가장 중요한 숫자가 위에.
  * 명세서가 바뀌면 `key` 로 처음부터(접힘·페이지가 다음 명세에 묻어가지 않게).
  *
  * ## 이 파일은 도메인을 모른다 — 줄 이름·문구·표기는 `./SettlementStatementDetailPage.data.ts`
@@ -112,6 +112,28 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       />
       {open ? <CardBody>{children}</CardBody> : null}
     </Card>
+  );
+}
+
+/** 안내 상자 — info 아이콘 + 목록(줄마다 굵은 낱말·셀러 정산 링크 유지). 줄이 없으면 그리지 않는다 */
+function NoteBox({ items, onLink }: { items: Rich[]; onLink: () => void }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="flex gap-2 rounded-medium bg-surface-sub px-4 py-3">
+      <Info
+        size={16}
+        strokeWidth={1.2}
+        aria-hidden
+        className="mt-0.5 shrink-0 text-icon-sub"
+      />
+      <ul className="body-small flex flex-col gap-1 text-text-sub">
+        {items.map((item, index) => (
+          <li key={index}>
+            <RichText parts={item} onLink={onLink} />
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -208,7 +230,6 @@ function StatementDetailBody({
   const start = (currentPage - 1) * pageSize;
   const pagedTx = txs.slice(start, start + pageSize);
   const foot = txFootOf(row);
-  const unpaidNote = unpaidNoteOf(row);
 
   return (
     <AppShell
@@ -235,6 +256,11 @@ function StatementDetailBody({
         />
       }
     >
+      <Section title={SECTIONS.calc}>
+        {/* 셀러 정산과 같은 산출 내역 부품 + 계산 기준 안내(본사면 직영 안내 먼저) */}
+        <SettlementCalc lines={calcLinesOf(row)} notes={calcNotesOf(row)} />
+      </Section>
+
       <Section title={SECTIONS.pay}>
         <InfoList>
           {payLinesOf(row).map((line) => (
@@ -252,75 +278,8 @@ function StatementDetailBody({
             </Tag>
           </InfoItem>
         </InfoList>
-        {payNotesOf(row).map((note, index) => (
-          <p key={index} className="body-small text-text-sub">
-            <RichText parts={note} onLink={toSellerMenu} />
-          </p>
-        ))}
-      </Section>
-
-      <Section title={SECTIONS.calc}>
-        {/* 원본 `amt(rows,'boxed stmt')` — 기준·소계·총액은 기본 행, 딸린 가감은 들여쓴다 */}
-        <dl
-          data-statement-calc
-          className="flex flex-col gap-2 rounded-medium p-4 outline-1 -outline-offset-1 outline-border"
-        >
-          {calcLinesOf(row).map((line) => (
-            <div key={line.label} className="flex flex-col gap-2">
-              {line.tone === "total" && <Divider />}
-              <div
-                className={cn(
-                  "flex items-center justify-between gap-4",
-                  line.tone === "sub" && "pl-4",
-                )}
-              >
-                <dt
-                  className={cn(
-                    "flex items-center gap-1",
-                    line.tone === "total"
-                      ? "body-large-bold text-text"
-                      : line.tone === "strong"
-                        ? "body-medium-bold text-text"
-                        : "body-medium text-text-sub",
-                  )}
-                >
-                  {line.label}
-                  {line.tip ? (
-                    <Tooltip content={line.tip}>
-                      <IconButton
-                        variant="ghost"
-                        size="xsmall"
-                        label={`${line.label} 도움말`}
-                        icon={<Info strokeWidth={1.2} aria-hidden />}
-                      />
-                    </Tooltip>
-                  ) : null}
-                </dt>
-                <dd
-                  className={cn(
-                    "tabular-nums",
-                    line.tone === "total"
-                      ? "body-large-bold text-text"
-                      : line.tone === "strong"
-                        ? "body-medium-bold text-text"
-                        : line.minus
-                          ? "body-medium text-text-critical"
-                          : line.info
-                            ? "body-medium text-text-minimal"
-                            : "body-medium text-text",
-                  )}
-                >
-                  {line.value}
-                </dd>
-              </div>
-            </div>
-          ))}
-        </dl>
-        {unpaidNote ? (
-          <p className="body-small text-text-sub">
-            <RichText parts={unpaidNote} onLink={toSellerMenu} />
-          </p>
-        ) : null}
+        {/* 상태 안내 — 한 상자에 목록으로(셀러 정산 링크 유지). 본사는 상태 안내가 없으면 상자도 없다 */}
+        <NoteBox items={payNotesOf(row)} onLink={toSellerMenu} />
       </Section>
 
       <Section title={txTitleOf(row)}>
@@ -357,9 +316,14 @@ function StatementDetailBody({
               ) : (
                 pagedTx.map((tx, index) => {
                   const orderStatus = ORDER_STATUS_META[tx.order.status];
-                  const note = txNoteParts(tx);
+                  const note = txNoteOf(tx);
                   return (
-                    <TableRow key={tx.order.id}>
+                    /* 행 어디를 눌러도 주문 상세(셀러 정산 상세와 같다) — 주문번호 링크는 키보드 경로로 유지 */
+                    <TableRow
+                      key={tx.order.id}
+                      clickable
+                      onClick={() => onNavSelect(orderPathOf(tx))}
+                    >
                       <TableTd className="tabular-nums">
                         {start + index + 1}
                       </TableTd>
@@ -385,8 +349,10 @@ function StatementDetailBody({
                         </Tag>
                       </TableTd>
                       <TableTd>
-                        {note.head}
-                        <span className="text-text-sub">{note.rest}</span>
+                        {note.strong}
+                        {note.muted ? (
+                          <span className="text-text-sub">{note.muted}</span>
+                        ) : null}
                       </TableTd>
                     </TableRow>
                   );
@@ -433,12 +399,16 @@ function StatementDetailBody({
       </Section>
 
       <Section title={SECTIONS.policy}>
-        <p className="body-small text-text-sub">
-          <RichText parts={POLICY} onLink={toSellerMenu} />
-        </p>
+        <ul className="body-small flex list-disc flex-col gap-1 pl-5 text-text-sub">
+          {POLICY_ITEMS.map((item, index) => (
+            <li key={index}>
+              <RichText parts={item} onLink={toSellerMenu} />
+            </li>
+          ))}
+        </ul>
       </Section>
 
-      {/* 하단 바 — 원본 `nvEditPage`: 좌 [목록] / 우 extraBtns + [확인](목록) + [취소](목록) */}
+      {/* 하단 바 — 원본 `nvEditPage` 버튼 그대로, 순서는 형제 상세 규칙: 좌 [목록] / 우 보조 → 주([확인]) 맨 오른쪽 */}
       <Card variant="soft" className="sticky bottom-6 z-10">
         <div className="flex items-center justify-between gap-2">
           <Button variant="secondary" onClick={toList}>
@@ -459,10 +429,10 @@ function StatementDetailBody({
                 셀러 정산에서 처리
               </Button>
             ) : null}
-            <Button onClick={toList}>확인</Button>
             <Button variant="secondary" onClick={toList}>
               취소
             </Button>
+            <Button onClick={toList}>확인</Button>
           </div>
         </div>
       </Card>

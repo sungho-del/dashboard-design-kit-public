@@ -162,7 +162,8 @@ describe("MemberDetailPage (S02-D 회원 상세)", () => {
 
       expect(within(account).getByText("2026.08.10")).toBeVisible();
       expect(within(account).getByText("2026.09.12")).toBeVisible();
-      expect(within(account).getByText("39,000원")).toBeVisible();
+      /* 포인트 = 포인트 원장 합 — 김도현은 원장이 없어 0(단위는 원본대로 「원」) */
+      expect(within(account).getByText("0원")).toBeVisible();
       expect(within(account).getByText("동의")).toBeVisible();
     });
 
@@ -494,7 +495,35 @@ describe("MemberDetailPage (S02-D 회원 상세)", () => {
       expect(
         within(account).getByText(/반납 지연 반복 · 분쟁 3건 접수/),
       ).toBeVisible();
-      expect(within(account).getByText("(2026.08.30 15:20)")).toBeVisible();
+      expect(within(account).getByText("· 2026.08.30 15:20")).toBeVisible();
+    });
+
+    /** 정지 회원에서 가장 먼저 읽을 값 — 상태 선택 바로 아래 첫 줄(가입일 앞) */
+    it("사유는 계정 상태 정보의 첫 줄이다", () => {
+      renderAt("minseo.jung@example.com");
+      const labels = Array.from(
+        section("계정 상태").querySelectorAll("dt"),
+      ).map((dt) => dt.textContent);
+
+      expect(labels.slice(0, 2)).toEqual(["정지 사유", "가입일"]);
+    });
+
+    /** 저장된 사유다 — 고르는 중인 상태와 짝짓지 않는다 */
+    it("다른 상태를 골라도 저장된 사유 줄은 그대로다", async () => {
+      const { user } = renderAt("minseo.jung@example.com");
+
+      await user.click(screen.getByRole("radio", { name: "정상" }));
+      expect(within(section("계정 상태")).getByText("정지 사유")).toBeVisible();
+    });
+
+    it("화면의 라벨 폭은 하나다 — 카드끼리 값 시작선이 맞는다", () => {
+      renderAt("minseo.jung@example.com");
+      const widths = new Set(
+        Array.from(document.querySelectorAll("dl dt")).map(
+          (dt) => (dt as HTMLElement).style.width,
+        ),
+      );
+      expect(widths).toEqual(new Set(["96px"]));
     });
 
     /** 12개월 미접속 **자동** 휴면에는 사유가 없다 — 빈 줄을 만들지 않는다 */

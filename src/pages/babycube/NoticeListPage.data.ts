@@ -3,226 +3,204 @@ import type { TagTone } from "../../components/ui";
 /* -------------------------------------------------------------------------
  * S19 공지사항 관리 — **도메인 층** (BabyCube 본사 운영 어드민)
  *
- * 짝이 되는 뼈대: `NoticeListPage.tsx` (레이아웃·상호작용, 도메인 무관)
+ * 짝이 되는 뼈대: `NoticeListPage.tsx`(목록) · `NoticeFormPage.tsx`(등록/수정 폼)
  * 화면 유형: **목록형** (`docs/screen-templates.md` §3-1)
  *
  * ## 갈아끼울 것 — 이 파일 전체
- * | 역할                | 실물 이름                    |
- * | ------------------- | ---------------------------- |
- * | 표 한 행의 타입     | `Notice`                     |
- * | 대상 구분 칩        | `AUDIENCES`                  |
- * | 상태 → 라벨·톤      | `STATUS_META` · `statusOf`   |
- * | 샘플 데이터         | `NOTICES`                    |
- * | 게시 기간 표기      | `periodParts`                |
- * | 본문 발췌 규칙      | `excerpt` · `EXCERPT_LENGTH` |
- * | 정렬 규칙           | `sortForList`                |
- * | 페이지당 행 수      | `PAGE_SIZE`                  |
+ * | 역할                | 실물 이름                              |
+ * | ------------------- | -------------------------------------- |
+ * | 표 한 행의 타입     | `Notice`                               |
+ * | 대상 전환 탭        | `AUDIENCES` · `audienceOf`             |
+ * | 상태 → 라벨·톤      | `STATUS_META`                          |
+ * | 샘플 데이터         | `NOTICES`                              |
+ * | 게시 기간 표기      | `periodParts`                          |
+ * | 본문 발췌 규칙      | `excerpt` · `EXCERPT_LENGTH`           |
+ * | 경로                | `LIST_PATH` · `listPathOf` · `formPathOf` · `NEW_KEY` |
  *
  * ## 뼈대가 이 파일에 기대하는 계약
- * - 행 타입은 `id`(고유키) · `date`(`YYYY-MM-DD HH:mm`) 를 갖는다
- * - `STATUS_META` 의 키는 `statusOf()` 가 돌려주는 값과 정확히 일치한다
- * - `AUDIENCES` 에는 **`"all"` 이 없다** — 아래 참고
- * - `periodParts` 는 `{ lead, tail, tailMuted }` 를 돌려준다.
- *   `tailMuted` 가 `true` 일 때만 뼈대가 꼬리 글자를 `text-minimal` 로 낮춘다
+ * - 행 타입은 `id`(고유키·상세 경로 조각) · `date`(`YYYY-MM-DD`) 를 갖는다
+ * - `STATUS_META` 의 키는 `Notice.status` 값과 정확히 일치한다
+ * - `AUDIENCES` 에는 **「전체」가 없다** — 첫 항목이 기본값이다
+ * - `periodParts` 는 `{ lead, tail, tailMuted }` 를 돌려준다
+ * - `NOTICES` 는 **보일 순서 그대로** 놓는다(뼈대는 정렬하지 않는다)
  *
- * ## 원본 어드민 대조 (`_plan/babycube-admin/chunks/3ev97mnz8g4z1.js` 모듈 31590)
- * 이 화면은 **공용 목록 셸(`20013`)을 쓰지 않는다.** 표 컴포넌트와 카드 프레임만 직접
- * 조립한 화면이라 필터바도, 엑셀 다운로드도 없다. 원본이 그리는 것은 이게 전부다:
- * ```
- * 대상 칩 2개 (고객 공지 / 셀러 공지)      ← 카드 **밖**, 카드 위
- * 카드[ 목록 (총 N건) + `+ 공지 작성` | 표 5열 | 페이지네이션 ]
- * ```
- * 컬럼은 `isPinned 고정` · `title 제목`(+본문 발췌) · `period 게시 기간` ·
- * `status 상태` · `createdAt 등록일` **순서**다.
+ * ## 원본 = 기획 v0.4 `plan-members/proto.html`
+ * - 목록 `SCREENS.notices` 3415-3432 · 샘플 `NOTICES` 3386-3394 · 저장 `noticeSave` 3397-3406
+ * - 폼 `DETAILS.noticeForm` 5009-5030(틀 `nvEditPage` 4734-4743)
+ * - `annotations.js` 등 설명 파일에는 공지 설명이 없다 — 코드가 정본이다
  *
- * ### ⚠️ 원본에 없어서 걷어낸 것 — 되살리지 말 것
- * - **상태 세그먼트 필터**(전체·게시중·게시 예정·게시 종료)와 **초기화 버튼**.
- *   원본 목록 파라미터는 `{ chips: { aud: [...] }, sortKey, sortDir, page, size }` 가
- *   전부다 — 좁히는 축은 **대상 칩 하나뿐**이다
- * - **고정 토글**(모달 푸터 버튼 + 토스트 + 목록 재정렬). 원본 `isPinned` 는
- *   **읽기 전용 배지**다. 목록에서 고정을 걸고 푸는 기능 자체가 없다 —
- *   고정 여부는 공지 작성/상세 화면에서 정한다
- * - **고정 우선 정렬.** 원본은 `sortKey: "createdAt", sortDir: "desc"` 하나뿐이다.
- *   고정을 위로 올리는 정렬은 우리가 지어낸 규칙이었다
+ * ## 샘플 = 원본 7건 글자 그대로 + 숨김 1건 (사용자 결정 2026-11-03)
+ * 원본 시드는 전부 `게시` 라 `숨김` 이 화면에 한 번도 나오지 않는다. 원본 글은 건드리지 않고
+ * **셀러 공지 1건(N-S22, 지난 점검 안내)** 만 더했다. 고객 3 · 셀러 5.
  *
- * ### 원본에 있었는데 우리가 빠뜨렸던 것 — 되살렸다
- * **제목 아래 본문 발췌 60자.** 원본 제목 셀은 링크 한 줄이 아니라 두 줄이다:
- * ```js
- * <Link className="linkish">{title}</Link>
- * <div className="muted">{body.length > 60 ? body.slice(0,60) + "…" : body}</div>
- * ```
+ * ## 상태는 **손으로 고르는 저장값**이다 (원본 `stat` = 게시/숨김)
+ * 게시 기간에서 파생하지 않는다 — 원본 폼의 「노출 여부」 세그먼트로 고른다.
+ * ⚠️ **기획 확인 필요**: 종료일이 지난 N-U29(06-01~08-31)도 `게시` 다(원본 그대로).
+ * 사용자 화면 노출을 기간이 정하는지 상태가 정하는지 원본에 없다.
  *
- * ## 대상 구분에 "전체"가 없는 이유 (원본도 그렇다)
- * 원본 칩은 `[["고객","고객 공지"], ["셀러","셀러 공지"]]` 둘뿐이고 기본값이 `고객` 이다.
- * 공지는 고객 **또는** 셀러 한쪽을 보고 쓰는 글이라(문체·안내 대상·게시 위치가 다르다)
- * 대상은 필터가 아니라 **작업 대상 전환**이다.
+ * ## 상태 색 (원본 결함 보정)
+ * 원본 `statusBadge` 표에 `게시` 키가 없어 `숨김` 과 같은 회색으로 그려진다(proto.html:1894-1922).
+ * 노출 중/숨김을 색으로 가르게 **게시 = success · 숨김 = default** 로 둔다(형제 「노출 = b-prog」 대응).
+ * ⚠️ 기획 확인 필요.
  *
- * ## 상태를 필드로 두지 않는 이유
- * 게시 상태는 게시 기간에서 **파생된다**(`statusOf`). 값으로 들고 있으면 기간을 고칠 때
- * 상태가 따라오지 않아, 같은 행이 "게시중"이라고 말하면서 종료된 기간을 함께 보여준다.
- *
- * ⚠️ **상태 어휘는 값 출처 불명이다.** 원본 `status` 는 API 가 주고, 공용 배지 맵(`15312`)에
- * 공지용 어휘가 따로 없다(`노출`·`숨김`·`임시저장` 같은 범용 낱말뿐이다).
- * 지금 어휘(게시중·게시 예정·게시 종료)는 우리가 기간에서 파생시킨 것이라 그대로 두었다 —
- * 실서비스 값이 확인되면 이 세 낱말만 갈아끼우면 된다.
- *
- * ## 상태 색 배정 (§3-1)
- * - `ongoing`(게시중) = 지금 사용자에게 노출 중 → **`success`**
- * - `scheduled`(게시 예정) · `ended`(게시 종료) = **둘 다 `default`**
- *   겹치지만, §3-1 이 묻는 "겹치는 쪽이 덜 중요한 상태인가"에 둘 다 해당한다.
- *   예정은 시간이 오면 자동으로 뜨고 종료는 이미 끝났다 — 지금 사람이 손댈 일이 없다.
+ * ## 정렬하지 않는다 — 「상단 고정」이 있어도 (사용자 결정 2026-11-03)
+ * 원본은 배열 순서 그대로 그린다(시드가 등록일 최신순, 새 글은 맨 앞에 붙는다).
+ * 폼의 「목록 상단에 고정(핀)」은 정렬에 쓰이지 않는다 — 시드에서는 고정 글이 대상별 최신 글이라
+ * 결과가 같다. ⚠️ 기획 확인 필요.
  * ---------------------------------------------------------------------- */
 
 export type NoticeAudience = "customer" | "seller";
-export type NoticeStatus = "ongoing" | "scheduled" | "ended";
+export type NoticeStatus = "posted" | "hidden";
 
 export interface Notice {
-  /** 고유 키 — 뼈대가 행 key 로 쓴다 (원본 `rowKey: e => e.id`) */
+  /** 고유 키 = 상세 경로 조각 (`/notices/N-U31`) */
   id: string;
   audience: NoticeAudience;
-  title: string;
-  /** 본문. 표에는 `excerpt()` 로 앞 60자만, 모달에는 전문이 나간다 */
-  body: string;
-  /** 상단 고정 여부 — **읽기 전용 배지**다(목록에서 토글하지 않는다) */
+  /** 상단 고정 — 목록에서는 배지만, 고치는 곳은 폼이다 */
   pinned: boolean;
+  title: string;
+  /** 본문. 목록에는 `excerpt()` 로 앞 60자만 */
+  body: string;
   /** 게시 시작일 `YYYY-MM-DD` */
   startsOn: string;
   /** 게시 종료일. `null` 이면 **상시** */
   endsOn: string | null;
-  /** 등록일시 `YYYY-MM-DD HH:mm`. 표에는 `ymd` 로 날짜만 낸다 */
+  /** 노출 여부 — 손으로 고르는 저장값(원본 `stat`) */
+  status: NoticeStatus;
+  /** 등록일 `YYYY-MM-DD` */
   date: string;
 }
 
-/**
- * 대상 구분 칩 — 원본 `u = [["고객","고객 공지"], ["셀러","셀러 공지"]]` 그대로.
- * 필터가 아니라 **작업 대상 전환**이라 "전체"가 없고, 첫 항목이 기본값이다.
- */
+/** 대상 전환 — 원본 `[['고객','고객 공지'],['셀러','셀러 공지']]`, 기본 고객 */
 export const AUDIENCES: { value: NoticeAudience; label: string }[] = [
   { value: "customer", label: "고객 공지" },
   { value: "seller", label: "셀러 공지" },
 ];
 
-/** 상태값 → 표시 라벨과 Tag tone. 키는 `statusOf()` 의 반환값과 일치해야 한다 */
+/** URL `?aud=` 값 → 대상. 모르는 값은 기본(고객) */
+export const audienceOf = (value: string | null): NoticeAudience =>
+  value === "seller" ? "seller" : "customer";
+
+export const audienceLabel = (audience: NoticeAudience) =>
+  AUDIENCES.find((item) => item.value === audience)?.label ?? "";
+
+/** 노출 여부 — 원본 폼 세그먼트 `게시`·`숨김` 순서 그대로 */
+export const STATUS_OPTIONS: { value: NoticeStatus; label: string }[] = [
+  { value: "posted", label: "게시" },
+  { value: "hidden", label: "숨김" },
+];
+
 export const STATUS_META: Record<
   NoticeStatus,
   { label: string; tone: TagTone }
 > = {
-  ongoing: { label: "게시중", tone: "success" },
-  scheduled: { label: "게시 예정", tone: "default" },
-  ended: { label: "게시 종료", tone: "default" },
+  posted: { label: "게시", tone: "success" },
+  hidden: { label: "숨김", tone: "default" },
 };
 
-/**
- * 샘플 데이터의 **기준일**. 게시 상태가 이 날짜를 기준으로 계산된다.
- * 실서비스로 이식하면 서버가 준 `status` 를 그대로 쓴다.
- */
-export const REFERENCE_TODAY = "2026-08-24";
-
+/** 원본 `NOTICES`(proto.html:3387-3393) 글자 그대로 + N-S22(숨김, 추가) */
 export const NOTICES: Notice[] = [
   {
-    id: "N-2026-041",
+    id: "N-U31",
     audience: "customer",
-    title: "추석 연휴 배송·회수 일정 안내",
-    body: "연휴 기간(9/24~9/28)에는 대여 상품의 배송과 회수가 순차 지연됩니다. 회수 예약은 연휴 전 영업일까지 신청해 주세요.",
     pinned: true,
-    startsOn: "2026-08-20",
-    endsOn: "2026-09-30",
-    date: "2026-08-20 09:00",
-  },
-  {
-    id: "N-2026-045",
-    audience: "customer",
-    title: "9월 신규 브랜드 입점 예고",
-    body: "9월 1일부터 유모차·카시트 신규 브랜드 4곳이 입점합니다. 사전 알림을 신청한 회원에게 쿠폰이 지급됩니다.",
-    pinned: false,
-    startsOn: "2026-09-01",
-    endsOn: "2026-09-30",
-    date: "2026-08-23 16:20",
-  },
-  {
-    id: "N-2026-039",
-    audience: "customer",
-    title: "안심케어 서비스 이용약관 개정 안내",
-    body: "파손 보상 범위와 자기부담금 기준이 변경됩니다. 개정 약관은 게시일로부터 적용됩니다.",
-    pinned: false,
-    startsOn: "2026-08-10",
+    title: "[안내] 여름 성수기 배송 일정 안내",
+    body: "7~8월 성수기에는 도서산간 지역 배송이 1~2일 지연될 수 있습니다.",
+    startsOn: "2026-07-01",
     endsOn: null,
-    date: "2026-08-10 14:00",
+    status: "posted",
+    date: "2026-07-01",
   },
   {
-    id: "N-2026-036",
+    id: "N-U30",
     audience: "customer",
-    title: "여름 휴가철 고객센터 운영 시간 변경",
-    body: "8월 1일부터 8월 10일까지 고객센터를 10시~16시로 단축 운영했습니다.",
     pinned: false,
-    startsOn: "2026-07-28",
-    endsOn: "2026-08-10",
-    date: "2026-07-28 10:30",
+    title: "[공지] 보증금 환급 안내 문구 개정",
+    body: "보증금은 검수 완료 후 7영업일 이내 환급됩니다(카드사에 따라 다소 차이가 있을 수 있습니다).",
+    startsOn: "2026-06-20",
+    endsOn: null,
+    status: "posted",
+    date: "2026-06-20",
   },
   {
-    id: "N-2026-044",
+    /* ⚠️ 기획 확인 필요: 「신규 가입 고객 대상」 vs 쿠폰 CP-2406-01 은 셀러 쿠폰·기간 12-31 */
+    id: "N-U29",
+    audience: "customer",
+    pinned: false,
+    title: "[이벤트] 첫 렌트 30% 쿠폰 오픈",
+    body: "신규 가입 고객 대상 첫 렌트 30% 할인 쿠폰이 발급됩니다.",
+    startsOn: "2026-06-01",
+    endsOn: "2026-08-31",
+    status: "posted",
+    date: "2026-06-01",
+  },
+  {
+    id: "N-S26",
     audience: "seller",
-    title: "정산 지급일 변경 안내 (9월부터)",
-    body: "9월 정산분부터 지급일이 매월 15일에서 10일로 앞당겨집니다. 계좌 정보를 미리 확인해 주세요.",
     pinned: true,
-    startsOn: "2026-08-22",
-    endsOn: "2026-09-22",
-    date: "2026-08-22 11:00",
+    title: "[정산] 7월 정산 명세 확인 요청 발송 안내 (7/1)",
+    body: "7월 1일에 6월분 정산 확인요청이 발송됩니다. 확인 기한은 3일입니다.",
+    startsOn: "2026-06-28",
+    endsOn: null,
+    status: "posted",
+    date: "2026-06-28",
   },
   {
-    id: "N-2026-046",
+    id: "N-S25",
     audience: "seller",
-    title: "셀러 등급 개편 사전 안내",
-    body: "9월 5일부터 등급 산정 기준에 리뷰 응답률이 추가됩니다. 개편 전 답글 대기 리뷰를 정리해 주세요.",
     pinned: false,
-    startsOn: "2026-09-05",
+    title: "[운영] 여름 성수기 배송 지연 대비 출고 가이드",
+    body: "출고 예정일보다 1일 이른 발송 처리를 권장합니다.",
+    startsOn: "2026-06-24",
     endsOn: null,
-    date: "2026-08-24 08:50",
+    status: "posted",
+    date: "2026-06-24",
   },
   {
-    id: "N-2026-042",
+    id: "N-S24",
     audience: "seller",
-    title: "상품 등록 이미지 가이드 개정",
-    body: "대표 이미지 규격이 1000×1000 이상으로 상향됩니다. 기존 상품은 9월 말까지 교체해 주세요.",
     pinned: false,
-    startsOn: "2026-08-18",
+    title: "[정책] 출고 이미지 등록 안내 — 미등록 시 분쟁 대조 근거 없음",
+    body: "렌트 발송 처리 시 주문건별 출고 이미지를 등록해주세요.",
+    startsOn: "2026-06-20",
     endsOn: null,
-    date: "2026-08-18 09:40",
+    status: "posted",
+    date: "2026-06-20",
   },
   {
-    id: "N-2026-040",
+    id: "N-S23",
     audience: "seller",
-    title: "셀러 어드민 2.0 사용 가이드",
-    body: "주문·정산 화면이 개편되었습니다. 달라진 점과 자주 묻는 질문을 정리했습니다.",
     pinned: false,
-    startsOn: "2026-08-05",
+    title: "[시스템] 상품 등록 폼 개편(옵션·기간 특가·인증 정보) 안내",
+    body: "상품 등록 폼에 렌트 수량·기간 특가·인증 정보·상품 주요 정보 섹션이 추가되었습니다.",
+    startsOn: "2026-06-15",
     endsOn: null,
-    date: "2026-08-05 13:00",
+    status: "posted",
+    date: "2026-06-15",
+  },
+  {
+    /* 원본에 없는 추가분 — 숨김 상태 시연(지난 점검 안내를 내린 글) */
+    id: "N-S22",
+    audience: "seller",
+    pinned: false,
+    title: "[시스템] 셀러 어드민 정기 점검 안내 (6/12)",
+    body: "6월 12일 02:00~05:00 정기 점검으로 셀러 어드민 접속이 제한됩니다.",
+    startsOn: "2026-06-10",
+    endsOn: "2026-06-12",
+    status: "hidden",
+    date: "2026-06-10",
   },
 ];
 
-/** 게시 기간에서 상태를 **계산**한다 (필드로 저장하지 않는 이유는 상단 주석 참고) */
-export const statusOf = (notice: Notice): NoticeStatus => {
-  if (notice.startsOn > REFERENCE_TODAY) return "scheduled";
-  if (notice.endsOn !== null && notice.endsOn < REFERENCE_TODAY) return "ended";
-  return "ongoing";
-};
+export const findNotice = (id: string) =>
+  NOTICES.find((notice) => notice.id === id);
+
+/** 날짜 표기 — 점 구분자 (`2026.07.01`) */
+export const ymd = (dateText: string) => dateText.replace(/-/g, ".");
 
 /**
- * 날짜 표기 — **날짜만, 점 구분자**. 원본 공용 포맷터(모듈 32916) 그대로다:
- * `e => e ? e.slice(0, 10).replace(/-/g, ".") : "-"`.
- * 게시 기간 열과 등록일 열이 **같은 이 함수**를 쓴다.
- */
-export const ymd = (dateText: string) =>
-  dateText.slice(0, 10).replace(/-/g, ".");
-
-/**
- * 게시 기간 표기 — 원본 `h()` 그대로다:
- * `${ymd(startDate)} ~ ${endDate ? ymd(endDate) : "상시"}`.
- *
- * ⚠️ 종료일이 없을 때 **"상시"로 바뀌는 것은 꼬리뿐**이다. 셀 전체를 "상시 게시"로
- * 갈아치우면 시작일이라는 실제 값이 화면에서 사라진다.
- * `tailMuted` 가 `true` 인 동안만 뼈대가 꼬리 농도를 낮춘다.
+ * 게시 기간 — 원본 `${start} ~ ${end || '상시'}`.
+ * 「상시」로 바뀌는 것은 **꼬리뿐**이다 — 시작일은 실제 값이라 남긴다.
  */
 export const periodParts = (notice: Notice) => ({
   lead: `${ymd(notice.startsOn)} ~ `,
@@ -230,36 +208,30 @@ export const periodParts = (notice: Notice) => ({
   tailMuted: notice.endsOn === null,
 });
 
-/** 모달용으로 이어 붙인 한 줄 */
-export const periodText = (notice: Notice) => {
-  const { lead, tail } = periodParts(notice);
-  return `${lead}${tail}`;
-};
-
-/** 제목 아래 본문 발췌의 길이 — 원본과 같은 60자 */
+/** 제목 아래 본문 발췌 길이 — 원본 60자 */
 export const EXCERPT_LENGTH = 60;
 
-/** 본문 발췌. 원본과 같이 넘치면 말줄임표 한 글자를 덧붙인다 */
 export const excerpt = (body: string) =>
   body.length > EXCERPT_LENGTH ? `${body.slice(0, EXCERPT_LENGTH)}…` : body;
 
-/**
- * 목록 정렬 규칙 — **등록일 최신순**.
- * 원본 목록 파라미터가 `sortKey: "createdAt", sortDir: "desc"` 하나뿐이다.
- * 고정 공지를 위로 올리지 않는다(그 규칙은 원본에 없다).
- */
-export const sortForList = (list: Notice[]) =>
-  [...list].sort((a, b) => b.date.localeCompare(a.date));
-
-/** 고정 배지 문구 */
 export const PIN_LABEL = "고정";
-
-/** 고정이 아닌 행의 표기 — 원본도 `"-"` 한 글자다 */
 export const EMPTY_CELL = "-";
 
-/**
- * 한 페이지에 보여줄 행 수.
- * 실서비스라면 원본 `DEFAULT_PAGE_SIZE` 지만 **대상별로 4건뿐이라 페이징 동작이
- * 보이도록** 작게 잡았다.
- */
-export const PAGE_SIZE = 3;
+/* ---- 경로 ---- */
+export const LIST_PATH = "/notices";
+/** 신규 작성 경로 조각 (`/notices/new`) */
+export const NEW_KEY = "new";
+
+/** 목록 경로 — 셀러 공지면 탭을 주소에 싣는다(돌아와도 보던 탭) */
+export const listPathOf = (audience: NoticeAudience) =>
+  audience === "seller" ? `${LIST_PATH}?aud=seller` : LIST_PATH;
+
+export const formPathOf = (id: string) => `${LIST_PATH}/${id}`;
+
+export const newPathOf = (audience: NoticeAudience) =>
+  `${LIST_PATH}/${NEW_KEY}${audience === "seller" ? "?aud=seller" : ""}`;
+
+/* ---- 문구 ---- */
+export const EMPTY_TITLE = (audience: NoticeAudience) =>
+  `등록된 ${audienceLabel(audience)}가 없습니다`;
+export const EMPTY_DESCRIPTION = "새 공지를 작성하면 이 목록에 쌓입니다.";

@@ -56,10 +56,16 @@ const LINE_HEIGHT = 24;
  * 블록으로 두면 textarea 높이가 그대로 래퍼 높이가 된다.
  */
 const fieldBaseClasses = cn(
-  "relative min-w-60 p-3",
+  "min-w-60 px-3 pt-3",
   "rounded-medium",
   "transition-[background-color] duration-100 ease-out",
 );
+
+/**
+ * 아래 패딩 — 카운터가 있으면 8(카운터 줄이 원본 실측 `bottom 8` 에 앉는다), 없으면 12.
+ * 배타적으로 하나만 방출한다(cn 은 병합하지 않는다).
+ */
+const bottomPadding = (showCount: boolean) => (showCount ? "pb-2" : "pb-3");
 
 /** 포커스: 2px / offset -2 / focus 색. hover 상태에서도 유지된다 */
 const fieldFocusClasses = cn(
@@ -85,8 +91,10 @@ function lengthOf(value: TextareaProps["value"]): number {
  * (`style_textareaCount` — `position: absolute; bottom: 8; right: 12`)다.
  * 나머지 색·경계선·타이포·상태는 §5 Input 규격을 그대로 준용한다.
  *
- * 카운터는 `maxLength`가 있을 때만 나타나며, 텍스트가 카운터 아래로 흘러
- * 겹치지 않도록 카운터가 보이는 동안 textarea에 아래쪽 여백을 확보한다.
+ * 카운터는 `maxLength`가 있을 때만 나타난다. **절대배치가 아니라 textarea 아래 자기 줄**에
+ * 오른쪽 정렬로 둔다(필드 기준 bottom 8 · right 12 는 같다). 절대배치일 때는 세로 리사이즈
+ * 손잡이(textarea 오른쪽 아래 모서리)와 카운터가 같은 자리에 포개졌다(2026-11-03).
+ * 자기 줄이라 글자가 카운터 밑으로 흐를 일도 없어 textarea 아래 여백(`pb-4`)도 필요 없다.
  */
 export function Textarea({
   invalid = false,
@@ -129,6 +137,7 @@ export function Textarea({
       data-invalid={invalid || undefined}
       className={cn(
         fieldBaseClasses,
+        bottomPadding(showCount),
         // 배경·경계선은 상태별로 한 번씩만 방출한다. cn()은 클래스 병합을 하지 않아
         // 같은 속성을 두 곳에서 내보내면 스타일시트 순서가 승자를 정하기 때문이다
         disabled
@@ -169,23 +178,19 @@ export function Textarea({
           "text-text placeholder:text-text-minimal",
           "disabled:cursor-not-allowed disabled:text-text-disabled disabled:placeholder:text-text-disabled",
           resizeClasses[resize],
-          // 카운터는 필드 기준 bottom 8 · 높이 16(body-small)이라 아래에서 24까지 차지한다.
-          // textarea의 콘텐츠 하단은 래퍼 패딩 때문에 이미 12 위이므로, 12를 더 비우면
-          // 마지막 줄이 카운터에 닿는다. 16을 비워 4px 여유를 남긴다
-          showCount && "pb-4",
           textareaClassName,
         )}
         {...props}
       />
 
       {showCount && (
-        // 원본에서 확인된 유일한 실측값: absolute bottom 8 / right 12
-        // (`style_textareaCount`). 클릭·드래그를 가로채지 않도록 pointer-events는 끈다
+        // 원본 실측 위치(필드 기준 bottom 8 / right 12 · `style_textareaCount`)를 **자기 줄**로 낸다 —
+        // 래퍼 pb-2 · px-3 이 그 자리다. textarea 와 4 띄워 리사이즈 손잡이와 겹치지 않는다
         <span
           id={countId}
           data-part="count"
           className={cn(
-            "pointer-events-none absolute right-3 bottom-2 select-none",
+            "mt-1 block text-right select-none",
             "body-small",
             disabled ? "text-text-disabled" : "text-text-minimal",
           )}

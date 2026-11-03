@@ -66,7 +66,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * | 데이터·타입·라벨·단위 | `GrowthStageListPage.data.ts` **전체**         |
  * | 등록 상품수 계산      | `.data.ts` 의 `stageCountsOf` + 상품 단계 배정 `stageOf` |
  * | 표 컬럼 구성          | 이 파일의 `<colgroup>` + `TableHead` + 본문 셀 |
- * | 행 액션               | `관리` 셀의 Button 2개 (수정·삭제)             |
+ * | 행 액션               | `관리` 셀의 Button 2개 (수정·삭제 — 행 [삭제]는 `criticalTonal`, 확인 창만 `critical`) |
  *
  * ## 검증은 **둘뿐이다**
  * 저장 전에 보는 것은 `명칭이 비었는가` · `시작 개월이 비었는가` 두 가지다(원본 `stageSave`).
@@ -258,11 +258,9 @@ export function GrowthStageListPage({
         /* 상태 대시·검색조건과 같은 층(§Card soft) */
         variant="soft"
         /*
-          남는 세로 공간을 표가 흡수한다. 4행짜리 설정 화면이라 기본값으로 두면
-          표 아래가 페이지 회색으로 넓게 비어 "덜 만든 화면"으로 읽힌다.
+          내용 높이로 둔다(fill·flex-1 없음) — 4행짜리 표를 화면 끝까지 늘리면 행 아래에
+          빈 흰 면이 450px 넘게 남아 오히려 빈 화면으로 읽혔다(주문 목록도 같은 이유로 뺐다)
         */
-        fill
-        className="flex-1"
         bodyClassName={dimWhile(status)}
         aria-busy={isBusy(status)}
         isLoading={status === "loading"}
@@ -339,7 +337,7 @@ export function GrowthStageListPage({
                     </Button>
                     <Button
                       size="small"
-                      variant="critical"
+                      variant="criticalTonal"
                       aria-label={`${stage.name} 삭제`}
                       onClick={() => setDeleteTarget(stage)}
                     >

@@ -83,7 +83,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * | 데이터·타입·라벨·단위 | `CategoryListPage.data.ts` **전체**            |
  * | 표 컬럼 구성          | 이 파일의 `<colgroup>` + `TableHead` + 본문 셀 |
  * | 상품수 계산·삭제 가드 | `.data.ts` 의 `productCountsOf`·`deleteBlockReasonOf` |
- * | 행 액션               | `관리` 셀의 버튼 5개                           |
+ * | 행 액션               | `관리` 셀의 버튼 5개 (행 [삭제]는 `criticalTonal`, 확인 창만 `critical` · 소분류는 [+ 하위] 자리를 비워 세로줄을 맞춘다) |
  *
  * ## 트리가 **둘**이라는 것이 이 화면의 첫 사실이다
  * 원본이 `categoryApi.tree("렌트" | "판매")` 로 아예 다른 트리를 받아 오고,
@@ -429,8 +429,12 @@ export function CategoryListPage({
                         onClick={() => toast(MOVED_MESSAGE)}
                         icon={<ChevronDown strokeWidth={1.2} aria-hidden />}
                       />
-                      {/* 소분류(3단계)가 마지막이라 그 아래로는 만들 수 없다 */}
-                      {canAddChild(category) && (
+                      {/*
+                        소분류(3단계)가 마지막이라 그 아래로는 만들 수 없다. 그래도 **자리는 남긴다** —
+                        빠지면 [이름변경][삭제]가 64px 당겨져 행마다 같은 버튼이 다른 세로줄에 선다.
+                        같은 버튼을 보이지 않게(`invisible`) 두어 폭을 맞추고, 읽기·포커스에서는 뺀다
+                      */}
+                      {canAddChild(category) ? (
                         <Button
                           size="small"
                           variant="secondary"
@@ -441,6 +445,12 @@ export function CategoryListPage({
                         >
                           + 하위
                         </Button>
+                      ) : (
+                        <span aria-hidden className="invisible">
+                          <Button size="small" variant="secondary" disabled>
+                            + 하위
+                          </Button>
+                        </span>
                       )}
                       <Button
                         size="small"
@@ -452,7 +462,7 @@ export function CategoryListPage({
                       </Button>
                       <Button
                         size="small"
-                        variant="critical"
+                        variant="criticalTonal"
                         aria-label={`${category.name} 삭제`}
                         onClick={() => requestDelete(category)}
                       >

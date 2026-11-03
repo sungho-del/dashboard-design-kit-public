@@ -50,7 +50,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *
  * ## 화면 유형: 목록형 (상세 없음 — 원본에도 없다)
  * 검색조건(`FilterBar`) + 데이터 테이블 + 페이지네이션. 행 클릭·체크박스·No·정렬·엑셀이 **없다**(원본).
- * 처리 열의 버튼만 누를 수 있고, 누르면 토스트만 뜬다(목록 상태는 그대로).
+ * 처리 열의 버튼만 누를 수 있고, 누르면 토스트만 뜬다(목록 상태는 그대로). 처리 열은 오른쪽 고정(1280 에서도 보인다).
  *
  * ## 이 파일은 도메인을 모른다 — 도메인은 `./TaxInvoiceListPage.data.ts` 에 있다
  *
@@ -71,6 +71,15 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * ## 걷어낸 것 (원본에 없다 — 되살리지 말 것)
  * 행 클릭 「계산서 미리보기」 모달 · 엑셀 · 안내 note
  * ====================================================================== */
+
+/*
+  처리 열 오른쪽 고정 — 셀러 정산 목록(`SellerSettlementPage.tsx` 의 `ACTION_*`)과 같은 값.
+  왼쪽 1px 선은 가상 요소, 본문 셀 배경은 행에서 물려받는다(줄무늬가 가려지지 않게)
+*/
+const ACTION_EDGE =
+  "before:absolute before:inset-y-0 before:left-0 before:w-px before:bg-divide before:content-['']";
+const ACTION_TH = `sticky right-0 z-2 ${ACTION_EDGE}`;
+const ACTION_TD = `sticky right-0 z-1 bg-inherit ${ACTION_EDGE}`;
 
 /** 표 열 수 — 로딩 스켈레톤이 쓴다. `TableHead` 와 함께 고칠 것 */
 const COLUMN_COUNT = 9;
@@ -211,10 +220,14 @@ export function TaxInvoiceListPage({
         }
       >
         <Table>
-          {/* `table-fixed` 라 폭 지정이 필수다. 합계가 곧 표 폭 — 좁은 창에서는 가로로 스크롤한다 */}
+          {/*
+            `table-fixed` 라 폭 지정이 필수다. 합계(1116)가 곧 표 폭 — 좁은 창(1280)에서는 표 안에서 가로로 민다.
+            계산서번호는 한 줄로(`TX-2609-0226` 굵게 + 좌우 여백) · 공급자는 늘 「BabyCube(본사)」라 그만큼만.
+            처리 열은 오른쪽에 붙박아 [발행]·[다운로드]가 스크롤 밖으로 사라지지 않게 한다
+          */}
           <colgroup>
-            <col className="w-33" />
-            <col className="w-38" />
+            <col className="w-36" />
+            <col className="w-32" />
             <col className="w-38" />
             <col className="w-25" />
             <col className="w-35" />
@@ -233,7 +246,7 @@ export function TaxInvoiceListPage({
               <TableTh>세액(VAT)</TableTh>
               <TableTh>합계</TableTh>
               <TableTh align="center">상태</TableTh>
-              <TableTh>처리</TableTh>
+              <TableTh className={ACTION_TH}>처리</TableTh>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -256,7 +269,9 @@ export function TaxInvoiceListPage({
                     /* 상세가 없어 행 클릭이 없다(원본) — 처리 버튼만 누른다 */
                     <TableRow key={row.no}>
                       <TableTd>
-                        <span className="body-medium-bold">{row.no}</span>
+                        <span className="body-medium-bold whitespace-nowrap">
+                          {row.no}
+                        </span>
                       </TableTd>
                       <TableTd>{row.supplier}</TableTd>
                       <TableTd>{row.buyer}</TableTd>
@@ -277,7 +292,7 @@ export function TaxInvoiceListPage({
                           {status.label}
                         </Tag>
                       </TableTd>
-                      <TableTd>
+                      <TableTd className={ACTION_TD}>
                         <Button
                           variant={action.variant}
                           size="small"

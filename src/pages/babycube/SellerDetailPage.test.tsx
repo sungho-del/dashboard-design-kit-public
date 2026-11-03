@@ -220,6 +220,18 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       expect(within(section("운영 정보")).getByText("0%")).toBeVisible();
     });
 
+    /** 읽는 값은 한 모양 — 0% 도 입점일·상품수·평점과 같은 정보 상자 안, 첫 줄이다 */
+    it("0% 는 운영 정보 상자의 첫 줄이고 「본사 고정」 이 붙는다", () => {
+      renderAt(HEADQUARTERS);
+      const operation = section("운영 정보");
+      const labels = Array.from(operation.querySelectorAll("dl dt")).map(
+        (dt) => dt.textContent,
+      );
+
+      expect(labels[0]).toBe("수수료율");
+      expect(within(operation).getByText("본사 고정")).toBeVisible();
+    });
+
     it("나머지(셀러 정보·위생인증·취급 유형)는 고치고 저장할 수 있다", async () => {
       const { user } = renderAt(HEADQUARTERS);
 
@@ -233,6 +245,15 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
   });
 
   describe("등록 상품 — 원본 sec.sellers_prod", () => {
+    /** 열 합이 카드보다 넓어지면 페이지가 아니라 표 안에서 스크롤돼야 한다 */
+    it("표는 가로 스크롤 상자 안에 있다", () => {
+      renderAt(NORMAL);
+      const table = within(section(/^등록 상품/)).getByRole("table");
+      expect(table.parentElement?.className.split(/\s+/)).toContain(
+        "overflow-x-auto",
+      );
+    });
+
     it("제목에 건수가 붙고 원본 9개 컬럼을 그 순서로 낸다", () => {
       renderAt(HEADQUARTERS);
 

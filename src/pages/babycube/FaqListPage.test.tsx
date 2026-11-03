@@ -2,33 +2,32 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { FaqListPage } from "./FaqListPage";
-import { FAQS } from "./FaqListPage.data";
+import { CATEGORIES, FAQS } from "./FaqListPage.data";
 
 /**
- * S20 FAQ 관리 — **동작** 테스트.
+ * S20 FAQ 관리 — **동작** 테스트 (기획 v0.4 `SCREENS.faqAdmin` 대조).
  *
- * 원본 대조(`chunks/3sxnfshlohpx5.js` 모듈 61180) 후의 계약을 지킨다.
  * 이 화면의 값어치는 표가 아니라 **관리 동작**에 있다 —
- * 카테고리 추가·이름 변경·삭제(빈 것만) · FAQ 다중 선택 삭제 · 카테고리 전환.
- * 렌더 여부만 보면 이 모두가 죽어도 통과한다.
+ * 카테고리 추가·이름 변경(중복 차단)·삭제(빈 것만) · FAQ 다중 선택 삭제 · 카테고리 전환 ·
+ * 행/질문 → 상세 · [FAQ 추가] → 등록 폼. 렌더 여부만 보면 이 모두가 죽어도 통과한다.
  */
-function renderPage() {
+function renderPage(path = "/faq-admin") {
+  window.history.replaceState(null, "", path);
   const onNavSelect = vi.fn();
-  const onNavOpenChange = vi.fn();
   const user = userEvent.setup();
 
   render(
     <ToastProvider position="bottom">
       <FaqListPage
         navOpen
-        onNavOpenChange={onNavOpenChange}
+        onNavOpenChange={vi.fn()}
         activeNav="/faq-admin"
         onNavSelect={onNavSelect}
       />
     </ToastProvider>,
   );
 
-  return { user, onNavSelect, onNavOpenChange };
+  return { user, onNavSelect };
 }
 
 function bodyRows(): HTMLElement[] {
@@ -59,84 +58,138 @@ async function pickCategory(
   );
 }
 
+/** 카테고리 태그 한 개의 글자(이름 + 건수) */
+function categoryTagText(name: string): string {
+  return (
+    screen.getByRole("button", { name: `${name} 이름 변경` }).parentElement
+      ?.textContent ?? ""
+  );
+}
+
 describe("FaqListPage", () => {
-  describe("표 구성 — 원본 컬럼 3열 + 선택 열", () => {
-    it("컬럼 이름과 순서가 원본과 같다", () => {
+  describe("샘플 — 원본 시드 7개 카테고리 · 18건", () => {
+    it("카테고리 7개가 원본 순서로, 건수는 FAQ 에서 센다", () => {
       renderPage();
 
-      const headers = within(screen.getByRole("table"))
-        .getAllByRole("columnheader")
-        .map((cell) => cell.textContent);
-
-      // 첫 열은 전체 선택 체크박스라 이름이 비어 있다
-      expect(headers.slice(1)).toEqual(["카테고리", "질문", "답변"]);
+      expect(screen.getByText("7개")).toBeVisible();
+      expect(
+        CATEGORIES.map((category) => categoryTagText(category.name)),
+      ).toEqual([
+        "회원2",
+        "상품1",
+        "주문/결제5",
+        "배송5",
+        "취소/교환/반품2",
+        "서비스1",
+        "기타2",
+      ]);
     });
 
-    it("colgroup 의 열 개수가 컬럼 개수와 같다", () => {
-      renderPage();
-
-      const cols = screen.getByRole("table").querySelectorAll("colgroup col");
-      expect(cols).toHaveLength(4);
-    });
-
-    it("답변 셀은 말줄임 처리된다 (원본 `cell-ell`)", () => {
-      renderPage();
-
-      const answerCell = within(bodyRows()[0]).getAllByRole("cell")[3];
-      expect(answerCell.querySelector("[data-table-ellipsis]")).not.toBeNull();
-    });
-  });
-
-  describe("⚠️ 원본에 없어서 걷어낸 것 — 되살아나면 여기서 걸린다", () => {
-    it("등록일 열이 없다 — 원본 컬럼은 3열이다", () => {
-      renderPage();
-
-      const headers = within(screen.getByRole("table"))
-        .getAllByRole("columnheader")
-        .map((cell) => cell.textContent);
-
-      expect(headers).not.toContain("등록일");
-    });
-
-    it("페이지네이션이 없다 — 원본 카드는 목록 헤더 + 표뿐이다", () => {
+    it("목록 (총 18건) · 원본 순서 · 페이지 없이 한 화면", () => {
       renderPage();
 
       expect(
+        screen.getByRole("heading", { name: "목록 (총 18건)" }),
+      ).toBeVisible();
+      expect(bodyRows()).toHaveLength(18);
+      expect(visibleQuestions()[0]).toBe("회원가입은 어떻게 하나요?");
+      expect(visibleQuestions()[17]).toBe("고객센터 운영시간이 어떻게 되나요?");
+      expect(
         screen.queryByRole("navigation", { name: "페이지네이션" }),
       ).not.toBeInTheDocument();
-      // 전체 6건이 한 화면에 다 나온다
-      expect(bodyRows()).toHaveLength(FAQS.length);
     });
 
-    it("PageHeader 에 안내 문장을 달지 않는다", () => {
+    it("원본 문안 그대로 — 포인트·전화번호 FAQ 도 고치지 않았다(기획 확인 필요)", () => {
+      renderPage();
+
+      expect(
+        screen.getByText(/렌트 결제에는 사용할 수 없습니다/),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/\(02-6406-1110\)/)).toBeInTheDocument();
+    });
+  });
+
+  describe("표 구성 — 원본 3열 + 선택 열", () => {
+    it("컬럼 이름과 순서가 원본과 같다 · No·등록일 없음", () => {
+      renderPage();
+
+      const headers = within(screen.getByRole("table"))
+        .getAllByRole("columnheader")
+        .map((cell) => cell.textContent);
+
+      expect(headers.slice(1)).toEqual(["카테고리", "질문", "답변"]);
+      expect(
+        screen.getByRole("table").querySelectorAll("colgroup col"),
+      ).toHaveLength(4);
+    });
+
+    it("카테고리는 배지 · 답변은 말줄임", () => {
+      renderPage();
+
+      const cells = within(bodyRows()[4]).getAllByRole("cell");
+      expect(cells[1]).toHaveTextContent("주문/결제");
+      expect(cells[3].querySelector("[data-table-ellipsis]")).not.toBeNull();
+    });
+
+    it("PageHeader 에 안내 문장을 달지 않는다 · 엑셀 없음", () => {
       renderPage();
 
       const header = screen.getByRole("heading", { name: "FAQ 관리" });
       expect(header.parentElement?.textContent).toBe("FAQ 관리");
+      expect(
+        screen.queryByRole("button", { name: /엑셀/ }),
+      ).not.toBeInTheDocument();
     });
   });
 
-  describe("카테고리 카드 — 태그마다 행 액션 2개 (원본 구조)", () => {
-    it("카테고리 개수와 태그별 FAQ 건수를 보여준다", () => {
-      renderPage();
+  describe("상세로 가기 — 행 클릭 · 질문 링크 · [FAQ 추가]", () => {
+    it("행 어디를 눌러도 그 FAQ 의 상세로 간다", async () => {
+      const { user, onNavSelect } = renderPage();
 
-      expect(screen.getByText("5개")).toBeVisible();
-      // 배송 2건 · 대여·반납 2건 · 결제·환불 1건 · 안심케어 1건 · 회원 0건
-      expect(
-        screen.getByRole("button", { name: "배송 이름 변경" }),
-      ).toBeVisible();
-      expect(screen.getByRole("button", { name: "회원 삭제" })).toBeVisible();
+      await user.click(within(bodyRows()[8]).getAllByRole("cell")[3]);
+
+      expect(onNavSelect).toHaveBeenCalledWith("/faq-admin/F-09");
+      // 미리보기 모달은 걷어냈다
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
+    it("질문 글자도 상세로 간다", async () => {
+      const { user, onNavSelect } = renderPage();
+
+      await user.click(
+        screen.getByRole("button", { name: "배송은 얼마나 걸리나요?" }),
+      );
+
+      expect(onNavSelect).toHaveBeenLastCalledWith("/faq-admin/F-09");
+    });
+
+    it("체크박스 클릭은 이동이 아니다", async () => {
+      const { user, onNavSelect } = renderPage();
+
+      await user.click(
+        screen.getByRole("checkbox", { name: "배송은 얼마나 걸리나요? 선택" }),
+      );
+
+      expect(onNavSelect).not.toHaveBeenCalled();
+      expect(
+        screen.getByRole("checkbox", { name: "배송은 얼마나 걸리나요? 선택" }),
+      ).toBeChecked();
+    });
+
+    it("[FAQ 추가] 는 등록 폼으로 간다", async () => {
+      const { user, onNavSelect } = renderPage();
+
+      await user.click(screen.getByRole("button", { name: "FAQ 추가" }));
+
+      expect(onNavSelect).toHaveBeenCalledWith("/faq-admin/new");
+    });
+  });
+
+  describe("카테고리 카드 — 태그마다 행 액션 2개", () => {
     it("태그마다 이름 변경·삭제 버튼이 붙는다 — '전체'를 골라도 잠기지 않는다", () => {
       renderPage();
 
-      /*
-        예전 구조에서는 칩을 고른 뒤 카드 헤더의 버튼을 눌렀고, `전체` 를 고르면
-        가리킬 대상이 없어 두 버튼이 잠겼다. 원본처럼 태그마다 달면 그 상태가 없다.
-        (기본 선택은 `전체` 인 채로 확인한다)
-      */
-      ["배송", "대여·반납", "결제·환불", "안심케어", "회원"].forEach((name) => {
+      CATEGORIES.forEach(({ name }) => {
         expect(
           screen.getByRole("button", { name: `${name} 이름 변경` }),
         ).toBeEnabled();
@@ -156,9 +209,13 @@ describe("FaqListPage", () => {
         within(modal).getByRole("heading", { name: "FAQ 카테고리 수정" }),
       ).toBeVisible();
       expect(within(modal).getByRole("textbox")).toHaveValue("배송");
+      expect(within(modal).getByRole("textbox")).toHaveAttribute(
+        "placeholder",
+        "카테고리명 (예: 배송)",
+      );
     });
 
-    it("이름을 바꾸면 태그와 표의 배지가 함께 바뀐다", async () => {
+    it("이름을 바꾸면 태그·칩·표의 배지가 함께 바뀐다", async () => {
       const { user } = renderPage();
 
       await user.click(screen.getByRole("button", { name: "배송 이름 변경" }));
@@ -172,44 +229,82 @@ describe("FaqListPage", () => {
       expect(
         await screen.findByText("카테고리가 수정되었습니다."),
       ).toBeVisible();
-      expect(
-        screen.getByRole("button", { name: "배송·수령 이름 변경" }),
-      ).toBeVisible();
-      // 표의 배지도 새 이름이어야 한다 — 두 곳이 갈리면 화면이 거짓말을 한다
-      const categoryCell = within(bodyRows()[0]).getAllByRole("cell")[1];
-      expect(categoryCell).toHaveTextContent("배송·수령");
+      expect(categoryTagText("배송·수령")).toBe("배송·수령5");
+      expect(within(bodyRows()[8]).getAllByRole("cell")[1]).toHaveTextContent(
+        "배송·수령",
+      );
+      await pickCategory(user, "배송·수령");
+      expect(bodyRows()).toHaveLength(5);
     });
 
-    it("빈 이름으로 저장하면 원본 문구로 막는다", async () => {
+    it("빈 이름으로 저장하면 칸 아래 원본 문구로 막는다", async () => {
       const { user } = renderPage();
 
       await user.click(screen.getByRole("button", { name: "카테고리 추가" }));
+      await user.type(
+        within(screen.getByRole("dialog")).getByRole("textbox"),
+        "   ",
+      );
       await user.click(screen.getByRole("button", { name: "저장" }));
 
       expect(screen.getByText("카테고리명을 입력해주세요.")).toBeVisible();
-      // 모달은 닫히지 않는다
       expect(screen.getByRole("dialog")).toBeVisible();
+      expect(screen.getByText("7개")).toBeVisible();
     });
 
-    it("카테고리를 추가하면 태그와 필터 칩에 함께 나타난다", async () => {
+    it("이미 있는 이름이면 막는다(원본 3482) — 자기 이름 그대로 저장은 통과", async () => {
+      const { user } = renderPage();
+
+      await user.click(screen.getByRole("button", { name: "카테고리 추가" }));
+      await user.type(
+        within(screen.getByRole("dialog")).getByRole("textbox"),
+        " 배송 ",
+      );
+      await user.click(screen.getByRole("button", { name: "저장" }));
+
+      expect(screen.getByText("이미 있는 카테고리입니다.")).toBeVisible();
+      expect(screen.getByText("7개")).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "취소" }));
+
+      // 다른 카테고리 이름으로 바꾸는 것도 막힌다
+      await user.click(screen.getByRole("button", { name: "회원 이름 변경" }));
+      const input = within(await screen.findByRole("dialog")).getByRole(
+        "textbox",
+      );
+      await user.clear(input);
+      await user.type(input, "기타");
+      await user.click(screen.getByRole("button", { name: "저장" }));
+      expect(screen.getByText("이미 있는 카테고리입니다.")).toBeVisible();
+
+      // 자기 이름 그대로는 통과
+      await user.clear(input);
+      await user.type(input, "회원");
+      await user.click(screen.getByRole("button", { name: "저장" }));
+      expect(
+        await screen.findByText("카테고리가 수정되었습니다."),
+      ).toBeVisible();
+    });
+
+    it("추가하면 태그와 칩에 나타나고, 빈 카테고리라 칩을 고르면 빈 상태다", async () => {
       const { user } = renderPage();
 
       await user.click(screen.getByRole("button", { name: "카테고리 추가" }));
       await user.type(
         within(await screen.findByRole("dialog")).getByRole("textbox"),
-        "쿠폰",
+        "이벤트",
       );
       await user.click(screen.getByRole("button", { name: "저장" }));
 
       expect(
         await screen.findByText("카테고리가 추가되었습니다."),
       ).toBeVisible();
-      expect(screen.getByText("6개")).toBeVisible();
+      expect(screen.getByText("8개")).toBeVisible();
+      expect(categoryTagText("이벤트")).toBe("이벤트0");
+
+      await pickCategory(user, "이벤트");
+      expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
       expect(
-        within(screen.getByRole("radiogroup", { name: "카테고리" })).getByRole(
-          "radio",
-          { name: "쿠폰" },
-        ),
+        screen.getByRole("heading", { name: "목록 (총 0건)" }),
       ).toBeVisible();
     });
   });
@@ -218,28 +313,36 @@ describe("FaqListPage", () => {
     it("FAQ가 남아 있으면 모달을 열지 않고 이유를 알린다", async () => {
       const { user } = renderPage();
 
-      await user.click(screen.getByRole("button", { name: "배송 삭제" }));
+      await user.click(screen.getByRole("button", { name: "주문/결제 삭제" }));
 
       expect(
         await screen.findByText(
-          "'배송' 카테고리에 FAQ 2건이 있어 삭제할 수 없습니다. 먼저 다른 카테고리로 옮겨주세요.",
+          "'주문/결제' 카테고리에 FAQ 5건이 있어 삭제할 수 없습니다. 먼저 다른 카테고리로 옮겨주세요.",
         ),
       ).toBeVisible();
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-      // 카테고리는 그대로 남는다
-      expect(screen.getByText("5개")).toBeVisible();
+      expect(screen.getByText("7개")).toBeVisible();
     });
 
-    it("빈 카테고리는 확인 모달을 거쳐 삭제된다", async () => {
+    it("추가한 빈 카테고리는 확인 모달(대상 이름 없음)을 거쳐 삭제된다", async () => {
       const { user } = renderPage();
 
-      await user.click(screen.getByRole("button", { name: "회원 삭제" }));
+      await user.click(screen.getByRole("button", { name: "카테고리 추가" }));
+      await user.type(
+        within(await screen.findByRole("dialog")).getByRole("textbox"),
+        "이벤트",
+      );
+      await user.click(screen.getByRole("button", { name: "저장" }));
+      await pickCategory(user, "이벤트");
+
+      await user.click(screen.getByRole("button", { name: "이벤트 삭제" }));
 
       const modal = await screen.findByRole("dialog");
       expect(
         within(modal).getByRole("heading", { name: "FAQ 카테고리 삭제" }),
       ).toBeVisible();
-      // 원본 GateBody — 규칙 + 되돌릴 수 없다는 경고
+      // 원본 UI-323 — 대상 이름을 적지 않는다
+      expect(within(modal).queryByText("이벤트")).not.toBeInTheDocument();
       expect(within(modal).getByText("빈 카테고리만 삭제됩니다")).toBeVisible();
       expect(
         within(modal).getByText("삭제 후에는 되돌릴 수 없습니다."),
@@ -250,10 +353,11 @@ describe("FaqListPage", () => {
       expect(
         await screen.findByText("카테고리가 삭제되었습니다."),
       ).toBeVisible();
-      expect(screen.getByText("4개")).toBeVisible();
+      expect(screen.getByText("7개")).toBeVisible();
+      // 보고 있던 카테고리를 지우면 「전체」로 돌아간다
       expect(
-        screen.queryByRole("button", { name: "회원 삭제" }),
-      ).not.toBeInTheDocument();
+        screen.getByRole("heading", { name: "목록 (총 18건)" }),
+      ).toBeVisible();
     });
   });
 
@@ -261,22 +365,15 @@ describe("FaqListPage", () => {
     it("고른 카테고리의 FAQ만 남는다", async () => {
       const { user } = renderPage();
 
-      await pickCategory(user, "대여·반납");
+      await pickCategory(user, "취소/교환/반품");
 
       expect(visibleQuestions()).toEqual([
-        "대여 기간을 연장할 수 있나요?",
-        "반납할 때 포장은 어떻게 하나요?",
+        "주문 취소는 언제까지 가능한가요?",
+        "교환·반품은 어떻게 신청하나요?",
       ]);
-      expect(screen.getByText("총 2건")).toBeVisible();
-    });
-
-    it("FAQ가 없는 카테고리는 빈 상태가 된다", async () => {
-      const { user } = renderPage();
-
-      await pickCategory(user, "회원");
-
-      expect(screen.getByText("등록된 FAQ가 없습니다")).toBeVisible();
-      expect(screen.queryByRole("table")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "목록 (총 2건)" }),
+      ).toBeVisible();
     });
 
     it("카테고리를 바꾸면 선택이 비워진다 — 보이지 않는 행을 지우지 않는다", async () => {
@@ -285,12 +382,11 @@ describe("FaqListPage", () => {
       await user.click(screen.getByRole("checkbox", { name: "전체 선택" }));
       expect(screen.getByRole("checkbox", { name: "전체 선택" })).toBeChecked();
 
-      await pickCategory(user, "대여·반납");
+      await pickCategory(user, "회원");
 
       expect(
         screen.getByRole("checkbox", { name: "전체 선택" }),
       ).not.toBeChecked();
-      // 선택이 남아 있었다면 이 삭제가 보이지 않는 행까지 지운다
       await user.click(screen.getByRole("button", { name: "선택 삭제" }));
       expect(await screen.findByText("선택된 FAQ가 없습니다.")).toBeVisible();
     });
@@ -301,14 +397,13 @@ describe("FaqListPage", () => {
       const { user } = renderPage();
 
       expect(screen.getByRole("button", { name: "선택 삭제" })).toBeEnabled();
-
       await user.click(screen.getByRole("button", { name: "선택 삭제" }));
 
       expect(await screen.findByText("선택된 FAQ가 없습니다.")).toBeVisible();
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
-    it("한 건을 지우면 제목에 건수를 붙이지 않는다 (원본 규칙)", async () => {
+    it("한 건을 지우면 제목에 건수를 붙이지 않고, 태그 건수도 준다", async () => {
       const { user } = renderPage();
 
       await user.click(
@@ -328,12 +423,13 @@ describe("FaqListPage", () => {
 
       expect(await screen.findByText("삭제되었습니다.")).toBeVisible();
       expect(bodyRows()).toHaveLength(FAQS.length - 1);
+      expect(categoryTagText("배송")).toBe("배송4");
     });
 
     it("여러 건이면 제목과 완료 문구에 건수가 붙는다", async () => {
       const { user } = renderPage();
 
-      await pickCategory(user, "대여·반납");
+      await pickCategory(user, "기타");
       await user.click(screen.getByRole("checkbox", { name: "전체 선택" }));
       await user.click(screen.getByRole("button", { name: "선택 삭제" }));
 
@@ -345,7 +441,12 @@ describe("FaqListPage", () => {
       await user.click(within(modal).getByRole("button", { name: "삭제" }));
 
       expect(await screen.findByText("2건 삭제되었습니다.")).toBeVisible();
-      expect(screen.getByText("등록된 FAQ가 없습니다")).toBeVisible();
+      expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
+      // 빈 카테고리가 되었으니 이제 삭제 확인 창이 열린다
+      await user.click(screen.getByRole("button", { name: "기타 삭제" }));
+      expect(
+        await screen.findByRole("heading", { name: "FAQ 카테고리 삭제" }),
+      ).toBeVisible();
     });
 
     it("취소하면 아무것도 지워지지 않는다", async () => {
@@ -354,6 +455,9 @@ describe("FaqListPage", () => {
       await user.click(screen.getByRole("checkbox", { name: "전체 선택" }));
       await user.click(screen.getByRole("button", { name: "선택 삭제" }));
       const modal = await screen.findByRole("dialog");
+      expect(
+        within(modal).getByRole("heading", { name: "FAQ 삭제 (18건)" }),
+      ).toBeVisible();
       await user.click(within(modal).getByRole("button", { name: "취소" }));
 
       await waitFor(() =>
@@ -363,38 +467,25 @@ describe("FaqListPage", () => {
     });
   });
 
-  describe("FAQ 추가", () => {
-    it("버튼 문구는 원본대로 'FAQ 추가'다", async () => {
-      const { user } = renderPage();
+  describe("?preview= 데이터 상태", () => {
+    it("loading — 본문은 뼈대, 건수는 그대로", () => {
+      renderPage("/faq-admin?preview=loading");
 
-      await user.click(screen.getByRole("button", { name: "FAQ 추가" }));
-
-      expect(await screen.findByText("FAQ 추가 화면을 엽니다")).toBeVisible();
-    });
-  });
-
-  describe("질문 → FAQ 미리보기", () => {
-    it("질문을 누르면 답변 전문이 모달에 뜬다", async () => {
-      const { user } = renderPage();
-
-      const faq = FAQS[0];
-      await user.click(screen.getByRole("button", { name: faq.question }));
-
-      const sheet = await screen.findByRole("dialog");
       expect(
-        within(sheet).getByRole("heading", { name: "FAQ 미리보기" }),
-      ).toBeVisible();
-      expect(within(sheet).getByRole("term")).toHaveTextContent("카테고리");
-      expect(within(sheet).getByRole("definition")).toHaveTextContent("배송");
-      expect(within(sheet).getByText(faq.answer)).toBeVisible();
+        screen.queryByRole("button", { name: FAQS[0].question }),
+      ).toBeNull();
+      expect(bodyRows()).toHaveLength(5);
     });
 
-    it("행 전체는 눌리지 않는다 — 원본에서 링크는 질문 하나다", async () => {
-      const { user } = renderPage();
+    it("empty — 원본 공용 빈 문구", () => {
+      renderPage("/faq-admin?preview=empty");
 
-      await user.click(within(bodyRows()[0]).getAllByRole("cell")[3]);
-
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
+      expect(
+        screen.getByText(
+          "조건을 변경하거나 필터를 초기화한 뒤 다시 조회해 주세요.",
+        ),
+      ).toBeVisible();
     });
   });
 });

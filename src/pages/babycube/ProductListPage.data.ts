@@ -739,8 +739,10 @@ export const salePriceOf = (product: Product) =>
   Math.max(0, (product.saleBase ?? 0) - (product.saleDiscount ?? 0));
 
 /** "1,300원/일" — 렌트 단위는 일 고정. 판매 건이면 "-" 자리를 뼈대가 채우므로 렌트만 다룬다 */
-export const rentPriceText = (product: Product) =>
-  won(rentPriceOf(product)) + "/일";
+/** 렌트 일 단가 — 목록의 렌트 원가·할인·렌트가 세 열이 같은 단위(원/일)를 쓴다 */
+export const perDay = (value: number) => won(value) + "/일";
+
+export const rentPriceText = (product: Product) => perDay(rentPriceOf(product));
 
 /**
  * 화면 상단 **상시 안내 배너**(원본 `data-area="products.note"`).

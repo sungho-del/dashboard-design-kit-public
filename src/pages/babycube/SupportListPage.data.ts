@@ -1,64 +1,59 @@
 import type { TagTone } from "../../components/ui";
+import { MEMBERS } from "./MemberListPage.data";
 
 /* -------------------------------------------------------------------------
  * S22 문의 관리 — **도메인 층** (BabyCube 본사 운영 어드민)
+ * 기준 기획: v0.4 `SCREENS.support`(proto.html 4083~4119) · 데이터 `INQUIRIES`·`SELLER_ASKS`(4067~4082) ·
+ * 필터 설정 `FILTERS.support`(2069~2074) · 상태 툴팁 `STAT_TIP`(2828~2829)
  *
- * 짝이 되는 뼈대: `SupportListPage.tsx` (레이아웃·상호작용, 도메인 무관)
+ * 짝이 되는 뼈대: `SupportListPage.tsx` · 상세 `SupportDetailPage.*`(`/support/{문의 ID}`)
  * 화면 유형: **목록형** (`docs/screen-templates.md` §3-1)
  *
  * ## 갈아끼울 것 — 이 파일 전체
- * | 역할                 | 실물 이름                              |
- * | -------------------- | -------------------------------------- |
- * | 탭(고객/셀러)        | `AUDIENCE_TABS`                        |
- * | 고객 문의 행 타입    | `CustomerInquiry` · `CUSTOMER_INQUIRIES` |
- * | 셀러 문의 행 타입    | `SellerAsk` · `SELLER_ASKS`            |
- * | 상태 → 라벨·톤·설명  | `STATUS_META`                          |
- * | 문의 유형            | `TYPE_LABELS` · `TYPE_FILTERS`         |
- * | 검색 조건·기간 기준  | `SEARCH_FIELDS` · `PERIOD_FIELDS`      |
- * | 셀러 요약 라벨       | `SELLER_SUMMARY`                       |
- * | 페이지당 행 수       | `PAGE_SIZE`                            |
+ * | 역할                    | 실물 이름                                   |
+ * | ----------------------- | ------------------------------------------- |
+ * | 탭(고객/셀러)           | `AUDIENCE_TABS` · `SELLER_TAB_QUERY`        |
+ * | 고객 문의 행            | `CustomerInquiry` · `CUSTOMER_INQUIRIES`    |
+ * | 셀러 문의 행            | `SellerAsk` · `SELLER_ASKS`                 |
+ * | 상태 → 라벨·톤·툴팁     | `STATUS_META` · `FILTERS` · `DEFAULT_FILTER`|
+ * | 문의 유형               | `TYPE_LABELS` · `TYPE_FILTERS`              |
+ * | 검색 조건·기간 기준     | `SEARCH_FIELDS` · `PERIOD_FIELDS`           |
+ * | 셀러 요약 라벨          | `SELLER_SUMMARY`                            |
+ * | 검색조건 요약           | `filterSummary`                             |
+ * | 상세 경로               | `LIST_PATH` · `detailPathOf`                |
  *
  * ## 뼈대가 이 파일에 기대하는 계약
- * - 두 행 타입 모두 `id`(고유키) · `date`(접수일 `YYYY-MM-DD HH:mm`) 를 갖는다
- * - `CustomerInquiry.answeredAt` 은 답변일. **미답변이면 `null`** 이고,
- *   답변일 기준 기간 필터에서 빠진다
- * - `STATUS_FILTERS[0].value` · `TYPE_FILTERS[0].value` 는 `"all"`(필터 해제)
- * - `SEARCH_FIELDS[0]` · `PERIOD_FIELDS[0]` 이 **기본값**이다 —
- *   뼈대가 `useState(SEARCH_FIELDS[0].value)` 로 받아 가므로 문자열을 뼈대에 박지 않는다
+ * - 두 행 타입 모두 `id`(고유키 — 고객 `Q-…` · 셀러 `SQ-…`) · `date`(접수일 `YYYY-MM-DD HH:mm`) 를 갖는다.
+ *   상세 경로는 `/support/{id}` 하나이고 ID 로 고객·셀러를 가른다
+ * - **배열 순서가 표의 순서**다 — 원본도 정렬하지 않고 최신순 배열을 그대로 그린다
+ * - `CustomerInquiry.answeredAt` 은 답변일. **미답변이면 `null`** 이고, 답변일 기준 기간 필터에서 빠진다
+ * - `answer` 는 등록된 답변 — 상세의 답변 입력칸을 채운다(미답변이면 빈 문자열)
+ * - `SEARCH_FIELDS[0]` · `PERIOD_FIELDS[0]` · `TYPE_FILTERS[0]`(`all`) 이 기본값이다
  *
- * ## 원본 어드민 대조 (`_plan/babycube-admin/chunks/1au6ppob25_5m.js` 모듈 45533)
- * 이 화면은 **탭마다 몸통이 통째로 다르다.** 원본이 두 컴포넌트(`j`, `y`)를 따로 두고
- * 탭 칩으로 갈아 끼운다:
- * ```
- * 탭 칩: [고객 문의][셀러 문의]           ← 기본 "고객 문의"
+ * ## 샘플 — 원본 6 + 3건 그대로, **사람만 우리 공통 데이터로** (사용자 결정 2026-11-03)
+ * 문구·유형·상태·ID 는 원본 그대로다. 바꾼 것은 둘뿐이다.
+ * 1. 고객 문의의 회원 → `MEMBERS`(이름을 거기서 읽는다). 원본 회원의 상태(휴면·정지)를 지켰다
+ *    | 원본           | 우리      | 근거                                                         |
+ *    | -------------- | --------- | ------------------------------------------------------------ |
+ *    | Q-8841 정하늘  | 노하린    | 주문 U-S35(09-10 · 포인트 3,000 사용) — 문의 「3,000원 사용」  |
+ *    | Q-8840 최민호(휴면) | 구민재(휴면) | 원본 상태 유지                                       |
+ *    | Q-8838 이준영  | 박수진    | 정상 회원                                                    |
+ *    | Q-8835 박서연  | 백도윤    | 주문 U-R18 반납완료(10-09) — 「반납 후 포토 리뷰」            |
+ *    | Q-8831 강지우(정지) | 신우진(정지) | 원본 상태 유지                                       |
+ *    | Q-8828 윤서아  | 윤서아    | 회원 상세 마케팅 수신 미동의 — 답변 「해지 처리」와 맞는다    |
+ * 2. 날짜 → 주문(9~10월) 뒤 · 시연 기준일(2026-10-19) 이전으로 **간격을 지켜** 옮겼다
+ *    (고객 06.18~06.21 → 10.15~10.18 · 셀러 06.30·07.02·07.03 → 10.16·10.18·10.19).
+ *    본문·답변 속 날짜·달도 함께 옮겼다(「6/21 수정 배포」→「10/18」 · 「6월 정산」→「9월」 등)
  *
- * 고객 문의 : 상태 대시(툴팁 O) → 검색조건 바 → 카드[총 N건 + 표 7열 + 페이지네이션]
- *             컬럼 회원명·유형·제목·내용·접수일·답변일·상태
- * 셀러 문의 : 요약 2칸(미답변/전체) → 카드[표 5열]        ← 필터도 목록 헤더도 페이저도 없다
- *             컬럼 셀러·제목·내용·접수일·상태
- * ```
- *
- * ### ⚠️ 원본에 없어서 걷어낸 것 — 되살리지 말 것
- * - **셀러 요약의 증감(±건)과 비교 기준("어제 대비"·"지난주 대비").**
- *   원본 `statrow` 는 **라벨과 건수 두 줄이 전부**다. 그 수치는 우리가 지어낸 것이었다
- * - **상태 세그먼트.** 원본 필터 설정이 `chip: { key: "stat", dash: true, … }` 라
- *   상태 축을 **건수 카드로만** 그린다. 세그먼트를 함께 두면 한 축에 컨트롤이 둘이 된다
- * - **엑셀 다운로드.** 이 화면은 공용 목록 셸(`20013`)을 쓰지 않아 툴바 버튼이 없다
- * - **답변 등록**(모달 푸터 + 상태 변경 + 토스트). 원본 목록에 조치가 없다 —
- *   제목이 상세(`/inquiry-detail?id=`)로 나가고, 답변은 거기서 한다
- * - **유형 5종.** 원본 유형 셀렉트는 `회원정보 · 포인트 · 플랫폼 오류` **3종**이다.
- *   `배송·회수` 와 `정산` 은 우리가 늘린 것이라 지웠다
- * - **셀러 탭의 유형·답변일 열.** 원본 셀러 컬럼은 5열이고 그 둘이 없다
- *
- * ### 원본에 있었는데 우리가 빠뜨렸던 것 — 되살렸다
- * - **상태 대시의 설명 툴팁**(`STATUS_META[].description`) — 원본 `statusTips` 문구 그대로
- * - **검색 조건 셀렉트**(회원명 / 유형 / 제목+내용). 검색 상자 하나로 뭉쳐 놓아
- *   범위를 좁힐 수단이 없었다. 안내 문구도 원본대로 "검색어 입력"이다
- * - **접수일·답변일의 날짜 표기**(`ymd`)와 **답변일이 없을 때의 `-`**
+ * ## 기획 확인 필요 (원본 그대로 둠)
+ * - SQ-13 「상품 승인이 지연 … 아직 심사 중」 — 2026-08-20 등록 검수가 폐지되어 「등록 즉시 판매중」이다
+ * - SQ-12 포근하우스 「정산 명세 반품 이중 차감」 — 우리 정산 샘플에서 포근하우스는 주문이 없어 차감이 없다.
+ *   제목은 「반품」, 본문은 「취소 차감」으로 원본 안에서도 어긋난다
+ * - 휴면 회원(구민재 · 윤서아)이 문의를 남긴다 — 원본도 휴면 회원(최민호)의 문의가 있다
+ * - 화면 설명의 「[전체]/[미답변]/[답변완료] 카드」(annotations 88) vs 코드·194 「[전체] 없음」 → 코드대로
  *
  * ## 상태 색 배정 (§3-1)
- * - `pending`(미답변) = **누가 무언가를 해야 끝나는 상태** → `warning`
- * - `done`(답변완료) = 정상 종료. 원본 툴팁도 "더 진행할 단계가 없습니다" 라고 말한다 → `default`
+ * - `pending`(미답변) = 누가 무언가를 해야 끝나는 상태 → `warning` · `done`(답변완료) = 종결 → `default`
  * ---------------------------------------------------------------------- */
 
 export type SupportAudience = "customer" | "seller";
@@ -66,11 +61,13 @@ export type SupportStatus = "pending" | "done";
 /** 원본 유형 셀렉트의 3종 그대로다 */
 export type SupportType = "account" | "point" | "platform";
 
-/** 고객 문의 한 행 (원본 `inquiriesApi` + 컬럼 배열 `b`) */
+/** 고객 문의 한 행 (원본 `INQUIRIES`) */
 export interface CustomerInquiry {
-  /** 고유 키 — 뼈대가 행 key 로 쓴다 */
+  /** 고유 키 `Q-…` — 상세 경로가 이 값을 쓴다 */
   id: string;
-  /** 회원명 */
+  /** 회원 아이디(이메일) — `MEMBERS` 의 키 */
+  memberId: string;
+  /** 회원명 — `MEMBERS` 에서 읽은 값 */
   member: string;
   type: SupportType;
   title: string;
@@ -80,62 +77,75 @@ export interface CustomerInquiry {
   date: string;
   /** 답변일. **미답변이면 `null`** */
   answeredAt: string | null;
+  /** 등록된 답변 — 미답변이면 `""` */
+  answer: string;
+  /**
+   * 문의가 가리키는 주문 처리단위 — **화면에 나오지 않는다**(원본에 열이 없다).
+   * 샘플 시각이 그 주문과 맞는지 테스트가 확인하는 데만 쓴다
+   */
+  orderUnit?: string;
 }
 
 /**
- * 셀러 문의 한 행 (원본 `sellerAsksApi` + 컬럼 배열 `m`).
- * **유형도 답변일도 없다** — 원본 셀러 컬럼이 5열이다.
+ * 셀러 문의 한 행 (원본 `SELLER_ASKS`).
+ * **유형도 답변일도 없다** — 원본 셀러 표는 5열이고 상세에도 답변일 줄이 없다.
  */
 export interface SellerAsk {
+  /** 고유 키 `SQ-…` */
   id: string;
+  /** 셀러명 — `SELLERS` 에 있는 이름 */
   seller: string;
   title: string;
   body: string;
   status: SupportStatus;
   /** 접수일 `YYYY-MM-DD HH:mm` */
   date: string;
+  /** 등록된 답변 — 미답변이면 `""` */
+  answer: string;
 }
 
-/** 탭 — 원본 `k = ["고객 문의", "셀러 문의"]`, 기본값은 첫 항목 */
+/** 탭 — 원본 칩 `['고객 문의','셀러 문의']`, 기본값은 첫 항목 */
 export const AUDIENCE_TABS: { value: SupportAudience; label: string }[] = [
   { value: "customer", label: "고객 문의" },
   { value: "seller", label: "셀러 문의" },
 ];
 
-/**
- * 상태값 → 라벨 · Tag tone · 설명.
- *
- * `description` 은 원본 `statusTips` 문구 그대로다. 원본은 줄바꿈 두 번으로
- * "지금 무엇인가 / 다음에 무엇을 하나"를 나누는데, 우리 `Tooltip` 은 한 문단이라
- * 한 줄로 이었다.
- */
+/** 셀러 탭으로 바로 여는 쿼리 — 셀러 문의 상세의 [목록]이 돌아오는 곳(원본 `supTab='셀러 문의'`) */
+export const SELLER_TAB_QUERY = "seller";
+
+export const LIST_PATH = "/support";
+export const SELLER_LIST_PATH = `${LIST_PATH}?tab=${SELLER_TAB_QUERY}`;
+export const detailPathOf = (id: string) =>
+  `${LIST_PATH}/${encodeURIComponent(id)}`;
+
+/** 상태값 → 라벨 · Tag tone · 툴팁. 툴팁은 원본 `STAT_TIP` 두 문장 그대로 */
 export const STATUS_META: Record<
   SupportStatus,
-  { label: string; tone: TagTone; description: string }
+  { label: string; tone: TagTone; tip: string }
 > = {
   pending: {
     label: "미답변",
     tone: "warning",
-    description:
-      "접수됐으나 아직 답변하지 않은 문의입니다. 답변을 등록하면 [답변완료]가 됩니다.",
+    tip: "접수됐으나 아직 답변하지 않은 문의입니다. 답변을 등록하면 [답변완료]가 됩니다.",
   },
   done: {
     label: "답변완료",
     tone: "default",
-    description:
-      "답변이 등록되어 종결된 문의입니다. 더 진행할 단계가 없습니다.",
+    tip: "답변이 등록되어 종결된 문의입니다. 더 진행할 단계가 없습니다.",
   },
 };
 
-/**
- * 상태 대시 카드. 첫 항목은 `"all"`(필터 해제) —
- * 원본 `chip.all` 도 `"전체"` 다.
- */
-export const STATUS_FILTERS: { value: string; label: string }[] = [
-  { value: "all", label: "전체" },
+/** 상태 카드 = 상태 필터 — 원본 `chip.values` 2장. **[전체] 카드는 없다**(`dash:true`) */
+export const FILTERS: { value: SupportStatus; label: string }[] = [
   { value: "pending", label: STATUS_META.pending.label },
   { value: "done", label: STATUS_META.done.label },
 ];
+
+/** 들어오면 「미답변」 — 원본 `chip.def`. [초기화]도 여기로 돌아간다 */
+export const DEFAULT_FILTER: SupportStatus = "pending";
+
+/** 건수 단위 */
+export const UNIT = "건";
 
 /** 문의 유형 → 라벨 (원본 유형 셀렉트의 어휘 그대로) */
 export const TYPE_LABELS: Record<SupportType, string> = {
@@ -144,11 +154,7 @@ export const TYPE_LABELS: Record<SupportType, string> = {
   platform: "플랫폼 오류",
 };
 
-/**
- * 유형 셀렉트. 첫 항목 라벨이 "전체"가 아니라 **"유형 전체"** 다 —
- * 상태 대시에 이미 "전체"가 있어서, 화면에도 스크린리더에도 같은 이름이 둘이 된다.
- * (원본 `opts[0]` 도 `["", "유형 전체"]` 다)
- */
+/** 유형 셀렉트 — 원본 `opts[0]` 이 `유형 전체` 다 */
 export const TYPE_FILTERS = [
   { value: "all", label: "유형 전체" },
   { value: "account", label: TYPE_LABELS.account },
@@ -157,35 +163,47 @@ export const TYPE_FILTERS = [
 ];
 
 /**
- * 검색 조건 셀렉트 — 원본 `search.fieldOpts` 그대로(값 키까지 같다).
- * **첫 항목이 기본값**이다.
+ * 검색 조건 — 원본 `search.fieldOpts` 그대로. **첫 항목이 기본값**이다.
+ * 원본 `search.fields` 가 `["title","body"]` 라 `all` 은 **제목+내용**이다.
  */
 export const SEARCH_FIELDS = [
-  { value: "mem", label: "회원명" },
-  { value: "kind", label: "유형" },
-  { value: "all", label: "제목+내용" },
+  {
+    value: "mem",
+    label: "회원명",
+    pick: (row: CustomerInquiry) => row.member,
+  },
+  {
+    value: "kind",
+    label: "유형",
+    pick: (row: CustomerInquiry) => TYPE_LABELS[row.type],
+  },
+  {
+    value: "all",
+    label: "제목+내용",
+    pick: (row: CustomerInquiry) => `${row.title} ${row.body}`,
+  },
 ];
 
 /** 검색어 입력의 안내 문구 — 원본 `search.ph` 그대로 */
 export const SEARCH_PLACEHOLDER = "검색어 입력";
 
-/**
- * 기간 기준 셀렉트 — 원본 `date.fields` 그대로.
- * **첫 항목이 기본값**이다(뼈대가 `useState(PERIOD_FIELDS[0].value)` 로 받는다).
- */
+/** 기간 기준 — 원본 `date.fields`. `pick` 이 `null` 이면 그 행은 기간에서 빠진다 */
 export const PERIOD_FIELDS = [
-  { value: "received", label: "접수일" },
-  { value: "answered", label: "답변일" },
+  {
+    value: "date",
+    label: "접수일",
+    pick: (row: CustomerInquiry) => row.date,
+  },
+  {
+    value: "ansDate",
+    label: "답변일",
+    pick: (row: CustomerInquiry) => row.answeredAt,
+  },
 ];
 
 /**
- * 셀러 문의 요약 — **셀러 탭에서만** 뜬다 (원본 `statrow`).
- *
- * ⚠️ 원본은 **라벨과 건수뿐**이다. 증감(±)도 비교 기준 문구도 없다 —
- * 한때 여기에 "-3건 / 어제 대비" 같은 수치를 붙였는데 전부 지어낸 값이었다.
- *
- * `status: null` 은 전체 건수라는 뜻이다. 건수는 뼈대가 목록에서 세므로 여기 적지 않는다.
- * `warn: true` 인 칸만 수치를 주의색으로 낸다(원본도 미답변 값에만 `--warn` 을 준다).
+ * 셀러 문의 요약 — **셀러 탭에서만** 뜬다 (원본 `statrow`). 라벨과 건수뿐 — 누를 수 없다.
+ * `status: null` 은 전체 건수. `warn: true` 칸만 수치를 주의색으로(원본 `--warn`).
  */
 export const SELLER_SUMMARY: {
   status: SupportStatus | null;
@@ -196,140 +214,171 @@ export const SELLER_SUMMARY: {
   { status: null, label: "전체 셀러 문의", warn: false },
 ];
 
-export const CUSTOMER_INQUIRIES: CustomerInquiry[] = [
+/** 회원 아이디 → 회원명. 없는 회원이면 샘플 연결이 끊긴 것이라 던진다 */
+const memberName = (memberId: string) => {
+  const member = MEMBERS.find((item) => item.id === memberId);
+  if (!member) throw new Error(`문의 샘플 회원 연결 실패: ${memberId}`);
+  return member.name;
+};
+
+type InquirySeed = Omit<CustomerInquiry, "member">;
+
+const INQUIRY_SEEDS: InquirySeed[] = [
   {
-    id: "Q-2411",
-    member: "김보라",
+    id: "Q-8841",
+    memberId: "harin.noh@example.com",
     type: "point",
-    title: "포인트가 적립되지 않았어요",
-    body: "8월 20일 주문 건의 적립 포인트가 아직 들어오지 않았습니다.",
+    title: "적립금이 사용 내역과 다르게 차감됐어요",
+    body: "구매 시 3,000원을 사용했는데 적립금 내역에는 5,000원이 빠져 있습니다. 확인 부탁드려요.",
     status: "pending",
-    date: "2026-08-24 09:30",
+    date: "2026-10-18 15:20",
     answeredAt: null,
+    answer: "",
+    orderUnit: "U-S35",
   },
   {
-    id: "Q-2409",
-    member: "이준서",
+    id: "Q-8840",
+    memberId: "minjae.koo@example.com",
     type: "account",
-    title: "비밀번호 재설정 메일이 오지 않아요",
-    body: "재설정 메일을 세 번 요청했는데 받은 편지함에 도착하지 않습니다.",
+    title: "휴대폰 번호 변경이 안 됩니다",
+    body: "기기를 바꾸면서 번호가 변경됐는데 마이페이지에서 수정이 안 됩니다.",
     status: "pending",
-    date: "2026-08-23 14:05",
+    date: "2026-10-18 09:45",
     answeredAt: null,
+    answer: "",
   },
   {
-    id: "Q-2405",
-    member: "한서윤",
+    id: "Q-8838",
+    memberId: "sujin.park@example.com",
     type: "platform",
-    title: "알림이 오지 않습니다",
-    body: "배송 시작 알림을 켜 두었는데 앱에서 알림이 뜨지 않습니다.",
-    status: "pending",
-    date: "2026-08-22 18:30",
-    answeredAt: null,
-  },
-  {
-    id: "Q-2406",
-    member: "박하늘",
-    type: "account",
-    title: "휴대폰 번호를 바꾸고 싶어요",
-    body: "회원정보 수정 화면에서 번호 변경이 되지 않습니다.",
+    title: "결제 화면이 계속 멈춰요",
+    body: "결제하기를 누르면 로딩만 계속되고 다음으로 넘어가지 않습니다. 안드로이드 최신 버전입니다.",
     status: "done",
-    date: "2026-08-22 10:20",
-    answeredAt: "2026-08-22 15:40",
+    date: "2026-10-17 21:10",
+    answeredAt: "2026-10-18 10:20",
+    answer:
+      "안녕하세요 고객님, 특정 안드로이드 버전에서 결제 모듈이 멈추는 현상을 확인해 10/18 수정 배포했습니다. 앱을 최신 버전으로 업데이트하신 뒤 다시 시도해 주세요. 불편을 드려 죄송합니다.",
   },
   {
-    id: "Q-2402",
-    member: "최시우",
-    type: "platform",
-    title: "결제 화면에서 오류가 납니다",
-    body: "결제하기를 누르면 흰 화면이 뜨고 넘어가지 않습니다.",
-    status: "done",
-    date: "2026-08-21 19:12",
-    answeredAt: "2026-08-22 09:10",
-  },
-  {
-    id: "Q-2398",
-    member: "정다인",
+    id: "Q-8835",
+    memberId: "doyoon.baek@example.com",
     type: "point",
-    title: "포인트 유효기간이 궁금해요",
-    body: "적립된 포인트는 언제까지 사용할 수 있나요?",
+    title: "리뷰 적립금이 지급되지 않았어요",
+    body: "렌트 반납 후 포토 리뷰를 작성했는데 일주일이 지나도 적립금이 들어오지 않았습니다.",
+    status: "pending",
+    date: "2026-10-17 20:30",
+    answeredAt: null,
+    answer: "",
+    orderUnit: "U-R18",
+  },
+  {
+    id: "Q-8831",
+    memberId: "woojin.shin@example.com",
+    type: "platform",
+    title: "앱 로그인 시 오류 코드가 떠요",
+    body: "로그인 버튼을 누르면 오류 코드 E-402 화면이 뜨고 더 진행되지 않습니다.",
+    status: "pending",
+    date: "2026-10-16 19:40",
+    answeredAt: null,
+    answer: "",
+  },
+  {
+    id: "Q-8828",
+    memberId: "seoa.yoon@example.com",
+    type: "account",
+    title: "마케팅 수신 동의를 해지하고 싶어요",
+    body: "문자와 앱 알림을 모두 받지 않도록 변경하고 싶은데 설정 위치를 못 찾겠습니다.",
     status: "done",
-    date: "2026-08-20 11:45",
-    answeredAt: "2026-08-20 16:02",
+    date: "2026-10-15 11:05",
+    answeredAt: "2026-10-16 14:00",
+    answer:
+      "안녕하세요 고객님, 마이 › 내 정보 › 마케팅 수신 동의에서 문자·앱 알림을 각각 해지하실 수 있습니다. 요청하신 대로 10/16 자로 두 항목 모두 해지 처리해 드렸습니다.",
   },
 ];
 
+/** 고객 문의 — 원본 6건 · 미답변 4 / 답변완료 2 · 최신순 */
+export const CUSTOMER_INQUIRIES: CustomerInquiry[] = INQUIRY_SEEDS.map(
+  (seed) => ({ ...seed, member: memberName(seed.memberId) }),
+);
+
+/** 셀러 문의 — 원본 3건 · 미답변 2 / 답변완료 1 · 셀러 3곳 모두 `SELLERS` 에 있다 */
 export const SELLER_ASKS: SellerAsk[] = [
   {
-    id: "Q-2412",
-    seller: "아이몽컴퍼니",
-    title: "정산 금액이 다릅니다",
-    body: "8월 1차 정산액이 예상과 다릅니다. 산정 내역을 확인 부탁드립니다.",
+    id: "SQ-14",
+    seller: "베이비노리터",
+    title: "공항 픽업 등록 시 김해공항도 선택 가능한가요?",
+    body: "부산 지역 셀러입니다. 김해공항 픽업을 제공하고 싶습니다.",
     status: "pending",
-    date: "2026-08-24 08:40",
+    date: "2026-10-19 10:20",
+    answer: "",
   },
   {
-    id: "Q-2410",
-    seller: "베이비루션",
-    title: "상품 등록 중 오류가 납니다",
-    body: "대표 이미지를 올리면 저장 버튼이 눌리지 않습니다.",
+    id: "SQ-13",
+    seller: "리틀베이비",
+    /* ⚠️ 기획 확인 필요 — 등록 검수 폐지(2026-08-20) 뒤의 「심사 중」. 원본 그대로 둔다 */
+    title: "상품 승인이 지연되고 있어요",
+    body: "3일 전 등록한 상품이 아직 심사 중입니다. 확인 부탁드립니다.",
     status: "pending",
-    date: "2026-08-23 17:25",
+    date: "2026-10-18 16:40",
+    answer: "",
   },
   {
-    id: "Q-2407",
-    seller: "쿠쿠베베",
-    title: "담당자 정보를 변경하고 싶습니다",
-    body: "셀러 담당자 연락처를 바꾸려면 어디에서 수정하나요?",
+    id: "SQ-12",
+    seller: "포근하우스",
+    /* ⚠️ 기획 확인 필요 — 포근하우스는 우리 정산 샘플에 차감 건이 없다. 원본 그대로 둔다 */
+    title: "정산 명세서에 반품 건이 이중 차감된 것 같습니다",
+    body: "9월 정산 명세의 취소 차감 항목을 확인 부탁드립니다.",
     status: "done",
-    date: "2026-08-22 13:10",
-  },
-  {
-    id: "Q-2404",
-    seller: "아이몽컴퍼니",
-    title: "세금계산서 재발행 요청",
-    body: "8월 계산서에 사업자번호가 잘못 기재되어 재발행이 필요합니다.",
-    status: "done",
-    date: "2026-08-21 15:50",
-  },
-  {
-    id: "Q-2399",
-    seller: "베이비루션",
-    title: "회수 지연 문의",
-    body: "회수 신청 후 3일째 수거가 진행되지 않고 있습니다.",
-    status: "pending",
-    date: "2026-08-20 09:05",
+    date: "2026-10-16 09:30",
+    answer:
+      "확인 결과 취소 차감 규칙 정정 대상 건으로, 10월 명세에서 정정 반영됩니다.",
   },
 ];
 
 /**
- * 샘플 데이터의 **기준 월**. 달력을 열었을 때 이 달이 먼저 보인다.
- * 실서비스로 이식하면 넘기지 않는다 — 오늘이 기준이 된다.
- */
-export const REFERENCE_MONTH = new Date("2026-08-01T00:00:00");
-
-/**
- * 날짜 표기 — **날짜만, 점 구분자**. 원본 공용 포맷터(모듈 32916) 그대로다:
- * `e => e ? e.slice(0, 10).replace(/-/g, ".") : "-"`.
- * 답변일이 `null` 이면 `-` 가 되는 것도 원본과 같다.
+ * 날짜 표기 — **날짜만, 점 구분자**(원본 `2026.06.21`). 값이 없으면 `-`(원본 「미답변 행의 답변일은 '-'」).
  */
 export const EMPTY_CELL = "-";
 
 export const ymd = (dateText: string | null) =>
   dateText ? dateText.slice(0, 10).replace(/-/g, ".") : EMPTY_CELL;
 
-/**
- * 고객 문의 검색 대상 — `SEARCH_FIELDS` 의 값에 대응한다.
- * 원본 `search.fields` 가 `["title","body"]` 라 `all` 은 **제목+내용**이다.
- */
-export const customerHaystack = (inquiry: CustomerInquiry, field: string) => {
-  if (field === "mem") return inquiry.member;
-  if (field === "kind") return TYPE_LABELS[inquiry.type];
-  return `${inquiry.title} ${inquiry.body}`;
-};
+/** 한 페이지 행 수 — **고객 탭에만** 쓴다. 셀러 탭은 원본이 페이저 없이 전부 보인다 */
+export const PAGE_SIZE = 10;
+export const PAGE_SIZES = [10, 20, 50, 100];
 
-/**
- * 한 페이지에 보여줄 행 수 — **고객 탭에만** 쓴다.
- * 셀러 탭은 원본이 `size: 100` 으로 한 번에 받고 페이저를 두지 않는다.
- */
-export const PAGE_SIZE = 4;
+/* -------------------------------------------------------------------------
+ * 검색조건 요약 — 접은 `FilterBar` 한 줄 (형제 화면과 같은 규칙).
+ * 원본 `fbSummary` 순서: 기간 → 셀렉트(유형) → 검색어. 상태는 넣지 않는다 — 건수 카드가 말한다.
+ * ---------------------------------------------------------------------- */
+
+export const NO_FILTER_TEXT = "조건 없음 (전체)";
+
+const dotDate = (value: Date) =>
+  `${value.getFullYear()}.${String(value.getMonth() + 1).padStart(2, "0")}.${String(
+    value.getDate(),
+  ).padStart(2, "0")}`;
+
+export const filterSummary = ({
+  dateLabel,
+  from,
+  to,
+  typeLabel,
+  fieldLabel,
+  keyword,
+}: {
+  dateLabel: string;
+  from?: Date;
+  to?: Date;
+  /** 유형 셀렉트 — 「유형 전체」면 `undefined` */
+  typeLabel?: string;
+  fieldLabel: string;
+  keyword: string;
+}): string => {
+  const parts: string[] = [];
+  if (from)
+    parts.push(`${dateLabel} ${dotDate(from)}${to ? `~${dotDate(to)}` : ""}`);
+  if (typeLabel) parts.push(typeLabel);
+  if (keyword.trim() !== "") parts.push(`${fieldLabel} «${keyword.trim()}»`);
+  return parts.length > 0 ? parts.join(" · ") : NO_FILTER_TEXT;
+};

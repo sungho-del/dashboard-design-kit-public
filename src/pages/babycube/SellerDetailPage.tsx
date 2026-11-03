@@ -50,6 +50,7 @@ import {
   FIELD_COPY,
   findSeller,
   HEADQUARTERS_NOTICE,
+  HQ_COMMISSION_NOTE,
   HYGIENE_OPTIONS,
   hygieneValue,
   INTRO_PLACEHOLDER,
@@ -124,6 +125,12 @@ import {
  *    비활성 입력칸은 "고칠 수 있을 것 같은데 안 되는 것"으로 읽힌다
  * 2. 하단 바 버튼 순서 [취소][저장하기] · 저장 알림 문구 — 회원 상세와 같게 맞췄다
  * 3. 등록 상품이 없으면 표 대신 빈 상태 안내(원본은 표 머리 + "연관 항목 없음")
+ * 4. **본사 계정의 수수료율은 운영 정보 `InfoList` 첫 줄**(`0%` + 보조 글자 「본사 고정」) — 읽는 값이
+ *    한 카드 안에서 「라벨 위 맨 글자」와 「회색 상자」 두 모양으로 갈리지 않게(2026-11-03 UX 검수).
+ *    일반 셀러는 입력칸(`noMinWidth` · `w-24` — 몇 자리 숫자라 240 최소폭을 푼다)
+ * 5. **등록 상품 표는 가로 스크롤 상자 안**(`overflow-x-auto`)에 둔다 — 상자 없이 열 합이 카드보다
+ *    넓어 페이지 전체가 가로로 밀렸다(1440 +20 · 1280 +180). 열 합 1084 라 1440 에서는 스크롤 없음,
+ *    일시 두 열은 168 · 줄바꿈 없음(초까지 한 줄)
  *
  * ## 데이터 상태 (§D8 · `src/lib/dataStatus.ts`)
  * `/sellers/{id}?preview=loading` · `refreshing` 으로 미리 본다.
@@ -520,11 +527,7 @@ function SellerDetailBody({
               수수료율 — 이 화면에서 가장 중요한 입력이다.
               본사는 0% 확정이라 입력칸을 열지 않는다(안내 문구는 상태 줄에 있다).
             */}
-            {hq ? (
-              <ReadField label="수수료율">
-                <span className="body-medium text-text">0%</span>
-              </ReadField>
-            ) : (
+            {hq ? null : (
               <FormField
                 label="수수료율"
                 description={COMMISSION_HINT}
@@ -532,6 +535,7 @@ function SellerDetailBody({
                 suffix="%"
               >
                 <Input
+                  noMinWidth
                   className="w-24"
                   inputMode="decimal"
                   placeholder="0"
@@ -551,6 +555,17 @@ function SellerDetailBody({
             </FormField>
 
             <InfoList>
+              {/* 본사 — 0% 확정이라 입력칸 대신 읽는 값 한 줄(위 「다르게 둔 곳」 4) */}
+              {hq ? (
+                <InfoItem label="수수료율">
+                  <span className="flex items-center gap-2">
+                    <span>0%</span>
+                    <span className="body-small text-text-sub">
+                      {HQ_COMMISSION_NOTE}
+                    </span>
+                  </span>
+                </InfoItem>
+              ) : null}
               <InfoItem label="입점일">{ymd(seller.date)}</InfoItem>
               <InfoItem label="등록 상품수">
                 {countText(seller.products)}
@@ -583,75 +598,86 @@ function SellerDetailBody({
           />
         ) : (
           <>
-            <Table>
-              <colgroup>
-                <col className="w-12" />
-                <col className="w-30" />
-                <col className="w-28" />
-                <col className="w-30" />
-                <col className="w-60" />
-                <col className="w-28" />
-                <col className="w-40" />
-                <col className="w-40" />
-                <col className="w-24" />
-              </colgroup>
-              <TableHead>
-                <TableRow>
-                  <TableTh>No</TableTh>
-                  <TableTh align="center">유형</TableTh>
-                  <TableTh align="center">판매 상태</TableTh>
-                  <TableTh>상품코드</TableTh>
-                  <TableTh>상품명</TableTh>
-                  <TableTh>카테고리</TableTh>
-                  <TableTh>상품등록일</TableTh>
-                  <TableTh>최종수정일</TableTh>
-                  <TableTh align="center">전시상태</TableTh>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {visibleProducts.map((product, index) => {
-                  const saleMeta = SALE_STATUS_META[product.saleStatus];
-                  const shown = SHOWN_META[product.shown ? "shown" : "hidden"];
-                  return (
-                    <TableRow key={product.code}>
-                      <TableTd className="tabular-nums">
-                        {productStart + index + 1}
-                      </TableTd>
-                      {/* 유형은 분류라 중립 배지 — 회원 결제 내역의 「구분」과 같다 */}
-                      <TableTd align="center">
-                        <span className="inline-flex gap-1">
-                          {product.kinds.map((kind) => (
-                            <Tag key={kind} size="small">
-                              {DEAL_KIND_LABEL[kind]}
-                            </Tag>
-                          ))}
-                        </span>
-                      </TableTd>
-                      <TableTd align="center">
-                        <Tag tone={saleMeta.tone} dot>
-                          {saleMeta.label}
-                        </Tag>
-                      </TableTd>
-                      {/* 원본은 상품 상세 링크 — 상품 상세 화면이 생기면 단다 */}
-                      <TableTd className="tabular-nums">{product.code}</TableTd>
-                      <TableTd ellipsis>{product.name}</TableTd>
-                      <TableTd>{product.category}</TableTd>
-                      <TableTd className="tabular-nums">
-                        {stampText(product.createdAt)}
-                      </TableTd>
-                      <TableTd className="tabular-nums">
-                        {stampText(product.updatedAt)}
-                      </TableTd>
-                      <TableTd align="center">
-                        <Tag tone={shown.tone} dot>
-                          {shown.label}
-                        </Tag>
-                      </TableTd>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            {/*
+              가로 스크롤 상자 — 좁은 화면에서도 넘침이 **표 안에서** 끝난다(페이지는 밀리지 않는다).
+              열 합 1084(1440 의 카드 본문 1088 안, 실측 글자 폭 기준): No 52(첫 칸 왼쪽 여백 24 포함) · 유형 92(배지 둘) ·
+              판매 상태 104(「재심사요청」) · 코드 96 · 상품명 212(남는 폭 · 소수점 여유 4 · 긴 이름은 두 줄 말줄임) ·
+              카테고리 96 · 일시 168×2(초까지 한 줄) · 전시 96(끝 칸 오른쪽 여백 24 포함)
+            */}
+            <div className="overflow-x-auto">
+              <Table>
+                <colgroup>
+                  <col className="w-13" />
+                  <col className="w-23" />
+                  <col className="w-26" />
+                  <col className="w-24" />
+                  <col className="w-53" />
+                  <col className="w-24" />
+                  <col className="w-42" />
+                  <col className="w-42" />
+                  <col className="w-24" />
+                </colgroup>
+                <TableHead>
+                  <TableRow>
+                    <TableTh>No</TableTh>
+                    <TableTh align="center">유형</TableTh>
+                    <TableTh align="center">판매 상태</TableTh>
+                    <TableTh>상품코드</TableTh>
+                    <TableTh>상품명</TableTh>
+                    <TableTh>카테고리</TableTh>
+                    <TableTh>상품등록일</TableTh>
+                    <TableTh>최종수정일</TableTh>
+                    <TableTh align="center">전시상태</TableTh>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {visibleProducts.map((product, index) => {
+                    const saleMeta = SALE_STATUS_META[product.saleStatus];
+                    const shown =
+                      SHOWN_META[product.shown ? "shown" : "hidden"];
+                    return (
+                      <TableRow key={product.code}>
+                        <TableTd className="tabular-nums">
+                          {productStart + index + 1}
+                        </TableTd>
+                        {/* 유형은 분류라 중립 배지 — 회원 결제 내역의 「구분」과 같다 */}
+                        <TableTd align="center">
+                          <span className="inline-flex gap-1">
+                            {product.kinds.map((kind) => (
+                              <Tag key={kind} size="small">
+                                {DEAL_KIND_LABEL[kind]}
+                              </Tag>
+                            ))}
+                          </span>
+                        </TableTd>
+                        <TableTd align="center">
+                          <Tag tone={saleMeta.tone} dot>
+                            {saleMeta.label}
+                          </Tag>
+                        </TableTd>
+                        {/* 원본은 상품 상세 링크 — 상품 상세 화면이 생기면 단다 */}
+                        <TableTd className="tabular-nums">
+                          {product.code}
+                        </TableTd>
+                        <TableTd ellipsis>{product.name}</TableTd>
+                        <TableTd>{product.category}</TableTd>
+                        <TableTd className="whitespace-nowrap tabular-nums">
+                          {stampText(product.createdAt)}
+                        </TableTd>
+                        <TableTd className="whitespace-nowrap tabular-nums">
+                          {stampText(product.updatedAt)}
+                        </TableTd>
+                        <TableTd align="center">
+                          <Tag tone={shown.tone} dot>
+                            {shown.label}
+                          </Tag>
+                        </TableTd>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
             <Pagination
               page={currentProductPage}
               totalPages={productPages}

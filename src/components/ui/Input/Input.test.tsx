@@ -230,4 +230,27 @@ describe("size", () => {
     expect(classes.filter((c) => c.startsWith("px-"))).toHaveLength(1);
     expect(classes).not.toContain("min-w-60");
   });
+
+  /*
+   * 수수료율(%)처럼 몇 자리만 받는 폼 칸 — 높이 40 은 그대로 두고 최소폭만 푼다.
+   * `w-24` 만 주면 min-w-60 이 이겨 240 으로 남았다(셀러 상세 · 입점 심사 상세).
+   */
+  it("noMinWidth 는 medium 의 높이·패딩을 지키고 최소폭만 배타적으로 푼다", () => {
+    const { container } = render(
+      <Input noMinWidth className="w-24" aria-label="수수료율" />,
+    );
+    const classes = fieldOf(container);
+
+    expect(classes).toContain("h-(--size-control-medium)");
+    expect(classes).toContain("px-3");
+    expect(classes).toContain("w-24");
+    expect(classes.filter((c) => c.startsWith("min-w-"))).toEqual(["min-w-0"]);
+  });
+
+  it("기본 medium 은 최소폭 클래스를 하나만 낸다", () => {
+    const { container } = render(<Input aria-label="검색어" />);
+    expect(fieldOf(container).filter((c) => c.startsWith("min-w-"))).toEqual([
+      "min-w-60",
+    ]);
+  });
 });

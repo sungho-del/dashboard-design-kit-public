@@ -53,7 +53,6 @@ import {
   rentPriceOf,
   searchValueOf,
   sellerLabel,
-  won,
   ymdhm,
   type ExchangeFilters,
   type Order,
@@ -151,7 +150,9 @@ const COLUMN_COUNT = 26;
 /** 값이 없는 칸 — 데이터가 없는 것과 화면이 깨진 것을 구별한다 */
 const DASH = "—";
 const dash = (value: string) => (value.trim() === "" ? DASH : value);
-const money = (value: number | null) => (value === null ? DASH : won(value));
+/** 렌트 금액 열 — 원가·할인·렌트가 셋 다 **원/일 단가**(원본 목록 단위). 판매 행은 값 없음 */
+const dayPrice = (value: number | null) =>
+  value === null ? DASH : perDay(value);
 
 /**
  * 결제 일시가 선택한 기간 안에 드는지. 시작일 00:00 ~ 종료일 23:59:59 를 포함한다.
@@ -588,8 +589,8 @@ export function OrderExchangeListPage({
                       <TableTd ellipsis>{order.productName}</TableTd>
                       {/* 판매 건은 렌트 금액 세 열이 **모두** 비어 있다(원본 `hasRent`) */}
                       {/* 렌트 금액은 **원/일 단가**다(원본) — 렌트일을 곱한 총액은 상세의 주문 명세가 보인다 */}
-                      <TableTd>{money(order.rentBasePrice)}</TableTd>
-                      <TableTd>{money(order.rentDiscount)}</TableTd>
+                      <TableTd>{dayPrice(order.rentBasePrice)}</TableTd>
+                      <TableTd>{dayPrice(order.rentDiscount)}</TableTd>
                       <TableTd>
                         {isRent ? perDay(rentPriceOf(order) ?? 0) : DASH}
                       </TableTd>

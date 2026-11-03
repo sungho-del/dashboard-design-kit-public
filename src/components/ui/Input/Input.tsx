@@ -23,6 +23,12 @@ export interface InputProps extends Omit<
    * ⚠️ 네이티브 `size` 속성(글자 수 기준 폭)은 **가린다.** 폭은 `className` 으로 준다.
    */
   size?: InputSize;
+  /**
+   * `medium` 의 최소 폭 240 을 푼다 — 수수료율(%)처럼 **몇 자리 숫자만 받는 폼 칸** 전용.
+   * 높이 40 · 패딩은 그대로이고, 폭은 `className` 으로 준다(예: `w-24`).
+   * 일반 폼 칸에는 쓰지 않는다(240 이 기본 규격이다). `small` 은 이미 최소 폭이 없다.
+   */
+  noMinWidth?: boolean;
   /** 필드 앞(좌측)에 붙는 아이콘 슬롯. 아이콘 라이브러리에 의존하지 않는다 */
   leftIcon?: ReactNode;
   /** 필드 뒤(우측)에 붙는 아이콘 슬롯 */
@@ -56,16 +62,21 @@ const fieldBaseClasses = cn(
 );
 
 /**
- * 높이·최소폭·좌우 패딩은 **크기 분기에서 한 번씩만** 방출한다 —
+ * 높이·최소폭·좌우 패딩은 **한 번씩만** 방출한다 —
  * `cn()` 은 병합하지 않으므로 base 에서 내보내고 분기에서 덮으면
- * 승자를 스타일시트 순서가 정한다.
+ * 승자를 스타일시트 순서가 정한다. 최소폭은 크기와 `noMinWidth` 가 함께 정하므로
+ * 따로 떼어 배타적으로 하나만 고른다(`minWidthClass`).
  */
 const fieldSizeClasses: Record<InputSize, string> = {
-  // 필드: height 40 · min-width 240 · padding 0 12 (§5)
-  medium: "h-(--size-control-medium) min-w-60 px-3",
-  // 표 셀용: height 32 · 최소폭 없음 · padding 0 8
-  small: "h-(--size-control-small) min-w-0 px-2",
+  // 필드: height 40 · padding 0 12 (§5)
+  medium: "h-(--size-control-medium) px-3",
+  // 표 셀용: height 32 · padding 0 8
+  small: "h-(--size-control-small) px-2",
 };
+
+/** 최소폭 — medium 240(§5) · small 없음 · `noMinWidth` 면 없음 */
+const minWidthClass = (size: InputSize, noMinWidth: boolean) =>
+  size === "medium" && !noMinWidth ? "min-w-60" : "min-w-0";
 
 /** 포커스: 2px / offset -2 / focus 색. hover 상태에서도 유지된다 */
 const fieldFocusClasses = cn(
@@ -77,6 +88,7 @@ export function Input({
   leftIcon,
   rightIcon,
   size = "medium",
+  noMinWidth = false,
   invalid = false,
   disabled = false,
   className = "",
@@ -91,6 +103,7 @@ export function Input({
       className={cn(
         fieldBaseClasses,
         fieldSizeClasses[size],
+        minWidthClass(size, noMinWidth),
         // 배경·경계선은 상태별로 **한 번씩만** 방출한다.
         // cn() 은 클래스를 병합하지 않으므로 base 에서 bg/outline 을 먼저 내보내고
         // disabled 에서 덮으려 하면 명시도가 같아(둘 다 (0,1,0)) 스타일시트 순서가

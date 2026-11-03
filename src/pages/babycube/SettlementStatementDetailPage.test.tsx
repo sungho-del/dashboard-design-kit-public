@@ -58,14 +58,23 @@ function valueOf(label: string): string {
   return term.nextElementSibling?.textContent ?? "";
 }
 
-/** 정산 명세 박스 — `[라벨, 값]` 순서 그대로 */
-function calcLines(): [string, string][] {
-  const box = document.body.querySelector("[data-statement-calc]")!;
-  return [...box.querySelectorAll("dt")].map((dt) => [
-    dt.textContent ?? "",
-    dt.nextElementSibling?.textContent ?? "",
-  ]);
+/** 산출 내역 — `[이름, 보조 글자, 값]` 순서 그대로 (공용 부품 `SettlementCalc`) */
+function calcLines(): [string, string, string][] {
+  const box = document.body.querySelector("[data-settlement-calc]")!;
+  return [...box.querySelectorAll("dt")].map((dt) => {
+    const [label, hint] = [...dt.querySelectorAll(":scope > span")].map(
+      (span) => span.textContent ?? "",
+    );
+    return [label, hint ?? "", dt.nextElementSibling?.textContent ?? ""];
+  });
 }
+
+/** 줄이 든 묶음 이름 — 지급액·미회수는 묶음 밖(`null`) */
+const groupOf = (key: string) =>
+  document.body
+    .querySelector(`[data-settlement-calc] [data-line="${key}"]`)!
+    .closest("dl")!
+    .getAttribute("aria-label");
 
 function txRows(): string[][] {
   const table = screen.getByRole("table");
@@ -95,25 +104,52 @@ describe("찾을 수 없음", () => {
 });
 
 describe("셀러 명세 — 코지베이비 (확인요청 · 안심케어 보전)", () => {
-  it("머리: 제목 · 번호·대상·회차·매출·지급액·지급일 · 상태 배지", () => {
+  it("머리: 제목 · 번호·대상·회차만(금액은 아래 구역이 말한다) · 상태 배지", () => {
     at("STM-2609-0231");
 
     expect(
       screen.getByRole("heading", { name: "정산 명세서 상세" }),
     ).toBeVisible();
     expect(
-      screen.getByText(
-        "STM-2609-0231 · 코지베이비 · 2026.09 명세서 · 매출 37,800원 · 지급액 49,563원 · 지급일 2026.10.10",
-      ),
+      screen.getByText("STM-2609-0231 · 코지베이비 · 2026년 9월"),
     ).toBeVisible();
+  });
+
+  it("카드 순서 — 정산 명세 → 지급 정보 → 거래 내역 → 정산 정책(셀러 정산 상세와 같다)", () => {
+    at("STM-2609-0231");
+
+    const titles = screen
+      .getAllByRole("button", { name: / 접기$/ })
+      .map((button) => button.getAttribute("aria-label"))
+      .filter((label) => label !== "메뉴 접기");
+    expect(titles).toEqual([
+      "정산 명세 접기",
+      "지급 정보 접기",
+      "2026년 9월 거래 내역 접기",
+      "정산 정책 접기",
+    ]);
+  });
+
+  it("안내 — 계산 기준은 명세 아래 상자, 정책 카드는 목록 2줄", () => {
+    at("STM-2609-0231");
+
+    const calc = document.body.querySelector("[data-settlement-calc]")!;
+    const calcNotes = [...calc.querySelectorAll("li")].map(
+      (li) => li.textContent,
+    );
+    expect(calcNotes).toHaveLength(2);
+    expect(calcNotes[0]).toMatch(/^입점사 지급액 = 확정 매출/);
+    expect(calcNotes[1]).toMatch(/^보증금·연체료·배상은 보증금 내역/);
+    expect(screen.getByText(/1회 지급 완결/).closest("li")).not.toBeNull();
+    expect(screen.getByText("매출 확정 기준").closest("li")).not.toBeNull();
   });
 
   it("지급 정보 6줄 + 확인요청 안내 + 조회 전용 안내", () => {
     at("STM-2609-0231");
 
     expect(valueOf("정산 대상")).toBe("코지베이비");
-    expect(valueOf("정산월")).toBe("2026.09");
-    expect(valueOf("지급일")).toBe("2026.10.10 (익월 10일)");
+    expect(valueOf("정산월")).toBe("2026년 9월");
+    expect(valueOf("지급일")).toBe("2026.10.10");
     expect(valueOf("지급 계좌")).toBe("국민은행 45**-**-****** (코지베이비)");
     expect(valueOf("정산 반영 거래 건수")).toBe("1건");
     expect(valueOf("상태")).toBe("확인요청");
@@ -125,17 +161,26 @@ describe("셀러 명세 — 코지베이비 (확인요청 · 안심케어 보전
     at("STM-2609-0231");
 
     expect(calcLines()).toEqual([
-      ["확정 거래액 (할인 후)", "37,800원"],
-      ["정산 매출 (수수료 부과 기준)", "37,800원"],
-      ["판매 수수료 (요율 13.5% · 본사 수익)", "- 5,103원"],
-      ["PG 수수료 (요율 미정 · 데모 3%)", "- 1,134원"],
-      ["안심케어 보전 (손상에 대한 본사 복원비)", "+ 18,000원"],
-      ["지급액", "49,563원"],
+      ["확정 거래액", "할인 후", "37,800원"],
+      ["정산 매출", "수수료 부과 기준", "37,800원"],
+      ["판매 수수료", "요율 13.5%", "−5,103원"],
+      ["PG 수수료", "요율 미정 · 데모 3%", "−1,134원"],
+      ["안심케어 보전", "본사 복원비", "+18,000원"],
+      ["지급액", "", "49,563원"],
     ]);
+    expect(groupOf("care")).toBe("가산");
   });
 
   it("하단 바 — 원본 5버튼, [셀러 정산에서 처리]는 그 셀러의 정산 상세로", async () => {
     const { user, onNavSelect } = at("STM-2609-0231");
+
+    /* 순서 — 보조 → 주([확인]) 맨 오른쪽 */
+    const bar = screen.getByRole("button", { name: "다운로드" }).parentElement!;
+    expect(
+      within(bar)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["다운로드", "셀러 정산에서 처리", "취소", "확인"]);
 
     await user.click(
       screen.getByRole("button", { name: "셀러 정산에서 처리" }),
@@ -160,23 +205,21 @@ describe("셀러 명세 — 코지베이비 (확인요청 · 안심케어 보전
 });
 
 describe("셀러 명세 — 리틀스텝 (이의제기 · 환수로 미회수)", () => {
-  it("환수 줄 · 지급액 0원 하한 · 미회수 잔액 줄과 각주 · 이의제기 안내", () => {
+  it("환수 줄 · 0원 수수료 · 지급액 0원 하한 · 미회수 경고 줄(굵은 각주 없음) · 이의제기 안내", () => {
     at("STM-2609-0227");
 
     expect(calcLines()).toEqual([
-      ["확정 거래액 (할인 후)", "0원"],
-      ["정산 매출 (수수료 부과 기준)", "0원"],
-      ["판매 수수료 (요율 11% · 본사 수익)", "- 0원"],
-      ["PG 수수료 (요율 미정 · 데모 3%)", "- 0원"],
-      ["취소·반품 차감 (전월 확정분 환수)", "- 77,400원"],
-      ["지급액", "0원"],
-      ["미회수 잔액 (별도 청구)", "77,400원"],
+      ["확정 거래액", "할인 후", "0원"],
+      ["정산 매출", "수수료 부과 기준", "0원"],
+      ["판매 수수료", "요율 11%", "0원"],
+      ["PG 수수료", "요율 미정 · 데모 3%", "0원"],
+      ["취소·반품 환수", "전월 확정분", "−77,400원"],
+      ["지급액", "", "0원"],
+      ["미회수", "별도 청구", "77,400원"],
     ]);
     expect(
-      screen.getByText(
-        "환수액이 이번 회차 확정 매출을 넘어 77,400원을 회수하지 못했습니다.",
-      ),
-    ).toBeVisible();
+      screen.queryByText(/환수액이 이번 회차 확정 매출을 넘어/),
+    ).toBeNull();
     expect(screen.getByText(/이의를 제기/)).toBeVisible();
   });
 
@@ -192,29 +235,42 @@ describe("셀러 명세 — 리틀스텝 (이의제기 · 환수로 미회수)",
       "부스터 주니어 카시트 그로우",
       "90,000원",
       "반품 완료",
-      "제외 · 반품 환수",
+      /* 그 건의 환수액(clawback) — 「금액」 칸은 원거래 금액 그대로 */
+      "제외 · 반품 환수 −77,400원",
     ]);
+    /* 제외만 되는 건에는 환수를 붙이지 않는다 */
+    expect(rows.filter((row) => row[6].includes("환수"))).toHaveLength(1);
     expect(screen.getByText("0건 · 0원")).toBeVisible();
     expect(screen.getByText("9건")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "20260805132741" }));
     expect(onNavSelect).toHaveBeenCalledWith("/orders-all/U-S30");
+
+    /* 행 어디를 눌러도 같은 곳(보조 클릭 영역) */
+    onNavSelect.mockClear();
+    const second = within(screen.getByRole("table")).getAllByRole("row")[2];
+    await user.click(within(second).getAllByRole("cell")[3]);
+    expect(onNavSelect).toHaveBeenCalledTimes(1);
+    expect(onNavSelect.mock.calls[0][0]).toMatch(/^\/orders-all\//);
   });
 });
 
 describe("셀러 명세 — 아기별상사 (쿠폰 · 포인트 참고)", () => {
-  it("셀러 쿠폰을 빼고, 포인트는 참고 줄로만", () => {
+  it("셀러 쿠폰을 빼고, 포인트는 지급액 아래 참고 줄로만", () => {
     at("STM-2609-1042");
 
     expect(calcLines()).toEqual([
-      ["확정 거래액 (할인 후)", "200,000원"],
-      ["셀러 쿠폰 (셀러 부담)", "- 10,000원"],
-      ["정산 매출 (수수료 부과 기준)", "190,000원"],
-      ["판매 수수료 (요율 12% · 본사 수익)", "- 22,800원"],
-      ["PG 수수료 (요율 미정 · 데모 3%)", "- 5,700원"],
-      ["포인트 사용분 본사 부담 (참고 · 정산 영향 없음)", "3,000원"],
-      ["지급액", "161,500원"],
+      ["확정 거래액", "할인 후", "200,000원"],
+      ["셀러 쿠폰", "셀러 부담", "−10,000원"],
+      ["정산 매출", "수수료 부과 기준", "190,000원"],
+      ["판매 수수료", "요율 12%", "−22,800원"],
+      ["PG 수수료", "요율 미정 · 데모 3%", "−5,700원"],
+      ["지급액", "", "161,500원"],
+      ["포인트 사용분 본사 부담", "정산 영향 없음", "3,000원"],
     ]);
+    expect(groupOf("coupon")).toBe("매출");
+    expect(groupOf("point")).toBe("참고");
+    expect(groupOf("total")).toBeNull();
   });
 });
 
@@ -223,25 +279,32 @@ describe("본사 명세 — 지급 대상 아님", () => {
     at("STM-2609-0001");
 
     expect(valueOf("정산 대상")).toBe("본사 (자체)");
-    expect(valueOf("지급 계좌")).toBe("본사 (자체 매출 · 지급 대상 아님)");
+    expect(valueOf("지급 계좌")).toBe("본사 (자체 매출)");
     expect(valueOf("정산 반영 거래 건수")).toBe("2건");
-    expect(screen.getByText("외부로 지급하는 금액이 아니며")).toBeVisible();
+    /* 「지급 대상 아님」은 지급액 줄에서 한 번 · 그 뜻(직영 안내)은 명세 아래 안내 상자 맨 앞 */
+    expect(screen.getAllByText(/지급 대상 아님/)).toHaveLength(1);
+    const calc = document.body.querySelector("[data-settlement-calc]")!;
+    expect(calc.querySelector("li")?.textContent).toMatch(
+      /^본사 직영 매출의 명세입니다\. 외부로 지급하는 금액이 아니며/,
+    );
     expect(screen.queryByText(/조회 전용/)).toBeNull();
     expect(
       screen.queryByRole("button", { name: "셀러 정산에서 처리" }),
     ).toBeNull();
   });
 
-  it("정산 명세 — 판매·렌트·합계·직영 차감 0원·지급액", () => {
+  it("정산 명세 — 「매출」 묶음(판매·렌트·합계) · 직영 차감 0원 · 지급액(지급 대상 아님)", () => {
     at("STM-2609-0001");
 
     expect(calcLines()).toEqual([
-      ["판매 매출", "159,000원"],
-      ["렌트 매출", "12,600원"],
-      ["매출 합계", "171,600원"],
-      ["차감", "0원 (직영 — 수수료 없음)"],
-      ["지급액", "171,600원"],
+      ["판매 매출", "", "159,000원"],
+      ["렌트 매출", "", "12,600원"],
+      ["매출 합계", "", "171,600원"],
+      ["수수료", "직영 — 수수료 없음", "0원"],
+      ["지급액", "지급 대상 아님", "171,600원"],
     ]);
+    expect(groupOf("sum")).toBe("매출");
+    expect(groupOf("fee")).toBe("차감");
   });
 
   it("거래 내역 — 반영 2건이 위, 다른 달 확정·취소·반품·교환은 제외", () => {

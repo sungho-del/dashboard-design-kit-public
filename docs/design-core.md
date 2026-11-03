@@ -125,7 +125,7 @@ outline-color: var(--color-focus);
 
 1. **loading ≠ disabled** — 로딩 버튼은 배경만 `pressed`로 바꾸고 텍스트·아이콘 색은 원래대로 유지한다.
 2. **테이블 zebra**: 홀수 행 `surface`(흰색), 짝수 행 `surface-sub`. 행 높이 48, 첫/마지막 셀만 좌우 패딩 24.
-   **열 정렬 — 배지만 들어가는 열은 `align="center"`, 그 외는 전부 좌측**(수치도 좌측이다. **우측 정렬은 쓰지 않는다**). `TableTh`·`TableTd`를 함께 바꾸고, 셀 안에 flex가 있으면 `justify-*`도 같이 고친다(`text-align`은 flex 자식에게 안 먹는다). 예외·판정 기준: `DESIGN.md` §7-2.
+   **열 정렬 — 배지만 들어가는 열은 `align="center"`, 그 외는 전부 좌측**(수치도 좌측이다. **우측 정렬은 쓰지 않는다** — 단 **계산을 읽는 영역**만 우측 + `tabular-nums`, `DESIGN.md` §7-2 한정 예외). `TableTh`·`TableTd`를 함께 바꾸고, 셀 안에 flex가 있으면 `justify-*`도 같이 고친다(`text-align`은 flex 자식에게 안 먹는다). 예외·판정 기준: `DESIGN.md` §7-2.
    **열 폭은 `%`가 아니라 px다** — 원본 `minWidth`를 4px 격자로 옮긴 값이고, `sticky left-*`는 **앞 열 폭의 누적합**이라 폭을 고치면 함께 고쳐야 한다. `DESIGN.md` §7-1-1.
 3. **선택 상태 2종**: 강한 선택 = `action-primary`(배경 near-black + `text-inverse`) / 약한 선택 = `action-primary-tonal`.
    ⚠️ **단, 바탕이 `surface-sub`이고 hover가 있는 곳에서는 약한 선택에 `action-primary-tonal`을 쓰지 않는다.**

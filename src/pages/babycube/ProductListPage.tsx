@@ -72,6 +72,7 @@ import {
   categoryPathOf,
   hasRejectReason,
   rejectMessage,
+  perDay,
   rentPriceText,
   salePriceOf,
   won,
@@ -894,10 +895,10 @@ export function ProductListPage({
                         </TextButton>
                       </TableTd>
                       <TableTd>
-                        {isRent ? won(product.rentBase ?? 0) : DASH}
+                        {isRent ? perDay(product.rentBase ?? 0) : DASH}
                       </TableTd>
                       <TableTd>
-                        {isRent ? won(product.rentDiscount ?? 0) : DASH}
+                        {isRent ? perDay(product.rentDiscount ?? 0) : DASH}
                       </TableTd>
                       <TableTd>
                         {isRent ? rentPriceText(product) : DASH}

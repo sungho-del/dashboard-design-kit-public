@@ -70,7 +70,7 @@ import {
  * ```
  * 신청 정보 (입점 전)     ← 셀러명 · 대표명 · 연락처 · 사업자 유형 ·
  *                           상품 취급 유형 · 서류 2종 · 신청일(초까지)
- * 심사 결과 (입점 승인 후) ← 심사 상태 · 수수료율(%)* · [승인일] · [반려 사유 (반려일)] · 위생인증
+ * 심사 결과 (입점 승인 후) ← 심사 상태 · [반려 사유 · 반려일] · 수수료율(%)* · [승인일] · 위생인증
  * [목록]                                      [승인] [반려]   ← 하단 액션 바 (승인요청 건만)
  * ```
  *
@@ -82,6 +82,13 @@ import {
  * - **[승인] 은 확인 창을 거친다**(원본 `gateApprove` — 되돌릴 수 없는 처리라서)
  * - **반려에는 사유가 필수다** — 목록 일괄과 **같은 창**(`ReviewRejectModal`)을 쓴다
  * - 반려 건은 「반려 사유」 줄에 사유와 반려일, 승인 건은 「승인일」 줄만 낸다
+ *
+ * ## 표기 (2026-11-03 UX 검수)
+ * - **반려 사유는 심사 상태 바로 아래** — 반려 건에서 가장 먼저 읽을 값이다(원본은 수수료율 다음).
+ *   반려일은 괄호 대신 보조 글자 「· 2026.06.11」(회원 상세의 정지 사유 일시와 같은 형식)
+ * - **심사 상태는 두 경우 모두 `InfoList` 한 줄**이다 — 승인요청 건은 그 아래에 입력칸이 이어진다.
+ *   상태에 따라 같은 항목이 「라벨 위 배지」와 「회색 상자 줄」로 갈리지 않게
+ * - 라벨 폭은 **화면 상수 하나**(`LABEL_WIDTH`) — 두 카드의 값 시작선이 맞는다
  *
  * ## 퍼블 범위 (2026-10-15 사용자 결정)
  * 승인·반려·서류 다운로드는 **토스트만** 띄운다. 상태·처리일을 화면에서 바꾸지 않는다.
@@ -112,8 +119,11 @@ export interface SellerReviewDetailPageProps {
 /** 목록 경로 — 뒤로 가는 곳이자, 없는 신청일 때 돌려보내는 곳 */
 const LIST_PATH = "/seller-review";
 
-/** `신청 정보` 블록의 라벨 폭 — `통신판매업신고증` 이 기본 80 에 들어가지 않는다 */
-const APPLY_LABEL_WIDTH = 128;
+/**
+ * 이 화면 InfoList 의 라벨 폭(화면 상수 하나) — `통신판매업신고증` 이 기본 80 에 들어가지 않는다.
+ * 심사 결과 카드도 같은 값을 써 두 카드의 값 시작선을 맞춘다.
+ */
+const LABEL_WIDTH = 128;
 
 /** 접을 수 있는 섹션 한 장 (회원·셀러 상세와 같은 규격) */
 function Section({
@@ -303,26 +313,26 @@ function SellerReviewDetailBody({
           <LoadingLines rows={7} />
         ) : (
           <InfoList>
-            <InfoItem label="셀러명" labelWidth={APPLY_LABEL_WIDTH}>
+            <InfoItem label="셀러명" labelWidth={LABEL_WIDTH}>
               {application.name}
             </InfoItem>
-            <InfoItem label="대표명" labelWidth={APPLY_LABEL_WIDTH}>
+            <InfoItem label="대표명" labelWidth={LABEL_WIDTH}>
               {application.ceo}
             </InfoItem>
-            <InfoItem label="연락처" labelWidth={APPLY_LABEL_WIDTH}>
+            <InfoItem label="연락처" labelWidth={LABEL_WIDTH}>
               {application.phone}
             </InfoItem>
-            <InfoItem label="사업자 유형" labelWidth={APPLY_LABEL_WIDTH}>
+            <InfoItem label="사업자 유형" labelWidth={LABEL_WIDTH}>
               {BIZ_TYPE_LABEL[application.bizType]}
             </InfoItem>
-            <InfoItem label="상품 취급 유형" labelWidth={APPLY_LABEL_WIDTH}>
+            <InfoItem label="상품 취급 유형" labelWidth={LABEL_WIDTH}>
               {KIND_LABEL[application.kind]}
             </InfoItem>
             {DOCUMENT_KEYS.map((kind) => (
               <InfoItem
                 key={kind}
                 label={DOCUMENTS[kind].label}
-                labelWidth={APPLY_LABEL_WIDTH}
+                labelWidth={LABEL_WIDTH}
               >
                 <DocumentRow
                   fileName={application[kind].fileName}
@@ -332,7 +342,7 @@ function SellerReviewDetailBody({
               </InfoItem>
             ))}
             {/* 원본 `2026.06.20 14:32:08` — 접수 순서가 곧 심사 순서라 초까지 */}
-            <InfoItem label="신청일" labelWidth={APPLY_LABEL_WIDTH}>
+            <InfoItem label="신청일" labelWidth={LABEL_WIDTH}>
               {ymdhms(application.date)}
             </InfoItem>
           </InfoList>
@@ -344,14 +354,13 @@ function SellerReviewDetailBody({
           <LoadingLines rows={4} />
         ) : reviewable ? (
           <>
-            <div className="flex flex-col gap-1.5">
-              <span className="label-medium-bold text-text">심사 상태</span>
-              <span>
+            <InfoList>
+              <InfoItem label="심사 상태" labelWidth={LABEL_WIDTH}>
                 <Tag tone={meta.tone} dot>
                   {meta.label}
                 </Tag>
-              </span>
-            </div>
+              </InfoItem>
+            </InfoList>
             {/*
               수수료율 — 승인의 전제다(원본도 필수 표시). 신청 단계의 0% 는 빈 칸으로 열린다.
               오류는 [승인] 을 한 번 누른 뒤부터 낸다 — 입력 도중에 빨갛게 하지 않는다.
@@ -364,6 +373,7 @@ function SellerReviewDetailBody({
               suffix="%"
             >
               <Input
+                noMinWidth
                 className="w-24"
                 inputMode="decimal"
                 placeholder="0"
@@ -386,30 +396,36 @@ function SellerReviewDetailBody({
         ) : (
           /* 처리된 건 — 원본: 승인 건은 「승인일」, 반려 건은 「반려 사유 (반려일)」 만 */
           <InfoList>
-            <InfoItem label="심사 상태">
+            <InfoItem label="심사 상태" labelWidth={LABEL_WIDTH}>
               <Tag tone={meta.tone} dot>
                 {meta.label}
               </Tag>
             </InfoItem>
-            <InfoItem label="수수료율">
+            {/* 반려 사유는 심사 상태 바로 아래 — 반려 건에서 가장 먼저 읽을 값(위 「표기」) */}
+            {application.status === "rejected" ? (
+              <InfoItem label="반려 사유" labelWidth={LABEL_WIDTH}>
+                <span className="text-text-warning">
+                  {application.rejectReason ?? "-"}
+                </span>
+                <span className="body-small text-text-sub tabular-nums">
+                  {" "}
+                  · {ymd(application.rejectedAt)}
+                </span>
+              </InfoItem>
+            ) : null}
+            <InfoItem label="수수료율" labelWidth={LABEL_WIDTH}>
               {application.commissionRate > 0
                 ? `${application.commissionRate}%`
                 : "-"}
             </InfoItem>
             {application.status === "approved" ? (
-              <InfoItem label="승인일">{ymd(application.approvedAt)}</InfoItem>
-            ) : null}
-            {application.status === "rejected" ? (
-              <InfoItem label="반려 사유">
-                <span className="text-text-warning">
-                  {application.rejectReason ?? "-"}
-                </span>{" "}
-                <span className="text-text-sub tabular-nums">
-                  ({ymd(application.rejectedAt)})
-                </span>
+              <InfoItem label="승인일" labelWidth={LABEL_WIDTH}>
+                {ymd(application.approvedAt)}
               </InfoItem>
             ) : null}
-            <InfoItem label="위생인증">{hygieneLabel}</InfoItem>
+            <InfoItem label="위생인증" labelWidth={LABEL_WIDTH}>
+              {hygieneLabel}
+            </InfoItem>
           </InfoList>
         )}
       </Section>

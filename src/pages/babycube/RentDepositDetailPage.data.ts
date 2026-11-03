@@ -1,3 +1,4 @@
+import type { CalcBlock } from "./CalcBreakdown";
 import { INSPECTION_META } from "./deposit.data";
 import { DEMO_TODAY, ORDERS } from "./OrderListPage.data";
 import { SELLERS } from "./SellerListPage.data";
@@ -19,6 +20,7 @@ import {
  *   목록 범위(반납 이후) 밖의 렌트도 열린다 — 원본도 렌트 여부만 본다
  * - 금액·상태는 목록과 같은 행(`depositRowOf` → `depositOf`)에서 읽는다 — 화면이 다시 계산하지 않는다
  * - 구역 3개 제목은 `SECTIONS` — 원본 `보증금 정보` · `정산 계산` · `처리 상태 (조회 전용)`
+ * - 정산 계산은 `calcBlocksOf(row)` 블록 + `POLICY_NOTES` 안내 줄 — 그리는 것은 공용 `CalcBreakdown`
  *
  * ## 원본과 다르게 둔 것
  * - 머리: 원본은 crumb·제목·배지·부제를 넘기지만 `nvEditPage` 가 그리지 않는다(결함) — 형제처럼 그린다
@@ -103,29 +105,50 @@ export const overdueOf = (row: DepositRow) => {
 };
 
 /* =========================================================================
- * 정산 계산 — 원본 `amt([보증금, 차감, 반환 예정액])` + 정책 문단
+ * 정산 계산 — 원본 `amt([보증금, 차감, 반환 예정액])` + 정책 문단 → 공용 `CalcBreakdown` 블록
+ * 한 묶음(보증금 · 차감) + 결과 묶음(반환 예정액). 줄 이름이 곧 묶음이라 묶음 이름 열은 비운다. 차감은 기본 글자색에 `−N원`(U+2212), 차감이 없으면 `0원`
+ * (목록 칸의 `-` 와 다르다 — 원본). 보조 글자는 이미 있는 문구만 — 안심케어로 본사가 부담한 건의
+ * `CARE_JOINED_NOTE`. 금액은 행 값 그대로(여기서 계산하지 않는다).
  * ====================================================================== */
 
-export type CalcTone = "plain" | "minus" | "total";
+/** 안심케어 가입 + 복원가능 파손 — 검수 차감을 본사가 부담한 건 */
+const careCovered = (row: DepositRow) =>
+  row.care && row.order.inspection === "repairable";
 
-export const calcLinesOf = (
-  row: DepositRow,
-): { label: string; value: string; tone: CalcTone }[] => [
-  { label: "보증금", value: won(row.deposit), tone: "plain" },
+export const calcBlocksOf = (row: DepositRow): CalcBlock[] => [
   {
-    label: "차감",
-    /* 원본: 차감이 없으면 `0원`(목록 칸은 `-`) */
-    value: row.deduction > 0 ? `- ${won(row.deduction)}` : won(0),
-    tone: "minus",
+    key: "base",
+    lines: [
+      { key: "deposit", label: "보증금", value: won(row.deposit) },
+      {
+        key: "deduction",
+        label: "차감",
+        hint: careCovered(row) ? CARE_JOINED_NOTE : undefined,
+        value: row.deduction > 0 ? `−${won(row.deduction)}` : won(0),
+      },
+    ],
   },
-  { label: "반환 예정액", value: won(row.refund), tone: "total" },
+  {
+    key: "refund",
+    emphasis: true,
+    lines: [
+      {
+        key: "refund",
+        label: "반환 예정액",
+        value: won(row.refund),
+        kind: "total",
+      },
+    ],
+  },
 ];
 
-/** 원본 정책 문단 그대로(5285) */
-export const POLICY_TEXT =
-  "배상액(이상없음=전액환급 / 파손 복원가능·복원불가=일부환급 / 분실=전액차감)은 보증금 한도 내에서만 차감되며 초과 청구는 없습니다. " +
-  "연체료는 플랫폼에서 자동 산정하지 않으며, 셀러가 재량으로 보증금에서 차감하고 보증금을 초과하는 금액은 고객과 직접 협의·청구합니다(플랫폼 정산 미반영). " +
-  "안심케어 가입 건의 복원가능 손상은 본사 부담(배상 차감 없음). 보증금은 매출 정산과 분리 처리됩니다.";
+/** 원본 정책 문단(5285) — 문장 그대로 나눠 계산 아래 안내 상자 줄로 */
+export const POLICY_NOTES = [
+  "배상액(이상없음=전액환급 / 파손 복원가능·복원불가=일부환급 / 분실=전액차감)은 보증금 한도 내에서만 차감되며 초과 청구는 없습니다.",
+  "연체료는 플랫폼에서 자동 산정하지 않으며, 셀러가 재량으로 보증금에서 차감하고 보증금을 초과하는 금액은 고객과 직접 협의·청구합니다(플랫폼 정산 미반영).",
+  "안심케어 가입 건의 복원가능 손상은 본사 부담(배상 차감 없음).",
+  "보증금은 매출 정산과 분리 처리됩니다.",
+] as const;
 
 /** 처리 상태 문장 — 원본 3갈래(점유중 · 환급대기 · 종결) */
 export const procTextOf = (row: DepositRow) => {

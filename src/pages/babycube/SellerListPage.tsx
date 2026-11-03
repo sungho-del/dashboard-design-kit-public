@@ -224,24 +224,30 @@ const SKELETON_WIDTHS = [
 ];
 
 /**
- * 열 폭 — **원본 어드민의 컬럼 정의(`minWidth`)** 를 옮긴 값이다(§DESIGN.md §7-2).
- * 퇴점일 열이 붙고 빠지므로 두 벌인데, 퇴점일만 끼어들고 나머지는 1px 도 안 움직인다.
- * 맨 앞은 체크박스 열 — 원본 `rowchk`. 값이 아니라 조작이라 가장 좁게 둔다.
+ * 열 폭 — 원본 어드민의 컬럼 정의(`minWidth`)에서 출발해 **실제 글자 폭**으로 다시 나눴다
+ * (2026-11-03 UX 검수). 수수료율 열은 112 로 선언돼 있었지만 내용(입력 56 + % + [수정])이
+ * 그보다 넓어 실제 163 으로 늘었고, 퇴점일 열이 붙는 퇴점 탭은 1440 에서도 110px 넘쳐
+ * 상품수·평점이 가려졌다. 지금 퇴점 탭 합 = **1136**(1440 표 폭) — 1440 은 두 탭 모두 스크롤 없음,
+ * 1280 은 표 안에서 가로 스크롤(페이지는 밀리지 않는다).
+ *
+ * 체크 52(실제 폭) · No 44 · 셀러명 128(긴 이름은 말줄임) · 위생인증 104(배지) · 대표명 72 ·
+ * 연락처 132(모든 화면 같음) · 상태 92 · 수수료율 156(실제 내용) · 입점일 100 · [퇴점일 100] ·
+ * 상품수 76 · 평점 80(정렬 머리글 아이콘까지). 퇴점일만 끼어들고 나머지는 1px 도 안 움직인다.
  */
 const colgroup = (withExitDate: boolean) => (
   <colgroup>
-    <col className="w-12" />
-    <col className="w-16" />
-    <col className="w-40" />
-    <col className="w-25" />
-    <col className="w-23" />
-    <col className="w-33" />
-    <col className="w-25" />
-    <col className="w-28" />
-    <col className="w-28" />
-    {withExitDate ? <col className="w-28" /> : null}
-    <col className="w-20" />
+    <col className="w-13" />
+    <col className="w-11" />
+    <col className="w-32" />
+    <col className="w-26" />
     <col className="w-18" />
+    <col className="w-33" />
+    <col className="w-23" />
+    <col className="w-39" />
+    <col className="w-25" />
+    {withExitDate ? <col className="w-25" /> : null}
+    <col className="w-19" />
+    <col className="w-20" />
   </colgroup>
 );
 
@@ -307,7 +313,8 @@ function CommissionCell({
     <span className="flex items-center gap-2">
       <Input
         size="small"
-        className="w-16"
+        /* 56 — 「11.5」 네 자가 들어가는 폭. 열 폭(156)이 이 값에 기댄다 */
+        className="w-14"
         inputMode="decimal"
         aria-label={`${seller.name} 수수료율`}
         value={draft ?? String(seller.commission)}

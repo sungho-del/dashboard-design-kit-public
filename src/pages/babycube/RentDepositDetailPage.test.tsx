@@ -8,7 +8,7 @@ import { ORDERS } from "./OrderListPage.data";
 /* -------------------------------------------------------------------------
  * 보증금 상세 — 조회형 · 기획 v0.4 `rentDepositDetail`
  *
- * 렌더 여부가 아니라 **내용과 동작**을 본다: 사례표 숫자(정산 계산 3줄) · 상태별 처리 문장 ·
+ * 렌더 여부가 아니라 **내용과 동작**을 본다: 사례표 숫자(정산 계산 3묶음 · 부호 −) · 상태별 처리 문장 ·
  * 검수 판정 · 안심케어 · 연체 경과 · 링크 이동 · 하단 [목록]·[취소]·[확인] 모두 목록 ·
  * 찾을 수 없음(판매 건·없는 건·경로 두 조각) · 처리단위가 바뀌면 처음부터.
  * ---------------------------------------------------------------------- */
@@ -56,6 +56,17 @@ function valueOf(label: string): string {
   return term.nextElementSibling?.textContent ?? "";
 }
 
+/** 정산 계산(공용 `CalcBreakdown`) 한 줄의 값 · 보조 글자 */
+const calcLine = (key: string) => {
+  const line = document.querySelector(`[data-calc] [data-line="${key}"]`);
+  if (!line) throw new Error(`계산 줄을 찾지 못했습니다: ${key}`);
+  return {
+    value: line.querySelector("dd")?.textContent ?? "",
+    dt: line.querySelector("dt")?.textContent ?? "",
+    dd: line.querySelector("dd") as HTMLElement,
+  };
+};
+
 const hasRow = (label: string) =>
   screen.queryAllByText(label).some((element) => element.tagName === "DT");
 
@@ -63,12 +74,12 @@ const orderNoOf = (id: string) => ORDERS.find((o) => o.id === id)!.orderNo;
 
 describe("RentDepositDetailPage (보증금 상세)", () => {
   describe("정산 계산 — 사례표 숫자", () => {
-    it("일부환급 U-R30: 보증금 80,000 · 차감 - 25,000 · 반환 예정액 55,000", () => {
+    it("일부환급 U-R30: 보증금 80,000 · 차감 −25,000 · 반환 예정액 55,000", () => {
       renderAt("/rent-deposit/U-R30");
 
-      expect(valueOf("보증금")).toBe("80,000원");
-      expect(valueOf("차감")).toBe("- 25,000원");
-      expect(valueOf("반환 예정액")).toBe("55,000원");
+      expect(calcLine("deposit").value).toBe("80,000원");
+      expect(calcLine("deduction").value).toBe("−25,000원");
+      expect(calcLine("refund").value).toBe("55,000원");
       expect(valueOf("보증금 상태")).toBe("환급완료(일부환급)");
       expect(valueOf("검수 판정")).toBe("파손(복원불가)");
       expect(valueOf("상태 변경일")).toBe("2026.09.19");
@@ -77,16 +88,34 @@ describe("RentDepositDetailPage (보증금 상세)", () => {
     it("전액차감 U-R31: 반환 예정액 0원 · 분실", () => {
       renderAt("/rent-deposit/U-R31");
 
-      expect(valueOf("차감")).toBe("- 40,000원");
-      expect(valueOf("반환 예정액")).toBe("0원");
+      expect(calcLine("deduction").value).toBe("−40,000원");
+      expect(calcLine("refund").value).toBe("0원");
       expect(valueOf("검수 판정")).toBe("분실");
     });
 
-    it("차감이 없으면 계산 상자는 `0원`(목록 칸의 `-` 와 다르다 — 원본)", () => {
+    it("차감이 없으면 계산 상자는 `0원`(목록 칸의 `-` 와 다르다 — 원본) · 안심케어 본사 부담 보조 글자", () => {
       renderAt("/rent-deposit/U-R28");
 
-      expect(valueOf("차감")).toBe("0원");
-      expect(valueOf("반환 예정액")).toBe("80,000원");
+      expect(calcLine("deduction").value).toBe("0원");
+      expect(calcLine("deduction").dt).toBe("차감복원가능 손상 본사 부담");
+      expect(calcLine("refund").value).toBe("80,000원");
+    });
+
+    it("묶음 순서 (보증금 · 차감) → 결과 · 차감은 경고색이 아니다 · 정책은 안내 상자 4줄", () => {
+      renderAt("/rent-deposit/U-R30");
+
+      const blocks = [...document.querySelectorAll("[data-calc] [data-block]")];
+      expect(blocks.map((b) => b.getAttribute("data-block"))).toEqual([
+        "base",
+        "refund",
+      ]);
+      expect(calcLine("deduction").dd.className).not.toMatch(/critical/);
+      expect(calcLine("deduction").dt).toBe("차감");
+      const notes = document.querySelectorAll("[data-calc] li");
+      expect(notes).toHaveLength(4);
+      expect(notes[3].textContent).toBe(
+        "보증금은 매출 정산과 분리 처리됩니다.",
+      );
     });
   });
 
@@ -197,7 +226,7 @@ describe("RentDepositDetailPage (보증금 상세)", () => {
 
       act(() => navigate("/rent-deposit/U-R31"));
 
-      expect(valueOf("반환 예정액")).toBe("0원");
+      expect(calcLine("refund").value).toBe("0원");
     });
   });
 

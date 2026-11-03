@@ -687,8 +687,9 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
 
       /* BL240814 1,500 − 200 = 1,300원/일 */
       const cells = cellsOf(rowOf(R01));
-      expect(cells[CELL.rentBase]).toHaveTextContent("1,500원");
-      expect(cells[CELL.rentDiscount]).toHaveTextContent("200원");
+      /* 세 열 모두 원/일 단가 — 원가·할인만 「원」이면 이웃 열과 단위가 섞여 읽힌다 */
+      expect(cells[CELL.rentBase]).toHaveTextContent(/^1,500원\/일$/);
+      expect(cells[CELL.rentDiscount]).toHaveTextContent(/^200원\/일$/);
       expect(cells[CELL.rentPrice]).toHaveTextContent("1,300원/일");
     });
 

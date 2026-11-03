@@ -142,15 +142,15 @@ Variant 8종·상태 전이는 **Button과 완전히 동일**. 사이즈만 다�
 
 ## §5. Input / SearchField
 
-| 요소        | 스펙                                                                                                                                                                                      |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 필드        | **height 40** · `min-width 240` · padding `0 12` · gap 8 · `bg: surface` · **`outline: 1px solid border; outline-offset: -1px`** · `radius: medium` · `transition: background-color 0.1s` |
-| hover       | `outline-color: border-hover`                                                                                                                                                             |
-| **focus**   | `outline-width: 2px; outline-offset: -2px; outline-color: focus` (hover에도 유지)                                                                                                         |
-| disabled    | `bg: field-disabled`, `outline-width: 0`, `cursor: not-allowed`                                                                                                                           |
-| **error**   | `bg: surface-critical-secondary`, hover outline `border-critical-hover`                                                                                                                   |
-| inner input | `height 24` · `flex: 1 1 0` · outline none · bg transparent · **14 / 24 / 400**                                                                                                           |
-| placeholder | `text-minimal` (disabled 시 `text-disabled`)                                                                                                                                              |
+| 요소        | 스펙                                                                                                                                                                                                                                          |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 필드        | **height 40** · `min-width 240`(몇 자리 숫자 폼 칸만 `noMinWidth` 로 해제 `[확장]`) · padding `0 12` · gap 8 · `bg: surface` · **`outline: 1px solid border; outline-offset: -1px`** · `radius: medium` · `transition: background-color 0.1s` |
+| hover       | `outline-color: border-hover`                                                                                                                                                                                                                 |
+| **focus**   | `outline-width: 2px; outline-offset: -2px; outline-color: focus` (hover에도 유지)                                                                                                                                                             |
+| disabled    | `bg: field-disabled`, `outline-width: 0`, `cursor: not-allowed`                                                                                                                                                                               |
+| **error**   | `bg: surface-critical-secondary`, hover outline `border-critical-hover`                                                                                                                                                                       |
+| inner input | `height 24` · `flex: 1 1 0` · outline none · bg transparent · **14 / 24 / 400**                                                                                                                                                               |
+| placeholder | `text-minimal` (disabled 시 `text-disabled`)                                                                                                                                                                                                  |
 
 ### 5-1. 부착형 버튼 (검색 셀렉트 등)
 
@@ -214,6 +214,7 @@ Variant 8종·상태 전이는 **Button과 완전히 동일**. 사이즈만 다�
 | 래퍼          | `width: 100%` · `overflow: auto`                                                                  |
 | 페이지네이션  | flex · `justify-content: flex-end` · padding `0 24`                                               |
 | 필터 래퍼     | 데스크톱 `width: fit-content` / 모바일 `100%` · gap 8                                             |
+| 오른쪽 묶음   | 필터 래퍼와 같고 + 데스크톱 `margin-left: auto` — 줄바꿈으로 둘째 줄에 혼자 내려가도 오른쪽 유지  |
 | 카테고리 버튼 | `left: -8px`(옵티컬 보정) · padding 8 · gap 4 · `radius: medium` · hover `action-secondary-hover` |
 | 더보기 버튼   | width 100% · **height 48** · center                                                               |
 
@@ -272,6 +273,12 @@ Variant 8종·상태 전이는 **Button과 완전히 동일**. 사이즈만 다�
 | **그 외 전부** (수치 포함)    | **좌측** (기본)      | 표 전체가 한 기준선에 선다                                  |
 
 **우측 정렬은 어느 열에도 쓰지 않는다.** 금액·건수·수량도 좌측이다.
+
+> **한정 예외 — 계산을 읽는 영역** (사용자 승인 2026-11-03 · GPT 교차 검토 동의):
+> 금액끼리 더하고 빼서 결과를 내는 곳만 **우측 + `tabular-nums`** 다.
+> ① 계산 내역 부품 `CalcBreakdown`(정산 명세 · 주문 명세 · 보증금 정산 계산) ②
+> 한 행 안에서 매출 − 차감 = 지급액처럼 금액 열끼리 계산되는 **정산 관리 표**(셀러 정산 · 정산 명세서 · 보증금 내역)의 금액 열.
+> 일반 목록의 금액·포인트 열(주문·상품·쿠폰·포인트 목록 등)과 `Table` 기본값은 **좌측 그대로**다.
 
 > 회계 표의 관행은 수치를 우측에 두는 것이다 — 자릿수가 세로로 맞아 **읽지 않고도**
 > 대소가 보이기 때문이다. 이 저장소는 그 이득보다 **기준선이 하나인 것**을 택했다.
@@ -655,7 +662,7 @@ Container 세로 flex gap **20** · Item `overflow: hidden` · Header `space-bet
 | **Avatar**           | 토큰 `surface-avatar`(slate-300), `avatar-deco` 3종 존재. 크기 24 / 32 / 48 · `radius: full` · 1px `avatar-deco` 테두리                                                                                |
 | **Divider**          | 매번 인라인 구현됨. 가로 `height: 1px; bg: divide` · 세로 `width: 1px; height: 16px`                                                                                                                   |
 | **Skeleton**         | 래퍼만 존재하고 shimmer 애니메이션 없음. `bg: surface-sub` + `radius`를 대상에 맞춰 부여                                                                                                               |
-| **Textarea**         | `style_textareaCount`(absolute bottom 8 / right 12)만 확인. 나머지는 §5 Input 규격 준용, `min-height`만 별도                                                                                           |
+| **Textarea**         | `style_textareaCount`(bottom 8 / right 12)만 확인 — 우리는 **textarea 아래 자기 줄**(래퍼 pb 8)로 낸다(절대배치면 리사이즈 손잡이와 포개짐). 나머지는 §5 Input 규격 준용, `min-height`만 별도          |
 | **Breadcrumb**       | 원본 없음. `label-medium` + `text-sub`, 구분자 chevron 16px, 현재 항목 `text`                                                                                                                          |
 | **ProgressBar**      | **✅ 구현됨 — `src/components/ui/ProgressBar/`.** FileUpload 내부(§19) 스펙을 독립 컴포넌트로 승격: height 4 · `radius: full` · track `surface-slate-secondary` · fill `border-slate`. 아래 §26-1 참조 |
 

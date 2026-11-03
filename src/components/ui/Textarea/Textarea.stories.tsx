@@ -50,17 +50,23 @@ export const MinRows1: Story = {
 };
 
 /**
- * 글자수 카운터 — `maxLength`를 주면 `bottom 8 / right 12`에 `현재/최대`가 표시된다.
- * (원본 `style_textareaCount`에서 확인된 유일한 실측값)
+ * 글자수 카운터 — `maxLength`를 주면 textarea 아래 **자기 줄**(필드 기준 bottom 8 / right 12,
+ * 원본 `style_textareaCount`)에 `현재/최대`가 표시된다. 세로 리사이즈 손잡이는 textarea
+ * 모서리에 있어 카운터와 겹치지 않는다.
  */
 export const WithCounter: Story = {
   args: { maxLength: 500, placeholder: "최대 500자까지 입력할 수 있습니다" },
+  play: async ({ canvasElement }) => {
+    const textarea = canvasElement.querySelector("textarea");
+    const count = canvasElement.querySelector('[data-part="count"]');
+    const t = textarea?.getBoundingClientRect();
+    const c = count?.getBoundingClientRect();
+    // 카운터는 textarea(리사이즈 손잡이 포함) 아래에서 시작한다
+    await expect(c && t ? c.top >= t.bottom : false).toBe(true);
+  },
 };
 
-/**
- * 카운터 + 세로 리사이즈를 함께 쓰면 카운터와 브라우저 기본 리사이즈 그립이
- * 오른쪽 아래에서 겹쳐 보인다. 카운터를 쓸 때는 `resize="none"`을 권장한다.
- */
+/** 카운터 + 리사이즈 잠금 — 높이를 고정해야 하는 자리 */
 export const CounterWithoutResize: Story = {
   args: {
     maxLength: 200,
