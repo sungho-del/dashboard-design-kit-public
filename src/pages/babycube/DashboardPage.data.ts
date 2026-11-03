@@ -1,4 +1,16 @@
 import type { ChartSeries } from "../../components/ui";
+import { MEMBERS } from "./MemberListPage.data";
+import { payTotalOf } from "./OrderDetailPage.data";
+import {
+  DEMO_TODAY,
+  ORDERS,
+  type Order,
+  type OrderStatus,
+  type OrderType,
+} from "./OrderListPage.data";
+import { LISTED_PRODUCTS } from "./ProductListPage.data";
+import { SELLERS } from "./SellerListPage.data";
+import { APPLICATIONS, REVIEWABLE_STATUS } from "./SellerReviewPage.data";
 import { SETTLEMENT_SUMMARY } from "./settlement.data";
 
 /* -------------------------------------------------------------------------
@@ -6,53 +18,32 @@ import { SETTLEMENT_SUMMARY } from "./settlement.data";
  *
  * 짝이 되는 뼈대: `DashboardPage.tsx` (레이아웃·차트 조립, 도메인 무관)
  *
+ * ## ⚠️ 숫자를 손으로 적지 않는다 — 전부 샘플에서 파생한다
+ *
+ * 원본도 대시보드의 모든 수치를 기존 배열에서 센다(proto.html:3060 「모든 수치는 기존 배열에서 파생」).
+ * 여기서 숫자를 적어 두면 타일을 눌러 간 목록과 숫자가 어긋난다(실제로 회원 12,847 → 목록 30 이었다).
+ * **예외 하나**: 오늘 방문자 — 방문 로그 원천이 없어 원본의 시드 상수 54 를 그대로 쓴다.
+ *
  * ## 갈아끼울 것 (이 파일 전체)
  *
- * | 실물 이름              | 역할                                    |
- * | ---------------------- | --------------------------------------- |
- * | `METRIC_GROUPS`        | 상단 지표 타일 — **3그룹 × 3장 = 9장**  |
- * | `PERIODS`              | 차트별 기간 세그먼트 (1주/1개월/3개월)  |
- * | `DEFAULT_PERIOD`       | 뼈대의 `useState` 초기값 (아래 ⚠️)      |
- * | `ORDER_COUNT_TREND`    | 총 매출 현황(건수) 라인 차트 데이터     |
- * | `REVENUE_TREND`        | 총 매출 현황(금액) 라인 차트 데이터     |
- * | `TREND_SERIES`         | 두 차트가 공유하는 계열(렌트·판매)      |
- * | `orderCountTotals`     | 기간별 건수 합계 (파생값)               |
- * | `revenueTotals`        | 기간별 금액 합계 (파생값)               |
- * | `RENT_FUNNEL`          | 렌트 관리 흐름 4단계                   |
- * | `SALE_FUNNEL`          | 판매 관리 흐름 4단계                    |
- * | `count` · `manwon`     | 차트 축·툴팁 단위 포맷                  |
+ * | 실물 이름                  | 역할                                                     |
+ * | -------------------------- | -------------------------------------------------------- |
+ * | `METRIC_ROWS`              | 지표 타일 — **3줄 × 3장 = 9장**. 줄 = 집계 범위(회원/셀러/매출) |
+ * | `PERIODS` · `DEFAULT_PERIOD` | 차트별 기간 세그먼트 (1주/1개월/3개월 · 기본 1개월)    |
+ * | `ORDER_COUNT_TREND`        | 결제 건수 일별 추이 (기간 → 행 배열)                    |
+ * | `REVENUE_TREND`            | 결제 금액 일별 추이                                      |
+ * | `*Totals` · `*SeriesTotals` | 기간 합계 · 계열(칩) 합계 — 같은 원자료 · 같은 날짜 창 |
+ * | `TICK_EVERY`               | x축 눈금 간격(1주 매일 · 1개월 5일 · 3개월 15일)         |
+ * | `RENT_FUNNEL` · `SALE_FUNNEL` | 흐름 4단계 · 건수                                     |
+ * | `count` · `won` · `num` · `shortDay` | 단위·날짜 포맷                                 |
  *
  * ## 뼈대가 이 파일에 기대하는 계약
- * - `METRIC_GROUPS[].metrics` 는 **그룹마다 정확히 3장** — 뼈대가 `grid-cols-3` 한 줄에 깐다
- * - `metrics[].up` 과 `metrics[].good` 은 **다른 축이다. 둘 다 필수.**
- *   `up` → 화살표(↑/↓) · `good` → Tag tone(초록/빨강).
- *   **처리 대기 건수·탈퇴·반려율처럼 내려가야 좋은 지표**가 이 도메인에 있으므로
- *   `good: up` 으로 복사하면 화면이 거짓말을 한다
- * - `metrics[].caption` 은 **비교 기준이다. 카드마다 따로 든다.**
- *   방문자는 어제, 회원 총계는 지난달 말, 거래액은 정산 회차 기준이라 한 문구로 묶을 수 없다
- * - `metrics[].navId` 는 그 타일이 여는 목록 화면의 GNB id (F01 "각 타일은 해당 목록 화면으로 이동")
- * - `TREND_SERIES[].key` 는 차트 데이터 객체의 속성 이름(`rent`·`sale`)과 정확히 일치해야 한다
- * - 차트 배열에는 **타입을 새로 달지 않는다** — `ChartDatum`(`Record<string, string | number>`)
- *   에 암묵적 index signature 로 대입되므로 인터페이스를 붙이면 대입이 깨진다
- *
- * ## 템플릿(`src/pages/DashboardPage`)과 의도적으로 다른 곳
- * 1. **KPI 가 4장이 아니라 3그룹 × 3장이다.** 기획서 S01 이 회원 3 · 셀러 3 · 매출 3 으로
- *    타일을 묶어 두었다. 4장으로 줄이면 5개 지표가 화면에서 사라진다 —
- *    템플릿 계약("4장 · grid-cols-4")은 개수를 바꾸면 뼈대의 grid 열 수도 함께 고치라고
- *    적어 두었으므로, 뼈대를 `grid-cols-3` × 3섹션으로 맞췄다
- * 2. **기간 세그먼트가 차트마다 하나씩이다.** 기획서가 건수 차트·금액 차트에 각각
- *    1주/1개월/3개월 선택을 붙였다. 그리고 **표시 전용이 아니라 실제로 데이터를 바꾼다**
- * 3. **`DEFAULT_PERIOD` 를 데이터가 들고 있다.** 템플릿은 뼈대에 `useState("12m")` 이
- *    하드코딩돼 있어 `PERIODS` 를 새로 쓰면 활성 항목이 없는 채로 조용히 렌더된다.
- *    초기값을 여기서 내보내 그 사고를 구조적으로 막는다
- * 4. **도넛·순위표가 없다.** 기획서 S01 에 구성비·순위 섹션이 없다. 대신 도메인의 핵심인
- *    상태 퍼널 2종이 그 자리에 온다
- *
- * ## 원본 저장본(`_plan/babycube-admin/`)에서 가져온 것 / 버린 것
- * - **가져온 것**: 타일 9개의 이름, 차트 제목, 흐름 단계 어휘(각 4단계), 단위(건·원·명·개)
- * - **버린 것**: 원본의 색 체계(`b-green`/`b-blue`/`b-prog`/`b-done`/`b-exc`,
- *   `--brand`/`--warn`/`--danger`)와 커스텀 SVG 차트. 색·레이아웃은 전부 Clay 토큰과
- *   `Chart`(Recharts) 컴포넌트로 다시 만들었다
+ * - `METRIC_ROWS[].metrics` 는 **줄마다 정확히 3장** — 뼈대가 3열로 깐다
+ * - `metrics[].navId` 는 **있을 때만** 그 타일이 링크가 된다(원본 `go`)
+ * - 추이 행은 `{ label, rent, sale }` — `label` 은 **연도 포함 점 표기**(`2026.10.15`).
+ *   툴팁 제목이 이 값을 그대로 쓰고, 축은 `shortDay` 로 줄여 그린다
+ * - `TREND_SERIES[].key` 는 추이 행의 속성 이름(`rent`·`sale`)과 정확히 일치해야 한다
+ * - 차트 배열에는 **타입을 새로 달지 않는다** — `ChartDatum` 에 암묵적 index signature 로 대입된다
  * ---------------------------------------------------------------------- */
 
 /* =========================================================================
@@ -61,296 +52,338 @@ import { SETTLEMENT_SUMMARY } from "./settlement.data";
 
 export type PeriodValue = "1w" | "1m" | "3m";
 
-/** 차트 카드마다 하나씩 붙는 기간 세그먼트 (원본 어휘 그대로) */
+/** 차트 카드마다 하나씩 붙는 기간 세그먼트 (원본 `PERIODS` — proto.html:2992) */
 export const PERIODS = [
   { value: "1w", label: "1주" },
   { value: "1m", label: "1개월" },
   { value: "3m", label: "3개월" },
 ];
 
-/**
- * 뼈대의 `useState` 초기값. **반드시 `PERIODS[].value` 중 하나여야 한다.**
- * 템플릿은 이 값을 뼈대에 문자열로 박아 두어, 기간 목록을 새로 쓰면
- * SegmentedControl 이 활성 항목 없이 렌더되는 사고가 났다. 여기서 내보내 잇는다.
- */
-export const DEFAULT_PERIOD: PeriodValue = "1m";
+/** 기간 → 기준일 포함 날짜 수 (원본 `[[7,'1주'],[30,'1개월'],[90,'3개월']]`) */
+const PERIOD_DAYS: Record<PeriodValue, number> = {
+  "1w": 7,
+  "1m": 30,
+  "3m": 90,
+};
 
 /**
- * SegmentedControl 은 `string` 을 돌려주므로 유니온으로 좁혀 받는다.
- * 캐스팅(`as`) 대신 값 비교로 좁혀 런타임에도 안전하게 만든다.
+ * x축 눈금 간격(일) — 원본 `lblStep` (proto.html:3013). **끝(기준일)에서 거꾸로** 센다 —
+ * 원본은 첫날부터 세어 마지막 날 눈금이 없었다. 기준일이 눈에 보여야 「오늘까지」로 읽힌다.
  */
+export const TICK_EVERY: Record<PeriodValue, number> = {
+  "1w": 1,
+  "1m": 5,
+  "3m": 15,
+};
+
+/** 뼈대의 `useState` 초기값. **반드시 `PERIODS[].value` 중 하나** (원본 `DASH_PERIOD` 30일) */
+export const DEFAULT_PERIOD: PeriodValue = "1m";
+
+/** SegmentedControl 은 `string` 을 돌려주므로 값 비교로 좁힌다(캐스팅 없이) */
 export const asPeriod = (value: string): PeriodValue =>
   value === "1w" ? "1w" : value === "3m" ? "3m" : "1m";
 
 /* =========================================================================
- * 2. 총 매출 현황 차트 2종
+ * 2. 총 매출 현황 — 결제 기준 일별 추이 (원본 `salesDaily` — proto.html:2983)
  *
- * 기간마다 **버킷 단위가 다르다** — 1주는 일자별 / 1개월은 주별 / 3개월은 월별.
- * 그래서 기간을 바꾸면 x축 라벨과 점 개수가 함께 바뀐다.
- *
- * ⚠️ 숫자는 서로 모순되지 않게 맞춰 두었다(5-B 숫자 정합):
- *   1주 합계 < 1개월 합계 < 3개월 합계 이고,
- *   1개월 데이터의 **마지막 주**(08-18)는 1주 데이터 7일치의 합과 정확히 같다.
+ * ## 집계 계약 (GPT 검토 `dash-gpt-review.md` §2 — 바꾸지 말 것)
+ * - **결제 = 주문번호**(`orderNo`). 처리단위가 여럿인 결제를 여러 번 세지 않는다
+ * - 렌트 계열 = 렌트 처리단위를 **포함한** 결제 수 · 판매도 같다.
+ *   혼합 결제는 **양쪽에 한 번씩** 나온다 → 칩 합 ≠ 기간 합계(전체 = 고유 결제 수). 정상이다
+ * - 금액 = 처리단위별 `payTotalOf`(주문 상세 「결제금액」과 같은 함수) 합. 보증금 제외 ·
+ *   취소·반품 상태여도 결제 기록을 지우거나 환불을 빼지 않는다(순매출 차트가 아니다)
+ * - 기준일 = `DEMO_TODAY`(시연 기준일) 포함 7/30/90일 **연속** — 결제가 없는 날도 0 으로 채운다
+ * - 원 단위로 보관하고 표시 단계에서만 쉼표·단위를 붙인다
  * ====================================================================== */
 
-/** 최근 7일 · 일자별 주문 건수 */
-const COUNT_1W = [
-  { label: "08-18", rent: 62, sale: 78 },
-  { label: "08-19", rent: 58, sale: 71 },
-  { label: "08-20", rent: 71, sale: 84 },
-  { label: "08-21", rent: 66, sale: 79 },
-  { label: "08-22", rent: 74, sale: 92 },
-  { label: "08-23", rent: 48, sale: 63 },
-  { label: "08-24", rent: 41, sale: 55 },
-];
+/** 날짜 키 `YYYY-MM-DD` — 결제 일시(`YYYY-MM-DD HH:mm`)의 앞 10자와 같은 꼴 */
+const dayKey = (at: Date) =>
+  `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(at.getDate()).padStart(2, "0")}`;
 
-/** 최근 4주 · 주별 주문 건수 (마지막 주 = COUNT_1W 7일치의 합) */
-const COUNT_1M = [
-  { label: "07-28", rent: 392, sale: 470 },
-  { label: "08-04", rent: 405, sale: 496 },
-  { label: "08-11", rent: 418, sale: 511 },
-  { label: "08-18", rent: 420, sale: 522 },
-];
+/** 기준일 포함 n일의 날짜 키(오래된 순). 로컬 날짜로 만든다 — `toISOString` 은 UTC 라 하루 밀린다 */
+export function windowDays(n: number, today = DEMO_TODAY): string[] {
+  const [y, m, d] = today.split("-").map(Number);
+  return Array.from({ length: n }, (_, i) =>
+    dayKey(new Date(y, m - 1, d - (n - 1 - i))),
+  );
+}
 
-/** 최근 3개월 · 월별 주문 건수 (8월은 24일까지라 4주치보다 작다) */
-const COUNT_3M = [
-  { label: "6월", rent: 1480, sale: 1790 },
-  { label: "7월", rent: 1555, sale: 1880 },
-  { label: "8월", rent: 1420, sale: 1735 },
-];
+/** `2026-10-15` → `2026.10.15` (날짜 점 표기 — 사용자 결정) */
+const dotDay = (key: string) => key.replace(/-/g, ".");
 
-/** 최근 7일 · 일자별 거래 금액 (**만원 단위** — 축과 툴팁이 같은 포맷을 공유한다) */
-const REVENUE_1W = [
-  { label: "08-18", rent: 744, sale: 624 },
-  { label: "08-19", rent: 696, sale: 568 },
-  { label: "08-20", rent: 852, sale: 672 },
-  { label: "08-21", rent: 792, sale: 632 },
-  { label: "08-22", rent: 888, sale: 736 },
-  { label: "08-23", rent: 576, sale: 504 },
-  { label: "08-24", rent: 492, sale: 440 },
-];
+/** 축 눈금용 `2026.10.15` → `10.15`. 툴팁·접근 설명은 연도를 남긴다 */
+export const shortDay = (label: string | number) => String(label).slice(5);
 
-/** 최근 4주 · 주별 거래 금액(만원). 마지막 주 = REVENUE_1W 7일치의 합 */
-const REVENUE_1M = [
-  { label: "07-28", rent: 4704, sale: 3760 },
-  { label: "08-04", rent: 4860, sale: 3968 },
-  { label: "08-11", rent: 5016, sale: 4088 },
-  { label: "08-18", rent: 5040, sale: 4176 },
-];
+/** 결제 하나 — 처리단위를 주문번호로 묶은 것 */
+export interface Payment {
+  orderNo: string;
+  day: string;
+  hasRent: boolean;
+  hasSale: boolean;
+  rentAmount: number;
+  saleAmount: number;
+}
 
-/** 최근 3개월 · 월별 거래 금액(만원) */
-const REVENUE_3M = [
-  { label: "6월", rent: 17760, sale: 14320 },
-  { label: "7월", rent: 18660, sale: 15040 },
-  { label: "8월", rent: 17040, sale: 13880 },
-];
+/** 처리단위 → 결제. 결제일은 처리단위들이 공유한다(같은 주문번호 = 같은 결제 일시) */
+export function paymentsOf(orders: readonly Order[]): Payment[] {
+  const byNo = new Map<string, Payment>();
+  for (const order of orders) {
+    const pay = byNo.get(order.orderNo) ?? {
+      orderNo: order.orderNo,
+      day: order.date.slice(0, 10),
+      hasRent: false,
+      hasSale: false,
+      rentAmount: 0,
+      saleAmount: 0,
+    };
+    const amount = payTotalOf(order);
+    if (order.type === "rent") {
+      pay.hasRent = true;
+      pay.rentAmount += amount;
+    } else {
+      pay.hasSale = true;
+      pay.saleAmount += amount;
+    }
+    byNo.set(order.orderNo, pay);
+  }
+  return [...byNo.values()];
+}
+
+const PAYMENTS = paymentsOf(ORDERS);
+
+/** 한 기간의 일별 행 + 합계. 시계열과 합계를 **같은 원자료 · 같은 날짜 창**에서 만든다 */
+export function trendOf(payments: readonly Payment[], days: readonly string[]) {
+  const inDay = (day: string) => payments.filter((p) => p.day === day);
+  const count = days.map((day) => {
+    const ps = inDay(day);
+    return {
+      label: dotDay(day),
+      rent: ps.filter((p) => p.hasRent).length,
+      sale: ps.filter((p) => p.hasSale).length,
+    };
+  });
+  const revenue = days.map((day) => {
+    const ps = inDay(day);
+    return {
+      label: dotDay(day),
+      rent: ps.reduce((sum, p) => sum + p.rentAmount, 0),
+      sale: ps.reduce((sum, p) => sum + p.saleAmount, 0),
+    };
+  });
+  const inWindow = payments.filter((p) => days.includes(p.day));
+  const sumOf = (rows: { rent: number; sale: number }[]) => ({
+    rent: rows.reduce((sum, row) => sum + row.rent, 0),
+    sale: rows.reduce((sum, row) => sum + row.sale, 0),
+  });
+  const revenueSeries = sumOf(revenue);
+  return {
+    count,
+    revenue,
+    /** 고유 결제 수 — 계열 합이 아니다(혼합 결제) */
+    countTotal: inWindow.length,
+    countSeries: sumOf(count),
+    /** 금액은 처리단위별이라 계열 합 = 전체 */
+    revenueTotal: revenueSeries.rent + revenueSeries.sale,
+    revenueSeries,
+  };
+}
+
+const TRENDS = {
+  "1w": trendOf(PAYMENTS, windowDays(PERIOD_DAYS["1w"])),
+  "1m": trendOf(PAYMENTS, windowDays(PERIOD_DAYS["1m"])),
+  "3m": trendOf(PAYMENTS, windowDays(PERIOD_DAYS["3m"])),
+};
+
+const byPeriod = <T>(pick: (trend: (typeof TRENDS)["1m"]) => T) => ({
+  "1w": pick(TRENDS["1w"]),
+  "1m": pick(TRENDS["1m"]),
+  "3m": pick(TRENDS["3m"]),
+});
+
+/** 결제 건수 일별 추이 — 기간 → 행 배열 */
+export const ORDER_COUNT_TREND = byPeriod((t) => t.count);
+/** 결제 금액(원) 일별 추이 */
+export const REVENUE_TREND = byPeriod((t) => t.revenue);
+export const orderCountTotals = byPeriod((t) => t.countTotal);
+export const revenueTotals = byPeriod((t) => t.revenueTotal);
 
 /**
- * 기간 → 차트 데이터. **타입을 달지 않는다** — 뼈대가 `ChartDatum[]` 로 받을 때
- * 암묵적 index signature 로 대입되는데, 인터페이스를 붙이면 그 대입이 깨진다.
+ * 계열별 기간 합계 — 차트 헤더의 계열 토글 칩("렌트 24건")이 쓴다.
+ *
+ * ⚠️ **원본 v0.4 에 없는 숫자다**(원본은 전사 단일 계열 · 합계 없음, proto.html:3081~3084).
+ * 칩과 기간 합계는 사용자 결정(2026-09-18 · 2026-11-03 유지)으로 둔 예외다.
+ * 건수 칩 합은 기간 합계와 다를 수 있다 — 혼합 결제가 양쪽에 들기 때문이다(`COUNT_NOTE`).
  */
-export const ORDER_COUNT_TREND = {
-  "1w": COUNT_1W,
-  "1m": COUNT_1M,
-  "3m": COUNT_3M,
-};
+export const orderCountSeriesTotals = byPeriod((t) => t.countSeries);
+export const revenueSeriesTotals = byPeriod((t) => t.revenueSeries);
 
-export const REVENUE_TREND = {
-  "1w": REVENUE_1W,
-  "1m": REVENUE_1M,
-  "3m": REVENUE_3M,
+/** 칩 아래 한 줄 — 무엇을 셌는지. 칩 합과 합계가 다른 이유를 여기서 말한다 */
+export const COUNT_NOTE =
+  "결제 기준 · 렌트와 판매를 함께 결제하면 양쪽에 1건씩";
+export const REVENUE_NOTE = "결제금액 기준 · 보증금 제외";
+
+/** 기간 → `2026.09.20~2026.10.19` (접근 설명용 — 연도 포함) */
+export const periodRangeText = (period: PeriodValue) => {
+  const days = windowDays(PERIOD_DAYS[period]);
+  return `${dotDay(days[0])}~${dotDay(days[days.length - 1])}`;
 };
 
 /**
- * 두 차트가 공유하는 계열. `key` 는 위 데이터 객체의 속성 이름과 정확히 일치한다.
- * 계열이 2개라 뼈대가 **범례를 반드시 붙인다**(색만으로 렌트/판매를 구별하게 두지 않는다).
+ * 두 차트가 공유하는 계열. `key` 는 추이 행의 속성 이름과 정확히 일치한다.
+ * 계열이 2개라 뼈대가 **범례(칩)를 반드시 붙인다**.
  */
 export const TREND_SERIES: ChartSeries[] = [
   { key: "rent", label: "렌트" },
   { key: "sale", label: "판매" },
 ];
 
-/** 카드 헤더의 합계 문구용 파생값 — 항목을 고치면 합계가 자동으로 따라온다 */
-const sumTrend = (rows: { rent: number; sale: number }[]) =>
-  rows.reduce((sum, row) => sum + row.rent + row.sale, 0);
-
-export const orderCountTotals = {
-  "1w": sumTrend(COUNT_1W),
-  "1m": sumTrend(COUNT_1M),
-  "3m": sumTrend(COUNT_3M),
-};
-
-export const revenueTotals = {
-  "1w": sumTrend(REVENUE_1W),
-  "1m": sumTrend(REVENUE_1M),
-  "3m": sumTrend(REVENUE_3M),
-};
-
-/**
- * 계열별 기간 합계 — 차트 헤더의 계열 토글 칩("렌트 1,635건")이 쓴다.
- *
- * ⚠️ **원본에 없는 숫자다**(원본은 두 계열을 더한 합계 한 줄뿐). 사용자 결정으로 들였다
- * (2026-09-18, shadcn `chart-bar-interactive` 헤더 패턴). 새 데이터가 아니라 위 추이를
- * 계열별로 더한 **파생값**이라, 항목을 고치면 자동으로 따라오고 두 값의 합은 항상
- * `orderCountTotals`·`revenueTotals` 와 같다(테스트가 고정한다).
- *
- * 키는 `TREND_SERIES` 의 `key` 와 같다 — 뼈대가 계열 키로 꺼내 쓴다.
- */
-const sumBySeries = (rows: { rent: number; sale: number }[]) => ({
-  rent: rows.reduce((sum, row) => sum + row.rent, 0),
-  sale: rows.reduce((sum, row) => sum + row.sale, 0),
-});
-
-export const orderCountSeriesTotals = {
-  "1w": sumBySeries(COUNT_1W),
-  "1m": sumBySeries(COUNT_1M),
-  "3m": sumBySeries(COUNT_3M),
-};
-
-export const revenueSeriesTotals = {
-  "1w": sumBySeries(REVENUE_1W),
-  "1m": sumBySeries(REVENUE_1M),
-  "3m": sumBySeries(REVENUE_3M),
-};
-
 /* =========================================================================
- * 3. 상태 흐름 (F02)
+ * 3. 상태 흐름 — 원본 `uFlow` (proto.html:2977)
  *
- * 단계를 누르면 그 상태로 필터된 주문 목록으로 이동한다.
- * 단계 어휘는 원본 저장본에서 그대로 가져왔다 — 색은 가져오지 않았다.
+ * **주문 목록과 같은 유형 · 현재 상태**로 센다 — 단계를 누르면 그 필터로 주문 목록이 열리고
+ * 거기 보이는 건수와 같아야 한다. 대여중(연장)·연체중을 대여중에 더하지 않는다(다른 상태다).
+ * 네 단계의 합은 전체 주문 수가 아니다 — 비중 막대·진행률의 근거로 쓰지 않는다.
  * ====================================================================== */
 
-/**
- * 상태 흐름 한 단계.
- *
- * ⚠️ **원본 대시보드의 흐름은 각 4단계다.** 한때 상태 어휘 목록(교환·반품까지 130여 개)에서
- * 부풀려 렌트 11 · 판매 5 단계를 만들었는데, 대시보드에 있는 것이 아니었다.
- * 전체 상태 어휘는 **주문 목록 화면**이 든다 — 대시보드는 큰 국면만 짚는다.
- */
 export type FunnelStep = {
-  /** 주문 목록의 상태 필터 값 */
-  value: string;
+  /** 주문 목록의 상태 값 — 건수도 이것으로 센다 */
+  value: OrderStatus;
   label: string;
   count: number;
 };
 
-/**
- * 렌트 생애주기 4국면 — 접수 → 이용 → 검수 → 종료.
- * 배송·수거·연체 같은 중간 상태는 **주문 목록**이 든다.
- */
+const stepOf = (
+  type: OrderType,
+  value: OrderStatus,
+  label: string,
+): FunnelStep => ({
+  value,
+  label,
+  count: ORDERS.filter((o) => o.type === type && o.status === value).length,
+});
+
+/** 렌트 4단계 — 원본 순서 그대로(proto.html:3111) */
 export const RENT_FUNNEL: FunnelStep[] = [
-  { value: "new", label: "신규 주문", count: 12 },
-  { value: "renting", label: "대여중", count: 24 },
-  { value: "inspecting", label: "검수중", count: 4 },
-  { value: "returned", label: "반납완료", count: 13 },
+  stepOf("rent", "new", "신규 주문"),
+  stepOf("rent", "renting", "대여중"),
+  stepOf("rent", "inspecting", "검수중"),
+  stepOf("rent", "returned", "반납완료"),
 ];
 
-/** 판매 생애주기 4국면 — 접수 → 출고 준비 → 도착 → 종료 */
+/** 판매 4단계 — 원본 순서 그대로(proto.html:3113) */
 export const SALE_FUNNEL: FunnelStep[] = [
-  { value: "new", label: "신규 주문", count: 10 },
-  { value: "ready", label: "배송 준비", count: 4 },
-  { value: "delivered", label: "배송 완료", count: 2 },
-  { value: "confirmed", label: "구매확정", count: 23 },
+  stepOf("sale", "new", "신규 주문"),
+  stepOf("sale", "ready", "배송 준비"),
+  stepOf("sale", "delivered", "배송 완료"),
+  stepOf("sale", "confirmed", "구매확정"),
 ];
 
 /**
- * 흐름 단계가 여는 화면의 GNB id — 주문 목록(S08)이다.
- *
- * ⚠️ 실제 id 는 `bc-orders-all` 이다. `bc-orders` 로 두면 **GNB 의 부모 항목**(주문 관리 그룹)과
- * 겹쳐서, 눌러도 화면이 열리지 않고 그룹만 접혔다 펴진다. `gnbSections.tsx` 참조.
+ * 흐름 단계가 여는 화면 — 주문 목록. `?stat=<유형>&flow=<단계>` 로 유형·상태를 건다
+ * (주문 목록 `filtersFromQuery`). ⚠️ GNB 부모 항목 id 와 헷갈리지 말 것(`gnbSections.tsx`).
  */
 export const ORDERS_NAV_ID = "/orders-all";
 
 /* =========================================================================
- * 4. 상단 지표 타일 9장 (F01)
+ * 4. 지표 타일 9장 — 원본 `tileRow` 3줄 (proto.html:3088~3106)
  *
- * ⚠️ `up`(방향)과 `good`(좋고 나쁨)은 **다른 축**이다. 반드시 둘 다 채운다.
- *
- *   아이콘(↑/↓) ← `up`      색(초록/빨강) ← `good`
- *
- * 이 도메인에는 **내려가야 좋은 지표**가 실제로 있다 —
- * `입점 심사 요청`은 운영자가 처리해야 할 **대기 건수**라, 줄어든 것이 좋은 소식이다.
- * `good: up` 으로 복사하면 "-3건"에 빨간 태그가 붙어 화면이 거짓말을 한다.
- *
- * ⚠️ `caption`(비교 기준)도 카드마다 따로 든다.
- * 방문자는 어제 같은 시각, 회원 총계는 지난달 말, 거래액은 정산 회차 기준이다.
- * 한 문구로 묶으면 기준이 다른 지표가 같은 기준으로 읽혀 숫자가 서로 모순된다.
- *
- * ⚠️ 매출 3장은 **셀러 정산 화면과 같은 계산**(`settlement.data.ts` 의 회차 요약)을 읽는다 —
- *   원본 대시보드도 `settleSellerRows()` 를 더한다(proto.html:3103~3105). 손으로 적은 값을 두면
- *   타일을 눌러 간 셀러 정산 요약과 숫자가 달라진다.
- *   거래액 라벨은 정산 기준 결정(할인 후 소계)에 맞춰 「(할인 후)」 — 원본 「(정가)」(기획 확인 필요).
+ * **줄 = 집계 범위**(UI-242). 줄 제목은 화면에 없다(원본) — 이름은 스크린리더용
+ * 묶음 이름(`name`, annotations 영역명 「회원 현황」 등)으로만 쓴다.
+ * 타일 라벨·순서·단위는 원본 그대로, 거래액 라벨만 정산 기준 결정(할인 후)을 따른다.
  * ====================================================================== */
 
 /**
- * 상단 지표 타일 — **3그룹 × 3장 = 9장.**
- *
- * ## ⚠️ 원본 타일은 라벨 · 값 · 단위뿐이다
- * 원본 컴포넌트는 이게 전부다:
- * ```js
- * <span className="dsl">{label}</span>
- * <span><b className={go ? "dsv go" : "dsv"} onClick={…}>{value}</b>
- *       <span className="dsu">{unit}</span></span>
- * ```
- * 한때 여기에 **아이콘 · 증감(±%) · 비교 기준 문구 · "회원 목록" 링크 버튼**을 얹었는데
- * 넷 다 원본에 없는 것이라 걷어냈다(타일 9장 × 4 = 36개 요소). 값 자체가 링크다.
- *
- * ## 뼈대가 이 파일에 기대하는 계약
- * - 그룹마다 **정확히 3장** — 뼈대가 그룹을 3열로 세우고, 한 박스 안에 3행으로 쌓는다
- * - `unit` 은 값과 **분리한다.** 원본이 값과 단위에 다른 크기를 주기 때문이다
- *   (값은 크게, 단위는 작게). 붙여서 한 문자열로 넣으면 그 위계를 만들 수 없다
- * - `navId` 는 **있을 때만** 그 타일이 링크가 된다. 원본도 `go` 가 있는 타일만 눌린다 —
- *   오늘 방문자·오늘 가입자는 갈 곳이 없다(그날치 집계라 목록 화면이 없다)
+ * 오늘 방문자 — **임시값.** 방문 로그 원천이 없어 원본 시드 상수를 그대로 쓴다
+ * (proto.html:2966·2973 `HQ_TODAY_VISIT=54` 「임시값 — 판정 대기」).
  */
-export const METRIC_GROUPS = [
+const TODAY_VISITORS = 54;
+
+export const num = (value: number) => value.toLocaleString("ko-KR");
+
+/**
+ * 지표 타일 — **3줄 × 3장 = 9장.**
+ *
+ * - `navId` 가 있을 때만 링크(원본 `go`). 오늘 방문자·오늘 가입자는 갈 곳이 없다
+ * - ⚠️ 타일 수는 **도착 화면의 기본 탭 수와 다를 수 있다** — 전체 회원 30 은 정상 20 뿐 아니라
+ *   정지·휴면·탈퇴를 포함하고, 입점 등록 상품 30 은 판매중 17 외 상태를 포함한다(원본 산식).
+ *   기본 탭에 맞추려고 타일을 줄이지 않는다
+ */
+export const METRIC_ROWS = [
   {
     id: "member",
-    title: "회원 지표",
+    name: "회원 현황",
     metrics: [
-      { label: "오늘 방문자", value: "4,182", unit: "명" },
-      { label: "오늘 가입자", value: "68", unit: "명" },
-      { label: "전체 회원", value: "12,847", unit: "명", navId: "/members" },
+      { label: "오늘 방문자", value: num(TODAY_VISITORS), unit: "명" },
+      {
+        label: "오늘 가입자",
+        /* 가입일이 시연 기준일인 회원 — 지금 샘플은 0명(최근 가입 08-12). 0 도 값이다 */
+        value: num(
+          MEMBERS.filter((m) => m.date.slice(0, 10) === DEMO_TODAY).length,
+        ),
+        unit: "명",
+      },
+      /* 탈퇴 포함 전체 (원본 `MEMBERS.length`) */
+      {
+        label: "전체 회원",
+        value: num(MEMBERS.length),
+        unit: "명",
+        navId: "/members",
+      },
     ],
   },
   {
     id: "seller",
-    title: "셀러 지표",
+    name: "셀러 현황",
     metrics: [
       {
         label: "입점 심사 요청",
-        value: "8",
+        value: num(
+          APPLICATIONS.filter((a) => a.status === REVIEWABLE_STATUS).length,
+        ),
         unit: "건",
-        /* 원본도 상태를 걸어 보낸다 — `/seller-review?stat=승인요청` */
+        /* 원본도 상태를 걸어 보낸다. 목록은 아직 쿼리를 읽지 않지만 기본 탭이 승인요청이라 도착이 같다 */
         navId: "/seller-review?stat=%EC%8A%B9%EC%9D%B8%EC%9A%94%EC%B2%AD",
       },
+      /* 입점사 상품 전체 — 원본 「본사 아님 && 임시저장 아님」(우리 모델엔 임시저장이 없다) */
       {
         label: "입점 등록 상품",
-        value: "3,264",
+        value: num(LISTED_PRODUCTS.length),
         unit: "개",
         navId: "/products",
       },
-      { label: "전체 입점 셀러", value: "128", unit: "사", navId: "/sellers" },
+      {
+        label: "전체 입점 셀러",
+        /* 본사 제외 · 퇴점·퇴점 처리중 포함(원본 `!s.hq`) — 이름과 범위가 다른 것은 기획 확인 */
+        value: num(SELLERS.filter((s) => !s.isHeadquarters).length),
+        unit: "사",
+        navId: "/sellers",
+      },
     ],
   },
   {
     id: "sales",
-    title: "매출 지표",
+    name: "매출 현황",
+    /*
+      셀러 정산 「정산 요약」과 **같은 객체**를 읽는다 — 손으로 적거나 다시 계산하면 눌러 간
+      화면과 숫자가 갈린다. 정산 회차(2026.09) 기준이라 차트(최근 n일 결제)와 범위가 다르다 — 정상이다.
+      거래액 라벨은 정산 기준 결정(할인 후 − 셀러 쿠폰)에 맞춰 「(할인 후)」 — 원본 「(정가)」(기획 확인).
+    */
     metrics: [
       {
         label: "입점사 거래액(할인 후)",
-        value: SETTLEMENT_SUMMARY.sales.toLocaleString("ko-KR"),
+        value: num(SETTLEMENT_SUMMARY.sales),
         unit: "원",
         navId: "/settle-seller",
       },
       {
         label: "지급 예정 총액",
-        value: SETTLEMENT_SUMMARY.payout.toLocaleString("ko-KR"),
+        value: num(SETTLEMENT_SUMMARY.payout),
         unit: "원",
         navId: "/settle-seller",
       },
       {
         label: "본사 수수료 수익",
-        value: SETTLEMENT_SUMMARY.fee.toLocaleString("ko-KR"),
+        value: num(SETTLEMENT_SUMMARY.fee),
         unit: "원",
         navId: "/settle-seller",
       },
@@ -359,22 +392,14 @@ export const METRIC_GROUPS = [
 ];
 
 /* =========================================================================
- * 5. 단위 포맷
+ * 5. 단위 포맷 — 단위가 곧 도메인이라 여기 둔다
  *
- * 단위가 곧 도메인이라 여기 둔다(건 · 만원 · 개사).
- * 축 눈금과 툴팁이 같은 함수를 공유하는데 툴팁 값이 문자열로 들어올 수 있어
- * `number | string` 을 모두 받는다.
+ * 축 눈금·툴팁·최댓값 라벨이 같은 함수를 공유한다. 툴팁 값이 문자열로 들어올 수 있어
+ * `number | string` 을 모두 받는다. 금액은 **원 단위 그대로** — 만 단위로 나누지 않는다.
  * ====================================================================== */
 
 export const count = (value: number | string) =>
-  typeof value === "number" ? `${value.toLocaleString("ko-KR")}건` : `${value}`;
+  typeof value === "number" ? `${num(value)}건` : `${value}`;
 
-/**
- * 단위를 뗀 숫자만. **값과 단위에 다른 크기를 주려면 문자열이 갈려 있어야 한다** —
- * 원본도 값(`dsv`)과 단위(`dsu`)를 다른 요소로 낸다.
- * 차트 축·툴팁은 단위가 붙은 `count`·`manwon` 을 그대로 쓴다.
- */
-export const num = (value: number) => value.toLocaleString("ko-KR");
-
-export const manwon = (value: number | string) =>
-  typeof value === "number" ? `${value.toLocaleString("ko-KR")}만` : `${value}`;
+export const won = (value: number | string) =>
+  typeof value === "number" ? `${num(value)}원` : `${value}`;

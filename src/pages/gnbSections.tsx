@@ -29,7 +29,17 @@ import {
   Wallet,
   XCircle,
 } from "lucide-react";
-import { Avatar, Tag, type GnbSection } from "../components/ui";
+import { Avatar, GnbBadge, Tag, type GnbSection } from "../components/ui";
+import {
+  CLAIM_ROWS,
+  REVIEWABLE_STATUS as CARE_RECEIVED,
+} from "./babycube/CareClaimListPage.data";
+import { ORDERS } from "./babycube/OrderListPage.data";
+import {
+  APPLICATIONS,
+  REVIEWABLE_STATUS as SELLER_REQUESTED,
+} from "./babycube/SellerReviewPage.data";
+import { SELLER_SETTLEMENTS } from "./babycube/settlement.data";
 /*
  * 로고는 **에셋 파일로 참조**한다(인라인 SVG 로 넣지 않는다).
  * 브랜드 색(#062dee · #a0c1f7)은 디자인 토큰이 아니라 로고 고유의 고정색인데,
@@ -60,6 +70,42 @@ import babycubeSymbol from "../assets/babycube-symbol.svg";
  * 매핑표를 따로 두면 한쪽만 고쳤을 때 조용히 어긋난다(실제로 `bc-orders` ↔ `bc-orders-all`
  * 로 대시보드 퍼널 링크가 통째로 죽은 적이 있다).
  */
+
+/**
+ * GNB 할 일 배지 — 원본 `TODO` · `SCREEN_MAP.badge` (proto.html:1732~1781). **샘플에서 센다.**
+ *
+ * | 메뉴          | 세는 것                               |
+ * | ------------- | ------------------------------------- |
+ * | 입점 심사     | 승인요청 신청                         |
+ * | 주문 목록     | 현재 상태 신규 주문(렌트 + 판매)      |
+ * | 셀러 정산     | 이번 회차에서 지급완료가 아닌 셀러    |
+ * | 안심케어 승인 | 청구 접수                             |
+ *
+ * ⚠️ 배지 수는 **도착 화면 기본 표의 총건수와 다를 수 있다**(주문 목록 기본은 렌트 전체 ·
+ * 셀러 정산 기본은 상태 전체). 원본도 같다 — 배지를 맞추려고 도착 화면에 자동 필터를 걸지 않는다.
+ * **보증금 내역 배지는 보류**(원본 「파손」을 지금 검수 값 중 무엇에 대응할지 기획 확인 필요).
+ * 문의·리뷰 등 원본에 없는 배지는 늘리지 않는다.
+ */
+const TODO_COUNTS = {
+  sellerReview: APPLICATIONS.filter((a) => a.status === SELLER_REQUESTED)
+    .length,
+  orders: ORDERS.filter((o) => o.status === "new").length,
+  settleSeller: SELLER_SETTLEMENTS.filter((r) => r.status !== "paid").length,
+  careClaims: CLAIM_ROWS.filter((r) => r.status === CARE_RECEIVED).length,
+};
+
+/**
+ * 숫자만 보이고, 스크린리더에는 「처리 대기 N건」으로 읽힌다 — 메뉴 이름에 숫자가 붙어
+ * "입점 심사8" 로 이어 읽히지 않게 한다. 0 이면 배지를 두지 않는다.
+ */
+const todoBadge = (n: number) =>
+  n > 0 ? (
+    <GnbBadge tone="count">
+      <span className="sr-only">{" 처리 대기 "}</span>
+      {n}
+      <span className="sr-only">건</span>
+    </GnbBadge>
+  ) : undefined;
 
 /** GNB 아이콘은 §23-3 실측대로 20px · stroke 1.2 */
 const navIcon = (Icon: typeof ShoppingCart) => (
@@ -179,6 +225,7 @@ export const GNB_SECTIONS: GnbSection[] = [
         id: "/seller-review",
         label: "입점 심사",
         icon: navIcon(ClipboardCheck),
+        badge: todoBadge(TODO_COUNTS.sellerReview),
       },
     ],
   },
@@ -195,7 +242,12 @@ export const GNB_SECTIONS: GnbSection[] = [
     id: "g-orders",
     label: "주문 관리 (통합)",
     items: [
-      { id: "/orders-all", label: "주문 목록", icon: navIcon(ShoppingCart) },
+      {
+        id: "/orders-all",
+        label: "주문 목록",
+        icon: navIcon(ShoppingCart),
+        badge: todoBadge(TODO_COUNTS.orders),
+      },
       { id: "/orders-cancel", label: "취소 목록", icon: navIcon(XCircle) },
       { id: "/orders-return", label: "반품 목록", icon: navIcon(Undo2) },
       { id: "/orders-exchange", label: "교환 목록", icon: navIcon(RefreshCw) },
@@ -205,12 +257,18 @@ export const GNB_SECTIONS: GnbSection[] = [
     id: "g-settle",
     label: "정산 관리",
     items: [
-      { id: "/settle-seller", label: "셀러 정산", icon: navIcon(Wallet) },
+      {
+        id: "/settle-seller",
+        label: "셀러 정산",
+        icon: navIcon(Wallet),
+        badge: todoBadge(TODO_COUNTS.settleSeller),
+      },
       { id: "/rent-deposit", label: "보증금 내역", icon: navIcon(PiggyBank) },
       {
         id: "/care-claims",
         label: "안심케어 승인",
         icon: navIcon(ShieldCheck),
+        badge: todoBadge(TODO_COUNTS.careClaims),
       },
       {
         id: "/settle-statement",

@@ -908,3 +908,98 @@ describe("LineChart — hiddenKeys · fill 높이", () => {
     expect(inner?.style.height).toBe("");
   });
 });
+
+describe("LineChart — 최댓값 라벨 · 축 옵션 (기본 꺼짐)", () => {
+  const DAILY = [
+    { day: "2026.10.17", rent: 3, sale: 2 },
+    { day: "2026.10.18", rent: 1, sale: 5 },
+    { day: "2026.10.19", rent: 5, sale: 0 },
+  ];
+  const DAILY_SERIES: ChartSeries[] = [
+    { key: "rent", label: "렌트" },
+    { key: "sale", label: "판매" },
+  ];
+  const maxLabels = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll("[data-max-label]")).map(
+      (el) => el.textContent,
+    );
+  /** x축 눈금 — y축 눈금(숫자)과 같은 클래스라 글자 꼴(`MM.DD`)로 가른다 */
+  const xTicks = (container: HTMLElement) =>
+    Array.from(
+      container.querySelectorAll(".recharts-cartesian-axis-tick-value"),
+    )
+      .map((el) => el.textContent ?? "")
+      .filter((text) => /^\d\d\.\d\d$/.test(text));
+
+  it("기본은 최댓값 라벨이 없다 — 다른 사용처의 모양이 바뀌지 않는다", () => {
+    const { container } = render(
+      <LineChart
+        data={DAILY}
+        xKey="day"
+        series={DAILY_SERIES}
+        ariaLabel="기본"
+      />,
+    );
+    expect(maxLabels(container)).toEqual([]);
+  });
+
+  it("markMax 는 보이는 계열의 최댓값 한 점에만 붙고, 동률이면 앞 날짜가 이긴다", () => {
+    const { container } = render(
+      <LineChart
+        data={DAILY}
+        xKey="day"
+        series={DAILY_SERIES}
+        markMax
+        format={(v) => `${v}건`}
+        ariaLabel="최댓값"
+      />,
+    );
+    // 판매 10.18 의 5 와 렌트 10.19 의 5 가 같다 → 앞 날짜(10.18)의 판매 한 점
+    expect(maxLabels(container)).toEqual(["5건"]);
+  });
+
+  it("숨긴 계열은 최댓값 후보가 아니고, 전부 0 이면 라벨이 없다", () => {
+    const { container, rerender } = render(
+      <LineChart
+        data={DAILY}
+        xKey="day"
+        series={DAILY_SERIES}
+        hiddenKeys={["rent"]}
+        markMax
+        ariaLabel="숨김"
+      />,
+    );
+    expect(maxLabels(container)).toEqual(["5"]);
+
+    rerender(
+      <LineChart
+        data={DAILY.map((row) => ({ ...row, rent: 0, sale: 0 }))}
+        xKey="day"
+        series={DAILY_SERIES}
+        markMax
+        ariaLabel="숨김"
+      />,
+    );
+    expect(maxLabels(container)).toEqual([]);
+  });
+
+  it("xTickFormat 은 눈금 글자만 줄이고, xTickEvery 는 끝에서 거꾸로 N칸마다 눈금을 둔다", () => {
+    const five = Array.from({ length: 5 }, (_, i) => ({
+      day: `2026.10.${15 + i}`,
+      rent: i,
+      sale: 1,
+    }));
+    const { container } = render(
+      <LineChart
+        data={five}
+        xKey="day"
+        series={DAILY_SERIES}
+        xTickFormat={(v) => String(v).slice(5)}
+        xTickEvery={2}
+        ariaLabel="눈금"
+      />,
+    );
+    // 마지막(10.19)부터 2칸마다 — 기간의 끝이 항상 보인다
+    expect(xTicks(container)).toEqual(["10.15", "10.17", "10.19"]);
+  });
+});

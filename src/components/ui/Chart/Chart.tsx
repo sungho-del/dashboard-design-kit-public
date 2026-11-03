@@ -10,6 +10,7 @@ import {
   LineChart as RLineChart,
   Pie,
   PieChart as RPieChart,
+  ReferenceDot,
   Tooltip,
   XAxis,
   YAxis,
@@ -471,7 +472,80 @@ export interface LineChartProps {
    * 대신 `fit` 을 쓰면 **축 눈금을 반드시 읽게** 해야 한다 — 축 라벨을 숨기지 말 것.
    */
   yBaseline?: "zero" | "fit";
+  /**
+   * x축 **눈금 글자만** 바꾼다(`2026.10.15` → `10.15`). 툴팁 제목은 `xKey` 의 원래 값 그대로다 —
+   * 짧은 라벨을 데이터에 넣으면 툴팁까지 연도를 잃는다. 기본: 원래 값
+   */
+  xTickFormat?: (value: string | number) => string;
+  /**
+   * x축 눈금을 **N칸마다 하나** 둔다. **마지막 점에서 거꾸로** 센다 — 기간의 끝(오늘)이
+   * 항상 눈금에 남는다. 기본: recharts 자동 간격
+   */
+  xTickEvery?: number;
+  /** y축 눈금을 정수로만 — 건수처럼 소수가 뜻이 없는 값. 기본 false */
+  integerTicks?: boolean;
+  /**
+   * **보이는 계열의 최댓값 한 점**에만 값 라벨을 붙인다(모든 점 라벨 금지 — §28-5).
+   * 동률이면 앞 날짜 → 앞 계열. 전부 0 이면 붙이지 않는다. 숨긴 계열은 후보가 아니다. 기본 false
+   */
+  markMax?: boolean;
   className?: string;
+}
+
+/** 최댓값 한 점 — 행 순서(시간) 우선, 같은 행이면 계열 순서. 0 이하는 표시할 것이 없다 */
+function maxPointOf(
+  data: ChartDatum[],
+  series: ChartSeries[],
+  hiddenKeys?: readonly string[],
+): { index: number; key: string; value: number } | null {
+  let best: { index: number; key: string; value: number } | null = null;
+  for (let index = 0; index < data.length; index++) {
+    for (const s of series) {
+      if (hiddenKeys?.includes(s.key)) continue;
+      const value = Number(data[index][s.key]);
+      // 엄격히 클 때만 바꾼다 — 그래야 동률은 앞의 것(이른 날짜 · 앞 계열)이 남는다
+      if (Number.isFinite(value) && value > (best?.value ?? 0)) {
+        best = { index, key: s.key, value };
+      }
+    }
+  }
+  return best;
+}
+
+/** `xTickEvery` → 실제 눈금 값. 끝에서 거꾸로 N칸마다 */
+function tickValuesOf(data: ChartDatum[], xKey: string, every: number) {
+  const last = data.length - 1;
+  return data
+    .filter((_, i) => (last - i) % every === 0)
+    .map((row) => row[xKey]);
+}
+
+interface MaxLabelProps {
+  viewBox?: { x?: number; y?: number };
+  text: string;
+  anchor: "start" | "middle" | "end";
+}
+
+/**
+ * 최댓값 라벨. 글자색은 **텍스트 토큰**이다(계열색을 글자에 쓰지 않는다 — §28-4).
+ * 양 끝 점에서는 글자를 안쪽으로 붙여 차트 밖으로 잘리지 않게 한다.
+ */
+function MaxLabel({ viewBox, text, anchor }: MaxLabelProps) {
+  if (viewBox?.x === undefined || viewBox.y === undefined) return null;
+  return (
+    <text
+      data-max-label
+      x={viewBox.x}
+      y={viewBox.y - 10}
+      textAnchor={anchor}
+      fill="var(--color-text)"
+      fontSize={12}
+      fontWeight={600}
+      fontFamily="var(--font-base)"
+    >
+      {text}
+    </text>
+  );
 }
 
 /**
@@ -498,9 +572,19 @@ export function LineChart({
   ariaLabel,
   format,
   yBaseline = "zero",
+  xTickFormat,
+  xTickEvery,
+  integerTicks = false,
+  markMax = false,
   className,
 }: LineChartProps) {
   const Root = area ? RAreaChart : RLineChart;
+  const max = markMax ? maxPointOf(data, series, hiddenKeys) : null;
+  /* 양 끝 15% 안의 점이면 글자를 안쪽으로 — 가운데 정렬로 두면 절반이 차트 밖으로 나간다 */
+  const maxAnchor = (index: number): MaxLabelProps["anchor"] => {
+    const at = data.length > 1 ? index / (data.length - 1) : 0.5;
+    return at < 0.15 ? "start" : at > 0.85 ? "end" : "middle";
+  };
   /*
     그라디언트 id 는 **차트마다 달라야 한다.** SVG `<defs>` 의 id 는 문서 전역이라
     한 화면에 면 차트가 둘이면(건수·금액) 뒤 것이 앞 것의 그라디언트를 가져다 쓴다.
@@ -510,7 +594,20 @@ export function LineChart({
 
   return (
     <ChartFrame ariaLabel={ariaLabel} height={height} className={className}>
-      <Root data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+      <Root
+        data={data}
+        /*
+          최댓값 라벨이 축 상한에 닿아도 잘리지 않게 위 여백을 늘린다.
+          눈금을 직접 고르면(`xTickEvery`) 마지막 점에 눈금 글자가 걸려 가운데 정렬로 절반이
+          밖으로 나간다 — 오른쪽 여백을 글자 반폭만큼 둔다.
+        */
+        margin={{
+          top: markMax ? 24 : 8,
+          right: xTickEvery ? 24 : 8,
+          bottom: 0,
+          left: 0,
+        }}
+      >
         {area ? (
           <defs>
             {series.map((s, i) => (
@@ -547,6 +644,11 @@ export function LineChart({
           tickLine={false}
           axisLine={AXIS_LINE}
           tickMargin={8}
+          tickFormatter={xTickFormat}
+          /* 눈금을 직접 고르면 recharts 가 다시 솎지 않게 `interval={0}` 으로 전부 그린다 */
+          {...(xTickEvery
+            ? { ticks: tickValuesOf(data, xKey, xTickEvery), interval: 0 }
+            : {})}
         />
         <YAxis
           tick={tickStyle}
@@ -554,6 +656,7 @@ export function LineChart({
           axisLine={false}
           width={yAxisWidth(data, series, format)}
           tickFormatter={format}
+          allowDecimals={!integerTicks}
           /* `fit` 이면 recharts 가 데이터 최소·최대에 맞춰 눈금을 다시 고른다 */
           domain={yBaseline === "fit" ? ["auto", "auto"] : [0, "auto"]}
         />
@@ -600,6 +703,19 @@ export function LineChart({
             />
           ),
         )}
+        {max ? (
+          <ReferenceDot
+            x={data[max.index][xKey]}
+            y={max.value}
+            r={0}
+            label={
+              <MaxLabel
+                text={format ? format(max.value) : String(max.value)}
+                anchor={maxAnchor(max.index)}
+              />
+            }
+          />
+        ) : null}
       </Root>
     </ChartFrame>
   );

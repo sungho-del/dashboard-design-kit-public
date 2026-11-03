@@ -448,6 +448,46 @@ export const TooltipLineIndicator: Story = {
   ),
 };
 
+/** 일별 30점 — 최댓값 라벨 · 짧은 날짜 눈금 · 5일 간격 · 정수 눈금 */
+const DAILY_30 = Array.from({ length: 30 }, (_, i) => {
+  const day = new Date(2026, 8, 20 + i);
+  return {
+    day: `${day.getFullYear()}.${String(day.getMonth() + 1).padStart(2, "0")}.${String(day.getDate()).padStart(2, "0")}`,
+    rent: [0, 1, 0, 2, 1][i % 5],
+    sale: [1, 2, 0, 1, 3, 0][i % 6],
+  };
+});
+
+/**
+ * 선택 옵션 4개 — **기본은 전부 꺼져 있다**(다른 사용처 모양 불변).
+ * `markMax` 보이는 계열의 최댓값 한 점 · `xTickFormat` 눈금 글자만 줄임(툴팁은 연도 유지) ·
+ * `xTickEvery` 끝에서 거꾸로 N칸마다 · `integerTicks` 정수 눈금.
+ */
+export const DailyWithMax: Story = {
+  tags: ["autodocs"],
+  args: {
+    data: DAILY_30,
+    xKey: "day",
+    series: [
+      { key: "rent", label: "렌트" },
+      { key: "sale", label: "판매" },
+    ],
+    area: true,
+    markMax: true,
+    xTickFormat: (value) => String(value).slice(5),
+    xTickEvery: 5,
+    integerTicks: true,
+    format: count,
+    ariaLabel: "최근 30일 일별 결제 건수",
+  },
+  play: async ({ canvasElement }) => {
+    // 최댓값 라벨은 한 점에만 — 모든 점에 라벨을 붙이지 않는다
+    await expect(
+      canvasElement.querySelectorAll("[data-max-label]"),
+    ).toHaveLength(1);
+  },
+};
+
 /* -------------------------------------------------------------------------
  * 조합
  * ---------------------------------------------------------------------- */
