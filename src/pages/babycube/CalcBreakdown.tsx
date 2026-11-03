@@ -41,7 +41,7 @@ export interface CalcLine {
 
 export interface CalcBlock {
   key: string;
-  /** 왼쪽 묶음 이름 열 — 없으면 빈 열로 줄만 맞춘다 */
+  /** 왼쪽 묶음 이름 열 — 없으면 빈 열로 줄만 맞춘다(모든 묶음에 없으면 열 자체가 없다) */
   label?: string;
   lines: CalcLine[];
   /** 결과 묶음 — 회색 바탕 · 넉넉한 위아래 */
@@ -110,7 +110,13 @@ function Line({ line }: { line: CalcLine }) {
   );
 }
 
-function Block({ block }: { block: CalcBlock }) {
+function Block({
+  block,
+  labelColumn,
+}: {
+  block: CalcBlock;
+  labelColumn: boolean;
+}) {
   if (block.lines.length === 0) return null;
   return (
     <div
@@ -120,12 +126,14 @@ function Block({ block }: { block: CalcBlock }) {
         block.emphasis ? "bg-surface-sub py-4" : "py-3",
       )}
     >
-      <span
-        aria-hidden
-        className="body-small flex h-7 w-10 shrink-0 items-center text-text-sub"
-      >
-        {block.label}
-      </span>
+      {labelColumn ? (
+        <span
+          aria-hidden
+          className="body-small flex h-7 w-10 shrink-0 items-center text-text-sub"
+        >
+          {block.label}
+        </span>
+      ) : null}
       <dl
         aria-label={block.label}
         className="flex min-w-0 flex-1 flex-col gap-1"
@@ -153,6 +161,8 @@ export function CalcBreakdown({
   className,
   dataAttr = "data-calc",
 }: CalcBreakdownProps) {
+  /* 묶음 이름이 하나도 없으면(보증금 계산) 이름 열 자체를 두지 않는다 — 빈 열이 왼쪽 여백처럼 보인다 */
+  const labelColumn = blocks.some((block) => block.label);
   return (
     <div
       {...{ [dataAttr]: "" }}
@@ -160,7 +170,7 @@ export function CalcBreakdown({
     >
       <div className="flex flex-col divide-y divide-border overflow-hidden rounded-medium outline-1 -outline-offset-1 outline-border">
         {blocks.map((block) => (
-          <Block key={block.key} block={block} />
+          <Block key={block.key} block={block} labelColumn={labelColumn} />
         ))}
       </div>
       {notes && notes.length > 0 ? (
