@@ -1,0 +1,1 @@
+- [inspection-baselines](inspection-baselines.md) — 보고하지 않을 HQ 공용/승인 패턴(sticky 바·§7-2 예외 등)과 1280 표 넘침의 흔한 원인
