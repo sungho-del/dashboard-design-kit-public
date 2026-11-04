@@ -115,6 +115,17 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "배송 관리",
     type: "목록형",
     summary: "판매 주문의 배송중~구매확정 단계를 관리하는 화면",
+    file: "seller/ShippingPage.tsx",
+    icon: Truck,
+  },
+  {
+    navId: "/shipping/20260622541158-1",
+    code: "SO-DLV-002",
+    name: "배송 관리 상세",
+    type: "상세형",
+    summary:
+      "판매 처리단위 하나의 배송 진행 — 송장 수정 · 배송 완료 처리 · 배송 추적",
+    file: "seller/ShippingDetailPage.tsx",
     icon: Truck,
   },
   {
@@ -123,6 +134,16 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "취소 관리",
     type: "목록형",
     summary: "판매 주문의 취소 요청을 처리하는 화면",
+    file: "seller/SaleClaimPages.tsx",
+    icon: XCircle,
+  },
+  {
+    navId: "/sale-cancel/20260628200061-1",
+    code: "SO-RMA-002",
+    name: "취소 상세",
+    type: "상세형",
+    summary: "취소 건의 신청 정보·환불 예정액 — 다음 단계 처리",
+    file: "seller/SaleClaimDetailPage.tsx",
     icon: XCircle,
   },
   {
@@ -131,6 +152,16 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "반품 관리",
     type: "목록형",
     summary: "판매 주문의 반품 신청을 접수·수거·검수·환불 처리하는 화면",
+    file: "seller/SaleClaimPages.tsx",
+    icon: Undo2,
+  },
+  {
+    navId: "/sale-return/20260618360510-1",
+    code: "SO-RMA-004",
+    name: "반품 상세",
+    type: "상세형",
+    summary: "반품 건의 귀책·배송비 부담·환불 예정액 — 다음 단계 · 반려",
+    file: "seller/SaleClaimDetailPage.tsx",
     icon: Undo2,
   },
   {
@@ -139,6 +170,16 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "교환 관리",
     type: "목록형",
     summary: "판매 주문의 교환 신청을 접수·수거·검수·재배송 처리하는 화면",
+    file: "seller/SaleClaimPages.tsx",
+    icon: RefreshCw,
+  },
+  {
+    navId: "/sale-exchange/20260617540318-1",
+    code: "SO-RMA-006",
+    name: "교환 상세",
+    type: "상세형",
+    summary: "교환 건의 귀책·배송비 부담 — 다음 단계 · 반려 · 재배송",
+    file: "seller/SaleClaimDetailPage.tsx",
     icon: RefreshCw,
   },
   {

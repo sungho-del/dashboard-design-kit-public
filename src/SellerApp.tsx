@@ -1,8 +1,20 @@
 import { useState, type ComponentType } from "react";
 import { ToastProvider } from "./components/ui";
 import { navigate, usePathname } from "./lib/router";
+import {
+  SaleCancelDetailPage,
+  SaleExchangeDetailPage,
+  SaleReturnDetailPage,
+} from "./pages/seller/SaleClaimDetailPage";
+import {
+  SaleCancelPage,
+  SaleExchangePage,
+  SaleReturnPage,
+} from "./pages/seller/SaleClaimPages";
 import { SaleOrderDetailPage } from "./pages/seller/SaleOrderDetailPage";
 import { SaleProcPage } from "./pages/seller/SaleProcPage";
+import { ShippingDetailPage } from "./pages/seller/ShippingDetailPage";
+import { ShippingPage } from "./pages/seller/ShippingPage";
 import { pendingScreen } from "./pages/seller/SellerPendingPage";
 import { SellerScreenIndexPage } from "./pages/seller/SellerScreenIndexPage";
 
@@ -36,10 +48,10 @@ const ROUTES: Record<string, ComponentType<NavProps>> = {
   "/product-new": pendingScreen("상품 등록 폼"),
   "/sale-orders": pendingScreen("주문 통합 관리"),
   "/sale-proc": SaleProcPage,
-  "/shipping": pendingScreen("배송 관리"),
-  "/sale-cancel": pendingScreen("취소 관리"),
-  "/sale-return": pendingScreen("반품 관리"),
-  "/sale-exchange": pendingScreen("교환 관리"),
+  "/shipping": ShippingPage,
+  "/sale-cancel": SaleCancelPage,
+  "/sale-return": SaleReturnPage,
+  "/sale-exchange": SaleExchangePage,
   "/rent-orders": pendingScreen("렌트 주문 통합 관리"),
   "/rent-list": pendingScreen("렌트 발주 관리"),
   "/rent-dispatch": pendingScreen("배송 관리"),
@@ -73,6 +85,22 @@ const DETAIL_ROUTES: {
   screen: ComponentType<NavProps>;
 }[] = [
   { prefix: "/sale-proc/", parent: "/sale-proc", screen: SaleOrderDetailPage },
+  { prefix: "/shipping/", parent: "/shipping", screen: ShippingDetailPage },
+  {
+    prefix: "/sale-cancel/",
+    parent: "/sale-cancel",
+    screen: SaleCancelDetailPage,
+  },
+  {
+    prefix: "/sale-return/",
+    parent: "/sale-return",
+    screen: SaleReturnDetailPage,
+  },
+  {
+    prefix: "/sale-exchange/",
+    parent: "/sale-exchange",
+    screen: SaleExchangeDetailPage,
+  },
 ];
 
 /** 없는 경로 — 화면 목록(본사와 같다) */
