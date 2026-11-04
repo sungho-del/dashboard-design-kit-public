@@ -469,3 +469,20 @@ export const DELAY_PRESETS = [
 ] as const;
 /** 직접입력 사유 글자 수 상한(원본 50자) */
 export const REASON_MAX = 50;
+
+/** 배송 지연 사유 창 — 원본 `MODAL.type === 'delay'` (판매·렌트 발주 공용) */
+export const DELAY_GATE = {
+  title: "배송 지연 사유",
+  intro: "배송 지연 처리 사유를 선택하거나 직접 입력해주세요.",
+  placeholder: "지연 사유를 직접 입력해주세요 (최대 50자)",
+  empty: "지연 사유를 입력해주세요.",
+  confirm: "배송 지연 처리",
+} as const;
+
+/** 셀러 직권 취소 사유 창 — 원본 `gateSellerCancel` (판매·렌트 발주 공용). 고지문은 `OrderGates` */
+export const CANCEL_GATE = {
+  title: "주문 취소 사유",
+  placeholder: "취소 사유를 직접 입력해주세요 (최대 50자)",
+  empty: "취소 사유를 입력해주세요.",
+  confirm: "주문 취소 처리",
+} as const;

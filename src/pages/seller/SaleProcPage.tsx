@@ -36,15 +36,13 @@ import {
   SELLER_GNB_LOGO_SLOTS,
   SELLER_GNB_SECTIONS,
 } from "../sellerGnbSections";
-import { ReasonModal, StatusConfirmModal, StatusTag } from "./OrderGates";
 import {
-  COURIERS,
-  DELAY_PRESETS,
-  SELLER_CANCEL_PRESETS,
-  optionsOf,
-  salePayTotal,
-  salePrice,
-} from "./orderUnit.data";
+  DelayReasonModal,
+  SellerCancelModal,
+  StatusConfirmModal,
+  StatusTag,
+} from "./OrderGates";
+import { COURIERS, optionsOf, salePayTotal, salePrice } from "./orderUnit.data";
 import {
   BULK_ACTIONS,
   BULK_BY,
@@ -648,36 +646,17 @@ export function SaleProcPage({
           finish(gate.ids, COPY.changed(gate.next, gate.ids.length))
         }
       />
-      <ReasonModal
+      <DelayReasonModal
         open={gate?.kind === "delay"}
-        title={COPY.delayTitle}
         count={gate?.ids.length ?? 0}
-        presets={DELAY_PRESETS}
-        intro={COPY.delayIntro}
-        customPlaceholder={COPY.delayPlaceholder}
-        emptyMessage={COPY.delayEmpty}
-        confirmLabel={COPY.delayConfirm}
         onClose={() => setGate(null)}
         onConfirm={(reason) =>
           gate && finish(gate.ids, COPY.delayed(reason, gate.ids.length))
         }
       />
-      <ReasonModal
+      <SellerCancelModal
         open={gate?.kind === "cancel"}
-        title={COPY.cancelTitle}
         count={gate?.ids.length ?? 0}
-        presets={SELLER_CANCEL_PRESETS}
-        customPlaceholder={COPY.cancelPlaceholder}
-        emptyMessage={COPY.cancelEmpty}
-        notice={
-          <>
-            고객이 요청하지 않은 <b>셀러 사정 취소</b>라 사유를 남겨야 합니다.
-            셀러 사정 취소로 기록되어 <b>취소 수수료가 면제</b>되고 결제 금액이
-            전액 환불되며, 입력한 사유는 <b>고객 주문 내역에 노출</b>됩니다.
-          </>
-        }
-        confirmLabel={COPY.cancelConfirm}
-        danger
         onClose={() => setGate(null)}
         onConfirm={() => gate && finish(gate.ids, COPY.canceled)}
       />

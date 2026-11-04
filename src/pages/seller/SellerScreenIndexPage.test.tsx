@@ -46,12 +46,20 @@ const section = () =>
   screen.getByRole("region", { name: "BabyCube 입점사 어드민" });
 
 describe("SellerScreenIndexPage", () => {
-  it("원본 메뉴 27항목(화면 26 + 상품 등록)이 카드로 선다", () => {
+  it("원본 메뉴 27항목(화면 26 + 상품 등록) + 만든 상세가 카드로 선다", () => {
     renderPage();
-    expect(SELLER_SCREENS).toHaveLength(27);
+    const details = SELLER_SCREENS.filter((s) => s.type === "상세형");
+    expect(SELLER_SCREENS.length - details.length).toBe(27);
     expect(
       within(section()).getAllByRole("button", { name: / 열기$/ }),
-    ).toHaveLength(27);
+    ).toHaveLength(SELLER_SCREENS.length);
+  });
+
+  it("상세형은 만든 것만 싣는다 — 파일이 있고 경로에 대표 처리단위가 붙는다", () => {
+    for (const s of SELLER_SCREENS.filter((e) => e.type === "상세형")) {
+      expect(s.file).toBeTruthy();
+      expect(s.navId.split("/").length).toBe(3);
+    }
   });
 
   it("카드 버튼 이름이 전부 유일하다 — 판매·렌트에 같은 이름의 화면이 있어도", () => {

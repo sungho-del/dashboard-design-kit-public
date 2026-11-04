@@ -1,6 +1,7 @@
 import { useState, type ComponentType } from "react";
 import { ToastProvider } from "./components/ui";
 import { navigate, usePathname } from "./lib/router";
+import { SaleOrderDetailPage } from "./pages/seller/SaleOrderDetailPage";
 import { SaleProcPage } from "./pages/seller/SaleProcPage";
 import { pendingScreen } from "./pages/seller/SellerPendingPage";
 import { SellerScreenIndexPage } from "./pages/seller/SellerScreenIndexPage";
@@ -64,13 +65,15 @@ const ROUTES: Record<string, ComponentType<NavProps>> = {
 
 /**
  * 상세 화면 — 경로 뒤에 식별자가 붙는다(`/sale-proc/{처리단위}`). 본사 `DETAIL_ROUTES` 와 같은 꼴.
- * 상세는 화면을 만들 때 하나씩 넣는다(지금은 비어 있다).
+ * 상세는 화면을 만들 때 하나씩 넣는다.
  */
 const DETAIL_ROUTES: {
   prefix: string;
   parent: string;
   screen: ComponentType<NavProps>;
-}[] = [];
+}[] = [
+  { prefix: "/sale-proc/", parent: "/sale-proc", screen: SaleOrderDetailPage },
+];
 
 /** 없는 경로 — 화면 목록(본사와 같다) */
 const FALLBACK = SellerScreenIndexPage;

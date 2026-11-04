@@ -198,19 +198,11 @@ export const COPY = {
     n > 1
       ? `${n}건 '${status}' 처리되었습니다.`
       : `'${status}' 상태로 변경했습니다.`,
-  delayTitle: "배송 지연 사유",
-  delayIntro: "배송 지연 처리 사유를 선택하거나 직접 입력해주세요.",
-  delayPlaceholder: "지연 사유를 직접 입력해주세요 (최대 50자)",
-  delayEmpty: "지연 사유를 입력해주세요.",
-  delayConfirm: "배송 지연 처리",
+  /* 지연·취소 사유 창 문구는 `orderUnit.data` `DELAY_GATE`·`CANCEL_GATE`(상세·렌트와 공용) */
   delayed: (reason: string, n: number) =>
     n > 1
       ? `${n}건을 배송 지연 처리했습니다. (사유: ${reason})`
       : `배송 지연 처리했습니다. (사유: ${reason})`,
-  cancelTitle: "주문 취소 사유",
-  cancelPlaceholder: "취소 사유를 직접 입력해주세요 (최대 50자)",
-  cancelEmpty: "취소 사유를 입력해주세요.",
-  cancelConfirm: "주문 취소 처리",
   canceled:
     "주문 취소 처리되었습니다 — 셀러 사정 취소로 기록되어 취소 수수료가 면제됩니다. → [취소 관리]에서 환불을 진행하세요.",
   /** 엑셀 — 원본 `exportCsv`: 고른 행이 있으면 그것만, 없으면 조회 결과 전체(퍼블은 알림만) */

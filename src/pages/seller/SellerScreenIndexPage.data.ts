@@ -98,6 +98,17 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     file: "seller/SaleProcPage.tsx",
     icon: ClipboardList,
   },
+  /* 상세형은 GNB 항목이 아니다 — 목록에서 주문번호를 눌러 들어간다. 색인은 대표 처리단위로 연다 */
+  {
+    navId: "/sale-proc/20260623864962-1",
+    code: "SO-ORD-002",
+    name: "발주 관리 상세",
+    type: "상세형",
+    summary:
+      "판매 처리단위 하나의 주문·상품·배송·배송지·이력 — 상태 변경·송장 등록·배송지 변경·주문 취소",
+    file: "seller/SaleOrderDetailPage.tsx",
+    icon: ClipboardList,
+  },
   {
     navId: "/shipping",
     code: "SO-DLV-001",

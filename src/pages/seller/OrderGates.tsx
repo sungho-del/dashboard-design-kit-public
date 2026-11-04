@@ -12,7 +12,15 @@ import {
   Textarea,
   useToast,
 } from "../../components/ui";
-import { REASON_MAX, tipOf, toneOf } from "./orderUnit.data";
+import {
+  CANCEL_GATE,
+  DELAY_GATE,
+  DELAY_PRESETS,
+  REASON_MAX,
+  SELLER_CANCEL_PRESETS,
+  tipOf,
+  toneOf,
+} from "./orderUnit.data";
 
 /* =========================================================================
  * 상태 전이 게이트 — 원본 `gateRoute` 가 여는 창(기획 v0.4 · 2026-08-06 게이트 판정).
@@ -227,5 +235,47 @@ export function ReasonModal({
         </Button>
       </ModalFooter>
     </Modal>
+  );
+}
+
+type GateModalProps = Pick<
+  ReasonModalProps,
+  "open" | "count" | "onClose" | "onConfirm"
+>;
+
+/** 배송 지연 사유 창 — 목록 [배송 지연] · 상세 셀렉트가 같은 창을 연다 */
+export function DelayReasonModal(props: GateModalProps) {
+  return (
+    <ReasonModal
+      {...props}
+      title={DELAY_GATE.title}
+      presets={DELAY_PRESETS}
+      intro={DELAY_GATE.intro}
+      customPlaceholder={DELAY_GATE.placeholder}
+      emptyMessage={DELAY_GATE.empty}
+      confirmLabel={DELAY_GATE.confirm}
+    />
+  );
+}
+
+/** 셀러 직권 취소 사유 창 — 목록 [주문 취소] · 상세 셀렉트·[주문 취소]가 같은 창을 연다(원본 고지문 그대로) */
+export function SellerCancelModal(props: GateModalProps) {
+  return (
+    <ReasonModal
+      {...props}
+      title={CANCEL_GATE.title}
+      presets={SELLER_CANCEL_PRESETS}
+      customPlaceholder={CANCEL_GATE.placeholder}
+      emptyMessage={CANCEL_GATE.empty}
+      notice={
+        <>
+          고객이 요청하지 않은 <b>셀러 사정 취소</b>라 사유를 남겨야 합니다.
+          셀러 사정 취소로 기록되어 <b>취소 수수료가 면제</b>되고 결제 금액이
+          전액 환불되며, 입력한 사유는 <b>고객 주문 내역에 노출</b>됩니다.
+        </>
+      }
+      confirmLabel={CANCEL_GATE.confirm}
+      danger
+    />
   );
 }

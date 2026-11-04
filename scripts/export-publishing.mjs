@@ -142,6 +142,8 @@ const APP_FILES = {
     "src/SellerApp.test.tsx",
     "src/pages/seller",
     "src/pages/sellerGnbSections.tsx",
+    /* 주문 명세 부품 — 본사 화면 부품을 표현만 빌린다(의존: components/ui · lib/cn) */
+    "src/pages/babycube/CalcBreakdown.tsx",
   ],
 };
 
