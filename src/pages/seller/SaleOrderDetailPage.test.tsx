@@ -209,18 +209,22 @@ describe("SaleOrderDetailPage — 발주 관리 상세", () => {
     ).toBeVisible();
   });
 
-  it("[배송지 변경] — 빈 칸이면 잠기고, 적으면 원본 알림", async () => {
+  it("[배송지 변경] — 지금 배송지가 채워져 열리고, 비우면(공백만도) 잠기고, 적으면 원본 알림", async () => {
     const { user } = renderAt(DEFAULT_ID);
     await user.click(
       within(bar()).getByRole("button", { name: "배송지 변경" }),
     );
     const dialog = await screen.findByRole("dialog", { name: "배송지 변경" });
+    const field = within(dialog).getByRole("textbox", {
+      name: "변경할 배송지",
+    });
+    expect(field).toHaveValue("배송지 정보");
     const confirm = within(dialog).getByRole("button", { name: "변경" });
+    await user.clear(field);
+    await user.type(field, "   ");
     expect(confirm).toBeDisabled();
-    await user.type(
-      within(dialog).getByRole("textbox", { name: "변경할 배송지" }),
-      "서울 성동구 왕십리로 1",
-    );
+    await user.clear(field);
+    await user.type(field, "서울 성동구 왕십리로 1");
     await user.click(confirm);
     expect(await screen.findByText("배송지를 변경했습니다.")).toBeVisible();
   });

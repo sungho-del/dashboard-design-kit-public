@@ -512,7 +512,11 @@ function SaleOrderDetailBody({
               <>
                 <Button
                   variant="secondary"
-                  onClick={() => setGate({ kind: "address" })}
+                  onClick={() => {
+                    /* 지금 배송지를 채워 연다 — 고쳐 쓰는 흐름(GPT 검토 2026-11-04) */
+                    setAddress(u.addr && u.addr !== "-" ? u.addr : "");
+                    setGate({ kind: "address" });
+                  }}
                 >
                   배송지 변경
                 </Button>
