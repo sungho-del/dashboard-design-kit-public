@@ -17,7 +17,10 @@
 - **기획 변경 대장** `docs/seller/plan-changes.md` — ① 고객사 추가 기획 보드(https://claude.ai/artifact/CDPCWHnmQE7QVk9AwKcmLB · 셀러 5건: 네이버페이 표시·추가 연락처·수거 요청사항·환급 안내 문구·본사 쿠폰 무영향) ② 판정 회신 3·7·9~13차 미반영 7건(직영 계정 메뉴·스토어 문구 · 보증금 0원 · 환불 미리보기 · 변심 반품 출고비 · 방문 반납 버튼 · 판매 상세 추가 연락처)
 - **대표 화면 완료**(8cc4ebb 목록 · e0ef248 상세 · 8004413 · 0f747f6 문서): `/sale-proc` · `/sale-proc/[id]` — 결과·기획 확인 `docs/seller/pilot-saleProc.md` G절 · 대조 보드 https://claude.ai/artifact/J9FqXS9iDfn91Jsecx1rRL · GPT 5/5 OK
   - 공용 틀: 처리단위 도메인 `orderUnit.data.ts`(원본 식 · 183건 정답 대조) · 게이트 `OrderGates.tsx`(상태 변경 확인 · `DelayReasonModal` · `SellerCancelModal`) · 셀러 전달본에 `babycube/CalcBreakdown.tsx` 한 파일 포함
-- **다음**: 사용자 확인(보드) → 판매 묶음(주문 통합 · 배송 · 취소 · 반품 · 교환 + 상세) → 렌트 → 정산 → 상품 → 마케팅·게시판 → 시스템(직영 미리보기) → 대시보드 → 전달 문서 `files-seller/` → babycube-admin-seller PR
+- **판매 묶음 완료**(74211dd · 다음 커밋): 공용 틀 `ProcessList`(처리 목록) · `UnitDetail`(처리단위 상세) — 화면은 설정만(`*Page.data.ts`) · 전이 라우터 `gate.data` `routeGate` + `GateHost`(원본 게이트 창 전부) · 클레임 도메인 `claim.data`
+  - 화면: 주문 통합(조회 전용 · 정답 대조 `saleOrders.golden.ts` 89건) · 배송 + 상세 · 취소 · 반품 · 교환 + 상세(`SaleClaimPages` · `SaleClaimDetailPage` 한 파일에 세 화면 — 원본도 한 함수)
+  - 원본 캡처 건수 대조: 배송 7/5/10 · 취소 5/1/3 · 반품·교환 5/9/7 · 주문 통합 89/30/34/25 · 기획 변경 D-61·D-315 반영(`docs/seller/plan-changes.md` ④)
+- **다음**: 렌트 묶음 → 정산 → 상품 → 마케팅·게시판 → 시스템(직영 미리보기) → 대시보드 → 전달 문서 `files-seller/` → babycube-admin-seller PR
 - **원본 특이점(기획 확인 필요)**: 셀러 목록에 본사 자체 처리단위 6건 섞임 · 결제에 없는 처리단위 1건 · 표 결제금액(계산) ≠ 저장 amt
 
 ---

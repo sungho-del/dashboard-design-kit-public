@@ -87,6 +87,7 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     type: "목록형",
     summary:
       "판매 주문 전체 조회 창구 — 조회 전용, 상태 변경은 각 처리 메뉴에서만 한다",
+    file: "seller/SaleOrdersPage.tsx",
     icon: ShoppingCart,
   },
   {

@@ -499,3 +499,98 @@ export const CANCEL_GATE = {
   empty: "취소 사유를 입력해주세요.",
   confirm: "주문 취소 처리",
 } as const;
+
+/* -------------------------------------------------------------------------
+ * 처리상태(주문 통합 관리) — 원본 `FLOW_STEPS`(1554) · `deriveFlow`(1580) · `saleStat`·`autoConfirmDate`(1606)
+ * ---------------------------------------------------------------------- */
+
+/** 처리구분별 처리상태 표준 단계 — 원본 `FLOW_STEPS`(순서 그대로) */
+export const FLOW_STEPS: Record<string, readonly string[]> = {
+  판매: ["신규 주문", "배송 준비", "배송중", "배송 완료", "구매확정"],
+  렌트: [
+    "신규 주문",
+    "배송 준비",
+    "배송중",
+    "대여중",
+    "대여중(연장)",
+    "연체중",
+    "수거 신청",
+    "검수중",
+    "검수완료",
+    "반납완료",
+  ],
+  취소: ["취소 요청", "환불 처리중", "취소 완료"],
+  반품: [
+    "반품 신청",
+    "반품 승인",
+    "반품 반려",
+    "반품 수거중",
+    "반품 수거완료",
+    "반품 검수",
+    "환불 처리중",
+    "반품 완료",
+    "반품 거부",
+    "재반송",
+  ],
+  교환: [
+    "교환 신청",
+    "교환 승인",
+    "교환 반려",
+    "교환 수거중",
+    "교환 수거완료",
+    "교환 검수",
+    "교환 재배송",
+    "교환 완료",
+    "교환 거부",
+    "재반송",
+  ],
+};
+
+/** 처리구분 — 클레임이 걸리면 그 유형, 아니면 판매/렌트(원본 `flowCat`) */
+export const flowCatOf = (u: OrderUnit) => u.req?.type ?? (u.type || "판매");
+
+/** 원본 `deliveredDate` — 시드에 없으면 주문일 + 2일(결정적) */
+function deliveredDate(u: OrderUnit) {
+  if (u.deliveredAt) return String(u.deliveredAt).slice(0, 10);
+  const no = String(u.no || "");
+  if (no.length < 8) return "";
+  const d = new Date(+no.slice(0, 4), +no.slice(4, 6) - 1, +no.slice(6, 8) + 2);
+  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`;
+}
+
+/** 원본 데모 기준일 — 자동 구매확정 판정이 여기서 센다 */
+const FB_TODAY = "2026-06-29";
+
+/**
+ * 원본 `autoConfirmDate` — 배송 완료 뒤 7일이 지나면 자동 구매확정(F-1 · PC-3). 클레임 건은 제외.
+ * ⚠️ 원본처럼 `new Date('YYYY-MM-DD')`(UTC 자정)로 비교한다 — 식을 바꾸면 경계일 판정이 갈린다
+ */
+function autoConfirmed(u: OrderUnit) {
+  if (u.type !== "판매" || u.stat !== "배송 완료" || u.req) return false;
+  const d = deliveredDate(u);
+  if (!d) return false;
+  const t = new Date(d.replace(/\./g, "-"));
+  t.setDate(t.getDate() + 7);
+  return !(t > new Date(FB_TODAY));
+}
+
+/** 원본 클레임 구 어휘 → 표준 처리상태 */
+const LEGACY_FLOW: Record<string, Record<string, string>> = {
+  반품: { 승인대기: "반품 신청", 수거중: "반품 수거중", 환불완료: "반품 완료" },
+  교환: { 승인대기: "교환 신청", 수거중: "교환 수거중", 환불완료: "교환 완료" },
+};
+
+/** 원본 `deriveFlow`(= `flowStat`) — 주문 통합 관리 「주문상태」 열의 값 */
+export function flowStatOf(u: OrderUnit) {
+  if (u.flow) return u.flow;
+  if (u.req) {
+    const { type: t, stat: s } = u.req;
+    if (FLOW_STEPS[t]?.includes(s)) return s;
+    if (t === "취소") return s === "환불완료" ? "취소 완료" : "취소 요청";
+    return LEGACY_FLOW[t]?.[s] ?? `${t} 신청`;
+  }
+  if (u.type === "판매") return autoConfirmed(u) ? "구매확정" : (u.stat ?? "");
+  if (u.stat === "반납완료")
+    return u.inspect === "미검수" ? "검수중" : "반납완료";
+  return u.stat ?? "";
+}

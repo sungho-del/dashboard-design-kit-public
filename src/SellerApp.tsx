@@ -12,6 +12,7 @@ import {
   SaleReturnPage,
 } from "./pages/seller/SaleClaimPages";
 import { SaleOrderDetailPage } from "./pages/seller/SaleOrderDetailPage";
+import { SaleOrdersPage } from "./pages/seller/SaleOrdersPage";
 import { SaleProcPage } from "./pages/seller/SaleProcPage";
 import { ShippingDetailPage } from "./pages/seller/ShippingDetailPage";
 import { ShippingPage } from "./pages/seller/ShippingPage";
@@ -46,7 +47,7 @@ const ROUTES: Record<string, ComponentType<NavProps>> = {
   "/": pendingScreen("대시보드"),
   "/products": pendingScreen("상품 관리"),
   "/product-new": pendingScreen("상품 등록 폼"),
-  "/sale-orders": pendingScreen("주문 통합 관리"),
+  "/sale-orders": SaleOrdersPage,
   "/sale-proc": SaleProcPage,
   "/shipping": ShippingPage,
   "/sale-cancel": SaleCancelPage,
