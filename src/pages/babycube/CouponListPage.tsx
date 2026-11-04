@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import {
   AppShell,
+  Button,
   DataTableShell,
   EmptyState,
   Gnb,
@@ -23,6 +24,7 @@ import { useSearchParams } from "../../lib/router";
 import {
   COUPONS,
   EMPTY_TITLE,
+  NEW_PATH,
   PAGE_SIZE,
   PAGE_SIZES,
   STATUS_META,
@@ -43,7 +45,12 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * 목록 (총 N건) / 표 No + 7열 / 페이지네이션 10·20·50·100
  * ```
  * 원본 화면은 `tableCard` 하나뿐이다 — 상태 대시·검색조건·체크박스·엑셀·정렬이 없다.
- * 쿠폰명 링크 · 행 클릭 → 쿠폰 상세(`/promo/{쿠폰코드}`).
+ * 쿠폰명 링크 · 행 클릭 → 쿠폰 상세(`/promo/{쿠폰코드}` — 본사 쿠폰이면 상세가 수정 폼을 그린다).
+ *
+ * ## 원본과 다르게 둔 곳 — 추가 기획 보드 06·07 (개발 70a3e88)
+ * - 「목록 (총 N건)」 줄 오른쪽 [+ 쿠폰 등록](주 버튼 · 새 줄 없이) → `/promo/new`
+ * - 본사 쿠폰(`coupon.hq`)의 셀러명 칸은 **[본사] 배지만**(글자 없이) · 기간 칸은 `periodParts`
+ *   (가입 시 자동 = 「발급 후 N일」)
  *
  * ## 이 파일은 도메인을 모른다 — 도메인은 `./CouponListPage.data.ts` 에 있다
  *
@@ -104,6 +111,12 @@ export function CouponListPage({
           <h2 className="heading-medium-bold text-text">
             목록 (총 {COUPONS.length}건)
           </h2>
+        }
+        toolbarEnd={
+          <Button onClick={() => onNavSelect(NEW_PATH)}>
+            <Plus size={16} strokeWidth={1.2} aria-hidden />
+            쿠폰 등록
+          </Button>
         }
         isEmpty={dataStatus === "empty" || COUPONS.length === 0}
         empty={
@@ -181,7 +194,13 @@ export function CouponListPage({
                       <TableTd className="tabular-nums">
                         {start + index + 1}
                       </TableTd>
-                      <TableTd>{coupon.seller}</TableTd>
+                      <TableTd>
+                        {coupon.hq ? (
+                          <Tag size="small">본사</Tag>
+                        ) : (
+                          coupon.seller
+                        )}
+                      </TableTd>
                       {/* 버튼은 기본이 한 줄(nowrap)이라 그대로면 열 폭을 밀어낸다 — 안쪽 글자만 단어 단위로 줄바꿈 */}
                       <TableTd className="break-keep wrap-anywhere">
                         <TextButton className="max-w-full" onClick={open}>

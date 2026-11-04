@@ -131,11 +131,26 @@ describe("CouponDetailPage (쿠폰 상세)", () => {
     expect(screen.queryByText(EXPIRED_NOTE)).toBeNull();
   });
 
-  it("본사 발행분 CP-2404-01 — 셀러명 「본사」", () => {
+  it("직영 매장 쿠폰 CP-2404-01 — 셀러 쿠폰이라 조회 화면 · 셀러명 「베이비크루저」(보드 06)", () => {
     renderAt("/promo/CP-2404-01");
 
-    expect(valueOf("셀러명")).toBe("본사");
+    expect(
+      screen.getByRole("heading", { level: 1, name: "쿠폰 상세" }),
+    ).toBeVisible();
+    expect(valueOf("셀러명")).toBe("베이비크루저");
     expect(valueOf("할인 내용")).toBe("정률 15% (최대 50,000원)");
+  });
+
+  it("본사가 등록한 쿠폰은 같은 경로에서 수정 폼을 그린다(보드 06 · 개발 70a3e88)", () => {
+    renderAt("/promo/CP-2610-02");
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "쿠폰 상세 (수정)" }),
+    ).toBeVisible();
+    expect(screen.getByRole("textbox", { name: /쿠폰명/ })).toHaveValue(
+      "가입 축하 쿠폰",
+    );
+    expect(screen.getByRole("button", { name: "저장하기" })).toBeVisible();
   });
 
   it("구역 접기 — 접으면 그 구역 값만 사라진다", async () => {

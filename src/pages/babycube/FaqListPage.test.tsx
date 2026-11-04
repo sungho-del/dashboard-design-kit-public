@@ -107,6 +107,17 @@ describe("FaqListPage", () => {
       ).toBeInTheDocument();
       expect(screen.getByText(/\(02-6406-1110\)/)).toBeInTheDocument();
     });
+
+    it("결제 수단 답변은 보드 01(네이버페이) 바뀐 뒤 문안 — 카카오페이·토스페이가 없다", () => {
+      renderPage();
+
+      expect(
+        screen.getByText(
+          "신용·체크카드와 네이버페이로 결제할 수 있으며, 결제 대행은 토스페이먼츠가 수행합니다. 무통장 입금은 지원하지 않습니다.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/카카오페이|토스페이를/)).toBeNull();
+    });
   });
 
   describe("표 구성 — 원본 3열 + 선택 열", () => {

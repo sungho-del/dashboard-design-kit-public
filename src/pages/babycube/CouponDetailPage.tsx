@@ -42,6 +42,7 @@ import {
   findCoupon,
   headlineOf,
 } from "./CouponDetailPage.data";
+import { CouponFormPage } from "./CouponFormPage";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
 /* =========================================================================
@@ -63,6 +64,9 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *
  * ## 원본과 다르게 둔 것
  * - 머리를 그린다(원본 `bare`) — 제목 「쿠폰 상세」 + 부제 + 상태 배지(형제 상세와 같다)
+ * - **본사 쿠폰은 이 조회 화면이 아니라 수정 폼**(`CouponFormPage`)을 그린다 — 같은 경로
+ *   `/promo/{쿠폰코드}`(추가 기획 보드 06 「본사 쿠폰 상세」 · 개발 70a3e88 `CouponDetail` 분기).
+ *   셀러 쿠폰(직영 매장 포함)은 지금처럼 조회 + [목록]만
  * ====================================================================== */
 
 export interface CouponDetailPageProps {
@@ -169,6 +173,8 @@ export function CouponDetailPage(props: CouponDetailPageProps) {
     );
   }
 
+  /* 본사가 등록한 쿠폰은 본사가 고친다 — 같은 경로에서 수정 폼으로 */
+  if (coupon.hq) return <CouponFormPage {...props} />;
   return <CouponDetailBody key={coupon.id} coupon={coupon} {...props} />;
 }
 

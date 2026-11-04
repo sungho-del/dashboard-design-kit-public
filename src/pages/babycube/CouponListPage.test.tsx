@@ -9,6 +9,7 @@ import { ORDERS } from "./OrderListPage.data";
  * 쿠폰관리 (목록) — 기획 v0.4 `SCREENS.promo` · 조회 전용
  *
  * 렌더 여부가 아니라 **구성·숫자·동작**을 본다: 원본 8열(No + 7) · 원장 순서 · 셀 표기 ·
+ * 본사 쿠폰 [본사] 배지 · 「발급 후 N일」 · [+ 쿠폰 등록](보드 06 · 개발 70a3e88) · 직영 매장 「베이비크루저」 ·
  * 상태 3종 파생(중지 > 만료, 기준일 2026-10-19) · 10건 페이지 + 크기 변경 · No 이어 세기 ·
  * 쿠폰명/행 → `/promo/{쿠폰코드}` · 원본에 없는 대시·검색·엑셀·체크박스·모달이 없다 ·
  * 보충 쿠폰이 주문의 쿠폰액과 맞물린다 · `?preview=`.
@@ -90,7 +91,7 @@ describe("표 (원본 No + 7열 · 표 하나뿐)", () => {
       "발행일",
       "상태",
     ]);
-    expect(screen.getByText("목록 (총 18건)")).toBeVisible();
+    expect(screen.getByText("목록 (총 21건)")).toBeVisible();
   });
 
   it("원본에 없는 대시·검색조건·엑셀·체크박스·정렬이 없다", () => {
@@ -104,8 +105,11 @@ describe("표 (원본 No + 7열 · 표 하나뿐)", () => {
     expect(screen.queryByRole("button", { name: /정렬/ })).toBeNull();
   });
 
-  it("원장 순서 그대로 — 보충 2건이 맨 위, CP-24xx 5건이 맨 아래(발행일 순 아님)", () => {
+  it("원장 순서 그대로 — 본사 쿠폰 3건 · 보충 2건이 맨 위, CP-24xx 5건이 맨 아래(발행일 순 아님)", () => {
     expect(COUPONS.map((item) => item.id)).toEqual([
+      "CP-2610-02",
+      "CP-2610-03",
+      "CP-2610-04",
       "CP-2610-01",
       "CP-2609-01",
       "CP-2608-01",
@@ -130,8 +134,38 @@ describe("표 (원본 No + 7열 · 표 하나뿐)", () => {
   it.each([
     // 쿠폰명, No, 셀러명, 내용, 조건, 기간, 발행일, 상태
     [
-      "렌트 3,000원 할인",
+      "가입 축하 쿠폰",
       "1",
+      "본사",
+      "20% 할인 최대 20,000원",
+      "조건 없음",
+      "발급 후 30일",
+      "2026.10.05",
+      "사용",
+    ],
+    [
+      "겨울맞이 렌트 5,000원 할인",
+      "2",
+      "본사",
+      "5,000원 할인",
+      "50,000원 이상 구매",
+      "2026.11.01 ~ 2026.11.30",
+      "2026.10.15",
+      "사용",
+    ],
+    [
+      "카카오톡 채널 친구 추가 10,000원",
+      "3",
+      "본사",
+      "10,000원 할인",
+      "조건 없음",
+      "2026.10.20 ~ 2026.12.31",
+      "2026.10.17",
+      "사용",
+    ],
+    [
+      "렌트 3,000원 할인",
+      "4",
       "베베하우스",
       "3,000원 할인",
       "조건 없음",
@@ -141,7 +175,7 @@ describe("표 (원본 No + 7열 · 표 하나뿐)", () => {
     ],
     [
       "가을맞이 1만원 할인",
-      "2",
+      "5",
       "아기별상사",
       "10,000원 할인",
       "100,000원 이상 구매",
@@ -151,7 +185,7 @@ describe("표 (원본 No + 7열 · 표 하나뿐)", () => {
     ],
     [
       "리틀베이비 여름맞이 5,000원",
-      "3",
+      "6",
       "리틀베이비",
       "5,000원 할인",
       "30,000원 이상 구매",
@@ -161,7 +195,7 @@ describe("표 (원본 No + 7열 · 표 하나뿐)", () => {
     ],
     [
       "리틀베이비 상시 5% 할인",
-      "5",
+      "8",
       "리틀베이비",
       "5% 할인",
       "조건 없음",
@@ -171,7 +205,7 @@ describe("표 (원본 No + 7열 · 표 하나뿐)", () => {
     ],
     [
       "리틀베이비 재구매 10% 할인",
-      "6",
+      "9",
       "리틀베이비",
       "10% 할인 최대 10,000원",
       "조건 없음",
@@ -181,22 +215,12 @@ describe("표 (원본 No + 7열 · 표 하나뿐)", () => {
     ],
     [
       "주말 완구 5%",
-      "7",
+      "10",
       "장난감아저씨",
       "5% 할인",
       "조건 없음",
       "2026.07.01 ~ 2026.07.20",
       "2026.07.01",
-      "만료",
-    ],
-    [
-      "수면용품 7,000원 할인",
-      "10",
-      "포근하우스",
-      "7,000원 할인",
-      "50,000원 이상 구매",
-      "2026.06.04 ~ 2026.09.04",
-      "2026.06.04",
       "만료",
     ],
   ])("%s — 셀 표기", (name, ...expected) => {
@@ -206,13 +230,30 @@ describe("표 (원본 No + 7열 · 표 하나뿐)", () => {
     expect([cells[0], cells[1], ...cells.slice(3)]).toEqual(expected);
   });
 
-  it("2페이지 행도 원본 표기 — 본사 발행분은 셀러명 「본사」, 한도+최소금액 둘 다", async () => {
+  it("2·3페이지 행도 원본 표기 — 한도+최소금액 둘 다 · 직영 매장 쿠폰은 「베이비크루저」", async () => {
     const { user } = renderPage();
     await user.click(screen.getByRole("button", { name: "2" }));
 
+    expect(cellsOf(rowOf("수면용품 7,000원 할인"))).toEqual([
+      "13",
+      "포근하우스",
+      "수면용품 7,000원 할인",
+      "7,000원 할인",
+      "50,000원 이상 구매",
+      "2026.06.04 ~ 2026.09.04",
+      "2026.06.04",
+      "만료",
+    ]);
+    expect(cellsOf(rowOf("첫 렌트 30% 할인")).slice(3, 6)).toEqual([
+      "30% 할인 최대 20,000원",
+      "50,000원 이상 구매",
+      "2026.06.01 ~ 2026.12.31",
+    ]);
+
+    await user.click(screen.getByRole("button", { name: "3" }));
     expect(cellsOf(rowOf("봄맞이 유모차 기획전 15%"))).toEqual([
-      "18",
-      "본사",
+      "21",
+      "베이비크루저",
       "봄맞이 유모차 기획전 15%",
       "15% 할인 최대 50,000원",
       "조건 없음",
@@ -220,11 +261,75 @@ describe("표 (원본 No + 7열 · 표 하나뿐)", () => {
       "2026.04.01",
       "사용중지",
     ]);
-    expect(cellsOf(rowOf("첫 렌트 30% 할인")).slice(3, 6)).toEqual([
-      "30% 할인 최대 20,000원",
-      "50,000원 이상 구매",
-      "2026.06.01 ~ 2026.12.31",
+  });
+});
+
+describe("본사 쿠폰 (보드 06·07 · 개발 70a3e88)", () => {
+  const sellerCell = (name: string) =>
+    within(rowOf(name)).getAllByRole("cell")[1];
+
+  it("본사가 등록한 쿠폰은 셀러명 칸에 글자 없이 [본사] 배지만", () => {
+    renderPage();
+
+    for (const name of [
+      "가입 축하 쿠폰",
+      "겨울맞이 렌트 5,000원 할인",
+      "카카오톡 채널 친구 추가 10,000원",
+    ]) {
+      const cell = sellerCell(name);
+      const badge = within(cell).getByText("본사");
+      expect(badge.className).toContain("rounded-full");
+      expect(cell.textContent).toBe("본사");
+    }
+    /* 셀러 쿠폰은 글자 그대로 — 배지가 없다 */
+    expect(
+      sellerCell("렌트 3,000원 할인").querySelector(".rounded-full"),
+    ).toBeNull();
+  });
+
+  it("직영 매장 쿠폰(CP-2404-01)은 셀러 쿠폰 — 「베이비크루저」, 배지 없음", () => {
+    const direct = coupon("CP-2404-01");
+    expect(direct.seller).toBe("베이비크루저");
+    expect(direct.hq).toBeNull();
+    expect(COUPONS.filter((item) => item.hq).map((item) => item.id)).toEqual([
+      "CP-2610-02",
+      "CP-2610-03",
+      "CP-2610-04",
     ]);
+  });
+
+  it("가입 쿠폰 샘플 = 도메인모델 #11 (정률 20% · 최대 20,000원 · 발급 후 30일 · 중복 가능 · 전체 · 사용)", () => {
+    const signup = coupon("CP-2610-02");
+    expect(signup).toMatchObject({
+      discountType: "rate",
+      discountValue: 20,
+      discountMax: 20000,
+      startsOn: null,
+      endsOn: null,
+      stored: "사용",
+      hq: {
+        issueMethod: "가입자동",
+        validDays: 30,
+        target: "전체",
+        stackable: true,
+      },
+    });
+  });
+
+  it("[+ 쿠폰 등록] 은 「목록 (총 N건)」 줄의 주 버튼 — 등록 폼으로 간다", async () => {
+    const { user, onNavSelect } = renderPage();
+
+    const add = screen.getByRole("button", { name: "쿠폰 등록" });
+    expect(add.className).toContain("bg-action-primary");
+    await user.click(add);
+    expect(onNavSelect).toHaveBeenCalledWith("/promo/new");
+  });
+
+  it("본사 쿠폰 행도 같은 상세 경로로 간다(상세가 수정 폼을 그린다)", async () => {
+    const { user, onNavSelect } = renderPage();
+
+    await user.click(screen.getByRole("button", { name: "가입 축하 쿠폰" }));
+    expect(onNavSelect).toHaveBeenLastCalledWith("/promo/CP-2610-02");
   });
 });
 
@@ -234,8 +339,11 @@ describe("상태 — 저장값 사용/사용중지 + 파생 만료 (기준일 20
       (item) => item.id,
     );
 
-  it("사용 7 · 만료 8 · 사용중지 3", () => {
+  it("사용 10 · 만료 8 · 사용중지 3", () => {
     expect(ids("active")).toEqual([
+      "CP-2610-02",
+      "CP-2610-03",
+      "CP-2610-04",
       "CP-2610-01",
       "CP-2609-01",
       "CP-2608-01",
@@ -309,7 +417,7 @@ describe("보충 쿠폰 ↔ 주문 쿠폰액 (주문·정산 숫자 그대로)",
 });
 
 describe("페이지 (10/20/50/100 · 기본 10)", () => {
-  it("18건 = 1페이지 10건 + 2페이지 8건, No 는 11부터 이어진다", async () => {
+  it("21건 = 1페이지 10건 + 2페이지 10건 + 3페이지 1건, No 는 이어진다", async () => {
     const { user } = renderPage();
 
     expect(bodyRows()).toHaveLength(10);
@@ -319,12 +427,15 @@ describe("페이지 (10/20/50/100 · 기본 10)", () => {
 
     await user.click(screen.getByRole("button", { name: "2" }));
     expect(bodyRows().map((row) => cellsOf(row)[0])).toEqual(
-      Array.from({ length: 8 }, (_, i) => String(i + 11)),
+      Array.from({ length: 10 }, (_, i) => String(i + 11)),
     );
-    expect(visibleNames()[0]).toBe("장난감아저씨 10%");
+    expect(visibleNames()[0]).toBe("리틀베이비 웰컴 15%");
+
+    await user.click(screen.getByRole("button", { name: "3" }));
+    expect(bodyRows().map((row) => cellsOf(row)[0])).toEqual(["21"]);
   });
 
-  it("20개씩 보기로 바꾸면 한 페이지에 18건, 페이지 버튼이 사라진다", async () => {
+  it("50개씩 보기로 바꾸면 한 페이지에 21건, 페이지 버튼이 사라진다", async () => {
     const { user } = renderPage();
     await user.click(screen.getByRole("button", { name: "2" }));
 
@@ -336,10 +447,10 @@ describe("페이지 (10/20/50/100 · 기본 10)", () => {
         .map((option) => option.textContent),
     ).toEqual(["10개씩 보기", "20개씩 보기", "50개씩 보기", "100개씩 보기"]);
     await user.click(
-      within(listbox).getByRole("option", { name: "20개씩 보기" }),
+      within(listbox).getByRole("option", { name: "50개씩 보기" }),
     );
 
-    expect(bodyRows()).toHaveLength(18);
+    expect(bodyRows()).toHaveLength(21);
     expect(cellsOf(bodyRows()[0])[0]).toBe("1");
     expect(screen.queryByRole("button", { name: "2" })).toBeNull();
   });

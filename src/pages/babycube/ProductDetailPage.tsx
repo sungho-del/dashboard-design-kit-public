@@ -144,6 +144,8 @@ import { ProductRejectModal } from "./shared/ProductRejectModal";
  *   확대는 닫기가 있는 창이다(원본은 문구·닫기 없는 전체 오버레이)
  * - 주소록은 **고르기만** 화면 안에서 하고 등록·수정·삭제는 알림(판매자 계정 데이터)
  * - 공항 픽업 요금 이름을 「공항 픽업 요금/공항 반납 요금」 으로 갈랐다(원본은 방문 수령과 같은 이름이 두 번)
+ * - 렌트 **보증금은 필수**(`*`) — 비었거나 1 미만이면 칸 아래 「보증금을 입력해 주세요.」(Q-63 · 개발 26c59cb.
+ *   개발은 게시 검증만 걸고 임시저장은 통과시킨다 — 이 화면에는 임시저장이 없어 [수정 저장]마다 검사)
  * - 옵션목록 머리는 한 줄(축 이름)이다 — 원본의 2단 머리(「옵션명」 묶음)를 접었다.
  *   일괄수정의 옵션가 +/− 부호는 뺐다(원본도 「표기용 — 정액만 적용」 미결)
  * ====================================================================== */
@@ -1034,13 +1036,18 @@ function ProductDetailBody({
             <FormField
               className={HELP_WIDTH}
               label="보증금"
+              required
+              htmlFor={fieldId("deposit")}
               description={COPY.depositHelp}
+              error={errors.deposit}
               suffix="원"
             >
               <Input
+                id={fieldId("deposit")}
                 inputMode="numeric"
                 placeholder="0"
                 value={withCommas(draft.deposit)}
+                invalid={Boolean(errors.deposit)}
                 onChange={(event) =>
                   set("deposit", onlyDigits(event.target.value))
                 }
@@ -1101,6 +1108,14 @@ function ProductDetailBody({
                           <span className="body-small text-text-sub">원</span>
                         }
                       />
+                      {/* 삭제는 입력칸 바로 뒤 — 길이가 변하는 요약 뒤에 두면 줄바꿈 때 다음 줄 왼쪽으로 떨어진다 */}
+                      <IconButton
+                        variant="ghost"
+                        size="small"
+                        label={`${label} 삭제`}
+                        onClick={() => removePeriod(row.id)}
+                        icon={<X strokeWidth={1.2} aria-hidden />}
+                      />
                       {summary ? (
                         <span className="body-medium flex items-center gap-2 text-text">
                           <span aria-hidden>→</span>
@@ -1124,13 +1139,6 @@ function ProductDetailBody({
                           ) : null}
                         </span>
                       ) : null}
-                      <IconButton
-                        variant="ghost"
-                        size="small"
-                        label={`${label} 삭제`}
-                        onClick={() => removePeriod(row.id)}
-                        icon={<X strokeWidth={1.2} aria-hidden />}
-                      />
                     </div>
                   );
                 })}

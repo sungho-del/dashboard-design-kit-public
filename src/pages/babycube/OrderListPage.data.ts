@@ -28,6 +28,12 @@ import { PRODUCTS } from "./ProductListPage.data";
  * 금액은 **주문 당시 값**을 상품 단가로 다시 만든 예시다(렌트 = 일 단가 × 렌트일).
  * ⚠️ 원본 샘플은 2026년 6월이지만, 상품 등록일(7~9월)보다 주문이 앞서지 않도록
  * **2026년 9~10월**로 옮겼다. 형식(14자리 주문번호 · 배송 3종 · 카드 결제)은 원본 그대로다.
+ *
+ * ## 원본과 다르게 둔 곳 — 추가 기획 보드
+ * - 결제수단 「네이버페이」(보드 01 · 토스페이먼츠 경유 간편결제) — 주문번호 숫자 합이 7의 배수인
+ *   결제(12처리단위)가 네이버페이다. 주문번호로 고르므로 한 결제의 처리단위는 같은 수단이다
+ * - 「추가 연락처」 `receiverSubPhone`(보드 02 · 개발 d53c51d `receiverSubPhone`) — 배송지 스냅샷.
+ *   몇 건만 번호가 있고(`SUB_PHONES`) 나머지는 `null`(상세에 `-`). 기능 도입 전 주문이라 렌트도 비어 있을 수 있다
  * 정산 2026.09 회차 사례(2026-11-02 추가 11건)는 9월 안에 확정되도록 **8월 결제**가 섞인다.
  * 보증금(`deposit.data.ts`)·안심케어·정산(`settlement.data.ts`)이 모두 이 처리단위에서 값을 읽는다 —
  * 같은 처리단위가 화면마다 다른 말을 하지 않게.
@@ -217,6 +223,8 @@ export interface Order {
   buyerPhone: string;
   receiver: string;
   receiverPhone: string;
+  /** 추가 연락처(배송지 스냅샷 · 보드 02) — 없으면 `null` */
+  receiverSubPhone: string | null;
   address: string;
   shipMemo: string;
   /** 주문일시 `YYYY-MM-DD HH:mm` — 같은 주문번호면 같다 */
@@ -723,6 +731,18 @@ const claimOf = (id: string): Claim | null => {
 
 const PAY_METHODS = ["신용카드", "카드(국민)", "체크카드", "카드(신한)"];
 
+/** 결제수단 — 숫자 합이 7의 배수면 네이버페이(보드 01), 나머지는 카드 4종을 돌린다 */
+const payMethodOf = (seed: number) =>
+  seed % 7 === 0 ? "네이버페이" : PAY_METHODS[seed % PAY_METHODS.length];
+
+/** 추가 연락처가 있는 처리단위(보드 02) — 각자 다른 결제라 같은 주문번호끼리 어긋나지 않는다 */
+const SUB_PHONES: Record<string, string> = {
+  "U-R01": "010-9876-5432",
+  "U-R02": "010-5544-2211",
+  "U-R04": "010-3030-7788",
+  "U-S01": "010-7123-4567",
+};
+
 /** 주문번호의 숫자 합 — 한 결제의 처리단위들이 **같은 결제수단·주문일시**를 갖게 주문번호로 고른다 */
 const orderSeed = (orderNo: string) =>
   [...orderNo].reduce((sum, digit) => sum + Number(digit), 0);
@@ -818,7 +838,7 @@ const toOrder = (row: string, index: number): Order => {
     sellerKind: product.source === "hq" ? "hq" : "seller",
     seller: product.seller,
     period: isRent ? `${start} ~ ${end}` : "",
-    payMethod: PAY_METHODS[seed % PAY_METHODS.length],
+    payMethod: payMethodOf(seed),
     date: paidAt.slice(0, 16),
     shipMethod,
     carrier: shipped ? carrier : "",
@@ -842,6 +862,7 @@ const toOrder = (row: string, index: number): Order => {
     buyerPhone: buyer.phone,
     receiver,
     receiverPhone,
+    receiverSubPhone: SUB_PHONES[id] ?? null,
     address: buyer.address,
     shipMemo: memo,
     orderedAt,

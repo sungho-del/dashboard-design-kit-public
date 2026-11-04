@@ -98,6 +98,8 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * - 브랜드는 상품 샘플에 없어 `-` 다(원본 행은 남긴다)
  * - 주문정보에 결제금액 한 줄(원본은 팝업 안에만) — 팝업과 같은 `payTotalOf`
  * - 처리 이력 표는 읽기 폭 `max-w-3xl` · 상태 열 160 — 배지와 시각이 화면 양 끝으로 벌어지지 않게
+ * - 추가 기획 보드: 배송지 정보 「수령인 연락처」 아래 **「추가 연락처」**(보드 02 · 개발 d53c51d — 판매·렌트,
+ *   값 없으면 `-`) · 결제수단 **「네이버페이」**(보드 01 — 값은 주문 샘플 `payMethod`). 둘 다 같은 라벨 폭
  * ====================================================================== */
 
 export interface OrderDetailPageProps {
@@ -444,11 +446,13 @@ function OrderDetailBody({
 
       <Section title={SECTIONS.address} busy={busy} dim={dim}>
         {loading ? (
-          <LoadingLines rows={4} />
+          <LoadingLines rows={5} />
         ) : (
           <InfoList>
             <Item label="수령인">{order.receiver}</Item>
             <Item label="수령인 연락처">{order.receiverPhone}</Item>
+            {/* 보드 02 · 개발 d53c51d — 판매·렌트 모두, 없으면 `-` */}
+            <Item label="추가 연락처">{order.receiverSubPhone ?? NONE}</Item>
             <Item label="배송지">{order.address}</Item>
             <Item label="배송 메모">{order.shipMemo || NONE}</Item>
           </InfoList>

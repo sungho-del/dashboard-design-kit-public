@@ -248,6 +248,58 @@ describe("OrderDetailPage", () => {
     });
   });
 
+  /** 추가 기획 보드 01(네이버페이) · 02(추가 연락처 — 개발 d53c51d) */
+  describe("결제수단 네이버페이 · 추가 연락처", () => {
+    it("네이버페이 결제는 「네이버페이」, 카드 결제는 카드 그대로", () => {
+      renderAt("/orders-all/U-R01");
+      expect(valueOf("결제수단")).toBe("네이버페이");
+      cleanup();
+      renderAt("/orders-all/U-R02");
+      expect(valueOf("결제수단")).toBe("신용카드");
+    });
+
+    it("같은 주문번호의 처리단위는 같은 결제수단이다", () => {
+      const byNo = new Map<string, Set<string>>();
+      for (const order of ORDERS) {
+        byNo.set(
+          order.orderNo,
+          (byNo.get(order.orderNo) ?? new Set()).add(order.payMethod),
+        );
+      }
+      expect([...byNo.values()].every((set) => set.size === 1)).toBe(true);
+      expect(ORDERS.filter((o) => o.payMethod === "네이버페이")).toHaveLength(
+        12,
+      );
+    });
+
+    const addressLabels = () =>
+      [
+        ...screen
+          .getAllByText("수령인")[0]
+          .closest("dl")!
+          .querySelectorAll("dt"),
+      ].map((term) => term.textContent);
+
+    it.each([
+      ["U-R01", "010-9876-5432"],
+      ["U-S01", "010-7123-4567"],
+      ["U-S07", "-"],
+    ])(
+      "%s — 「수령인 연락처」 바로 아래 「추가 연락처」 %s (판매·렌트 모두)",
+      (id, phone) => {
+        renderAt(`/orders-all/${id}`);
+        expect(addressLabels()).toEqual([
+          "수령인",
+          "수령인 연락처",
+          "추가 연락처",
+          "배송지",
+          "배송 메모",
+        ]);
+        expect(valueOf("추가 연락처")).toBe(phone);
+      },
+    );
+  });
+
   describe("주문 명세 팝업 (독립 예시로 계산 확인)", () => {
     it("렌트 — 단가 × 렌트일, 보증금은 「별도」 묶음이고 결제금액에 들지 않는다", async () => {
       const { user } = renderAt("/orders-all/U-R01");

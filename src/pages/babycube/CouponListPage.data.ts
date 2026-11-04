@@ -8,15 +8,17 @@ import { DEMO_TODAY } from "./OrderListPage.data";
  * 짝이 되는 뼈대: `CouponListPage.tsx` · 상세: `CouponDetailPage.*`(`/promo/{쿠폰코드}`)
  *
  * ## 이 화면이 무엇인가
- * 입점사·본사가 발행한 쿠폰 원장을 **표 하나로** 본다. 생성·수정·중지는 입점사 어드민 몫이라
- * 본사에는 [등록]도 행 액션도 없다(원본 annotations `screen.promo` · 3949 등록 함수 제거).
+ * 입점사·본사가 발행한 쿠폰 원장을 **표 하나로** 본다. 셀러 쿠폰(직영 매장 포함)의 생성·수정·중지는
+ * 입점사 어드민 몫이라 본사는 조회만 한다. **본사 쿠폰**(추가 기획 보드 06·07)만 본사가
+ * [+ 쿠폰 등록]으로 만들고 상세에서 고친다(`CouponFormPage.*` · 개발 70a3e88).
  *
  * ## 갈아끼울 것 — 이 파일 전체
  * | 역할                 | 실물 이름                                         |
  * | -------------------- | ------------------------------------------------- |
  * | 표 한 행의 타입      | `Coupon`                                          |
  * | 상태 파생·라벨·톤    | `couponStatus` · `STATUS_META`                    |
- * | 샘플(원장)           | `COUPONS` — 원본 16건 + 보충 2건                  |
+ * | 샘플(원장)           | `COUPONS` — 본사 쿠폰 샘플 3건 + 보충 2건 + 원본 16건 |
+ * | 본사 쿠폰 여부·값    | `Coupon.hq`(셀러 쿠폰은 `null`) · `NEW_PATH`       |
  * | 셀 표기              | `discountParts` · `conditionText` · `periodParts` · `ymd` |
  * | 상세 경로            | `detailPathOf`                                    |
  * | 페이지 크기·빈 상태  | `PAGE_SIZE` · `PAGE_SIZES` · `EMPTY_TITLE`        |
@@ -34,13 +36,21 @@ import { DEMO_TODAY } from "./OrderListPage.data";
  * **중지가 만료보다 앞선다**(셀러가 내린 쿠폰은 기한과 무관하게 사용중지). 시작일이 미래여도 `사용`이다
  * (옛 화면의 「발행대기」 분기는 원본에 없다).
  * 기준일은 원본 `CP_TODAY`(2026-08-04) 대신 **시연 기준일 `DEMO_TODAY`(2026-10-19)** 하나로 맞춘다.
- * → 사용 7 · 만료 8 · 사용중지 3. 종료일 10.31·12.31 은 예정된 기한이라 그대로 둔다(사용자 결정).
+ * → 사용 10 · 만료 8 · 사용중지 3. 종료일 10.31·12.31 은 예정된 기한이라 그대로 둔다(사용자 결정).
  *
  * ## 상태 배지 톤 (형제 규칙 — 원본 b-prog → success, b-done → default)
  * `사용` success · `사용중지` default(무채색 — 사용자 결정, 셀러가 내린 정상 처리) · `만료` default
  *
- * ## 샘플 (원본 원장 16건 + 보충 2건)
- * 원본 16건을 필드·순서 그대로 옮겼다(셀러 7곳은 모두 `SELLERS` 에 있다). 본사 발행분은 원본처럼 `"본사"`.
+ * ## 샘플 (본사 쿠폰 3건 + 보충 2건 + 원본 원장 16건)
+ * 원본 16건을 필드·순서 그대로 옮겼다(셀러 7곳은 모두 `SELLERS` 에 있다). 원본의 본사 발행분 `CP-2404-01` 은
+ * **직영 매장 셀러 쿠폰**으로 읽어 셀러명을 「본사」 → 「베이비크루저」로 바꿨다(보드 06 「셀러 표기」 · GPT 검토).
+ *
+ * **본사 쿠폰 샘플 3건**(맨 위 · 예시 값): 개발 저장소에는 시드가 없어(실 API) 보드 06·07 문안으로 만들었다.
+ * | 쿠폰       | 발급 방식    | 보이는 상태                                                    |
+ * | ---------- | ------------ | -------------------------------------------------------------- |
+ * | CP-2610-02 | 가입 시 자동 | 도메인모델 #11 그대로(정률 20% · 최대 2만 · 발급 후 30일 · 중복 가능 · 전체) · 발급 214장 → 방식 잠금 |
+ * | CP-2610-03 | 다운로드     | 11월 시작 · 발급 0장 → 방식을 바꿀 수 있다(가입 시 자동 + 사용으로 저장하면 교체 확인 창) |
+ * | CP-2610-04 | 쿠폰 번호    | 카카오 친구 추가 정액 1만(보드 07) · 번호 500개 · 사용 0개 → 「번호 파일을 올린」 잠금 |
  * **보충 2건**(맨 위): 주문 샘플에서 쿠폰을 쓴 처리단위 중 원장에 대응 쿠폰이 없던 두 건을 위해 넣었다.
  * 주문·정산 숫자는 그대로다 — 쿠폰 금액이 주문의 `coupon` 과 같고, 그 날짜에 유효하고, 조건을 만족한다.
  * | 쿠폰           | 셀러     | 맞물리는 주문                                         |
@@ -52,18 +62,27 @@ import { DEMO_TODAY } from "./OrderListPage.data";
  * ## ⚠️ 기획 확인 필요 (원본대로 둠)
  * - 주문의 쿠폰 할인이 원장 쿠폰과 연결되지 않는다(원본은 해시 10% — 4831·4166). 주문에 쿠폰코드가 없다
  * - 원장 순서가 발행일 순이 아니다(CP-24xx 5건이 맨 아래) · 코드는 24xx 인데 발행은 2026년
- * - 정책은 「본사는 쿠폰을 만들지 않는다」인데 본사 발행분(CP-2404-01)이 있다 · 본사 쿠폰의 부담 주체 미정
+ * - 원본 본사 발행분 CP-2404-01 은 직영 매장 쿠폰으로 정리했다(위). 다만 **주문·클레임 목록의 직영 판매자는
+ *   아직 「본사」** 다 — 보드 06 「직영 매장은 베이비크루저로 표시」를 그 화면들까지 넓힐지 확인 필요
  * - 스토리보드 설명과 코드가 다르다(목록 「조건」 열 · 상태 「만료」 · 사용 기간 한 줄) — 코드를 따랐다
  *
  * ## 원본과 다르게 둔 곳 (형제 규칙)
  * 머리글·값 왼쪽 정렬(상태만 가운데) · `?preview=` 데이터 상태 · 행 어디를 눌러도 상세로
  *
+ * ## 원본과 다르게 둔 곳 — 추가 기획 보드 06·07 (개발 70a3e88)
+ * - 「목록 (총 N건)」 줄 오른쪽 [+ 쿠폰 등록](주 버튼) → `/promo/new`
+ * - 본사 쿠폰의 셀러명 칸은 글자 없이 **[본사] 배지만** · 가입 시 자동의 기간 칸은 날짜 대신 **「발급 후 N일」**
+ * - 본사 쿠폰 행은 수정 폼(같은 `/promo/{쿠폰코드}` — 상세가 넘겨준다), 셀러 쿠폰 행은 조회 상세 그대로
+ *
  * ## ⚠️ 원본에 없어서 걷어낸 것 — 되살리지 말 것
  * 상태 대시 · 검색조건(`FILTERS.promo={}`, `filterBar` 미호출) · 엑셀(`EXPORT_SPEC` 미등록) ·
- * 체크박스 · 정렬 · 쿠폰 미리보기 모달 · 쿠폰코드 복사 · [등록] · 원본에 없는 셀러의 손 샘플
+ * 체크박스 · 정렬 · 쿠폰 미리보기 모달 · 쿠폰코드 복사 · 원본에 없는 셀러의 손 샘플
+ * ([등록]은 보드 06 으로 되살렸다 — 본사 쿠폰 전용)
  * ---------------------------------------------------------------------- */
 
 export const LIST_PATH = "/promo";
+/** 본사 쿠폰 등록 — 개발 `/promo/new` */
+export const NEW_PATH = "/promo/new";
 export const detailPathOf = (code: string) =>
   `${LIST_PATH}/${encodeURIComponent(code)}`;
 
@@ -76,10 +95,30 @@ export type StoredStatus = "사용" | "사용중지";
 /** 화면 상태 — 저장값 2종 + 파생 `expired` */
 export type CouponStatus = "active" | "suspended" | "expired";
 
+/** 본사 쿠폰 발급 방식 — 개발 `CouponIssueMethod` 그대로 */
+export type IssueMethod = "가입자동" | "다운로드" | "쿠폰번호";
+
+/** 적용 대상 — 정책 P-MKT-001 (셀러 폼과 같다) */
+export type ApplyTarget = "전체" | "렌트" | "판매";
+
+/** 본사가 등록한 쿠폰에만 있는 값(보드 06·07 · 개발 `CouponDetail` 의 본사 칸) */
+export interface HqCouponInfo {
+  issueMethod: IssueMethod;
+  /** 가입 시 자동: 발급 후 N일 — 그 밖은 `null`(시작일·종료일을 쓴다) */
+  validDays: number | null;
+  target: ApplyTarget;
+  /** 중복 사용 — 셀러 쿠폰과 함께 쓸 수 있는가 */
+  stackable: boolean;
+  /** 발급된 장수 — 1장 이상이면 발급 방식을 바꿀 수 없다(개발 D-379) */
+  issuedCount: number;
+  /** 쿠폰 번호 방식: 올린 번호 수 · 고객이 등록한 번호 수 */
+  codes: { total: number; claimed: number };
+}
+
 export interface Coupon {
   /** 쿠폰코드 = 행 키 (원본 `id`) */
   id: string;
-  /** 셀러명 — 본사 발행분은 `"본사"`(원본 그대로) */
+  /** 셀러명 — 본사 쿠폰은 `"본사"`(목록은 [본사] 배지) · 직영 매장은 「베이비크루저」 */
   seller: string;
   name: string;
   discountType: DiscountType;
@@ -96,6 +135,8 @@ export interface Coupon {
   /** 발행일 `YYYY-MM-DD` */
   issuedOn: string;
   stored: StoredStatus;
+  /** 본사 쿠폰만 — 셀러 쿠폰(직영 매장 포함)은 `null` */
+  hq: HqCouponInfo | null;
 }
 
 /** 만료 판정 기준일 — 시연 기준일(주문·정산과 같은 값) */
@@ -139,10 +180,49 @@ const row = (line: string): Coupon => {
     endsOn: end || null,
     issuedOn: issued,
     stored: stat as StoredStatus,
+    hq: null,
   };
 };
 
+/** 본사 쿠폰 한 줄 = 원장 한 줄 + 본사 칸 */
+const hqRow = (line: string, hq: HqCouponInfo): Coupon => ({
+  ...row(line),
+  hq,
+});
+const NO_CODES = { total: 0, claimed: 0 };
+
 export const COUPONS: Coupon[] = [
+  /* ── 본사 쿠폰 샘플 3건(보드 06·07 · 예시 값) ── */
+  hqRow("CP-2610-02|본사|가입 축하 쿠폰|rate|20|20000||||2026-10-05|사용", {
+    issueMethod: "가입자동",
+    validDays: 30,
+    target: "전체",
+    stackable: true,
+    issuedCount: 214,
+    codes: NO_CODES,
+  }),
+  hqRow(
+    "CP-2610-03|본사|겨울맞이 렌트 5,000원 할인|amt|5000||50000|2026-11-01|2026-11-30|2026-10-15|사용",
+    {
+      issueMethod: "다운로드",
+      validDays: null,
+      target: "렌트",
+      stackable: false,
+      issuedCount: 0,
+      codes: NO_CODES,
+    },
+  ),
+  hqRow(
+    "CP-2610-04|본사|카카오톡 채널 친구 추가 10,000원|amt|10000|||2026-10-20|2026-12-31|2026-10-17|사용",
+    {
+      issueMethod: "쿠폰번호",
+      validDays: null,
+      target: "전체",
+      stackable: true,
+      issuedCount: 0,
+      codes: { total: 500, claimed: 0 },
+    },
+  ),
   /* ── 보충 2건(샘플 보충 — 주문 U-R09 · U-S35 의 쿠폰) ── */
   "CP-2610-01|베베하우스|렌트 3,000원 할인|amt|3000|||2026-10-01|2026-12-31|2026-10-01|사용",
   "CP-2609-01|아기별상사|가을맞이 1만원 할인|amt|10000||100000|2026-09-01|2026-10-31|2026-09-01|사용",
@@ -162,8 +242,9 @@ export const COUPONS: Coupon[] = [
   "CP-2406-02|포근하우스|여름 시즌 세척비 지원|amt|5000|||2026-06-15|2026-07-31|2026-06-15|사용",
   "CP-2405-01|베이비노리터|재렌트 감사 5% 할인|rate|5|10000|30000|2026-05-01||2026-05-01|사용",
   "CP-2405-02|하이베베|웰컴 베이비 1만원 할인|amt|10000||100000|2026-05-10|2026-08-15|2026-05-10|사용중지",
-  "CP-2404-01|본사|봄맞이 유모차 기획전 15%|rate|15|50000||2026-04-01|2026-04-30|2026-04-01|사용중지",
-].map(row);
+  /* 원본 셀러명 「본사」 = 직영 매장 → 「베이비크루저」(보드 06 셀러 표기) */
+  "CP-2404-01|베이비크루저|봄맞이 유모차 기획전 15%|rate|15|50000||2026-04-01|2026-04-30|2026-04-01|사용중지",
+].map((line) => (typeof line === "string" ? row(line) : line));
 
 export const findCoupon = (code: string) =>
   COUPONS.find((coupon) => coupon.id === code);
@@ -192,8 +273,18 @@ export const conditionText = (coupon: Coupon) =>
     ? { text: `${won(coupon.minOrderAmount)} 이상 구매`, unset: false }
     : { text: "조건 없음", unset: true };
 
-/** 기간 — 원본 `cpPeriod` 세 분기(둘 다 · 시작만 · 없음=상시) */
+/**
+ * 기간 — 가입 시 자동은 날짜 대신 「발급 후 N일」(보드 06 · 개발 70a3e88),
+ * 그 밖은 원본 `cpPeriod` 세 분기(둘 다 · 시작만 · 없음=상시)
+ */
 export const periodParts = (coupon: Coupon) => {
+  if (coupon.hq?.issueMethod === "가입자동" && coupon.hq.validDays !== null) {
+    return {
+      lead: `발급 후 ${coupon.hq.validDays}일`,
+      tail: "",
+      tailMuted: false,
+    };
+  }
   if (coupon.startsOn === null) {
     return { lead: "", tail: "상시", tailMuted: true };
   }

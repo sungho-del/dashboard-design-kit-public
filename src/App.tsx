@@ -14,6 +14,7 @@ import { CareClaimDetailPage } from "./pages/babycube/CareClaimDetailPage";
 import { CareClaimListPage } from "./pages/babycube/CareClaimListPage";
 import { CategoryListPage } from "./pages/babycube/CategoryListPage";
 import { CouponDetailPage } from "./pages/babycube/CouponDetailPage";
+import { CouponFormPage } from "./pages/babycube/CouponFormPage";
 import { CouponListPage } from "./pages/babycube/CouponListPage";
 import { BabycubeDashboardPage } from "./pages/babycube/DashboardPage";
 import { DisplayFormPage } from "./pages/babycube/DisplayFormPage";
@@ -116,6 +117,8 @@ const ROUTES: Record<string, ComponentType<NavProps>> = {
   "/settle-statement": SettlementStatementPage,
   "/settle-tax": TaxInvoiceListPage,
   "/promo": CouponListPage,
+  /* 본사 쿠폰 등록(보드 06) — `/promo/` 상세 접두사보다 정확 일치가 먼저 잡힌다 */
+  "/promo/new": CouponFormPage,
   "/points": PointListPage,
   "/notices": NoticeListPage,
   "/faq-admin": FaqListPage,
@@ -202,7 +205,7 @@ const DETAIL_ROUTES: {
     parent: "/care-claims",
     screen: CareClaimDetailPage,
   },
-  /* 프로모션 — 쿠폰 상세(조회 전용) */
+  /* 프로모션 — 쿠폰 상세(셀러 쿠폰은 조회 · 본사 쿠폰은 상세가 수정 폼을 그린다) */
   { prefix: "/promo/", parent: "/promo", screen: CouponDetailPage },
   { prefix: "/points/", parent: "/points", screen: PointDetailPage },
   /* 게시판 — 등록/수정 폼 · 상세 */

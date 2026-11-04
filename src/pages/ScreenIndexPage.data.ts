@@ -323,7 +323,8 @@ export const SCREENS: ScreenEntry[] = [
     name: "쿠폰 관리",
     type: "목록형",
     origin: "babycube",
-    summary: "쿠폰 원장 18건 · 사용/사용중지/만료 · 행 → 쿠폰 상세",
+    summary:
+      "쿠폰 원장 21건 · [본사] 배지 · 「발급 후 N일」 · [+ 쿠폰 등록] · 행 → 쿠폰 상세",
     file: "babycube/CouponListPage.tsx",
     icon: Ticket,
   },
@@ -332,9 +333,31 @@ export const SCREENS: ScreenEntry[] = [
     name: "쿠폰 상세",
     type: "상세형",
     origin: "babycube",
-    summary: "기본 정보 · 할인 내용 · 사용 기간 · 상태(조회 전용)",
+    summary: "셀러 쿠폰 — 기본 정보 · 할인 내용 · 사용 기간 · 상태(조회 전용)",
     file: "babycube/CouponDetailPage.tsx",
-    entryNote: "GNB 에 없다 — 쿠폰관리에서 행을 눌러 들어간다",
+    entryNote: "GNB 에 없다 — 쿠폰관리에서 셀러 쿠폰 행을 눌러 들어간다",
+    icon: Ticket,
+  },
+  {
+    navId: "/promo/new",
+    name: "쿠폰 등록",
+    type: "폼형",
+    origin: "babycube",
+    summary:
+      "본사 쿠폰 — 셀러 폼 + 발급 방식(가입 시 자동·다운로드·쿠폰 번호) · 중복 사용 · 발급 후 N일",
+    file: "babycube/CouponFormPage.tsx",
+    entryNote: "GNB 에 없다 — 쿠폰관리에서 [+ 쿠폰 등록]을 눌러 들어간다",
+    icon: Ticket,
+  },
+  {
+    navId: "/promo/CP-2610-02",
+    name: "쿠폰 상세 (수정)",
+    type: "폼형",
+    origin: "babycube",
+    summary:
+      "본사 쿠폰 수정 — 가입 쿠폰(잠금) · CP-2610-03 다운로드 · CP-2610-04 쿠폰 번호(번호 파일)",
+    file: "babycube/CouponFormPage.tsx",
+    entryNote: "GNB 에 없다 — 쿠폰관리에서 [본사] 배지 행을 눌러 들어간다",
     icon: Ticket,
   },
   {

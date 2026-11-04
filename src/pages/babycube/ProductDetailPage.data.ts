@@ -31,6 +31,7 @@ import { STAGES } from "./GrowthStageListPage.data";
  * | `ProductDraft`   | 화면 안에서 고치는 값 — 저장하지 않는다(퍼블 범위)  |
  * | `draftOf`        | 상품 → 처음 값                                      |
  * | `validate`       | 원본 `pfValidate` 중 지금 화면에 있는 칸의 검사      |
+ * |                  | + 렌트 보증금 1원 이상(Q-63 · 개발 26c59cb — 원본에 없던 검사) |
  * | `COPY`           | 안내·오류·알림 문구 (원본 그대로)                   |
  * ---------------------------------------------------------------------- */
 
@@ -581,6 +582,7 @@ export type FieldKey =
   | "category"
   | "rentBase"
   | "rentDisc"
+  | "deposit"
   | "periods"
   | "rentQty"
   | "saleBase"
@@ -603,6 +605,7 @@ export const SECTION_OF: Record<FieldKey, SectionKey> = {
   category: "category",
   rentBase: "price",
   rentDisc: "price",
+  deposit: "price",
   periods: "price",
   rentQty: "quantity",
   saleBase: "price",
@@ -644,6 +647,8 @@ export const validate = (
       num(draft.rentDiscVal) > 100
     )
       errors.rentDisc = COPY.errors.rentDisc;
+    /* Q-63 · 개발 26c59cb — 비었거나 1 미만이면 막는다(우리 폼에는 임시저장이 없어 저장마다 검사) */
+    if (num(draft.deposit) < 1) errors.deposit = COPY.errors.deposit;
     if (
       draft.periodOn &&
       draft.periods.some((row) => num(row.days) > 0 !== num(row.price) > 0)
@@ -775,6 +780,7 @@ export const COPY = {
     category: "카테고리(대분류)를 선택해주세요.",
     rentBase: "렌트료를 입력해주세요.",
     rentDisc: "렌트 할인율은 100%를 초과할 수 없습니다.",
+    deposit: "보증금을 입력해 주세요.",
     periods: "기간 옵션은 일수와 장기 렌트 할인가를 함께 입력해주세요.",
     rentQty: "렌트 수량을 입력해주세요.",
     saleBase: "판매가를 입력해주세요.",

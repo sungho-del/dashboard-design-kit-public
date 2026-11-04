@@ -438,6 +438,22 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
       ).toBeVisible();
     });
 
+    /** Q-63 · 개발 26c59cb — 렌트 보증금이 비었거나 1 미만이면 막는다 */
+    it.each([[""], ["0"]])(
+      "렌트 보증금 「%s」 는 칸 아래 「보증금을 입력해 주세요.」 로 막는다",
+      async (value) => {
+        const { user, onNavSelect } = renderAt("BL240814");
+
+        await user.clear(textbox(/보증금/));
+        if (value) await user.type(textbox(/보증금/), value);
+        await user.click(screen.getByRole("button", { name: "수정 저장" }));
+
+        expect(screen.getByText("보증금을 입력해 주세요.")).toBeVisible();
+        await waitFor(() => expect(textbox(/보증금/)).toHaveFocus());
+        expect(onNavSelect).not.toHaveBeenCalled();
+      },
+    );
+
     /** 원본도 재고를 검사하지 않는다 — 재고 0 은 품절이라는 정상 상태다 */
     it("판매 상품의 재고 0 은 저장을 막지 않는다", async () => {
       const { user, onNavSelect } = renderAt("KB781520");
