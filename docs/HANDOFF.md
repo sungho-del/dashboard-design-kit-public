@@ -15,7 +15,9 @@
 - **0단계 완료**(c639612 · 5aad659): 골격(원본 SCREEN_MAP 8그룹 27항목 · 임시 화면 `pendingScreen`) · 원본 시드 덤프 `src/pages/seller/seed/*.data.ts`(자동 생성 — 손대지 않는다 · 상품 60 · 결제 182 · 처리단위 183 …) · GNB 배지 원본 식(9·5·5·5·11·3·4·2·2·6)
 - **도구 `docs/seller/tools/`**(playwright-core 필요 · 원본은 기획 저장소를 sparse clone 해 `apps/admin-seller` 에서 `python -m http.server 5190`): 비교판 캡처 `capture-orig.mjs <출력폴더>`(48화면 png+json) · 시드 덤프 `orig-dump.mjs` → `gen-seed.mjs <seeds.json> src/pages/seller/seed <원본커밋>` · 기준일 FB_TODAY **2026-06-29**
 - **기획 변경 대장** `docs/seller/plan-changes.md` — ① 고객사 추가 기획 보드(https://claude.ai/artifact/CDPCWHnmQE7QVk9AwKcmLB · 셀러 5건: 네이버페이 표시·추가 연락처·수거 요청사항·환급 안내 문구·본사 쿠폰 무영향) ② 판정 회신 3·7·9~13차 미반영 7건(직영 계정 메뉴·스토어 문구 · 보증금 0원 · 환불 미리보기 · 변심 반품 출고비 · 방문 반납 버튼 · 판매 상세 추가 연락처)
-- **다음**: 대표 화면 발주 관리 목록·상세(대조 `docs/seller/pilot-saleProc.md` · GPT 의견 반영) — 사용자 결정 대기 후 작업
+- **대표 화면 완료**(8cc4ebb 목록 · e0ef248 상세 · 8004413 · 0f747f6 문서): `/sale-proc` · `/sale-proc/[id]` — 결과·기획 확인 `docs/seller/pilot-saleProc.md` G절 · 대조 보드 https://claude.ai/artifact/J9FqXS9iDfn91Jsecx1rRL · GPT 5/5 OK
+  - 공용 틀: 처리단위 도메인 `orderUnit.data.ts`(원본 식 · 183건 정답 대조) · 게이트 `OrderGates.tsx`(상태 변경 확인 · `DelayReasonModal` · `SellerCancelModal`) · 셀러 전달본에 `babycube/CalcBreakdown.tsx` 한 파일 포함
+- **다음**: 사용자 확인(보드) → 판매 묶음(주문 통합 · 배송 · 취소 · 반품 · 교환 + 상세) → 렌트 → 정산 → 상품 → 마케팅·게시판 → 시스템(직영 미리보기) → 대시보드 → 전달 문서 `files-seller/` → babycube-admin-seller PR
 - **원본 특이점(기획 확인 필요)**: 셀러 목록에 본사 자체 처리단위 6건 섞임 · 결제에 없는 처리단위 1건 · 표 결제금액(계산) ≠ 저장 amt
 
 ---
