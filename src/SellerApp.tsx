@@ -1,6 +1,7 @@
 import { useState, type ComponentType } from "react";
 import { ToastProvider } from "./components/ui";
 import { navigate, usePathname } from "./lib/router";
+import { SaleProcPage } from "./pages/seller/SaleProcPage";
 import { pendingScreen } from "./pages/seller/SellerPendingPage";
 import { SellerScreenIndexPage } from "./pages/seller/SellerScreenIndexPage";
 
@@ -33,7 +34,7 @@ const ROUTES: Record<string, ComponentType<NavProps>> = {
   "/products": pendingScreen("상품 관리"),
   "/product-new": pendingScreen("상품 등록 폼"),
   "/sale-orders": pendingScreen("주문 통합 관리"),
-  "/sale-proc": pendingScreen("발주 관리"),
+  "/sale-proc": SaleProcPage,
   "/shipping": pendingScreen("배송 관리"),
   "/sale-cancel": pendingScreen("취소 관리"),
   "/sale-return": pendingScreen("반품 관리"),

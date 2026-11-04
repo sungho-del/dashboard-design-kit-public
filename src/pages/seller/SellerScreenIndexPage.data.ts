@@ -95,6 +95,7 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "발주 관리",
     type: "목록형",
     summary: "신규 판매 주문 접수부터 배송 준비 단계를 처리하는 화면",
+    file: "seller/SaleProcPage.tsx",
     icon: ClipboardList,
   },
   {
