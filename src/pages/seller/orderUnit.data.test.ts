@@ -7,12 +7,14 @@ import {
   orderStat,
   pointOf,
   productRef,
+  rentPayTotal,
   salePayTotal,
   shipFeeOf,
   stageIdx,
   unitTime,
 } from "./orderUnit.data";
 import { UNITS } from "./seed/orders.data";
+import { statementBlocksOf } from "./unitDetail.data";
 
 /**
  * 처리단위 파생값 — **원본 함수가 낸 값(정답)과 183건 전부 같은가.**
@@ -21,6 +23,7 @@ import { UNITS } from "./seed/orders.data";
  */
 const golden = new Map(GOLDEN_UNITS.map((g) => [g.id, g]));
 const sale = UNITS.filter((u) => u.type === "판매");
+const rent = UNITS.filter((u) => u.type === "렌트");
 
 describe("처리단위 파생값 = 원본", () => {
   it("정답이 처리단위 전부를 덮는다", () => {
@@ -54,6 +57,40 @@ describe("처리단위 파생값 = 원본", () => {
       expect(couponOf(u)).toBe(g.coupon);
       expect(pointOf(u)).toBe(g.point);
       expect(salePayTotal(u)).toBe(g.payTotal);
+    },
+  );
+
+  it.each(rent.map((u) => [u.id, u] as const))(
+    "%s (렌트) — 쿠폰 · 포인트 · 결제금액 = 원본 명세",
+    (_, u) => {
+      const g = golden.get(u.id)!;
+      expect(couponOf(u)).toBe(g.coupon);
+      expect(pointOf(u)).toBe(g.point);
+      /* 명세 마지막 줄 「결제금액」 값 */
+      expect(`${rentPayTotal(u).toLocaleString("ko-KR")}원`).toBe(
+        g.priceBox[g.priceBox.length - 1],
+      );
+      /* 원본 목록 식은 포인트를 빼지 않았다(기획 확인) — 차이가 정확히 포인트인지 */
+      expect(rentPayTotal(u) + pointOf(u)).toBe(g.payTotal);
+    },
+  );
+
+  /* 명세 묶음은 본사 꼴로 바꿨다(줄 이름·순서) — 금액 줄의 값 모음과 렌트일이 원본과 같은지 */
+  it.each(rent.map((u) => [u.id, u] as const))(
+    "%s (렌트) — 주문 명세 금액 줄 = 원본 udPriceBox",
+    (_, u) => {
+      const g = golden.get(u.id)!;
+      const amounts = (texts: (string | undefined)[]) =>
+        texts
+          .filter((t): t is string => !!t && /\d원/.test(t))
+          .map((t) => Number(t.replace(/[^\d]/g, "")))
+          .sort((a, b) => a - b);
+      const ours = statementBlocksOf(u).flatMap((b) => b.lines);
+      expect(amounts(ours.map((l) => l.value))).toEqual(amounts(g.priceBox));
+      const days = g.priceBox[g.priceBox.indexOf("렌트일") + 1];
+      expect(ours.find((l) => l.key === "days")?.value).toBe(
+        `${parseInt(days, 10)}일`,
+      );
     },
   );
 });

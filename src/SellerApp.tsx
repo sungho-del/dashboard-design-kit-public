@@ -2,6 +2,23 @@ import { useState, type ComponentType } from "react";
 import { ToastProvider } from "./components/ui";
 import { navigate, usePathname } from "./lib/router";
 import {
+  RentCancelDetailPage,
+  RentInspDetailPage,
+  RentOrderDetailPage,
+  RentRmaDetailPage,
+  RentShipDetailPage,
+  RentUseDetailPage,
+} from "./pages/seller/RentDetailPages";
+import { RentOrdersPage } from "./pages/seller/RentOrdersPage";
+import {
+  RentCancelPage,
+  RentDispatchPage,
+  RentInspReturnPage,
+  RentListPage,
+  RentRmaPage,
+  RentUsePage,
+} from "./pages/seller/RentProcessPages";
+import {
   SaleCancelDetailPage,
   SaleExchangeDetailPage,
   SaleReturnDetailPage,
@@ -53,13 +70,13 @@ const ROUTES: Record<string, ComponentType<NavProps>> = {
   "/sale-cancel": SaleCancelPage,
   "/sale-return": SaleReturnPage,
   "/sale-exchange": SaleExchangePage,
-  "/rent-orders": pendingScreen("렌트 주문 통합 관리"),
-  "/rent-list": pendingScreen("렌트 발주 관리"),
-  "/rent-dispatch": pendingScreen("배송 관리"),
-  "/rent-use": pendingScreen("대여·연체 관리"),
-  "/rent-insp-return": pendingScreen("검수·반납 관리"),
-  "/rent-cancel": pendingScreen("취소 관리"),
-  "/rent-rma": pendingScreen("반품 관리"),
+  "/rent-orders": RentOrdersPage,
+  "/rent-list": RentListPage,
+  "/rent-dispatch": RentDispatchPage,
+  "/rent-use": RentUsePage,
+  "/rent-insp-return": RentInspReturnPage,
+  "/rent-cancel": RentCancelPage,
+  "/rent-rma": RentRmaPage,
   "/settle-own": pendingScreen("매출 정산"),
   "/rent-deposit": pendingScreen("보증금 내역"),
   "/settle-statement": pendingScreen("정산 내역/명세서"),
@@ -102,6 +119,24 @@ const DETAIL_ROUTES: {
     parent: "/sale-exchange",
     screen: SaleExchangeDetailPage,
   },
+  { prefix: "/rent-list/", parent: "/rent-list", screen: RentOrderDetailPage },
+  {
+    prefix: "/rent-dispatch/",
+    parent: "/rent-dispatch",
+    screen: RentShipDetailPage,
+  },
+  { prefix: "/rent-use/", parent: "/rent-use", screen: RentUseDetailPage },
+  {
+    prefix: "/rent-insp-return/",
+    parent: "/rent-insp-return",
+    screen: RentInspDetailPage,
+  },
+  {
+    prefix: "/rent-cancel/",
+    parent: "/rent-cancel",
+    screen: RentCancelDetailPage,
+  },
+  { prefix: "/rent-rma/", parent: "/rent-rma", screen: RentRmaDetailPage },
 ];
 
 /** 없는 경로 — 화면 목록(본사와 같다) */

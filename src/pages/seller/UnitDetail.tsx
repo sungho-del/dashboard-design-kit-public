@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronUp, ShoppingCart } from "lucide-react";
 import {
   AppShell,
@@ -10,7 +10,6 @@ import {
   FormField,
   Gnb,
   IconButton,
-  InfoItem,
   InfoList,
   Input,
   Modal,
@@ -54,6 +53,7 @@ import {
   ACTION_COPY,
   CLAIM_SCREEN,
   routeGate,
+  shipImageMissing,
   statusIn,
   type Gate,
 } from "./gate.data";
@@ -63,28 +63,47 @@ import {
   courierOf,
   delayReasonOf,
   historyOf,
+  careOf,
+  collectFeeOf,
   orderStat,
+  payMethodOf,
+  payTotalOf,
   pickupOf,
-  salePayTotal,
 } from "./orderUnit.data";
+import {
+  CareBody,
+  DepositBody,
+  InspectBody,
+  Item,
+  PhotosBody,
+  RentInfoBody,
+  ShipImagesBody,
+} from "./RentSections";
 import type { OrderUnit } from "./seed/orders.data";
+import { useRentDetail } from "./useRentDetail";
 import {
   UNIT_DETAIL_COPY,
   brandOf,
   componentNamesOf,
+  depositStatusOf,
   extraTelOf,
   growthStageOf,
   headlineOf,
+  longRentTextOf,
   orNone,
+  pickupRequestOf,
   productCodeOf,
   purchasedAtOf,
   reachedAt,
   receiverOf,
   receiverTelOf,
+  rentComponentOf,
+  rentDaysTextOf,
   shipFeeText,
   statementBlocksOf,
   statementTitleOf,
   type DetailAction,
+  type RentSectionKey,
   type UnitDetailConfig,
 } from "./unitDetail.data";
 
@@ -127,9 +146,6 @@ export interface UnitDetailProps {
   config: UnitDetailConfig;
 }
 
-/** 라벨 폭 — 가장 긴 라벨 「상품주문상태」·「수령인 연락처」가 한 줄에 들도록. 모든 구역이 같은 폭(§30-3) */
-const LABEL_WIDTH = 120;
-
 const COURIER_OPTIONS = [
   { value: "", label: "선택" },
   ...COURIERS.map((c) => ({ value: c, label: c })),
@@ -140,16 +156,19 @@ function Section({
   title,
   busy,
   dim,
+  id,
   children,
 }: {
   title: string;
   busy: boolean;
   dim: string | undefined;
+  /** 다른 화면에서 이 구역으로 데려올 때(출고 이미지 안내 창) */
+  id?: string;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(true);
   return (
-    <Card variant="soft" aria-busy={busy}>
+    <Card variant="soft" aria-busy={busy} id={id}>
       <CardHeader
         title={title}
         action={
@@ -185,12 +204,6 @@ function LoadingLines({ rows }: { rows: number }) {
     </div>
   );
 }
-
-const Item = ({ label, children }: { label: string; children: ReactNode }) => (
-  <InfoItem label={label} labelWidth={LABEL_WIDTH}>
-    {children}
-  </InfoItem>
-);
 
 function Shell({
   navOpen,
@@ -257,11 +270,28 @@ export function UnitDetail({ config, ...props }: UnitDetailProps) {
 
   /* 처리단위마다 처음부터 — 접힘·적은 송장·열린 창이 다음 건에 묻어가지 않게 */
   return (
-    <UnitDetailBody key={unit.id} unit={unit} config={config} {...props} />
+    <UnitDetailBody
+      key={`${config.screen}:${unit.id}`}
+      unit={unit}
+      config={config}
+      {...props}
+    />
   );
 }
 
 type Overlay = "address" | "statement" | null;
+
+const SHIP_IMAGE_SECTION = "unit-section-shipimg";
+
+/** 중간 구역 제목 — 원본 `midSections` · `shipImg` */
+const RENT_SECTION_TITLE: Record<RentSectionKey, string> = {
+  shipImages: "출고 이미지",
+  rentInfo: "대여 정보",
+  inspect: "검수 판정",
+  deposit: "보증금 정산",
+  care: "안심케어 청구",
+  photos: "상품 상태 이미지",
+};
 
 function UnitDetailBody({
   unit: u,
@@ -270,7 +300,8 @@ function UnitDetailBody({
 }: UnitDetailProps & { unit: OrderUnit }) {
   const { onNavSelect } = props;
   const { toast } = useToast();
-  const status = asStatus(useSearchParams().get("preview"));
+  const params = useSearchParams();
+  const status = asStatus(params.get("preview"));
   const busy = isBusy(status);
   const dim = dimWhile(status);
   const loading = status === "loading";
@@ -280,31 +311,56 @@ function UnitDetailBody({
   const [courier, setCourier] = useState(courierOf(u));
   const [invoice, setInvoice] = useState(u.invoice ?? "");
   const [address, setAddress] = useState("");
+  /* 렌트 중간 구역의 화면 안 입력(이미지·판정·차감·수거 송장) — 구역을 접어도 남게 여기서 */
+  const rentState = useRentDetail(u);
 
+  const rent = u.type === "렌트";
   const claim = CLAIM_SCREEN[config.screen];
   const current = statusIn(config.screen, u);
   const selectable = config.statusOptions.some((o) => o.value === current);
   const shipMode = config.shipMode(u);
   const pickup = pickupOf(u);
   const components = componentNamesOf(u);
+  const sections = config.sections ?? [];
   const finish = (message: string) => {
     setGate(null);
     toast(message);
   };
+  /**
+   * 게이트가 보는 처리단위 — 이 화면에서 올린 출고 이미지·고른 판정을 반영한다(원본도 화면 값으로 판정).
+   * 시드는 바꾸지 않는다
+   */
+  const live: OrderUnit = {
+    ...u,
+    shipImgs: rentState.shipImages,
+    inspect: rentState.judgment ?? u.inspect,
+  };
+
+  /* 출고 이미지 안내 창 [출고 이미지 등록] · 목록에서 `?section=shipimg` 로 온 경우 — 그 구역으로 */
+  const toShipImages = () =>
+    document
+      .getElementById(SHIP_IMAGE_SECTION)
+      ?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  const target = params.get("section");
+  useEffect(() => {
+    if (target === "shipimg") toShipImages();
+  }, [target]);
 
   /** 상태 셀렉트·처리 버튼 — 원본 `rentStatSel`·`rowSet` → `gateRoute`. 같은 값은 아무 일도 없다 */
   const route = (next: string) => {
     if (next === current) return;
-    const r = routeGate(next, [u], config.screen);
+    const r = routeGate(next, [live], config.screen);
     if (r.kind === "toast") return toast(r.message);
     setGate(r);
   };
 
-  /** 배송정보 송장 버튼 — 등록(원본 `rentShipOne`) · 수정(`rentInvoiceEdit`) */
+  /** 배송정보 송장 버튼 — 등록(원본 `rentShipOne` · 출고 이미지 없으면 안내 창) · 수정(`rentInvoiceEdit`) */
   const submitInvoice = () => {
     if (shipMode === "register" && !courier)
       return toast(ACTION_COPY.courierFirst);
     if (!invoice.trim()) return toast(ACTION_COPY.invoiceFirst);
+    if (shipMode === "register" && shipImageMissing([live]).length)
+      return setGate({ kind: "shipRemind", ids: [u.id], act: "배송중" });
     toast(
       shipMode === "register"
         ? ACTION_COPY.shipped(1)
@@ -314,6 +370,7 @@ function UnitDetailBody({
 
   const runAction = (action: DetailAction) => {
     if ("to" in action) return route(action.to);
+    if ("go" in action) return onNavSelect(action.go);
     if (action.special === "address") {
       /* 지금 배송지를 채워 연다 — 고쳐 쓰는 흐름(GPT 검토 2026-11-04) */
       setAddress(u.addr && u.addr !== "-" ? u.addr : "");
@@ -363,7 +420,7 @@ function UnitDetailBody({
                 <span className="body-medium-bold">{u.no}</span>
               </Item>
               <Item label="결제일시">{orNone(u.orderedAt)}</Item>
-              <Item label="결제수단">{orNone(u.payMethod)}</Item>
+              <Item label="결제수단">{orNone(payMethodOf(u))}</Item>
               <Item label="구매자명">{u.mem}</Item>
               <Item label="구매자 ID">{orNone(u.email)}</Item>
               <Item label="연락처">{orNone(u.tel)}</Item>
@@ -371,7 +428,7 @@ function UnitDetailBody({
               <Item label="결제금액">
                 <span className="flex items-center gap-3">
                   <span className="body-medium-bold tabular-nums">
-                    {salePayTotal(u).toLocaleString("ko-KR")}원
+                    {payTotalOf(u).toLocaleString("ko-KR")}원
                   </span>
                   <TextButton
                     size="small"
@@ -440,19 +497,86 @@ function UnitDetailBody({
             ) : (
               <Item label="상품주문상태">{statusControl}</Item>
             )}
-            <Item label="수량">{Number(u.qty) || 1}개</Item>
-            {components.length > 0 && (
-              <Item label="구성품">
-                <span className="flex flex-col">
-                  {components.map((name) => (
-                    <span key={name}>{name}</span>
-                  ))}
-                </span>
-              </Item>
+            {rent ? (
+              /* 렌트 — 렌트일 · 장기 렌트 할인 · 구성품 하나(일 단가) · (대여·검수) 보증금. 원본 `udProdInfo` */
+              <>
+                <Item label="렌트일">{rentDaysTextOf(u)}</Item>
+                {longRentTextOf(u) && (
+                  <Item label="장기 렌트 할인">{longRentTextOf(u)}</Item>
+                )}
+                {rentComponentOf(u) && (
+                  <Item label="구성품">{rentComponentOf(u)}</Item>
+                )}
+                {config.depositInProduct && !!u.dep && (
+                  <>
+                    <Item label="보증금 (고정액)">
+                      {u.dep.toLocaleString("ko-KR")}원
+                    </Item>
+                    <Item label="보증금 상태">
+                      <StatusTag status={depositStatusOf(u)} />
+                    </Item>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <Item label="수량">{Number(u.qty) || 1}개</Item>
+                {components.length > 0 && (
+                  <Item label="구성품">
+                    <span className="flex flex-col">
+                      {components.map((name) => (
+                        <span key={name}>{name}</span>
+                      ))}
+                    </span>
+                  </Item>
+                )}
+              </>
             )}
           </InfoList>
         )}
       </Section>
+
+      {/* 렌트 중간 구역 — 상품정보와 배송정보 사이(원본 `shipImg` · `midSections`) */}
+      {sections
+        .filter((key) => key !== "care" || careOf(u))
+        .map((key) => (
+          <Section
+            key={key}
+            id={key === "shipImages" ? SHIP_IMAGE_SECTION : undefined}
+            title={RENT_SECTION_TITLE[key]}
+            busy={busy}
+            dim={dim}
+          >
+            {loading ? (
+              <LoadingLines rows={4} />
+            ) : key === "shipImages" ? (
+              <ShipImagesBody state={rentState} />
+            ) : key === "rentInfo" ? (
+              <RentInfoBody
+                u={u}
+                state={rentState}
+                mode={config.collectMode?.(u) ?? "ro"}
+                inspection={sections.includes("inspect")}
+              />
+            ) : key === "inspect" ? (
+              <InspectBody u={u} state={rentState} />
+            ) : key === "deposit" ? (
+              <DepositBody
+                /* 판정이 바뀌면 차감 초깃값도 바뀐다 — 입력칸을 새 값으로 다시 채운다 */
+                key={rentState.judgment ?? "none"}
+                u={u}
+                state={rentState}
+                onRefund={(deduct) =>
+                  setGate({ kind: "depositRefund", ids: [u.id], deduct })
+                }
+              />
+            ) : key === "care" ? (
+              <CareBody u={u} state={rentState} />
+            ) : (
+              <PhotosBody state={rentState} />
+            )}
+          </Section>
+        ))}
 
       <Section title="배송정보" busy={busy} dim={dim}>
         {loading ? (
@@ -482,6 +606,13 @@ function UnitDetailBody({
             <Item label="배송비">{pickup ? "무료" : shipFeeText(u)}</Item>
             {!pickup && (
               <>
+                {rent && (
+                  <Item label="회수 배송비">
+                    {collectFeeOf(u)
+                      ? `${collectFeeOf(u).toLocaleString("ko-KR")}원`
+                      : "무료"}
+                  </Item>
+                )}
                 <Item label="택배사">
                   {shipMode === "ro" ? (
                     orNone(courier)
@@ -522,7 +653,12 @@ function UnitDetailBody({
             <Item label="주문확인일">{reachedAt(u, 1)}</Item>
             <Item label="배송처리일">{reachedAt(u, 2)}</Item>
             <Item label="배송완료일">{reachedAt(u, 3)}</Item>
-            <Item label="구매확정일">{purchasedAtOf(u)}</Item>
+            {/* 렌트는 배송 완료 = 대여 시작(원본) */}
+            {rent ? (
+              <Item label="대여 시작일">{reachedAt(u, 3)}</Item>
+            ) : (
+              <Item label="구매확정일">{purchasedAtOf(u)}</Item>
+            )}
           </InfoList>
         )}
       </Section>
@@ -537,6 +673,10 @@ function UnitDetailBody({
             <Item label="추가 연락처">{extraTelOf(u)}</Item>
             <Item label="배송지">{orNone(u.addr)}</Item>
             <Item label="배송 메모">{orNone(u.shipMemo)}</Item>
+            {/* 기획 보드 08 — 손님이 적은 건에만 */}
+            {pickupRequestOf(u) && (
+              <Item label="수거 요청사항">{pickupRequestOf(u)}</Item>
+            )}
           </InfoList>
         )}
       </Section>
@@ -612,9 +752,10 @@ function UnitDetailBody({
 
       <GateHost
         gate={gate}
-        units={[u]}
+        units={[live]}
         onClose={() => setGate(null)}
         onDone={finish}
+        onShipImage={toShipImages}
       />
 
       {/* 배송지 변경 — 원본은 브라우저 입력창(prompt). 빈 칸이면 원본처럼 아무 일도 없다 → 버튼 잠금 */}

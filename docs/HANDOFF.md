@@ -20,7 +20,11 @@
 - **판매 묶음 완료**(74211dd · 다음 커밋): 공용 틀 `ProcessList`(처리 목록) · `UnitDetail`(처리단위 상세) — 화면은 설정만(`*Page.data.ts`) · 전이 라우터 `gate.data` `routeGate` + `GateHost`(원본 게이트 창 전부) · 클레임 도메인 `claim.data`
   - 화면: 주문 통합(조회 전용 · 정답 대조 `saleOrders.golden.ts` 89건) · 배송 + 상세 · 취소 · 반품 · 교환 + 상세(`SaleClaimPages` · `SaleClaimDetailPage` 한 파일에 세 화면 — 원본도 한 함수)
   - 원본 캡처 건수 대조: 배송 7/5/10 · 취소 5/1/3 · 반품·교환 5/9/7 · 주문 통합 89/30/34/25 · 기획 변경 D-61·D-315 반영(`docs/seller/plan-changes.md` ④)
-- **다음**: 렌트 묶음 → 정산 → 상품 → 마케팅·게시판 → 시스템(직영 미리보기) → 대시보드 → 전달 문서 `files-seller/` → babycube-admin-seller PR
+- **렌트 묶음 완료**(2026-11-04 · GPT 검토 `rent-gpt-review` 반영): 같은 공용 틀에 렌트 설정 — `ProcessList`(열 구성 `columnsOf` 한 곳 · 렌트 고정 6칸 · 출고/수거 송장 칸 분리 · 안심케어 검색) · `UnitDetail`(중간 구역 슬롯 `sections` → `RentSections.tsx` + 화면 안 상태 `useRentDetail.ts`) · 주문 통합 틀 `OrdersOverview.tsx`(판매·렌트 공용 · 계약 `ordersOverview.data.ts`)
+  - 화면: 렌트 주문 통합(정답 `rentOrders.golden.ts` 94건) · 렌트 발주 · 배송 · 대여·연체 · 검수·반납 · 취소 · 반품 + 상세 6(`RentProcessPages` · `RentDetailPages`)
+  - 원본 캡처 건수 대조: 발주 11/4/11 · 배송 16 · 대여·연체 10/3/3 · 검수·반납 4/7/5/6 · 취소 2/2/3 · 반품 2/3/2 · 통합 94/74/9/11 · 렌트 결제금액·명세 94건 정답 대조
+  - 검수 판정·차감액·안심케어 청구 금액·이미지는 **화면 안에서만**(A안 · 상태 전이 없음) · 결과·기획 확인 `docs/seller/plan-changes.md` ⑤
+- **다음**: 정산 → 상품 → 마케팅·게시판 → 시스템(직영 미리보기) → 대시보드 → 전달 문서 `files-seller/` → babycube-admin-seller PR
 - **원본 특이점(기획 확인 필요)**: 셀러 목록에 본사 자체 처리단위 6건 섞임 · 결제에 없는 처리단위 1건 · 표 결제금액(계산) ≠ 저장 amt
 
 ---

@@ -190,6 +190,7 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     type: "목록형",
     summary:
       "렌트 주문 전체 조회 창구 — 판매 「주문 통합 관리」와 같은 역할·같은 규칙(조회 전용)",
+    file: "seller/RentOrdersPage.tsx",
     icon: CalendarRange,
   },
   {
@@ -198,6 +199,17 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "렌트 발주 관리",
     type: "목록형",
     summary: "신규 렌트 주문 접수부터 배송 준비 단계를 처리하는 화면",
+    file: "seller/RentProcessPages.tsx",
+    icon: CalendarCheck,
+  },
+  {
+    navId: "/rent-list/20260624225758-1",
+    code: "SO-RNT-002",
+    name: "렌트 발주 관리 상세",
+    type: "상세형",
+    summary:
+      "렌트 처리단위 하나의 주문·상품·출고 이미지·배송 — 송장 등록(출고 이미지 안내) · 배송지 변경 · 주문 취소",
+    file: "seller/RentDetailPages.tsx",
     icon: CalendarCheck,
   },
   {
@@ -206,6 +218,17 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "배송 관리(렌트)",
     type: "목록형",
     summary: "렌트 주문의 배송중 단계를 관리하는 배송 전용 큐 화면",
+    file: "seller/RentProcessPages.tsx",
+    icon: Truck,
+  },
+  {
+    navId: "/rent-dispatch/20260623452502-1",
+    code: "SO-DLV-004",
+    name: "배송 관리 상세(렌트)",
+    type: "상세형",
+    summary:
+      "렌트 배송 진행 — 송장 수정 · 배송 완료 처리(대여 시작) · 배송 추적",
+    file: "seller/RentDetailPages.tsx",
     icon: Truck,
   },
   {
@@ -214,6 +237,16 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "대여·연체 관리",
     type: "목록형",
     summary: "대여중·대여중(연장)·연체 단계의 렌트 계약을 관리하는 화면",
+    file: "seller/RentProcessPages.tsx",
+    icon: Clock,
+  },
+  {
+    navId: "/rent-use/20260623493905-1",
+    code: "SO-RNT-005",
+    name: "대여·연체 관리 상세",
+    type: "상세형",
+    summary: "대여 기간·반납 예정일·보증금 — 수거 송장 등록(수거 신청)",
+    file: "seller/RentDetailPages.tsx",
     icon: Clock,
   },
   {
@@ -222,6 +255,17 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "검수·반납 관리",
     type: "목록형",
     summary: "렌트 수거·검수·보증금 정산·반납을 한 화면에서 처리하는 실행 화면",
+    file: "seller/RentProcessPages.tsx",
+    icon: ScanSearch,
+  },
+  {
+    navId: "/rent-insp-return/20260621138968-1",
+    code: "SO-INS-002",
+    name: "검수·반납 관리 상세",
+    type: "상세형",
+    summary:
+      "검수 판정 · 보증금 정산(차감 · 환급 실행) · 안심케어 청구 · 상품 상태 이미지",
+    file: "seller/RentDetailPages.tsx",
     icon: ScanSearch,
   },
   {
@@ -230,6 +274,17 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "취소 관리(렌트)",
     type: "목록형",
     summary: "렌트 주문의 취소 요청을 처리하는 화면",
+    file: "seller/RentProcessPages.tsx",
+    icon: XCircle,
+  },
+  {
+    navId: "/rent-cancel/20260623445120-1",
+    code: "SO-RMA-010",
+    name: "취소 상세(렌트)",
+    type: "상세형",
+    summary:
+      "렌트 취소 건의 환불(결제금액 전액)과 보증금 반환 — 다음 단계 처리",
+    file: "seller/RentDetailPages.tsx",
     icon: XCircle,
   },
   {
@@ -238,6 +293,17 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "반품 관리(렌트)",
     type: "목록형",
     summary: "렌트 주문의 반품 신청을 접수·수거·검수 처리하는 화면",
+    file: "seller/RentProcessPages.tsx",
+    icon: Undo2,
+  },
+  {
+    navId: "/rent-rma/20260620338890-1",
+    code: "SO-RMA-011",
+    name: "반품 상세(렌트)",
+    type: "상세형",
+    summary:
+      "렌트 반품 건의 귀책·보증금 반환(고객 귀책 배송비 보증금에서 차감) — 다음 단계 · 반려",
+    file: "seller/RentDetailPages.tsx",
     icon: Undo2,
   },
   {

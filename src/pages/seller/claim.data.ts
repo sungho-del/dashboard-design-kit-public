@@ -1,8 +1,9 @@
 import type { CalcBlock, CalcLine } from "../babycube/CalcBreakdown";
 import {
   historyOf,
+  payTotalOf,
+  pointOf,
   productRef,
-  salePayTotal,
   shipFeeOf,
   unitTime,
 } from "./orderUnit.data";
@@ -30,8 +31,11 @@ import type { OrderUnit } from "./seed/orders.data";
  * - 명세 결과 묶음은 본사 주문 상세와 같은 꼴(결제금액 → 차감 → 환불 예정액 · 종결이면 「환불 완료」 ·
  *   반려·거부·재반송은 「환불 없음 — 원거래 유지」). 원본은 반려 건에도 환불 예정액을 냈다
  * - 처리 이력: 원본은 거부·교환으로 변경 건도 「{유형} 반려」 줄을 냈다 → 실제 상태 줄로
- * - D-312(카드 취소액 0이면 「승인 취소」 줄 뺌)는 판매에 해당 건이 없다 — 판매 결제금액 식에 포인트가 들지 않는다(원본).
- *   렌트 묶음(포인트 할인이 있는 명세)에서 반영한다
+ * - 렌트는 본사 주문 상세와 같다 — 취소 = 「환불」(결제금액 전액) + 「보증금」(반환) 두 묶음(무료 취소만 ·
+ *   사용자 결정 2026-11-02. 원본은 보증금 반환만 있어 렌트료 환불이 빠졌다) · 반품 = 「결제」 + 「보증금」
+ *   (보증금 → 고객 귀책 반품 배송비 − → 반환 예정액 · 원본처럼 보증금만 돌려준다)
+ * - **D-312·Q-64 (판정 회신 10차)** — 포인트를 쓴 취소는 환불 묶음에 「포인트 복구 nP」 줄. 카드 몫이 0 이면
+ *   카드 환불 줄을 뺀다. 판매는 결제금액 식에 포인트가 없어(원본) 렌트 취소에만 걸린다
  * ====================================================================== */
 
 export type ClaimType = "취소" | "반품" | "교환";
@@ -138,15 +142,21 @@ export const claimFeeOf = (u: OrderUnit) =>
     ? Number(productRef(u).returnFee) || 3000
     : 0;
 
-/** D-61 — 단순 변심 반품은 출고비를 환불하지 않는다 */
+/** D-61 — 단순 변심 **판매** 반품은 출고비를 환불하지 않는다(렌트 반품은 렌트료를 돌려주지 않는다) */
 export const unrefundedShipFeeOf = (u: OrderUnit) =>
-  claimTypeOf(u) === "반품" && faultOf(u.req?.reason) !== "판매자"
+  u.type === "판매" &&
+  claimTypeOf(u) === "반품" &&
+  faultOf(u.req?.reason) !== "판매자"
     ? shipFeeOf(u)
     : 0;
 
 /** 환불 예정액 — 결제금액 − (변심 반품) 출고비 − 반품 배송비. 취소는 결제금액 전액 */
 export const refundOf = (u: OrderUnit) =>
-  Math.max(0, salePayTotal(u) - unrefundedShipFeeOf(u) - claimFeeOf(u));
+  Math.max(0, payTotalOf(u) - unrefundedShipFeeOf(u) - claimFeeOf(u));
+
+/** 렌트 보증금 반환액 — 보증금 − (고객 귀책 반품) 반품 배송비. 원본 `udPriceBox` 렌트 갈래 */
+export const claimDepositRefundOf = (u: OrderUnit) =>
+  Math.max(0, (u.dep ?? 0) - claimFeeOf(u));
 
 const wonText = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 
@@ -167,6 +177,8 @@ export function feeBurdenOf(u: OrderUnit) {
     return "판매자 부담 (하자·배송 문제)";
   if (type === "교환") return "판매자 부담 (교환 배송비 미징수 · 1차)";
   if (type === "취소") return "해당 없음 (발송 전 취소)";
+  if (u.type === "렌트")
+    return `고객 부담 — 반품 배송비(편도) ${wonText(claimFeeOf(u))} · 보증금에서 차감`;
   const ship = unrefundedShipFeeOf(u);
   return `고객 부담 — 반품 배송비(편도) ${wonText(claimFeeOf(u))} · 환불액에서 차감${ship ? " · 출고 배송비 환불 없음" : ""}`;
 }
@@ -211,12 +223,59 @@ const message = (label: string): CalcLine => ({
   kind: "message",
 });
 const payLine = (u: OrderUnit) =>
-  line("pay", "결제금액", wonText(salePayTotal(u)), { kind: "subtotal" });
+  line("pay", "결제금액", wonText(payTotalOf(u)), { kind: "subtotal" });
+
+/** 「별도」 보증금 — 결제금액 밖의 돈이라 결과 아래 따로(본사 명세와 같다) */
+export const DEPOSIT_HINT = "결제금액에 포함 안 됨 · 반납 검수 후 환급";
+export const depositAsideOf = (u: OrderUnit): CalcBlock[] =>
+  u.type === "렌트"
+    ? [
+        {
+          key: "deposit",
+          label: "별도",
+          lines: [
+            line("deposit", "보증금", wonText(u.dep ?? 0), {
+              kind: "note",
+              hint: DEPOSIT_HINT,
+            }),
+          ],
+        },
+      ]
+    : [];
+
+/** 렌트 「보증금」 묶음 — 보증금 → (고객 귀책) 반품 배송비 − → 반환 예정액/완료 */
+function depositBlock(u: OrderUnit, done: boolean): CalcBlock {
+  const fee = claimFeeOf(u);
+  return {
+    key: "depositRefund",
+    label: "보증금",
+    emphasis: true,
+    lines: [
+      line("deposit", "보증금", wonText(u.dep ?? 0), {
+        hint: "결제금액에 포함 안 됨",
+      }),
+      ...(fee
+        ? [
+            line("returnFee", "반품 배송비", `${MINUS}${wonText(fee)}`, {
+              hint: "편도 · 고객 귀책 · 보증금에서 차감",
+            }),
+          ]
+        : []),
+      line(
+        "depositRefund",
+        done ? "보증금 반환 완료" : "보증금 반환 예정액",
+        wonText(claimDepositRefundOf(u)),
+        { kind: "total" },
+      ),
+    ],
+  };
+}
 
 export function claimBlocksOf(u: OrderUnit): CalcBlock[] {
   const type = claimTypeOf(u);
   if (!type) return [];
   const done = isClaimFinished(u);
+  const rent = u.type === "렌트";
   if (isRefused(u))
     return [
       { key: "pay", label: "결제", lines: [payLine(u)] },
@@ -232,6 +291,12 @@ export function claimBlocksOf(u: OrderUnit): CalcBlock[] {
           ),
         ],
       },
+      ...depositAsideOf(u),
+    ];
+  if (rent && type === "반품")
+    return [
+      { key: "pay", label: "결제", lines: [payLine(u)] },
+      depositBlock(u, done),
     ];
   if (type === "교환")
     return [
@@ -249,6 +314,12 @@ export function claimBlocksOf(u: OrderUnit): CalcBlock[] {
     ];
   const ship = unrefundedShipFeeOf(u);
   const fee = claimFeeOf(u);
+  const refund = refundOf(u);
+  /*
+   * D-312 — 포인트 사용분은 포인트로 돌려준다. 렌트 취소만(판매 결제금액엔 포인트가 없다 · 렌트 반품은
+   * 렌트료가 아니라 보증금을 돌려준다). 카드 몫이 0 이면 카드 줄 대신 문장 하나
+   */
+  const point = rent && type === "취소" ? pointOf(u) : 0;
   return [
     {
       key: "refund",
@@ -270,17 +341,36 @@ export function claimBlocksOf(u: OrderUnit): CalcBlock[] {
               }),
             ]
           : []),
-        line(
-          "refund",
-          done ? "환불 완료" : "환불 예정액",
-          wonText(refundOf(u)),
-          {
-            kind: "total",
-            ...(type === "취소" ? { hint: "결제금액 전액" } : {}),
-          },
-        ),
+        ...(point && refund === 0
+          ? [
+              message(
+                `${done ? "환불 완료" : "환불 예정"} — 포인트 ${point.toLocaleString("ko-KR")}P 복구`,
+              ),
+            ]
+          : [
+              line(
+                "refund",
+                done ? "환불 완료" : "환불 예정액",
+                wonText(refund),
+                {
+                  kind: "total",
+                  ...(type === "취소" ? { hint: "결제금액 전액" } : {}),
+                },
+              ),
+              ...(point
+                ? [
+                    line(
+                      "pointRestore",
+                      "포인트 복구",
+                      `${point.toLocaleString("ko-KR")}P`,
+                      { kind: "total", hint: "사용한 포인트로 복구" },
+                    ),
+                  ]
+                : []),
+            ]),
       ],
     },
+    ...(rent ? [depositBlock(u, done)] : []),
   ];
 }
 

@@ -24,10 +24,20 @@ import type { DetailAction, UnitDetailConfig } from "./unitDetail.data";
  *   받으면 [수거완료 처리]. 원본 v0.4 에 없던 갈래다(시드에는 방문 수령 승인 건이 없어 화면에서 볼 일은 아직 없다)
  * ====================================================================== */
 
-const SCREEN: Record<ClaimType, { screen: ProcessScreen; path: string }> = {
-  취소: { screen: "saleCancel", path: "/sale-cancel" },
-  반품: { screen: "saleReturn", path: "/sale-return" },
-  교환: { screen: "saleExchange", path: "/sale-exchange" },
+const SCREEN: Record<
+  "판매" | "렌트",
+  Partial<Record<ClaimType, { screen: ProcessScreen; path: string }>>
+> = {
+  판매: {
+    취소: { screen: "saleCancel", path: "/sale-cancel" },
+    반품: { screen: "saleReturn", path: "/sale-return" },
+    교환: { screen: "saleExchange", path: "/sale-exchange" },
+  },
+  /* 렌트 클레임 = 취소·반품 2유형(교환 미운영 · H-11) */
+  렌트: {
+    취소: { screen: "rentCancel", path: "/rent-cancel" },
+    반품: { screen: "rentRma", path: "/rent-rma" },
+  },
 };
 
 /** D-315 방문 반납 대기 — 방문 수령 반품·교환의 승인 다음 단계 */
@@ -70,18 +80,29 @@ export function claimActionsOf(u: OrderUnit, type: ClaimType): DetailAction[] {
   return actions;
 }
 
-const claimDetail = (type: ClaimType): UnitDetailConfig => ({
-  screen: SCREEN[type].screen,
-  title: `${type} 상세`,
-  listPath: SCREEN[type].path,
-  listLabel: `${type} 관리로`,
-  find: (id) =>
-    UNITS.find((u) => u.id === id && u.type === "판매" && u.req?.type === type),
-  statusOptions: claimStatuses(type).map((s) => ({ value: s, label: s })),
-  /* 클레임 상세의 출고 송장은 읽기만(원본 `shipMode: 'ro'`) */
-  shipMode: () => "ro",
-  actions: (u) => claimActionsOf(u, type),
-});
+/** 원본 `udRmaDetail(u, {type, isRent})` — 렌트는 제목에 (렌트) · 「교환으로 변경」 없음(원본 `DETAIL_TITLES`) */
+export const claimDetail = (
+  type: ClaimType,
+  unitType: "판매" | "렌트" = "판매",
+): UnitDetailConfig => {
+  const { screen, path } = SCREEN[unitType][type]!;
+  return {
+    screen,
+    title: unitType === "렌트" ? `${type} 상세(렌트)` : `${type} 상세`,
+    listPath: path,
+    listLabel: `${type} 관리로`,
+    find: (id) =>
+      UNITS.find(
+        (u) => u.id === id && u.type === unitType && u.req?.type === type,
+      ),
+    statusOptions: claimStatuses(type)
+      .filter((s) => unitType === "판매" || s !== "교환으로 변경")
+      .map((s) => ({ value: s, label: s })),
+    /* 클레임 상세의 출고 송장은 읽기만(원본 `shipMode: 'ro'`) */
+    shipMode: () => "ro",
+    actions: (u) => claimActionsOf(u, type),
+  };
+};
 
 export const SALE_CANCEL_DETAIL = claimDetail("취소");
 export const SALE_RETURN_DETAIL = claimDetail("반품");

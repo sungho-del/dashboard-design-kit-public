@@ -15,7 +15,14 @@ import {
   useToast,
 } from "../../components/ui";
 import { CalcBreakdown } from "../babycube/CalcBreakdown";
-import { ACTION_COPY, GATE_DONE, GATE_TOAST, type Gate } from "./gate.data";
+import {
+  ACTION_COPY,
+  DEPOSIT_COPY,
+  GATE_DONE,
+  GATE_TOAST,
+  shipImageMissing,
+  type Gate,
+} from "./gate.data";
 import {
   CANCEL_GATE,
   COURIERS,
@@ -494,6 +501,95 @@ function Irreversible({ children }: { children: ReactNode }) {
   );
 }
 
+/** 보증금 환급 실행 — 원본 `gateDep`. 차감이 있으면 사유 필수(고객 화면에 합계 차감액과 함께 노출) */
+function DepositRefundModal({
+  open,
+  deposit,
+  deduct,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  deposit: number;
+  deduct: number;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const { toast } = useToast();
+  const [reason, setReason] = useState("");
+  const close = () => {
+    setReason("");
+    onClose();
+  };
+  const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
+  return (
+    /* 계산표가 드는 창 — [환불 처리]·주문 명세와 같은 medium */
+    <Modal open={open} onClose={close} size="medium">
+      <ModalHeader closeLabel="대화상자 닫기" title="보증금 환급 실행" />
+      <ModalBody>
+        <CalcBreakdown
+          blocks={[
+            {
+              key: "deposit",
+              emphasis: true,
+              lines: [
+                { key: "deposit", label: "보증금", value: won(deposit) },
+                ...(deduct > 0
+                  ? [
+                      {
+                        key: "deduct",
+                        label: "차감액",
+                        value: `−${won(deduct)}`,
+                      },
+                    ]
+                  : []),
+                {
+                  key: "refund",
+                  label: "환급 예정액",
+                  value: won(Math.max(0, deposit - deduct)),
+                  kind: "total" as const,
+                },
+              ],
+            },
+          ]}
+        />
+        {deduct > 0 && (
+          <Textarea
+            aria-label="차감 사유"
+            minRows={3}
+            placeholder="차감(통합) 사유를 입력해주세요 (필수)"
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+          />
+        )}
+        <p className="body-small break-keep text-text-sub">
+          {deduct > 0 &&
+            "차감 사유는 필수이며 합계 차감액과 함께 고객 화면에 노출됩니다. "}
+          {DEPOSIT_COPY.refundPath} (검수 완료 후 3영업일 내 처리 · 고객 안내
+          기준 7영업일 이내){" "}
+          <Irreversible>실행 후 되돌릴 수 없습니다.</Irreversible>
+        </p>
+      </ModalBody>
+      <ModalFooter>
+        <Button variant="secondary" size="large" onClick={close}>
+          취소
+        </Button>
+        <Button
+          size="large"
+          onClick={() => {
+            if (deduct > 0 && !reason.trim())
+              return toast(DEPOSIT_COPY.reasonEmpty);
+            setReason("");
+            onConfirm();
+          }}
+        >
+          {deduct > 0 ? "차감 후 환급 실행" : "전액환급 실행"}
+        </Button>
+      </ModalFooter>
+    </Modal>
+  );
+}
+
 export interface GateHostProps {
   gate: Gate | null;
   /** 창 대상 처리단위 — 환불 창이 1건일 때 명세를 그린다 */
@@ -501,17 +597,30 @@ export interface GateHostProps {
   onClose: () => void;
   /** 확정 — 원본 완료 알림 문구를 받는다(퍼블 범위: 상태는 그대로) */
   onDone: (message: string) => void;
+  /** 출고 이미지 안내 창 [출고 이미지 등록](1건) — 그 건의 출고 이미지 자리로 데려간다 */
+  onShipImage?: (unit: OrderUnit) => void;
 }
 
 /**
  * 게이트 창 모음 — `gate.data` `routeGate` 가 고른 창 하나를 연다. 목록과 상세가 같이 쓴다.
  * 각 창의 [확인] 은 원본 완료 알림(`GATE_DONE`)을 낸다.
  */
-export function GateHost({ gate, units, onClose, onDone }: GateHostProps) {
+export function GateHost({
+  gate,
+  units,
+  onClose,
+  onDone,
+  onShipImage,
+}: GateHostProps) {
+  const { toast } = useToast();
   const n = gate?.ids.length ?? 0;
-  const one = n === 1 ? units.find((u) => u.id === gate?.ids[0]) : undefined;
+  const targets = units.filter((u) => gate?.ids.includes(u.id));
+  const one = n === 1 ? targets[0] : undefined;
+  const rent = targets[0]?.type === "렌트";
   const stat =
     gate?.kind === "reject" || gate?.kind === "refundDone" ? gate.stat : "";
+  const act = gate?.kind === "shipRemind" ? gate.act : "배송 준비";
+  const missing = shipImageMissing(targets).length;
   return (
     <>
       <StatusConfirmModal
@@ -519,9 +628,95 @@ export function GateHost({ gate, units, onClose, onDone }: GateHostProps) {
         count={n}
         current={gate?.kind === "confirm" ? gate.current : null}
         next={gate?.kind === "confirm" ? gate.next : ""}
+        rent={rent}
         onClose={onClose}
         onConfirm={() =>
-          gate?.kind === "confirm" && onDone(GATE_DONE.confirm(gate.next, n))
+          gate?.kind === "confirm" &&
+          onDone(GATE_DONE.confirm(gate.next, n, gate.skipped))
+        }
+      />
+      <NoticeGateModal
+        open={gate?.kind === "rentBegin"}
+        title="배송 완료 (대여 시작) 처리"
+        count={n}
+        confirmLabel="배송 완료 처리"
+        onClose={onClose}
+        onConfirm={() => onDone(GATE_DONE.rentBegin(n))}
+      >
+        <span>
+          배송 완료 처리와 동시에 <b>&apos;대여중&apos;으로 전환</b>됩니다.
+        </span>
+        <span>
+          이 시점이 <b>대여 시작일</b>이며 반납 예정일·연체 계산의 기준이
+          됩니다.
+        </span>
+      </NoticeGateModal>
+      <NoticeGateModal
+        open={gate?.kind === "retDone"}
+        title="반납완료 처리"
+        count={n}
+        confirmLabel="반납완료 처리"
+        onClose={onClose}
+        onConfirm={() => onDone(GATE_DONE.retDone(n))}
+      >
+        <span>
+          반납완료는 <b>렌트 매출 확정 시점</b>입니다.
+        </span>
+        <Irreversible>전환 후 되돌릴 수 없습니다.</Irreversible>
+      </NoticeGateModal>
+      {/* 출고 이미지 안내 — 원본 `shipRemind`. 왼쪽 = 이미지 없이 원래 전이 · 오른쪽 = 등록하러 */}
+      <Modal open={gate?.kind === "shipRemind"} onClose={onClose} size="small">
+        <ModalHeader closeLabel="대화상자 닫기" title="출고 이미지 등록 안내" />
+        <ModalBody>
+          <div className="body-medium flex flex-col gap-1 break-keep text-text">
+            <b>
+              {n > 1
+                ? `고른 ${n}건 중 ${missing}건은 출고 이미지가 등록되지 않았습니다.`
+                : "출고 이미지가 아직 등록되지 않았습니다."}
+            </b>
+            <span>
+              출고 당시 상품 상태 이미지를 등록해두면 반납 검수 시{" "}
+              <b>대조 근거</b>가 됩니다.
+            </span>
+            <span>
+              <Irreversible>
+                미등록 시 발생하는 파손 분쟁의 책임은 셀러에게 귀속
+              </Irreversible>
+              될 수 있습니다(반납 이미지 단독으로는 보증금 차감을 주장할 수
+              없습니다).
+            </span>
+            <span>이대로 배송 처리하시겠어요?</span>
+          </div>
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            variant="secondary"
+            size="large"
+            onClick={() => onDone(GATE_DONE.shipRemind(act, n))}
+          >
+            {act === "배송중" ? "배송중으로 변경" : "배송 준비로 변경"}
+          </Button>
+          <Button
+            size="large"
+            onClick={() => {
+              /* 다건은 목록에 남는다 — 선택·상태 그대로, 어디서 등록하는지만(원본) */
+              onClose();
+              if (one && onShipImage) onShipImage(one);
+              else toast(GATE_TOAST.shipImageInDetail);
+            }}
+          >
+            출고 이미지 등록
+          </Button>
+        </ModalFooter>
+      </Modal>
+      <DepositRefundModal
+        open={gate?.kind === "depositRefund"}
+        deposit={one?.dep ?? 0}
+        deduct={gate?.kind === "depositRefund" ? gate.deduct : 0}
+        onClose={onClose}
+        onConfirm={() =>
+          gate?.kind === "depositRefund" &&
+          onDone(GATE_DONE.depositRefund(gate.deduct > 0))
         }
       />
       <DelayReasonModal
