@@ -104,6 +104,16 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     icon: ShoppingCart,
   },
   {
+    navId: "/order-details/20260705880011",
+    code: "SO-ORD-002",
+    name: "주문 상세(통합)",
+    type: "상세형",
+    summary:
+      "결제 한 건의 처리단위 표 · 주문 정보(결제상태) · 결제 요약 — 원본 orderDetail",
+    file: "seller/OrderDetailsPage.tsx",
+    icon: ShoppingCart,
+  },
+  {
     navId: "/sale-proc",
     code: "SO-ORD-001",
     name: "발주 관리",

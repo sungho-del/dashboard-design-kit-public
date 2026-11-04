@@ -31,6 +31,7 @@ import {
   ProductDetailPage,
   ProductNewPage,
 } from "./pages/seller/ProductFormPage";
+import { OrderDetailsPage } from "./pages/seller/OrderDetailsPage";
 import { ProductsPage } from "./pages/seller/ProductsPage";
 import { SellerDashboardPage } from "./pages/seller/SellerDashboardPage";
 import { OpsCalendarPage, StorePage } from "./pages/seller/SystemPages";
@@ -95,6 +96,8 @@ const ROUTES: Record<string, ComponentType<NavProps>> = {
   "/": SellerDashboardPage,
   "/products": ProductsPage,
   "/product-new": ProductNewPage,
+  /* 개발 저장소는 `/products/new` 를 `/product-new` 로 보낸다 — 같은 화면 */
+  "/products/new": ProductNewPage,
   "/sale-orders": SaleOrdersPage,
   "/sale-proc": SaleProcPage,
   "/shipping": ShippingPage,
@@ -134,6 +137,11 @@ const DETAIL_ROUTES: {
   screen: ComponentType<NavProps>;
 }[] = [
   { prefix: "/products/", parent: "/products", screen: ProductDetailPage },
+  {
+    prefix: "/order-details/",
+    parent: "/sale-orders",
+    screen: OrderDetailsPage,
+  },
   { prefix: "/sale-proc/", parent: "/sale-proc", screen: SaleOrderDetailPage },
   { prefix: "/shipping/", parent: "/shipping", screen: ShippingDetailPage },
   {
