@@ -1,6 +1,6 @@
 # 베이비큐브 입점사(셀러) 어드민 — 퍼블리싱 인수서
 
-> 추출 기준: 디자인 키트 저장소 커밋 `{{SOURCE_COMMIT}}` · 대조 기준: 이 저장소 `develop` `a2b6c86`(로컬 클론 시점)
+> 추출 기준: 디자인 키트 저장소 커밋 `{{SOURCE_COMMIT}}` · 대조 기준: 이 저장소 `develop` `82eb141`
 >
 > 먼저 볼 문서: 이 파일 → [`docs/SCREENS.md`](docs/SCREENS.md)(화면 목록) → [`docs/INTEGRATION.md`](docs/INTEGRATION.md)(기존 데이터 계약과의 대응)
 

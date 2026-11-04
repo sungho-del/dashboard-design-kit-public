@@ -1,6 +1,6 @@
 # 화면 목록
 
-> 추출 기준 `{{SOURCE_COMMIT}}` · 대조 기준: 이 저장소 `develop` `a2b6c86`(로컬 클론 시점)의 `src/app/**/page.tsx`
+> 추출 기준 `{{SOURCE_COMMIT}}` · 대조 기준: 이 저장소 `develop` `82eb141`의 `src/app/**/page.tsx`
 >
 > 퍼블 경로는 **이 저장소의 App Router 경로와 같다.** 화면 코드는 원본 기획 v0.4 `SCREEN_IDS`.
 > `npm run dev` 후 아래 경로(B 절은 예시 주소)를 그대로 열면 된다. GNB 맨 아래 「화면 목록」(`/screens`)에도 전부 있다.
