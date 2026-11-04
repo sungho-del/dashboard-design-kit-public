@@ -24,7 +24,9 @@
   - 화면: 렌트 주문 통합(정답 `rentOrders.golden.ts` 94건) · 렌트 발주 · 배송 · 대여·연체 · 검수·반납 · 취소 · 반품 + 상세 6(`RentProcessPages` · `RentDetailPages`)
   - 원본 캡처 건수 대조: 발주 11/4/11 · 배송 16 · 대여·연체 10/3/3 · 검수·반납 4/7/5/6 · 취소 2/2/3 · 반품 2/3/2 · 통합 94/74/9/11 · 렌트 결제금액·명세 94건 정답 대조
   - 검수 판정·차감액·안심케어 청구 금액·이미지는 **화면 안에서만**(A안 · 상태 전이 없음) · 결과·기획 확인 `docs/seller/plan-changes.md` ⑤
-- **다음**: 정산 → 상품 → 마케팅·게시판 → 시스템(직영 미리보기) → 대시보드 → 전달 문서 `files-seller/` → babycube-admin-seller PR
+- **정산 묶음 완료**(2026-11-04 · GPT 검토 `settle-gpt-review` 반영): 식 `settle.data.ts`(원본 `settleMyData`·`settleTxNote`·`depBack` · 정답 `settle.golden.ts` 거래 156 · 합계 · 보증금 94) · 화면 `SettlePages.tsx`(매출 정산 · 명세서 · 세금계산서 · 상세 2 — 원본 `sellerStmtPage` 공용 빌더) · `RentDepositPages.tsx`(보증금 내역 + 상세) · 공용 조각 `SettleParts.tsx`
+  - [확인]·[이의제기]는 창 + 알림까지(상태 전이 없음) · 결과·기획 확인 `docs/seller/plan-changes.md` ⑥
+- **다음**: 상품 → 마케팅·게시판 → 시스템(직영 미리보기) → 대시보드 → 전달 문서 `files-seller/` → babycube-admin-seller PR
 - **원본 특이점(기획 확인 필요)**: 셀러 목록에 본사 자체 처리단위 6건 섞임 · 결제에 없는 처리단위 1건 · 표 결제금액(계산) ≠ 저장 amt
 
 ---

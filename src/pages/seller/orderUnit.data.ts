@@ -568,6 +568,15 @@ export const STATUS_TONE: Record<string, TagTone> = {
   "청구 접수": "warning",
   승인: "default",
   반려: "critical",
+  /* 정산 명세서·세금계산서 — 본사 `settlement.data` · `TaxInvoiceListPage.data` 와 같은 색 */
+  지급대기: "default",
+  확인요청: "success",
+  확인완료: "warning",
+  지급완료: "default",
+  이의제기: "critical",
+  보류: "critical",
+  발행예정: "warning",
+  수취완료: "default",
 };
 export const toneOf = (status: string): TagTone =>
   STATUS_TONE[status] ?? "default";
@@ -670,14 +679,16 @@ const FB_TODAY = "2026-06-29";
  * 원본 `autoConfirmDate` — 배송 완료 뒤 7일이 지나면 자동 구매확정(F-1 · PC-3). 클레임 건은 제외.
  * ⚠️ 원본처럼 `new Date('YYYY-MM-DD')`(UTC 자정)로 비교한다 — 식을 바꾸면 경계일 판정이 갈린다
  */
-function autoConfirmed(u: OrderUnit) {
-  if (u.type !== "판매" || u.stat !== "배송 완료" || u.req) return false;
+export function autoConfirmDateOf(u: OrderUnit) {
+  if (u.type !== "판매" || u.stat !== "배송 완료" || u.req) return "";
   const d = deliveredDate(u);
-  if (!d) return false;
+  if (!d) return "";
   const t = new Date(d.replace(/\./g, "-"));
   t.setDate(t.getDate() + 7);
-  return !(t > new Date(FB_TODAY));
+  if (t > new Date(FB_TODAY)) return "";
+  return `${t.getFullYear()}.${pad(t.getMonth() + 1)}.${pad(t.getDate())}`;
 }
+const autoConfirmed = (u: OrderUnit) => autoConfirmDateOf(u) !== "";
 
 /** 원본 클레임 구 어휘 → 표준 처리상태 */
 const LEGACY_FLOW: Record<string, Record<string, string>> = {

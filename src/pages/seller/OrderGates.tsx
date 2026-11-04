@@ -301,7 +301,7 @@ export function SellerCancelModal(props: GateModalProps) {
  * `gateRefundStart`·`gateRefundDone`·`gateSaleDone`. 문구는 원본 글자 그대로
  * ====================================================================== */
 
-interface RequiredReasonModalProps {
+export interface RequiredReasonModalProps {
   open: boolean;
   title: string;
   count: number;
@@ -316,7 +316,7 @@ interface RequiredReasonModalProps {
 }
 
 /** 사유 필수 창 — 비면 알림만 내고 창은 그대로(원본). 닫거나 확정하면 비운다 */
-function RequiredReasonModal({
+export function RequiredReasonModal({
   open,
   title,
   count,
@@ -454,7 +454,7 @@ function InvoiceGateModal({
 }
 
 /** 고지 확인 창 — 되돌릴 수 없는 전이의 결과를 먼저 말한다(환불 완료·배송 완료) */
-function NoticeGateModal({
+export function NoticeGateModal({
   open,
   title,
   count,
@@ -495,7 +495,7 @@ function NoticeGateModal({
 }
 
 /** 되돌릴 수 없음 고지 — 원본 빨간 굵은 글자 */
-function Irreversible({ children }: { children: ReactNode }) {
+export function Irreversible({ children }: { children: ReactNode }) {
   return (
     <strong className="label-medium-bold text-text-critical">{children}</strong>
   );

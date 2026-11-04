@@ -9,6 +9,10 @@ import {
   RentShipDetailPage,
   RentUseDetailPage,
 } from "./pages/seller/RentDetailPages";
+import {
+  RentDepositDetailPage,
+  RentDepositPage,
+} from "./pages/seller/RentDepositPages";
 import { RentOrdersPage } from "./pages/seller/RentOrdersPage";
 import {
   RentCancelPage,
@@ -35,6 +39,13 @@ import { ShippingDetailPage } from "./pages/seller/ShippingDetailPage";
 import { ShippingPage } from "./pages/seller/ShippingPage";
 import { pendingScreen } from "./pages/seller/SellerPendingPage";
 import { SellerScreenIndexPage } from "./pages/seller/SellerScreenIndexPage";
+import {
+  SettleOwnDetailPage,
+  SettleOwnPage,
+  SettleStatementPage,
+  SettleStmtDetailPage,
+  SettleTaxPage,
+} from "./pages/seller/SettlePages";
 
 /**
  * **입점사(셀러) 어드민** 앱 진입점 — 경로 → 화면 매핑과 전역 Provider 만 책임진다.
@@ -77,10 +88,10 @@ const ROUTES: Record<string, ComponentType<NavProps>> = {
   "/rent-insp-return": RentInspReturnPage,
   "/rent-cancel": RentCancelPage,
   "/rent-rma": RentRmaPage,
-  "/settle-own": pendingScreen("매출 정산"),
-  "/rent-deposit": pendingScreen("보증금 내역"),
-  "/settle-statement": pendingScreen("정산 내역/명세서"),
-  "/settle-tax": pendingScreen("세금계산서·증빙"),
+  "/settle-own": SettleOwnPage,
+  "/rent-deposit": RentDepositPage,
+  "/settle-statement": SettleStatementPage,
+  "/settle-tax": SettleTaxPage,
   "/promo": pendingScreen("쿠폰관리"),
   "/seller-notice": pendingScreen("공지사항"),
   "/support": pendingScreen("문의 관리"),
@@ -137,6 +148,17 @@ const DETAIL_ROUTES: {
     screen: RentCancelDetailPage,
   },
   { prefix: "/rent-rma/", parent: "/rent-rma", screen: RentRmaDetailPage },
+  { prefix: "/settle-own/", parent: "/settle-own", screen: SettleOwnDetailPage },
+  {
+    prefix: "/rent-deposit/",
+    parent: "/rent-deposit",
+    screen: RentDepositDetailPage,
+  },
+  {
+    prefix: "/settle-statement/",
+    parent: "/settle-statement",
+    screen: SettleStmtDetailPage,
+  },
 ];
 
 /** 없는 경로 — 화면 목록(본사와 같다) */

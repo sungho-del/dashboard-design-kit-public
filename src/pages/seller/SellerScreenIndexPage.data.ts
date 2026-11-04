@@ -312,6 +312,17 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "매출 정산",
     type: "목록형",
     summary: "내 스토어의 확정 매출 정산 내역을 확인하는 화면",
+    file: "seller/SettlePages.tsx",
+    icon: Wallet,
+  },
+  {
+    navId: "/settle-own/2026.06",
+    code: "SO-STL-001",
+    name: "매출 정산 상세",
+    type: "상세형",
+    summary:
+      "2026.06 회차 지급 정보 · 정산 명세 · 거래 내역 · 정산 정책 — 확인·이의제기",
+    file: "seller/SettlePages.tsx",
     icon: Wallet,
   },
   {
@@ -321,6 +332,17 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     type: "목록형",
     summary:
       "렌트 보증금을 조회하는 예수금 원장 화면(반환 실행은 검수·반납 관리에서 수행)",
+    file: "seller/RentDepositPages.tsx",
+    icon: PiggyBank,
+  },
+  {
+    navId: "/rent-deposit/20260618360509-1",
+    code: "SO-STL-003",
+    name: "보증금 내역 상세",
+    type: "상세형",
+    summary:
+      "보증금 정보 · 정산 계산(보증금 − 차감 = 반환 예정액) · 처리 상태(조회 전용)",
+    file: "seller/RentDepositPages.tsx",
     icon: PiggyBank,
   },
   {
@@ -329,6 +351,17 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "정산 내역/명세서",
     type: "목록형",
     summary: "내 스토어의 월별 정산 명세서와 진행 상황을 확인하는 화면",
+    file: "seller/SettlePages.tsx",
+    icon: FileText,
+  },
+  {
+    navId: "/settle-statement/2026.06",
+    code: "SO-STL-006",
+    name: "정산 명세서 상세",
+    type: "상세형",
+    summary:
+      "명세서번호·지급 정보 · 정산 명세 · 거래 내역 · 정산 정책 — 확인·이의제기",
+    file: "seller/SettlePages.tsx",
     icon: FileText,
   },
   {
@@ -337,6 +370,7 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "세금계산서·증빙",
     type: "목록형",
     summary: "플랫폼 수수료에 대한 세금계산서를 수취·보관하는 화면",
+    file: "seller/SettlePages.tsx",
     icon: ReceiptText,
   },
   {
