@@ -165,21 +165,23 @@ export function RentDepositPage(props: SellerNavProps) {
   return (
     <SellerShell {...props} header={<PageHeader title="보증금 내역" />}>
       {/* 요약 4값 — 필터와 무관하다(보증금 있는 렌트 전체 · 원본 그대로 · 기획 확인) */}
+      {/* 원본 라벨의 괄호 부연은 caption 으로 — 라벨에 두면 1280 에서 두 줄이 되어 값이 이웃 타일보다 내려간다 */}
       <section className="grid grid-cols-4 gap-6" aria-label="보증금 요약">
         {(
           [
-            ["점유중 보증금 총액", stats.hold],
-            ["환급 대기액 (판정됨·실행 전)", stats.pending],
-            ["반환 완료액", stats.refunded],
-            ["차감 수익 (연체료+손상 · 상한=보증금)", stats.deducted],
+            ["점유중 보증금 총액", undefined, stats.hold],
+            ["환급 대기액", "판정됨·실행 전", stats.pending],
+            ["반환 완료액", undefined, stats.refunded],
+            ["차감 수익", "연체료+손상 · 상한=보증금", stats.deducted],
           ] as const
-        ).map(([label, value]) => (
+        ).map(([label, caption, value]) => (
           <StatTile
             key={label}
             variant="card"
             label={label}
             value={value.toLocaleString("ko-KR")}
             unit="원"
+            caption={caption}
           />
         ))}
       </section>

@@ -61,6 +61,7 @@ import {
   type SettlementRow,
 } from "./SellerSettlementPage.data";
 import { SettlementGateModal } from "./SellerSettlementPage";
+import { BulletList } from "./BulletList";
 import { SettlementCalc } from "./SettlementCalc";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
@@ -353,14 +354,15 @@ function DetailBody({
             {/* 상품명이 길면 표가 카드보다 넓어진다 — 표만 가로로 민다(상품 상세와 같은 처리) */}
             <div className="overflow-x-auto">
               <Table>
+                {/* 모든 열에 폭 — 합 928(1280 상세 카드 안쪽 폭) */}
                 <colgroup>
                   <col className="w-14" />
                   <col className="w-40" />
                   <col className="w-20" />
-                  <col />
+                  <col className="w-40" />
                   <col className="w-30" />
                   <col className="w-32" />
-                  <col className="w-64" />
+                  <col className="w-56" />
                 </colgroup>
                 <TableHead>
                   <TableRow>
@@ -439,11 +441,7 @@ function DetailBody({
                   {summary.excluded}
                 </strong>
               </p>
-              <ul className="flex list-disc flex-col gap-1 pl-5">
-                {TX_RULES.map((rule) => (
-                  <li key={rule}>{rule}</li>
-                ))}
-              </ul>
+              <BulletList items={TX_RULES} />
             </div>
           </>
         )}

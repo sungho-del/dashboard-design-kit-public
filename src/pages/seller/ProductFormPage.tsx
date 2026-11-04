@@ -41,6 +41,7 @@ import {
   useToast,
 } from "../../components/ui";
 import { cn } from "../../lib/cn";
+import { BulletList } from "../babycube/BulletList";
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
 import {
   lastPathSegment,
@@ -439,14 +440,6 @@ function AddressPick({
     </div>
   );
 }
-
-/** 여러 줄 도움말 — 원본 `<br>` 로 나눈 글을 줄 그대로 */
-const lines = (rows: readonly string[]) =>
-  rows.map((row) => (
-    <span key={row} className="block">
-      {row}
-    </span>
-  ));
 
 /** 상품 상세 (수정) — `/products/{상품 id}` */
 export function ProductDetailPage(props: SellerNavProps) {
@@ -1099,7 +1092,7 @@ function ProductFormBody({
               className={HELP_WIDTH}
               label="기본 렌트일"
               required
-              description={lines(COPY.baseRentDaysHelp)}
+              description={<BulletList items={COPY.baseRentDaysHelp} />}
               suffix="일"
             >
               <Input
@@ -1155,9 +1148,10 @@ function ProductFormBody({
             </FormField>
             {draft.periodOn ? (
               <div className="flex flex-col gap-3">
-                <p className={cn("body-small text-text-sub", HELP_WIDTH)}>
-                  {lines(COPY.periodHelp)}
-                </p>
+                <BulletList
+                  className={cn("body-small text-text-sub", HELP_WIDTH)}
+                  items={COPY.periodHelp}
+                />
                 {draft.periods.map((row, index) => {
                   const summary = periodSummary(row, dayRate);
                   const label = `기간 옵션 ${index + 1}`;
@@ -1200,6 +1194,14 @@ function ProductFormBody({
                           <span className="body-small text-text-sub">원</span>
                         }
                       />
+                      {/* 삭제는 입력칸 바로 뒤 — 길이가 변하는 요약 뒤에 두면 줄바꿈 때 다음 줄 왼쪽으로 떨어진다 */}
+                      <IconButton
+                        variant="ghost"
+                        size="small"
+                        label={`${label} 삭제`}
+                        onClick={() => removePeriod(row.id)}
+                        icon={<X strokeWidth={1.2} aria-hidden />}
+                      />
                       {summary ? (
                         <span className="body-medium flex items-center gap-2 text-text">
                           <span aria-hidden>→</span>
@@ -1223,13 +1225,6 @@ function ProductFormBody({
                           ) : null}
                         </span>
                       ) : null}
-                      <IconButton
-                        variant="ghost"
-                        size="small"
-                        label={`${label} 삭제`}
-                        onClick={() => removePeriod(row.id)}
-                        icon={<X strokeWidth={1.2} aria-hidden />}
-                      />
                     </div>
                   );
                 })}

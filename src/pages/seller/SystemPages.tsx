@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CalendarOff, Plus, Trash2 } from "lucide-react";
+import { ArrowDownToLine, CalendarOff, Plus, Trash2 } from "lucide-react";
 import {
   Button,
   Card,
@@ -224,6 +224,7 @@ export function OpsCalendarPage(props: SellerNavProps) {
                 );
               }}
             >
+              <ArrowDownToLine size={16} strokeWidth={1.2} aria-hidden />
               엑셀 다운로드
             </Button>
             <Button onClick={() => openForm(null)}>

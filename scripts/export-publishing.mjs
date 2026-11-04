@@ -144,6 +144,9 @@ const APP_FILES = {
     "src/pages/sellerGnbSections.tsx",
     /* 주문 명세 부품 — 본사 화면 부품을 표현만 빌린다(의존: components/ui · lib/cn) */
     "src/pages/babycube/CalcBreakdown.tsx",
+    /* 글머리 목록(도형 점) — 본사와 공용 */
+    "src/pages/babycube/BulletList.tsx",
+    "src/pages/babycube/BulletList.test.tsx",
   ],
 };
 

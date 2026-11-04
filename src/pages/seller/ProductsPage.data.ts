@@ -100,9 +100,13 @@ export const SEARCH_FIELDS = [
   { value: "code", label: "상품코드" },
 ] as const;
 
-export const CATEGORY_HINT = "유형에서 렌트 또는 판매 먼저 선택";
+/**
+ * 유형을 고르기 전 카테고리 셀렉트의 안내 — 원본 `catSelectHint` 「유형에서 렌트 또는 판매 먼저 선택」을
+ * **잠긴 셀렉트 안에** 들어가게 줄였다(본사 상품 관리와 같다). 옆에 따로 두면 다음 칸의 설명으로 읽힌다.
+ */
+export const CATEGORY_HINT = "유형 먼저 선택";
 export const categoryOptionsOf = (type: string) => [
-  { value: "", label: "카테고리 전체" },
+  { value: "", label: type === "all" ? CATEGORY_HINT : "카테고리 전체" },
   ...(type === "렌트" ? RENT_CATTREE : type === "판매" ? SALE_CATTREE : []).map(
     (c) => ({ value: c.name, label: c.name }),
   ),

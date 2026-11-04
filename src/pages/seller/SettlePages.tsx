@@ -288,16 +288,17 @@ export function SettleStatementPage(props: SellerNavProps) {
     <SellerShell {...props} header={<PageHeader title="정산 내역/명세서" />}>
       <SmallListShell count={STATEMENTS.length} selected={sel.selected.length}>
         <Table>
+          {/* 모든 열에 폭 — 합 976(1280 본문 폭). 처리 버튼은 [명세서] / [이의제기][확인] 두 줄로 접힌다 */}
           <colgroup>
             <col className="w-13" />
-            <col className="w-32" />
-            <col className="w-24" />
-            <col className="w-32" />
-            <col className="w-36" />
+            <col className="w-26" />
+            <col className="w-20" />
+            <col className="w-28" />
             <col className="w-32" />
             <col className="w-28" />
-            <col className="w-28" />
-            <col />
+            <col className="w-26" />
+            <col className="w-26" />
+            <col className="w-45" />
           </colgroup>
           <TableHead>
             <TableRow>
@@ -353,7 +354,7 @@ export function SettleStatementPage(props: SellerNavProps) {
                   <StatusTag status={s.stat} />
                 </TableTd>
                 <TableTd>
-                  <span className="flex gap-2">
+                  <span className="flex flex-wrap gap-2">
                     <Button
                       variant="secondary"
                       size="small"
@@ -361,8 +362,9 @@ export function SettleStatementPage(props: SellerNavProps) {
                     >
                       명세서
                     </Button>
+                    {/* 판단 한 쌍은 같이 줄바꿈된다 */}
                     {s.stat === "확인요청" && (
-                      <>
+                      <span className="flex gap-2">
                         <Button
                           variant="secondary"
                           size="small"
@@ -373,7 +375,7 @@ export function SettleStatementPage(props: SellerNavProps) {
                         <Button size="small" onClick={() => setGate("confirm")}>
                           확인
                         </Button>
-                      </>
+                      </span>
                     )}
                   </span>
                 </TableTd>
@@ -400,17 +402,18 @@ export function SettleTaxPage(props: SellerNavProps) {
         selected={sel.selected.length}
       >
         <Table>
+          {/* 모든 열에 폭 — 합 940(실측 필요 폭 922 · 1280 본문 976 안). 「정산 확정 시 발행」은 두 줄로 접힌다 */}
           <colgroup>
             <col className="w-13" />
-            <col className="w-28" />
-            <col className="w-36" />
-            <col className="w-28" />
-            <col className="w-28" />
-            <col className="w-36" />
-            <col className="w-28" />
-            <col className="w-28" />
+            <col className="w-22" />
+            <col className="w-31" />
+            <col className="w-22" />
+            <col className="w-25" />
+            <col className="w-27" />
+            <col className="w-21" />
             <col className="w-24" />
-            <col />
+            <col className="w-22" />
+            <col className="w-28" />
           </colgroup>
           <TableHead>
             <TableRow>
@@ -474,7 +477,9 @@ export function SettleTaxPage(props: SellerNavProps) {
                       다운로드
                     </Button>
                   ) : (
-                    <span className="text-text-sub">정산 확정 시 발행</span>
+                    <span className="break-keep text-text-sub">
+                      정산 확정 시 발행
+                    </span>
                   )}
                 </TableTd>
               </TableRow>

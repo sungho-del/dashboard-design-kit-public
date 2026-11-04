@@ -43,7 +43,6 @@ import {
   SELLER_PERIOD_PRESETS,
 } from "./processList.data";
 import {
-  CATEGORY_HINT,
   DATE_FIELDS,
   EMPTY_FILTERS,
   MY_PRODUCTS,
@@ -219,6 +218,8 @@ export function ProductsPage(props: SellerNavProps) {
   const moneyCell = (p: SellerProduct, f: PriceField, label: string) => (
     <Input
       size="small"
+      /* 폭을 주지 않으면 네이티브 input 기본 폭(약 190)이 `w-max` 표의 열을 225 까지 밀어낸다 — 본사 옵션가 칸과 같은 w-28 */
+      className="w-28"
       inputMode="numeric"
       aria-label={`${p.name} ${label}`}
       value={withCommas(priceOf(p, drafts[p.id], f))}
@@ -310,19 +311,15 @@ export function ProductsPage(props: SellerNavProps) {
           value={filters.type}
           onValueChange={(value) => patch({ type: value, cat: "" })}
         />
-        <span className="flex items-center gap-2">
-          <Select
-            className="w-40"
-            aria-label="카테고리"
-            options={categoryOptionsOf(filters.type)}
-            value={filters.cat}
-            disabled={filters.type === "all"}
-            onValueChange={(value) => patch({ cat: value })}
-          />
-          {filters.type === "all" && (
-            <span className="body-small text-text-sub">{CATEGORY_HINT}</span>
-          )}
-        </span>
+        {/* 잠긴 동안에는 셀렉트 자신이 이유를 말한다(「유형 먼저 선택」) */}
+        <Select
+          className="w-40"
+          aria-label="카테고리"
+          options={categoryOptionsOf(filters.type)}
+          value={filters.cat}
+          disabled={filters.type === "all"}
+          onValueChange={(value) => patch({ cat: value })}
+        />
         <Select
           className="w-28"
           aria-label="검색 대상"
@@ -399,8 +396,14 @@ export function ProductsPage(props: SellerNavProps) {
             <col className="w-28" />
             <col className="w-28" />
             <col className="w-58" />
+            {/* 입력 열 144(입력칸 112 + 여백) · 계산 열(렌트가·판매가) 128 */}
             {cols.map((c) => (
-              <col key={c} className="w-32" />
+              <col
+                key={c}
+                className={
+                  c === "rentPrice" || c === "salePrice" ? "w-32" : "w-36"
+                }
+              />
             ))}
             <col className="w-24" />
             <col className="w-26" />

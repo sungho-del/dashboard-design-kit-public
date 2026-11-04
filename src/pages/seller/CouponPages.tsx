@@ -140,14 +140,15 @@ export function CouponListPage(props: SellerNavProps) {
       >
         <Table>
           <colgroup>
+            {/* 모든 열에 폭 — 합 976(1280 본문 폭). 본사 쿠폰 목록과 같은 값(셀러명 열 자리를 체크박스·쿠폰명이 나눈다) */}
             <col className="w-13" />
-            <col className="w-16" />
-            <col />
-            <col className="w-56" />
-            <col className="w-40" />
-            <col className="w-60" />
-            <col className="w-28" />
-            <col className="w-28" />
+            <col className="w-14" />
+            <col className="w-48" />
+            <col className="w-36" />
+            <col className="w-36" />
+            <col className="w-47" />
+            <col className="w-25" />
+            <col className="w-25" />
           </colgroup>
           <TableHead>
             <TableRow>
@@ -197,8 +198,13 @@ export function CouponListPage(props: SellerNavProps) {
                     />
                   </TableTd>
                   <TableTd className="tabular-nums">{start + i + 1}</TableTd>
-                  <TableTd>
-                    <TextButton onClick={() => open(c)}>{c.name}</TextButton>
+                  {/* 버튼은 한 줄(nowrap)이라 안쪽 글자만 단어 단위로 줄바꿈 — 본사 쿠폰 목록과 같다 */}
+                  <TableTd className="break-keep wrap-anywhere">
+                    <TextButton className="max-w-full" onClick={() => open(c)}>
+                      <span className="text-left whitespace-normal">
+                        {c.name}
+                      </span>
+                    </TextButton>
                   </TableTd>
                   <TableTd>
                     {content.main}

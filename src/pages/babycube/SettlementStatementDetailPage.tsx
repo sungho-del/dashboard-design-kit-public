@@ -55,6 +55,7 @@ import {
   txTitleOf,
   type Rich,
 } from "./SettlementStatementDetailPage.data";
+import { BulletList } from "./BulletList";
 import { SettlementCalc } from "./SettlementCalc";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
@@ -286,14 +287,15 @@ function StatementDetailBody({
         {/* 상품명이 길면 표가 카드보다 넓어진다 — 표만 가로로 민다(상품 상세와 같은 처리) */}
         <div className="overflow-x-auto">
           <Table>
+            {/* 모든 열에 폭 — 합 928(1280 상세 카드 안쪽 폭). 폭 없는 열은 `w-max` 표에서 내용만큼 늘어난다 */}
             <colgroup>
               <col className="w-16" />
               <col className="w-44" />
               <col className="w-20" />
-              <col />
+              <col className="w-36" />
               <col className="w-32" />
               <col className="w-32" />
-              <col className="w-60" />
+              <col className="w-52" />
             </colgroup>
             <TableHead>
               <TableRow>
@@ -388,24 +390,21 @@ function StatementDetailBody({
               {foot.excluded}건
             </strong>
           </p>
-          <ul className="flex list-disc flex-col gap-1 pl-5">
-            {txRulesOf(row).map((rule, index) => (
-              <li key={index}>
-                <RichText parts={rule} onLink={toSellerMenu} />
-              </li>
+          <BulletList
+            items={txRulesOf(row).map((rule, index) => (
+              <RichText key={index} parts={rule} onLink={toSellerMenu} />
             ))}
-          </ul>
+          />
         </div>
       </Section>
 
       <Section title={SECTIONS.policy}>
-        <ul className="body-small flex list-disc flex-col gap-1 pl-5 text-text-sub">
-          {POLICY_ITEMS.map((item, index) => (
-            <li key={index}>
-              <RichText parts={item} onLink={toSellerMenu} />
-            </li>
+        <BulletList
+          className="body-small text-text-sub"
+          items={POLICY_ITEMS.map((item, index) => (
+            <RichText key={index} parts={item} onLink={toSellerMenu} />
           ))}
-        </ul>
+        />
       </Section>
 
       {/* 하단 바 — 원본 `nvEditPage` 버튼 그대로, 순서는 형제 상세 규칙: 좌 [목록] / 우 보조 → 주([확인]) 맨 오른쪽 */}

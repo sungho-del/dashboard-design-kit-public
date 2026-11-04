@@ -119,7 +119,11 @@ export const SecretMark = () => (
   />
 );
 
-/** 원본 링크 자리 — 한 줄 말줄임(원본 `cell-ell`). 버튼은 줄바꿈을 안 해서 안쪽 span 이 자른다 */
+/**
+ * 원본 링크 자리 — 한 줄 말줄임(원본 `cell-ell`). 버튼은 줄바꿈을 안 해서 안쪽 span 이 자른다.
+ * ⚠️ `truncate`(nowrap) 가 아니라 `line-clamp-1` — nowrap 은 칸의 최소 폭이 글 전체 길이가 되어
+ * `w-max` 표에서 `<col>` 폭을 무시하고 열을 늘린다(공지 내용 874px).
+ */
 function LinkCell({
   open,
   lead,
@@ -132,19 +136,22 @@ function LinkCell({
   return (
     <TextButton className="max-w-full" onClick={open}>
       {lead}
-      <span className="truncate">{children}</span>
+      <span className="line-clamp-1 text-left break-all whitespace-normal">
+        {children}
+      </span>
     </TextButton>
   );
 }
 
 const Ellipsis = ({ children }: { children: ReactNode }) => (
-  <span className="block truncate">{children}</span>
+  <span className="line-clamp-1 break-all">{children}</span>
 );
 
 interface Column<T> {
   head: string;
-  /** `<col>` 폭 — 한 열은 비워 남는 폭을 받는다(`table-fixed`) */
-  width?: string;
+  /** `<col>` 폭 — **모든 열에 준다**. 표가 `w-max` 라 폭 없는 열은 내용 길이만큼 늘어나
+   *  1280 에서 오른쪽 열(게시일·상태)이 밀려난다. 합이 화면보다 좁으면 `min-w-full` 이 비율대로 늘린다 */
+  width: string;
   center?: boolean;
   cell: (row: T, open: () => void) => ReactNode;
 }
@@ -319,11 +326,12 @@ export function SellerNoticePage(props: SellerNavProps) {
           },
           {
             head: "제목",
-            width: "w-110",
+            width: "w-90",
             cell: (n, open) => <LinkCell open={open}>{n.title}</LinkCell>,
           },
           {
             head: "내용",
+            width: "w-80",
             cell: (n) => <Ellipsis>{n.body}</Ellipsis>,
           },
           { head: "게시일", width: DATE_COL, cell: (n) => dateCell(n.date) },
@@ -380,6 +388,7 @@ export function SupportPage(props: SellerNavProps) {
           },
           {
             head: "내용",
+            width: "w-64",
             cell: (q, open) => (
               <LinkCell open={open} lead={q.secret ? <SecretMark /> : null}>
                 {q.q}
@@ -422,6 +431,7 @@ export function SellerReviewsPage(props: SellerNavProps) {
           },
           {
             head: "내용",
+            width: "w-72",
             cell: (r, open) => <LinkCell open={open}>{r.txt}</LinkCell>,
           },
           { head: "작성일", width: DATE_COL, cell: (r) => dateCell(r.date) },
@@ -459,11 +469,12 @@ export function SellerAskPage(props: SellerNavProps) {
         columns={[
           {
             head: "제목",
-            width: "w-110",
+            width: "w-90",
             cell: (q, open) => <LinkCell open={open}>{q.title}</LinkCell>,
           },
           {
             head: "내용",
+            width: "w-80",
             cell: (q) => <Ellipsis>{q.body}</Ellipsis>,
           },
           { head: "접수일", width: DATE_COL, cell: (q) => dateCell(q.date) },

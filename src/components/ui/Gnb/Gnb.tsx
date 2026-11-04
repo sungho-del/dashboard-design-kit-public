@@ -22,9 +22,11 @@ import { IconButton } from "../IconButton";
  * 여기서는 **리마운트를 그대로 두고 위치만 이어 붙인다.**
  *
  * `useState` 나 ref 로는 안 된다 — 둘 다 언마운트와 함께 사라진다.
- * 새로고침하면 0 으로 돌아가는데, 그건 새 세션이므로 자연스럽다.
+ *
+ * 새로고침·주소 직접 입력이면 저장값이 없다(`null`). 그때는 **현재 메뉴가 보이게** 스크롤한다 —
+ * 메뉴가 긴 앱(입점사 정산·게시판 그룹)에서 활성 항목이 스크롤 영역 아래에 숨어 있었다.
  */
-let savedMenuScrollTop = 0;
+let savedMenuScrollTop: number | null = null;
 
 /* -------------------------------------------------------------------------
  * 타입
@@ -333,7 +335,18 @@ export function Gnb({
   const menuScrollRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const el = menuScrollRef.current;
-    if (el) el.scrollTop = savedMenuScrollTop;
+    if (!el) return;
+    if (savedMenuScrollTop !== null) {
+      el.scrollTop = savedMenuScrollTop;
+      return;
+    }
+    const item = el.querySelector<HTMLElement>('[aria-current="page"]');
+    const box = el.getBoundingClientRect();
+    const rect = item?.getBoundingClientRect();
+    // 안 보이는 항목(축소 모드 depth2 · jsdom)은 높이가 0 — 건드리지 않는다
+    if (!rect || rect.height === 0) return;
+    if (rect.top < box.top || rect.bottom > box.bottom)
+      el.scrollTop += rect.top - box.top - (box.height - rect.height) / 2;
   }, []);
 
   /*

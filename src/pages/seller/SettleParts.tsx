@@ -17,6 +17,7 @@ import {
   TextButton,
   useToast,
 } from "../../components/ui";
+import { BulletList } from "../babycube/BulletList";
 import { SellerGnb } from "./SellerGnb";
 import {
   Irreversible,
@@ -181,13 +182,14 @@ export function TxTable({
   return (
     <Table>
       <colgroup>
+        {/* 모든 열에 폭 — 합 928(1280 상세 카드 안쪽 폭). 폭 없는 열은 `w-max` 표에서 내용 길이만큼 늘어난다 */}
         <col className={selection ? "w-13" : "w-16"} />
         <col className="w-40" />
         <col className="w-20" />
-        <col />
+        <col className="w-44" />
         <col className="w-28" />
         <col className="w-28" />
-        <col className="w-64" />
+        <col className="w-56" />
       </colgroup>
       <TableHead>
         <TableRow>
@@ -271,13 +273,11 @@ export function TxFoot({ units }: { units: OrderUnit[] }) {
         (= 확정 거래액) · 제외{" "}
         <strong className="body-small-bold text-text">{foot.excluded}건</strong>
       </p>
-      <ul className="flex list-disc flex-col gap-1 pl-5">
-        {TX_RULES.map((rule) => (
-          <li key={rule}>
-            <Bold text={rule} />
-          </li>
+      <BulletList
+        items={TX_RULES.map((rule) => (
+          <Bold key={rule} text={rule} />
         ))}
-      </ul>
+      />
     </NoteBox>
   );
 }

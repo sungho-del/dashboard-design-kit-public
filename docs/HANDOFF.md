@@ -32,7 +32,11 @@
 - **주문 상세(통합)** `/order-details/{주문번호}`(원본 `orderDetail`) · `/products/new` = 상품 등록 폼 — 셀러 화면 49(메뉴 27 + 상세 22)
 - **셀러 전달 준비 완료**(2026-11-04): 전달 문서 `scripts/export-publishing/files-seller/`(README · SCREENS · INTEGRATION) · 추출본 단독 typecheck·lint·테스트 1,654·build 통과 ·
   `babycube-admin-seller` 로컬 브랜치 `feat/publishing`(origin/develop 82eb141 기준) 커밋 **2caba90**(publishing/ + tsconfig·eslint 제외 2줄 · 루트 tsc·test 594·check·next build 통과 · eslint 기존 14건) — **푸시·PR 전**(사용자 `!git push -u origin feat/publishing` 후 PR). PR 설명문 scratchpad `seller-pr-body.md`
-- **다음**: UX 검수 결과 반영 → 보드의 본사 항목(01 네이버페이·FAQ · 02 추가 연락처 · 06 본사 쿠폰 등록 폼)을 hq 에 반영해 hq PR #1 에 커밋 추가
+- **UX 검수 반영**(2026-11-04 · `ui-inspector` 31경로 × 1440/1280 · 기록 scratchpad `ux-inspect/`): 목록 표 **모든 열에 폭**(게시판 4·쿠폰·정산 거래·명세서·세금계산서 — 1280 에서 976 안) · 표 안 말줄임 `truncate` → `line-clamp-1`(nowrap 이 `<col>` 폭을 무시하고 열을 늘렸다) · 상품 가격 입력칸 폭 고정(225 → 144) · 카테고리 안내는 잠긴 셀렉트 안 · 보증금 타일 괄호 부연 → caption · 기간 옵션 × 를 입력칸 뒤로(본사 폼도) · 공휴일 엑셀 아이콘 · **GNB 첫 진입 시 현재 메뉴로 스크롤**(공용 `Gnb.tsx` — 본사도) · 본사 정산 상세 2곳 거래 표 열 폭(1280 넘침 28·12 → 0)
+  - 안 한 것: 명세서 지급일 열 위치(원본 순서 유지) · 상품 폼 단위 표기 혼재(본사와 같다)
+- **글머리표는 도형**(사용자 지시 2026-11-04): 공용 `babycube/BulletList.tsx`(4px 원 · 첫 줄 `h-lh` 가운데) — 셀러 정산 각주·상품 폼 도움말, 본사 정산 상세 3곳. `list-disc`·「·」 글자 글머리 금지(`design-core.md` 필수 규칙 7)
+- **보드 본사 항목 → hq**(2026-11-04): FAQ F-04 네이버페이 문안 · 결제수단 네이버페이(주문번호 숫자 합 7의 배수 12건) · 주문 상세 「추가 연락처」 · 쿠폰관리 [+ 쿠폰 등록]·[본사] 배지·「발급 후 30일」·직영 「베이비크루저」 · 새 `CouponFormPage`(`/promo/new` · 본사 쿠폰 `/promo/{id}` = 수정 폼 · 발급 방식 3 · 중복 사용 · 가입 쿠폰 교체 확인 · 쿠폰 번호 파일) · 상품 폼 Q-63 — 개발 커밋 70a3e88·69ab2f3·495c8f5·3a2df9e·d53c51d·26c59cb 를 따름
+  - 기획 확인: 환급 안내 「카드사·결제사」(F-05·N-U30 미반영) · 주문·클레임 목록 직영 판매자 「본사」 그대로 · 보드 06(발급 방식 2) vs 07·개발(3) · 다운로드·쿠폰 번호 쿠폰 기간 필수 아님 · 셀러 쿠폰 조회 상세 적용 대상 없음
 - **원본 특이점(기획 확인 필요)**: 셀러 목록에 본사 자체 처리단위 6건 섞임 · 결제에 없는 처리단위 1건 · 표 결제금액(계산) ≠ 저장 amt
 
 ---

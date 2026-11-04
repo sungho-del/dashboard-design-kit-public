@@ -88,8 +88,8 @@ describe("상품 관리", () => {
     const { user } = renderPage();
     expect(screen.getByRole("combobox", { name: "카테고리" })).toBeDisabled();
     expect(
-      screen.getByText("유형에서 렌트 또는 판매 먼저 선택"),
-    ).toBeInTheDocument();
+      screen.getByRole("combobox", { name: "카테고리" }),
+    ).toHaveTextContent("유형 먼저 선택");
     await pick(user, "유형", "판매");
     expect(
       screen.queryByRole("columnheader", { name: /렌트 원가/ }),
