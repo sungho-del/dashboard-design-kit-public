@@ -2,6 +2,8 @@
 
 > 추출 기준: 디자인 키트 저장소 커밋 `{{SOURCE_COMMIT}}` · 대조 기준: 이 저장소 `develop` `495c8f5`
 >
+> 확인용 배포본: https://babycube-admin-publishing.vercel.app (GNB 맨 아래 「화면 목록」에서 전 화면으로 간다)
+>
 > 먼저 볼 문서: 이 파일 → [`docs/SCREENS.md`](docs/SCREENS.md)(화면 목록) → [`docs/INTEGRATION.md`](docs/INTEGRATION.md)(기존 데이터 계약과의 대응)
 
 ---
