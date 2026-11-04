@@ -137,7 +137,7 @@ export const SCREENS: ScreenEntry[] = [
     icon: ClipboardCheck,
   },
   {
-    navId: "/seller-review/A-2026-0141",
+    navId: "/seller-review/SR-318",
     name: "입점 심사 상세",
     type: "상세형",
     origin: "babycube",
