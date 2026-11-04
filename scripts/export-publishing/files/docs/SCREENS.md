@@ -41,30 +41,31 @@
 
 ## B. 상세·등록 화면 17
 
-17화면이다 — 주문 상세 한 화면이 취소·반품·교환 모드를 함께 맡아 표는 20행이다.
+18화면이다 — 주문 상세 한 화면이 취소·반품·교환 모드를 함께 맡아 표는 21행이다.
 
-| 화면               | 퍼블 경로                            | 예시 주소                                               | 이 저장소 경로                                                           | 퍼블 파일                       |
-| ------------------ | ------------------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------- |
-| 회원 상세          | `/members/{이메일}`                  | `/members/sujin.park%40example.com`                     | `/members/[id]`                                                          | `MemberDetailPage`              |
-| 셀러 상세          | `/sellers/{셀러 코드}`               | `/sellers/S-1042`                                       | `/sellers/[id]`                                                          | `SellerDetailPage`              |
-| 입점 심사 상세     | `/seller-review/{신청 번호}`         | `/seller-review/SR-318`                                 | `/seller-review/[id]`                                                    | `SellerReviewDetailPage`        |
-| 상품 상세          | `/products/{상품코드}`               | `/products/BL240814`                                    | `/products/[id]` · `/products/[id]/edit` (퍼블은 상세·수정이 한 화면)    | `ProductDetailPage`             |
-| 주문 상세          | `/orders-all/{처리단위}`             | `/orders-all/U-R01` (렌트) · `/orders-all/U-S01` (판매) | `/rent-order-detail/[id]` · `/sale-order-detail/[id]` (처리단위 상세)    | `OrderDetailPage`               |
-| ↳ 취소 상세        | `/orders-cancel/{처리단위}`          | `/orders-cancel/U-R20` · `/orders-cancel/U-S11`         | `/rent-rma-cancel/[id]` · `/rma-cancel/[id]`                             | 〃 (경로가 모드를 정한다)       |
-| ↳ 반품 상세        | `/orders-return/{처리단위}`          | `/orders-return/U-R25` · `/orders-return/U-S15`         | `/rent-rma-return/[id]` · `/rma-return/[id]`                             | 〃                              |
-| ↳ 교환 상세        | `/orders-exchange/{처리단위}`        | `/orders-exchange/U-S21` (판매만)                       | `/rma-exchange/[id]`                                                     | 〃                              |
-| 셀러 정산 상세     | `/settle-seller/{셀러 id}`           | `/settle-seller/S-231`                                  | `/settle-seller/[id]`                                                    | `SellerSettlementDetailPage`    |
-| 보증금 상세        | `/rent-deposit/{처리단위}`           | `/rent-deposit/U-R30`                                   | `/rent-deposit/[id]`                                                     | `RentDepositDetailPage`         |
-| 안심케어 청구 상세 | `/care-claims/{처리단위}`            | `/care-claims/U-R28`                                    | `/care-claims/[id]` (`/care-claim/[id]` 도 있음)                         | `CareClaimDetailPage`           |
-| 정산 명세서 상세   | `/settle-statement/{명세서번호}`     | `/settle-statement/STM-2609-0231`                       | `/settle-statement/[id]`                                                 | `SettlementStatementDetailPage` |
-| 쿠폰 상세          | `/promo/{쿠폰코드}`                  | `/promo/CP-2610-01`                                     | `/promo/[id]`                                                            | `CouponDetailPage`              |
-| 포인트 현황 상세   | `/points/{이메일}`                   | `/points/chaewon.lim%40example.com`                     | `/points/[id]`                                                           | `PointDetailPage`               |
-| 공지 등록/수정     | `/notices/new` · `/notices/{id}`     | `/notices/new` · `/notices/N-U31`                       | `/notices/[id]`                                                          | `NoticeFormPage`                |
-| FAQ 등록/수정      | `/faq-admin/new` · `/faq-admin/{id}` | `/faq-admin/new` · `/faq-admin/F-01`                    | `/faq-admin/[id]`                                                        | `FaqFormPage`                   |
-| 리뷰 상세          | `/reviews-admin/{리뷰 id}`           | `/reviews-admin/RV-30`                                  | `/reviews-admin/[id]`                                                    | `ReviewDetailPage`              |
-| 문의 상세          | `/support/{문의 ID}`                 | `/support/Q-8841` (고객) · `/support/SQ-14` (셀러)      | `/support/inquiries/[id]` · `/support/seller-asks/[id]` (퍼블은 한 화면) | `SupportDetailPage`             |
-| 배너 등록/수정     | `/display/new` · `/display/{id}`     | `/display/new` · `/display/BN-1`                        | `/display/new` · `/display/[id]`                                         | `DisplayFormPage`               |
-| 팝업 등록/수정     | `/popups/new` · `/popups/{id}`       | `/popups/new` · `/popups/PU-1`                          | `/popups/new` · `/popups/[id]`                                           | `DisplayFormPage`               |
+| 화면                 | 퍼블 경로                            | 예시 주소                                               | 이 저장소 경로                                                           | 퍼블 파일                       |
+| -------------------- | ------------------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------- |
+| 회원 상세            | `/members/{이메일}`                  | `/members/sujin.park%40example.com`                     | `/members/[id]`                                                          | `MemberDetailPage`              |
+| 셀러 상세            | `/sellers/{셀러 코드}`               | `/sellers/S-1042`                                       | `/sellers/[id]`                                                          | `SellerDetailPage`              |
+| 입점 심사 상세       | `/seller-review/{신청 번호}`         | `/seller-review/SR-318`                                 | `/seller-review/[id]`                                                    | `SellerReviewDetailPage`        |
+| 상품 상세            | `/products/{상품코드}`               | `/products/BL240814`                                    | `/products/[id]` · `/products/[id]/edit` (퍼블은 상세·수정이 한 화면)    | `ProductDetailPage`             |
+| 주문 상세            | `/orders-all/{처리단위}`             | `/orders-all/U-R01` (렌트) · `/orders-all/U-S01` (판매) | `/rent-order-detail/[id]` · `/sale-order-detail/[id]` (처리단위 상세)    | `OrderDetailPage`               |
+| ↳ 취소 상세          | `/orders-cancel/{처리단위}`          | `/orders-cancel/U-R20` · `/orders-cancel/U-S11`         | `/rent-rma-cancel/[id]` · `/rma-cancel/[id]`                             | 〃 (경로가 모드를 정한다)       |
+| ↳ 반품 상세          | `/orders-return/{처리단위}`          | `/orders-return/U-R25` · `/orders-return/U-S15`         | `/rent-rma-return/[id]` · `/rma-return/[id]`                             | 〃                              |
+| ↳ 교환 상세          | `/orders-exchange/{처리단위}`        | `/orders-exchange/U-S21` (판매만)                       | `/rma-exchange/[id]`                                                     | 〃                              |
+| 셀러 정산 상세       | `/settle-seller/{셀러 id}`           | `/settle-seller/S-231`                                  | `/settle-seller/[id]`                                                    | `SellerSettlementDetailPage`    |
+| 보증금 상세          | `/rent-deposit/{처리단위}`           | `/rent-deposit/U-R30`                                   | `/rent-deposit/[id]`                                                     | `RentDepositDetailPage`         |
+| 안심케어 청구 상세   | `/care-claims/{처리단위}`            | `/care-claims/U-R28`                                    | `/care-claims/[id]` (`/care-claim/[id]` 도 있음)                         | `CareClaimDetailPage`           |
+| 정산 명세서 상세     | `/settle-statement/{명세서번호}`     | `/settle-statement/STM-2609-0231`                       | `/settle-statement/[id]`                                                 | `SettlementStatementDetailPage` |
+| 쿠폰 상세            | `/promo/{쿠폰코드}`                  | `/promo/CP-2610-01`                                     | `/promo/[id]`                                                            | `CouponDetailPage`              |
+| 쿠폰 등록/수정(본사) | `/promo/new` · `/promo/{쿠폰코드}`   | `/promo/new` · `/promo/CP-2610-02`                      | `/promo/new` · `/promo/[id]` (본사 쿠폰이면 상세가 수정 폼)              | `CouponFormPage`                |
+| 포인트 현황 상세     | `/points/{이메일}`                   | `/points/chaewon.lim%40example.com`                     | `/points/[id]`                                                           | `PointDetailPage`               |
+| 공지 등록/수정       | `/notices/new` · `/notices/{id}`     | `/notices/new` · `/notices/N-U31`                       | `/notices/[id]`                                                          | `NoticeFormPage`                |
+| FAQ 등록/수정        | `/faq-admin/new` · `/faq-admin/{id}` | `/faq-admin/new` · `/faq-admin/F-01`                    | `/faq-admin/[id]`                                                        | `FaqFormPage`                   |
+| 리뷰 상세            | `/reviews-admin/{리뷰 id}`           | `/reviews-admin/RV-30`                                  | `/reviews-admin/[id]`                                                    | `ReviewDetailPage`              |
+| 문의 상세            | `/support/{문의 ID}`                 | `/support/Q-8841` (고객) · `/support/SQ-14` (셀러)      | `/support/inquiries/[id]` · `/support/seller-asks/[id]` (퍼블은 한 화면) | `SupportDetailPage`             |
+| 배너 등록/수정       | `/display/new` · `/display/{id}`     | `/display/new` · `/display/BN-1`                        | `/display/new` · `/display/[id]`                                         | `DisplayFormPage`               |
+| 팝업 등록/수정       | `/popups/new` · `/popups/{id}`       | `/popups/new` · `/popups/PU-1`                          | `/popups/new` · `/popups/[id]`                                           | `DisplayFormPage`               |
 
 - ⚠️ 퍼블의 `{id}` 는 이 저장소의 `id` 와 **뜻이 다를 수 있다** — `INTEGRATION.md` 「식별자」 절.
 - 주문 상세 하나가 주문·취소·반품·교환 네 모드를 맡는다. **처리단위(유닛) 상세다** — 이 저장소의 `/order-detail/[id]`(주문번호 = 결제 1건 상세)와는 다른 화면이다(C 절). 렌트/판매는 처리단위가 정한다. 이 저장소는 모드×유형마다 경로가 따로다.
