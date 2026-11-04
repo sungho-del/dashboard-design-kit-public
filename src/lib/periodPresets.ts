@@ -19,33 +19,42 @@ import type { DatePickerPreset, DateRange } from "../components/ui";
  * 오늘을 **포함해** N일 전까지. 포함 범위라 `N - 1` 을 뺀다 —
  * "1주일"이 오늘 포함 7일이지 8일이 아니다.
  */
-const lastDays = (days: number): DateRange => {
-  const to = new Date();
-  const from = new Date();
+const lastDays = (days: number, today: () => Date): DateRange => {
+  const to = today();
+  const from = today();
   from.setDate(from.getDate() - (days - 1));
   return { from, to };
 };
 
 /** 오늘을 포함해 N개월 전까지 (달마다 길이가 달라 일수로 세지 않는다) */
-const lastMonths = (months: number): DateRange => {
-  const to = new Date();
-  const from = new Date();
+const lastMonths = (months: number, today: () => Date): DateRange => {
+  const to = today();
+  const from = today();
   from.setMonth(from.getMonth() - months);
   from.setDate(from.getDate() + 1);
   return { from, to };
 };
 
 /**
+ * 「오늘」을 정해 7종을 만든다 — 샘플이 고정 날짜인 화면용(셀러 원본은 데모 기준일 `FB_TODAY`
+ * 2026-06-29 에서 센다. 실제 오늘을 쓰면 「1주일」이 시드를 벗어나 빈 목록이 된다).
+ * `today` 는 부를 때마다 **새 Date** 를 돌려줘야 한다(위에서 고쳐 쓴다).
+ */
+export const periodPresetsFrom = (today: () => Date): DatePickerPreset[] => [
+  { label: "오늘", getRange: () => lastDays(1, today) },
+  { label: "1주일", getRange: () => lastDays(7, today) },
+  { label: "1개월", getRange: () => lastMonths(1, today) },
+  { label: "3개월", getRange: () => lastMonths(3, today) },
+  { label: "6개월", getRange: () => lastMonths(6, today) },
+  { label: "1년", getRange: () => lastMonths(12, today) },
+  { label: "전체", getRange: () => undefined },
+];
+
+/**
  * 원본 어휘 7종 그대로. **"전체"는 기간을 해제한다**(`undefined`) —
  * 아주 넓은 기간을 넣는 것과 다르다. 넣어 버리면 **기준 날짜가 없는 행**
  * (퇴점하지 않은 셀러의 퇴점일 등)이 통째로 빠진다.
  */
-export const PERIOD_PRESETS: DatePickerPreset[] = [
-  { label: "오늘", getRange: () => lastDays(1) },
-  { label: "1주일", getRange: () => lastDays(7) },
-  { label: "1개월", getRange: () => lastMonths(1) },
-  { label: "3개월", getRange: () => lastMonths(3) },
-  { label: "6개월", getRange: () => lastMonths(6) },
-  { label: "1년", getRange: () => lastMonths(12) },
-  { label: "전체", getRange: () => undefined },
-];
+export const PERIOD_PRESETS: DatePickerPreset[] = periodPresetsFrom(
+  () => new Date(),
+);

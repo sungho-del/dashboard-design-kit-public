@@ -89,6 +89,26 @@ export const Placeholder: Story = {
   },
 };
 
+/**
+ * 작은 크기(32) — **표 셀 안**에서 쓴다(셀러 처리 목록의 택배사 칸).
+ * `Input size="small"` 과 높이가 같아 한 행에 나란히 놓여도 어긋나지 않는다.
+ */
+export const Small: Story = {
+  args: {
+    size: "small",
+    placeholder: "선택",
+    "aria-label": "택배사",
+  },
+  play: async ({ canvasElement }) => {
+    const trigger = within(canvasElement).getByRole("combobox", {
+      name: "택배사",
+    });
+    await expect(trigger.className.split(/\s+/)).toContain(
+      "h-(--size-control-small)",
+    );
+  },
+};
+
 /** 비활성 — 배경 `field-disabled` · 경계선 제거 · 클릭 불가 (DESIGN.md §5) */
 export const Disabled: Story = {
   args: {

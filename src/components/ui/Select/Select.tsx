@@ -38,6 +38,8 @@ export interface SelectOption {
   disabled?: boolean;
 }
 
+export type SelectSize = "medium" | "small";
+
 export interface SelectProps extends Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
   "value" | "defaultValue" | "onChange" | "type" | "role" | "children"
@@ -66,6 +68,11 @@ export interface SelectProps extends Omit<
    * `availableHeight` 로 더 줄어든다.
    */
   panelMaxHeight?: number;
+  /**
+   * 트리거 높이. 기본 `medium`(40 · §6). `small`(32)은 **표 셀 안**에서 쓴다 —
+   * `Input size="small"` 과 같은 높이라 한 행에 나란히 놓여도 어긋나지 않는다.
+   */
+  size?: SelectSize;
   /** 트리거 버튼에 붙일 className. `className` 은 라벨을 포함한 루트에 붙는다 */
   triggerClassName?: string;
   ref?: Ref<HTMLButtonElement>;
@@ -83,11 +90,18 @@ export interface SelectProps extends Omit<
 const MAX_PANEL_HEIGHT = 232;
 
 /**
- * 트리거 공통 — DESIGN.md §6: height 40 · padding 0 12 · space-between · gap 8 ·
- * radius medium. 배경·경계선은 상태별로 하나씩만 방출되도록 아래에서 분기한다.
+ * 트리거 공통 — DESIGN.md §6: space-between · gap 8 · radius medium.
+ * 높이·좌우 패딩은 크기별로 **한 번만** 방출한다(`triggerSizeClasses` · `cn()` 은 병합하지 않는다).
+ * 배경·경계선도 상태별로 하나씩만 방출되도록 아래에서 분기한다.
  */
+/** 크기 — medium: height 40 · padding 0 12 (§6) / small: height 32 · padding 0 8 (`Input` small 과 같다) */
+const triggerSizeClasses: Record<SelectSize, string> = {
+  medium: "h-(--size-control-medium) px-3",
+  small: "h-(--size-control-small) px-2",
+};
+
 const triggerBaseClasses = cn(
-  "flex h-(--size-control-medium) w-full items-center justify-between gap-2 px-3",
+  "flex w-full items-center justify-between gap-2",
   "rounded-medium text-left label-medium",
   "transition-[background-color] duration-100 ease-out",
 );
@@ -165,6 +179,8 @@ export function Select({
   disabled = false,
   placement = "bottom-start",
   panelMaxHeight = MAX_PANEL_HEIGHT,
+  /* floating-ui 의 `size` 미들웨어와 이름이 겹쳐 다른 이름으로 받는다 */
+  size: controlSize = "medium",
   className = "",
   triggerClassName = "",
   id,
@@ -388,6 +404,7 @@ export function Select({
         aria-invalid={invalid || undefined}
         className={cn(
           triggerBaseClasses,
+          triggerSizeClasses[controlSize],
           triggerBgClass,
           triggerOutlineClass,
           triggerTextClass,

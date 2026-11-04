@@ -185,6 +185,9 @@ Variant 8종·상태 전이는 **Button과 완전히 동일**. 사이즈만 다�
 | active / focus-visible | `outline-color: focus`                                                                                                               |
 
 > 옵션 리스트박스는 §5-2 패턴을 그대로 쓴다.
+>
+> **작은 크기(`size="small"`)** — height 32 · padding `0 8`. **표 셀 안**에서만 쓴다(셀러 처리 목록의 택배사 칸).
+> `Input size="small"` 과 같은 높이라 한 행에 나란히 놓여도 어긋나지 않는다. 높이·패딩 클래스는 크기별로 하나만 방출한다.
 
 ---
 

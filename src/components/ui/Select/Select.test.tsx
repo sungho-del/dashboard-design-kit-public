@@ -126,6 +126,21 @@ describe("Select", () => {
       ).toEqual(["false", "true", "false", "false", "false"]);
     });
 
+    /* 높이는 크기마다 한 번만 방출한다 — `cn()` 은 병합하지 않아 둘 다 남으면 승자를 스타일시트 순서가 정한다 */
+    it("기본은 40(medium), size='small' 이면 32 — 높이 클래스는 하나만", () => {
+      const { unmount } = renderSelect();
+      const medium = getTrigger().className.split(/\s+/);
+      expect(medium).toContain("h-(--size-control-medium)");
+      expect(medium).not.toContain("h-(--size-control-small)");
+      unmount();
+
+      renderSelect({ size: "small" });
+      const small = getTrigger().className.split(/\s+/);
+      expect(small).toContain("h-(--size-control-small)");
+      expect(small).not.toContain("h-(--size-control-medium)");
+      expect(small).toContain("px-2");
+    });
+
     it("invalid 면 aria-invalid 를 노출한다", () => {
       renderSelect({ invalid: true });
       expect(getTrigger()).toHaveAttribute("aria-invalid", "true");
