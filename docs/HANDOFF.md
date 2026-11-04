@@ -31,7 +31,7 @@
   - 결과·기획 확인 `docs/seller/plan-changes.md` ⑦
 - **주문 상세(통합)** `/order-details/{주문번호}`(원본 `orderDetail`) · `/products/new` = 상품 등록 폼 — 셀러 화면 49(메뉴 27 + 상세 22)
 - **셀러 전달 준비 완료**(2026-11-04): 전달 문서 `scripts/export-publishing/files-seller/`(README · SCREENS · INTEGRATION) · 추출본 단독 typecheck·lint·테스트 1,654·build 통과 ·
-  `babycube-admin-seller` 로컬 브랜치 `feat/publishing`(origin/develop 82eb141 기준) 커밋 **2caba90**(publishing/ + tsconfig·eslint 제외 2줄 · 루트 tsc·test 594·check·next build 통과 · eslint 기존 14건) — **푸시·PR 전**(사용자 `!git push -u origin feat/publishing` 후 PR). PR 설명문 scratchpad `seller-pr-body.md`
+  `babycube-admin-seller` 로컬 브랜치 `feat/publishing`(origin/develop 82eb141 기준) 커밋 **2caba90** → 갱신 **cdbd03d**(키트 1fce98f · 추출본 테스트 1,656) · hq `feat/publishing` 갱신 **7679ca9**(키트 1fce98f · 추출본 테스트 2,232 · 원격보다 1커밋 앞)(publishing/ + tsconfig·eslint 제외 2줄 · 루트 tsc·test 594·check·next build 통과 · eslint 기존 14건) — **푸시·PR 전**(사용자 `!git push -u origin feat/publishing` 후 PR). PR 설명문 scratchpad `seller-pr-body.md`
 - **UX 검수 반영**(2026-11-04 · `ui-inspector` 31경로 × 1440/1280 · 기록 scratchpad `ux-inspect/`): 목록 표 **모든 열에 폭**(게시판 4·쿠폰·정산 거래·명세서·세금계산서 — 1280 에서 976 안) · 표 안 말줄임 `truncate` → `line-clamp-1`(nowrap 이 `<col>` 폭을 무시하고 열을 늘렸다) · 상품 가격 입력칸 폭 고정(225 → 144) · 카테고리 안내는 잠긴 셀렉트 안 · 보증금 타일 괄호 부연 → caption · 기간 옵션 × 를 입력칸 뒤로(본사 폼도) · 공휴일 엑셀 아이콘 · **GNB 첫 진입 시 현재 메뉴로 스크롤**(공용 `Gnb.tsx` — 본사도) · 본사 정산 상세 2곳 거래 표 열 폭(1280 넘침 28·12 → 0)
   - 안 한 것: 명세서 지급일 열 위치(원본 순서 유지) · 상품 폼 단위 표기 혼재(본사와 같다)
 - **글머리표는 도형**(사용자 지시 2026-11-04): 공용 `babycube/BulletList.tsx`(4px 원 · 첫 줄 `h-lh` 가운데) — 셀러 정산 각주·상품 폼 도움말, 본사 정산 상세 3곳. `list-disc`·「·」 글자 글머리 금지(`design-core.md` 필수 규칙 7)
