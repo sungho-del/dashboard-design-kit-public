@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SellerApp } from "./SellerApp";
 import { SELLER_SCREENS } from "./pages/seller/SellerScreenIndexPage.data";
+import { NAV_COUNTS } from "./pages/sellerGnbSections";
 
 /**
  * 셀러 앱 라우팅 — **등록된 화면이 전부 실제로 열리는가**(본사 `App.test.tsx` 와 같은 원칙).
@@ -100,7 +101,8 @@ describe("SellerApp (셀러 전달본)", () => {
     renderAt("/");
     const labels = within(screen.getByRole("navigation"))
       .getAllByRole("button")
-      .map((b) => b.textContent?.trim())
+      /* 배지(「 처리 대기 N건」)는 라벨이 아니다 */
+      .map((b) => b.textContent?.replace(/ 처리 대기 \d+건$/, "").trim())
       .filter((t): t is string => !!t);
     expect(labels).toEqual([
       ...ORIGINAL_MENU.flatMap(([, items]) => items),
@@ -116,11 +118,47 @@ describe("SellerApp (셀러 전달본)", () => {
     }
   });
 
+  /* 원본을 브라우저로 열어 읽은 값(NAV_BADGE · TODO.rentOverdue) — 같은 시드·같은 식이면 같아야 한다 */
+  it("처리 대기 배지 수가 원본과 같다", () => {
+    expect(NAV_COUNTS).toEqual({
+      saleProc: 9,
+      saleCancel: 5,
+      saleReturn: 5,
+      saleExchange: 5,
+      rentList: 11,
+      rentUse: 3,
+      rentInspReturn: 4,
+      rentCancel: 2,
+      rentRma: 2,
+      rentDeposit: 6,
+    });
+  });
+
+  it("배지는 「처리 대기 N건」으로 읽힌다 — 판매·렌트의 같은 이름 메뉴도 배지로 갈린다", () => {
+    renderAt("/");
+    const nav = screen.getByRole("navigation");
+    expect(
+      within(nav).getByRole("button", {
+        name: /^발주 관리\s*처리 대기\s*9건$/,
+      }),
+    ).toBeVisible();
+    expect(
+      within(nav).getByRole("button", {
+        name: /^취소 관리\s*처리 대기\s*5건$/,
+      }),
+    ).toBeVisible();
+    expect(
+      within(nav).getByRole("button", {
+        name: /^취소 관리\s*처리 대기\s*2건$/,
+      }),
+    ).toBeVisible();
+  });
+
   it("GNB 로 이동하면 주소창이 셀러 경로로 바뀐다", async () => {
     renderAt("/");
     const nav = screen.getByRole("navigation");
     await userEvent.click(
-      within(nav).getByRole("button", { name: "발주 관리" }),
+      within(nav).getByRole("button", { name: /^발주 관리/ }),
     );
     expect(window.location.pathname).toBe("/sale-proc");
     expect(pageTitle()).toBe("발주 관리");

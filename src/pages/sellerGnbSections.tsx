@@ -25,7 +25,8 @@ import {
   Wallet,
   XCircle,
 } from "lucide-react";
-import { Avatar, Tag, type GnbSection } from "../components/ui";
+import { Avatar, GnbBadge, Tag, type GnbSection } from "../components/ui";
+import { UNITS } from "./seller/seed/orders.data";
 /* 로고 에셋은 본사와 같다 — 같은 브랜드의 다른 계정이다(`gnbSections.tsx` 주석) */
 import babycubeLogo from "../assets/babycube-logo.svg";
 import babycubeSymbol from "../assets/babycube-symbol.svg";
@@ -45,8 +46,51 @@ import babycubeSymbol from "../assets/babycube-symbol.svg";
  * - 아이콘은 본사와 같은 기능이면 **본사와 같은 아이콘**을 쓴다(톤 통일) — 쿠폰·공지·리뷰·문의·공휴일·
  *   보증금·명세서·세금계산서·취소·반품·교환·상품·대시보드.
  *
- * 처리 대기 배지(원본 `NAV_BADGE`)는 처리단위 데이터가 들어온 뒤 붙인다.
+ * 처리 대기 배지 = 원본 `NAV_BADGE`(2113~2123행) + 보증금 내역 `TODO.rentOverdue`(2109행) — 아래 `NAV_COUNTS`.
  */
+
+/**
+ * 처리 대기 배지 — 원본 식 그대로, **원본 시드에서 센다.** 각 메뉴의 「첫 처리 대기」 상태 1종만 센다
+ * (원본 주석: 대시보드 「오늘 처리할 일」과 별개). 클레임은 신청 첫 단계(`RMA_MAIN[유형][0]`)만.
+ * 배송 관리(판매·렌트)는 원본도 배지가 없다.
+ *
+ * ⚠️ 원본은 `u.stat` 을 그대로 본다 — 처리단위 중 `stat` 없이 `flow` 만 가진 건(전체 주문 목록 커버리지용)은
+ * 세지 않는다. 원본과 숫자를 맞추려고 같은 식을 쓴다.
+ */
+const sale = UNITS.filter((u) => u.type === "판매");
+const rent = UNITS.filter((u) => u.type === "렌트");
+const claimFirst = (
+  units: typeof UNITS,
+  type: "취소" | "반품" | "교환",
+  first: string,
+) => units.filter((u) => u.req?.type === type && u.req.stat === first).length;
+
+export const NAV_COUNTS = {
+  saleProc: sale.filter((u) => u.stat === "신규 주문").length,
+  saleCancel: claimFirst(sale, "취소", "취소 요청"),
+  saleReturn: claimFirst(sale, "반품", "반품 신청"),
+  saleExchange: claimFirst(sale, "교환", "교환 신청"),
+  rentList: rent.filter((u) => u.stat === "신규 주문").length,
+  rentUse: rent.filter((u) => u.stat === "연체중").length,
+  rentInspReturn: rent.filter((u) => u.stat === "수거 신청").length,
+  rentCancel: claimFirst(rent, "취소", "취소 요청"),
+  rentRma: claimFirst(rent, "반품", "반품 신청"),
+  /* 보증금 내역 — 원본 `TODO.rentOverdue`: 연체료가 있거나 검수 결과가 파손·분실인 렌트 */
+  rentDeposit: rent.filter(
+    (u) =>
+      (u.od ?? 0) > 0 || /^파손/.test(u.inspect ?? "") || u.inspect === "분실",
+  ).length,
+};
+
+/** 숫자만 보이고 스크린리더에는 「처리 대기 N건」(본사와 같다). 0 이면 두지 않는다 */
+const todoBadge = (n: number) =>
+  n > 0 ? (
+    <GnbBadge tone="count">
+      <span className="sr-only">{" 처리 대기 "}</span>
+      {n}
+      <span className="sr-only">건</span>
+    </GnbBadge>
+  ) : undefined;
 
 /** GNB 아이콘은 §23-3 실측대로 20px · stroke 1.2 */
 const navIcon = (Icon: typeof ShoppingCart) => (
@@ -127,11 +171,31 @@ export const SELLER_GNB_SECTIONS: GnbSection[] = [
         label: "주문 통합 관리",
         icon: navIcon(ShoppingCart),
       },
-      { id: "/sale-proc", label: "발주 관리", icon: navIcon(ClipboardList) },
+      {
+        id: "/sale-proc",
+        label: "발주 관리",
+        icon: navIcon(ClipboardList),
+        badge: todoBadge(NAV_COUNTS.saleProc),
+      },
       { id: "/shipping", label: "배송 관리", icon: navIcon(Truck) },
-      { id: "/sale-cancel", label: "취소 관리", icon: navIcon(XCircle) },
-      { id: "/sale-return", label: "반품 관리", icon: navIcon(Undo2) },
-      { id: "/sale-exchange", label: "교환 관리", icon: navIcon(RefreshCw) },
+      {
+        id: "/sale-cancel",
+        label: "취소 관리",
+        icon: navIcon(XCircle),
+        badge: todoBadge(NAV_COUNTS.saleCancel),
+      },
+      {
+        id: "/sale-return",
+        label: "반품 관리",
+        icon: navIcon(Undo2),
+        badge: todoBadge(NAV_COUNTS.saleReturn),
+      },
+      {
+        id: "/sale-exchange",
+        label: "교환 관리",
+        icon: navIcon(RefreshCw),
+        badge: todoBadge(NAV_COUNTS.saleExchange),
+      },
     ],
   },
   {
@@ -147,16 +211,33 @@ export const SELLER_GNB_SECTIONS: GnbSection[] = [
         id: "/rent-list",
         label: "렌트 발주 관리",
         icon: navIcon(CalendarCheck),
+        badge: todoBadge(NAV_COUNTS.rentList),
       },
       { id: "/rent-dispatch", label: "배송 관리", icon: navIcon(Truck) },
-      { id: "/rent-use", label: "대여·연체 관리", icon: navIcon(Clock) },
+      {
+        id: "/rent-use",
+        label: "대여·연체 관리",
+        icon: navIcon(Clock),
+        badge: todoBadge(NAV_COUNTS.rentUse),
+      },
       {
         id: "/rent-insp-return",
         label: "검수·반납 관리",
         icon: navIcon(ScanSearch),
+        badge: todoBadge(NAV_COUNTS.rentInspReturn),
       },
-      { id: "/rent-cancel", label: "취소 관리", icon: navIcon(XCircle) },
-      { id: "/rent-rma", label: "반품 관리", icon: navIcon(Undo2) },
+      {
+        id: "/rent-cancel",
+        label: "취소 관리",
+        icon: navIcon(XCircle),
+        badge: todoBadge(NAV_COUNTS.rentCancel),
+      },
+      {
+        id: "/rent-rma",
+        label: "반품 관리",
+        icon: navIcon(Undo2),
+        badge: todoBadge(NAV_COUNTS.rentRma),
+      },
     ],
   },
   {
@@ -164,7 +245,12 @@ export const SELLER_GNB_SECTIONS: GnbSection[] = [
     label: "정산 관리",
     items: [
       { id: "/settle-own", label: "매출 정산", icon: navIcon(Wallet) },
-      { id: "/rent-deposit", label: "보증금 내역", icon: navIcon(PiggyBank) },
+      {
+        id: "/rent-deposit",
+        label: "보증금 내역",
+        icon: navIcon(PiggyBank),
+        badge: todoBadge(NAV_COUNTS.rentDeposit),
+      },
       {
         id: "/settle-statement",
         label: "정산 내역/명세서",
