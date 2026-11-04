@@ -7,7 +7,6 @@ import {
   DatePicker,
   EmptyState,
   FilterBar,
-  Gnb,
   Input,
   PageHeader,
   Pagination,
@@ -26,12 +25,9 @@ import {
   useToast,
   type TableSortDirection,
 } from "../../components/ui";
+import { SellerGnb } from "./SellerGnb";
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
 import { useSearchParams } from "../../lib/router";
-import {
-  SELLER_GNB_LOGO_SLOTS,
-  SELLER_GNB_SECTIONS,
-} from "../sellerGnbSections";
 import { StatusTag } from "./OrderGates";
 import { careOf, flowStatOf, optionsOf, payTotalOf } from "./orderUnit.data";
 import {
@@ -156,14 +152,11 @@ export function OrdersOverview({
   return (
     <AppShell
       sidebar={
-        <Gnb
-          sections={SELLER_GNB_SECTIONS}
+        <SellerGnb
           activeId={activeNav}
           onSelect={onNavSelect}
           open={navOpen}
           onOpenChange={onNavOpenChange}
-          logo={SELLER_GNB_LOGO_SLOTS.logo}
-          collapsedLogo={SELLER_GNB_LOGO_SLOTS.collapsed}
         />
       }
       header={<PageHeader title={config.title} />}

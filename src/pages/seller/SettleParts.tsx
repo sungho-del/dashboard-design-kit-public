@@ -6,7 +6,6 @@ import {
   CardBody,
   CardHeader,
   Checkbox,
-  Gnb,
   IconButton,
   Table,
   TableBody,
@@ -18,10 +17,7 @@ import {
   TextButton,
   useToast,
 } from "../../components/ui";
-import {
-  SELLER_GNB_LOGO_SLOTS,
-  SELLER_GNB_SECTIONS,
-} from "../sellerGnbSections";
+import { SellerGnb } from "./SellerGnb";
 import {
   Irreversible,
   NoticeGateModal,
@@ -67,14 +63,11 @@ export function SellerShell({
   return (
     <AppShell
       sidebar={
-        <Gnb
-          sections={SELLER_GNB_SECTIONS}
+        <SellerGnb
           activeId={activeNav}
           onSelect={onNavSelect}
           open={navOpen}
           onOpenChange={onNavOpenChange}
-          logo={SELLER_GNB_LOGO_SLOTS.logo}
-          collapsedLogo={SELLER_GNB_LOGO_SLOTS.collapsed}
         />
       }
       header={header}
@@ -84,13 +77,15 @@ export function SellerShell({
   );
 }
 
-/** 접히는 카드 — `action` 은 머리 오른쪽(접기 버튼 앞) */
+/** 접히는 카드 — `summary`(원본 `nvSec` 요약 글)·`action` 은 머리 오른쪽(접기 버튼 앞) */
 export function Section({
   title,
+  summary,
   action,
   children,
 }: {
   title: string;
+  summary?: string;
   action?: ReactNode;
   children: ReactNode;
 }) {
@@ -101,6 +96,9 @@ export function Section({
         title={title}
         action={
           <span className="flex items-center gap-2">
+            {summary && (
+              <span className="body-small text-text-sub">{summary}</span>
+            )}
             {action}
             <IconButton
               variant="ghost"

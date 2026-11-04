@@ -4,14 +4,10 @@ import {
   Button,
   Card,
   CardBody,
-  Gnb,
   PageHeader,
   Tag,
 } from "../../components/ui";
-import {
-  SELLER_GNB_LOGO_SLOTS,
-  SELLER_GNB_SECTIONS,
-} from "../sellerGnbSections";
+import { SellerGnb } from "./SellerGnb";
 import {
   SELLER_SCREENS,
   SELLER_TYPE_TONE,
@@ -95,14 +91,11 @@ export function SellerScreenIndexPage({
   return (
     <AppShell
       sidebar={
-        <Gnb
-          sections={SELLER_GNB_SECTIONS}
+        <SellerGnb
           activeId={activeNav}
           onSelect={onNavSelect}
           open={navOpen}
           onOpenChange={onNavOpenChange}
-          logo={SELLER_GNB_LOGO_SLOTS.logo}
-          collapsedLogo={SELLER_GNB_LOGO_SLOTS.collapsed}
         />
       }
       header={

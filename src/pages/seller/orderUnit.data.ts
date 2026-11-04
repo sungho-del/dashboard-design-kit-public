@@ -577,6 +577,14 @@ export const STATUS_TONE: Record<string, TagTone> = {
   보류: "critical",
   발행예정: "warning",
   수취완료: "default",
+  /* 상품 판매·전시 상태 — 본사 `ProductListPage.data` 와 같은 색(반려는 위 critical) */
+  판매중: "success",
+  재심사요청: "warning",
+  판매중지: "default",
+  품절: "default",
+  임시저장: "default",
+  전시중: "success",
+  전시중지: "default",
 };
 export const toneOf = (status: string): TagTone =>
   STATUS_TONE[status] ?? "default";

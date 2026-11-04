@@ -26,7 +26,10 @@
   - 검수 판정·차감액·안심케어 청구 금액·이미지는 **화면 안에서만**(A안 · 상태 전이 없음) · 결과·기획 확인 `docs/seller/plan-changes.md` ⑤
 - **정산 묶음 완료**(2026-11-04 · GPT 검토 `settle-gpt-review` 반영): 식 `settle.data.ts`(원본 `settleMyData`·`settleTxNote`·`depBack` · 정답 `settle.golden.ts` 거래 156 · 합계 · 보증금 94) · 화면 `SettlePages.tsx`(매출 정산 · 명세서 · 세금계산서 · 상세 2 — 원본 `sellerStmtPage` 공용 빌더) · `RentDepositPages.tsx`(보증금 내역 + 상세) · 공용 조각 `SettleParts.tsx`
   - [확인]·[이의제기]는 창 + 알림까지(상태 전이 없음) · 결과·기획 확인 `docs/seller/plan-changes.md` ⑥
-- **다음**: 상품 → 마케팅·게시판 → 시스템(직영 미리보기) → 대시보드 → 전달 문서 `files-seller/` → babycube-admin-seller PR
+- **상품·마케팅·게시판·시스템·대시보드 완료**(2026-11-04): `ProductsPage`(목록 · 가격 5칸 표에서 고침) · `ProductFormPage`(본사 상품 상세 복사 → 셀러 규칙 · 수정/등록 겸용 · Q-63) · `CouponPages` · `BoardPages`·`BoardDetailPages` · `SystemPages` · `SellerDashboardPage`(정답 `sellerDashboard.golden.ts`) — **원본 메뉴 27항목 전부 화면**(임시 자리 `SellerPendingPage` 삭제)
+  - 직영 계정 미리보기(D-337 · Q-69) = 주소에 `?account=direct` — 숨김 메뉴 7개 · 스토어 안내 변경 · 이동해도 유지(`sellerAccount.ts` · GNB 는 `SellerGnb` 한 곳)
+  - 결과·기획 확인 `docs/seller/plan-changes.md` ⑦
+- **다음**: 전체 UX 검수 → 전달 문서 `scripts/export-publishing/files-seller/` → 셀러 추출본 점검 → babycube-admin-seller PR(푸시는 사용자 `!`) → 보드의 본사 항목을 hq PR #1 에
 - **원본 특이점(기획 확인 필요)**: 셀러 목록에 본사 자체 처리단위 6건 섞임 · 결제에 없는 처리단위 1건 · 표 결제금액(계산) ≠ 저장 amt
 
 ---

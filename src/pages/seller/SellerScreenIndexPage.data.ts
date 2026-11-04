@@ -62,6 +62,7 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     type: "통계형",
     summary:
       "내 스토어의 상품·주문·렌트·정산 현황을 한눈에 보고, 각 위젯에서 운영 화면으로 진입하는 시작 화면",
+    file: "seller/SellerDashboardPage.tsx",
     icon: LayoutDashboard,
   },
   {
@@ -70,6 +71,17 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "상품 관리",
     type: "목록형",
     summary: "내 스토어에 등록한 상품을 조회·수정하고 가격을 관리하는 화면",
+    file: "seller/ProductsPage.tsx",
+    icon: Package,
+  },
+  {
+    navId: "/products/P-001",
+    code: "SO-PRD-002",
+    name: "상품 상세 (수정)",
+    type: "상세형",
+    summary:
+      "등록 폼의 수정 모드 — 11구역 · 반려 건은 [재심사 요청] · 임시저장 초안은 [임시저장]",
+    file: "seller/ProductFormPage.tsx",
     icon: Package,
   },
   {
@@ -78,6 +90,7 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "상품 등록",
     type: "폼형",
     summary: "신규 상품을 섹션형 폼으로 등록하는 화면",
+    file: "seller/ProductFormPage.tsx",
     icon: PackagePlus,
   },
   {
@@ -379,6 +392,25 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "쿠폰관리",
     type: "목록형",
     summary: "내 스토어가 발행한 쿠폰을 등록·수정·관리하는 화면",
+    file: "seller/CouponPages.tsx",
+    icon: Ticket,
+  },
+  {
+    navId: "/promo/CP-2608-01",
+    code: "SO-MKT-002",
+    name: "쿠폰 상세 (수정)",
+    type: "상세형",
+    summary: "발행 쿠폰 수정 — 기본 정보 · 할인 내용 · 사용 기간 · 상태",
+    file: "seller/CouponPages.tsx",
+    icon: Ticket,
+  },
+  {
+    navId: "/promo/new",
+    code: "SO-MKT-002",
+    name: "쿠폰 등록",
+    type: "상세형",
+    summary: "새 쿠폰 발행 — 등록 시 발행일 자동 기록",
+    file: "seller/CouponPages.tsx",
     icon: Ticket,
   },
   {
@@ -387,6 +419,16 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "공지사항",
     type: "목록형",
     summary: "본사 공지를 받아 보는 화면 — 목록의 제목을 눌러 상세로",
+    file: "seller/BoardPages.tsx",
+    icon: Megaphone,
+  },
+  {
+    navId: "/seller-notice/N-S26",
+    code: "SO-CSC-006",
+    name: "공지 상세",
+    type: "상세형",
+    summary: "본사 공지 읽기 — 고정 여부 · 게시일 · 내용",
+    file: "seller/BoardDetailPages.tsx",
     icon: Megaphone,
   },
   {
@@ -395,6 +437,16 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "문의 관리",
     type: "목록형",
     summary: "내 상품 관련 고객 문의·신고를 처리하고 본사 공지를 확인하는 화면",
+    file: "seller/BoardPages.tsx",
+    icon: MessageSquare,
+  },
+  {
+    navId: "/support/Q-8842",
+    code: "SO-CSC-005",
+    name: "문의 상세",
+    type: "상세형",
+    summary: "고객 문의 원문을 보며 답변 등록·수정 — 주문 문의는 주문번호",
+    file: "seller/BoardDetailPages.tsx",
     icon: MessageSquare,
   },
   {
@@ -403,6 +455,16 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "리뷰 관리",
     type: "목록형",
     summary: "내 상품 리뷰를 보고 상세에서 답글을 다는 화면",
+    file: "seller/BoardPages.tsx",
+    icon: Star,
+  },
+  {
+    navId: "/seller-reviews/RV-31",
+    code: "SO-CSC-007",
+    name: "리뷰 상세",
+    type: "상세형",
+    summary: "리뷰 원문 · 별점을 보며 답글 등록·수정",
+    file: "seller/BoardDetailPages.tsx",
     icon: Star,
   },
   {
@@ -411,6 +473,17 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     name: "1:1 문의",
     type: "목록형",
     summary: "본사에 1:1 문의를 등록하고 답변을 확인하는 화면",
+    file: "seller/BoardPages.tsx",
+    icon: MessageCircle,
+  },
+  {
+    navId: "/seller-ask/SQ-11",
+    code: "SO-CSC-008",
+    name: "1:1 문의 상세 (등록/수정)",
+    type: "상세형",
+    summary:
+      "본사에 보낸 문의 수정 · 본사 답변 확인 · 새 문의는 /seller-ask/new",
+    file: "seller/BoardDetailPages.tsx",
     icon: MessageCircle,
   },
   {
@@ -420,6 +493,7 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     type: "폼형",
     summary:
       "스토어 기본 정보·정산 계좌·배송 정책·본사 공통 정책·내 계정을 한 화면에서 관리하는 화면",
+    file: "seller/SystemPages.tsx",
     icon: Settings,
   },
   {
@@ -428,6 +502,7 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     type: "목록형",
     summary:
       "본사 등록 공휴일(수정 불가)을 보고 자사 휴무를 따로 등록하는 화면",
+    file: "seller/SystemPages.tsx",
     icon: CalendarOff,
   },
 ];

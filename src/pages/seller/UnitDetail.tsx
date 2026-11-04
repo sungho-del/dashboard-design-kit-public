@@ -8,7 +8,6 @@ import {
   CardHeader,
   EmptyState,
   FormField,
-  Gnb,
   IconButton,
   InfoList,
   Input,
@@ -29,6 +28,7 @@ import {
   TextButton,
   useToast,
 } from "../../components/ui";
+import { SellerGnb } from "./SellerGnb";
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
 import {
   lastPathSegment,
@@ -36,10 +36,6 @@ import {
   useSearchParams,
 } from "../../lib/router";
 import { CalcBreakdown } from "../babycube/CalcBreakdown";
-import {
-  SELLER_GNB_LOGO_SLOTS,
-  SELLER_GNB_SECTIONS,
-} from "../sellerGnbSections";
 import {
   appliedAtOf,
   claimHistoryOf,
@@ -219,14 +215,11 @@ function Shell({
   return (
     <AppShell
       sidebar={
-        <Gnb
-          sections={SELLER_GNB_SECTIONS}
+        <SellerGnb
           activeId={activeNav}
           onSelect={onNavSelect}
           open={navOpen}
           onOpenChange={onNavOpenChange}
-          logo={SELLER_GNB_LOGO_SLOTS.logo}
-          collapsedLogo={SELLER_GNB_LOGO_SLOTS.collapsed}
         />
       }
       header={header}

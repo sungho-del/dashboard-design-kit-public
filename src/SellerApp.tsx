@@ -2,6 +2,19 @@ import { useState, type ComponentType } from "react";
 import { ToastProvider } from "./components/ui";
 import { navigate, usePathname } from "./lib/router";
 import {
+  InqDetailPage,
+  AskDetailPage,
+  NoticeDetailPage,
+  ReviewDetailPage,
+} from "./pages/seller/BoardDetailPages";
+import {
+  SellerAskPage,
+  SellerNoticePage,
+  SellerReviewsPage,
+  SupportPage,
+} from "./pages/seller/BoardPages";
+import { useDirectAccount, withDirect } from "./pages/seller/sellerAccount";
+import {
   RentCancelDetailPage,
   RentInspDetailPage,
   RentOrderDetailPage,
@@ -13,6 +26,14 @@ import {
   RentDepositDetailPage,
   RentDepositPage,
 } from "./pages/seller/RentDepositPages";
+import { CouponFormPage, CouponListPage } from "./pages/seller/CouponPages";
+import {
+  ProductDetailPage,
+  ProductNewPage,
+} from "./pages/seller/ProductFormPage";
+import { ProductsPage } from "./pages/seller/ProductsPage";
+import { SellerDashboardPage } from "./pages/seller/SellerDashboardPage";
+import { OpsCalendarPage, StorePage } from "./pages/seller/SystemPages";
 import { RentOrdersPage } from "./pages/seller/RentOrdersPage";
 import {
   RentCancelPage,
@@ -37,7 +58,6 @@ import { SaleOrdersPage } from "./pages/seller/SaleOrdersPage";
 import { SaleProcPage } from "./pages/seller/SaleProcPage";
 import { ShippingDetailPage } from "./pages/seller/ShippingDetailPage";
 import { ShippingPage } from "./pages/seller/ShippingPage";
-import { pendingScreen } from "./pages/seller/SellerPendingPage";
 import { SellerScreenIndexPage } from "./pages/seller/SellerScreenIndexPage";
 import {
   SettleOwnDetailPage,
@@ -59,7 +79,7 @@ import {
  *
  * ## 경로
  * 셀러 개발 저장소 경로 그대로. GNB 항목 id 가 곧 경로다(`sellerGnbSections.tsx`).
- * 아직 퍼블하지 않은 화면은 `pendingScreen(원본 제목)` 으로 열린다 — 화면을 만들면 그 줄만 바꾼다.
+ * 원본 메뉴 27항목이 전부 화면을 가진다(2026-11-04 — 임시 자리 `SellerPendingPage` 는 지웠다).
  */
 
 /** 모든 화면이 공유하는 props — 본사 앱과 같다 */
@@ -72,9 +92,9 @@ interface NavProps {
 
 /* 경로 → 화면. 제목은 원본 탑바 h1(TITLES) — 판매·렌트에 같은 이름(배송·취소·반품 관리)이 있다 */
 const ROUTES: Record<string, ComponentType<NavProps>> = {
-  "/": pendingScreen("대시보드"),
-  "/products": pendingScreen("상품 관리"),
-  "/product-new": pendingScreen("상품 등록 폼"),
+  "/": SellerDashboardPage,
+  "/products": ProductsPage,
+  "/product-new": ProductNewPage,
   "/sale-orders": SaleOrdersPage,
   "/sale-proc": SaleProcPage,
   "/shipping": ShippingPage,
@@ -92,13 +112,13 @@ const ROUTES: Record<string, ComponentType<NavProps>> = {
   "/rent-deposit": RentDepositPage,
   "/settle-statement": SettleStatementPage,
   "/settle-tax": SettleTaxPage,
-  "/promo": pendingScreen("쿠폰관리"),
-  "/seller-notice": pendingScreen("공지사항"),
-  "/support": pendingScreen("문의 관리"),
-  "/seller-reviews": pendingScreen("리뷰 관리"),
-  "/seller-ask": pendingScreen("1:1 문의"),
-  "/store": pendingScreen("스토어 정보 · 설정"),
-  "/ops-calendar": pendingScreen("공휴일 관리"),
+  "/promo": CouponListPage,
+  "/seller-notice": SellerNoticePage,
+  "/support": SupportPage,
+  "/seller-reviews": SellerReviewsPage,
+  "/seller-ask": SellerAskPage,
+  "/store": StorePage,
+  "/ops-calendar": OpsCalendarPage,
 
   /* 저장소 색인 — 원본에 없다(본사와 같다) */
   "/screens": SellerScreenIndexPage,
@@ -113,6 +133,7 @@ const DETAIL_ROUTES: {
   parent: string;
   screen: ComponentType<NavProps>;
 }[] = [
+  { prefix: "/products/", parent: "/products", screen: ProductDetailPage },
   { prefix: "/sale-proc/", parent: "/sale-proc", screen: SaleOrderDetailPage },
   { prefix: "/shipping/", parent: "/shipping", screen: ShippingDetailPage },
   {
@@ -148,7 +169,24 @@ const DETAIL_ROUTES: {
     screen: RentCancelDetailPage,
   },
   { prefix: "/rent-rma/", parent: "/rent-rma", screen: RentRmaDetailPage },
-  { prefix: "/settle-own/", parent: "/settle-own", screen: SettleOwnDetailPage },
+  {
+    prefix: "/settle-own/",
+    parent: "/settle-own",
+    screen: SettleOwnDetailPage,
+  },
+  { prefix: "/promo/", parent: "/promo", screen: CouponFormPage },
+  {
+    prefix: "/seller-notice/",
+    parent: "/seller-notice",
+    screen: NoticeDetailPage,
+  },
+  { prefix: "/support/", parent: "/support", screen: InqDetailPage },
+  {
+    prefix: "/seller-reviews/",
+    parent: "/seller-reviews",
+    screen: ReviewDetailPage,
+  },
+  { prefix: "/seller-ask/", parent: "/seller-ask", screen: AskDetailPage },
   {
     prefix: "/rent-deposit/",
     parent: "/rent-deposit",
@@ -167,6 +205,7 @@ const FALLBACK = SellerScreenIndexPage;
 export function SellerApp() {
   const [navOpen, setNavOpen] = useState(true);
   const pathname = usePathname();
+  const direct = useDirectAccount();
 
   /* 상세에서도 GNB 는 부모 항목이 선택된 채로 남는다(본사와 같다) */
   const detail = DETAIL_ROUTES.find((route) =>
@@ -177,7 +216,8 @@ export function SellerApp() {
     navOpen,
     onNavOpenChange: setNavOpen,
     activeNav: detail?.parent ?? pathname,
-    onNavSelect: navigate,
+    /* 직영 계정 미리보기(`?account=direct`)는 화면을 옮겨도 이어 간다(`sellerAccount.ts`) */
+    onNavSelect: (path: string) => navigate(direct ? withDirect(path) : path),
   };
 
   const Screen = ROUTES[pathname] ?? detail?.screen ?? FALLBACK;
