@@ -152,9 +152,6 @@ const TRANSFORMS = {
     [/^@source "\.\.\/\.\.\/\.storybook";.*\n/gm, ""],
     ['CLAUDE.md "토큰 사용"', "README §3"],
   ],
-  "src/pages/babycube/DashboardPage.tsx": [
-    ["(CLAUDE.md · Clay 아이콘 규격)", "(Clay 아이콘 규격 · README §3)"],
-  ],
   /* 템플릿 4종은 화면 생성기의 원본이라 이 저장소에만 둔다 */
   "src/App.tsx": [
     [

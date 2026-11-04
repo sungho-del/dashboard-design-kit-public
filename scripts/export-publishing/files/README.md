@@ -61,6 +61,9 @@ publishing/
 └─ docs/                  SCREENS · INTEGRATION
 ```
 
+코드 주석의 출처 표기: `proto.html:줄`·`SCREENS.x`·`DETAILS.x` = 원본 기획 v0.4 프로토타입 ·
+`DESIGN.md §n`·`HANDOFF`·`PROGRESS.md`·`scratchpad` = 디자인 키트 저장소의 내부 문서(이 폴더에는 없다 — 결정 근거는 README §5 에 옮겨 두었다).
+
 ### 알아둘 규칙 (어기면 조용히 깨진다)
 
 - **색은 semantic 토큰만** (`bg-surface`, `text-text-sub` …). hex·primitive(`bg-slate-900`) 금지. 주 버튼은 파랑이 아니라 near-black(`action-primary`)
