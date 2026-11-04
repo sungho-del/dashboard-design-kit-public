@@ -2,7 +2,21 @@
 
 > **이 문서의 용도**: 세션이 바뀌어도 즉시 이어서 작업할 수 있게 하는 "지금 어디까지 왔나" 요약.
 > 결정의 **역사**는 `docs/PROGRESS.md`, 규격은 `docs/DESIGN.md`, 상시 규칙은 `docs/design-core.md`.
-> 최종 갱신: **2026-11-03** — 만든 화면 전체 UX 고도화(아래 ▶) · 쿠폰·포인트·게시판 4종 · 정산 명세 고도화 · **2026-10-19** — 주문 목록·주문 상세 기획 v0.4 대조 (§0-AB) · 성장단계 관리 기획 v0.4 대조 (§0-AA) · 카테고리 관리 기획 v0.4 대조 (§0-Z) · 상품 상세 1·2단계 완료 (§0-Y) · 상품 관리 목록 기획 v0.4 대조 (§0-X) · 입점 심사·상세 (§0-W) · 셀러 관리·셀러 상세 (§0-V) · 회원 관리·회원 상세 (§0-U) · BabyCube 전용 전환 (§0-T)
+> 최종 갱신: **2026-11-04** — 본사 퍼블 전달(hq PR #1) · **입점사(셀러) 어드민 착수**(아래 ▶ 셀러) · **2026-11-03** — 만든 화면 전체 UX 고도화 · 쿠폰·포인트·게시판 4종 · 정산 명세 고도화 · **2026-10-19** — 주문 목록·주문 상세 기획 v0.4 대조 (§0-AB) · 성장단계 관리 기획 v0.4 대조 (§0-AA) · 카테고리 관리 기획 v0.4 대조 (§0-Z) · 상품 상세 1·2단계 완료 (§0-Y) · 상품 관리 목록 기획 v0.4 대조 (§0-X) · 입점 심사·상세 (§0-W) · 셀러 관리·셀러 상세 (§0-V) · 회원 관리·회원 상세 (§0-U) · BabyCube 전용 전환 (§0-T)
+
+---
+
+## ▶ 2026-11-04 — 입점사(셀러) 어드민 퍼블리싱 착수 (사용자: "처음부터 꼼꼼히 · GPT 와 상의 · 최대한 기획 원본을 따라가게")
+
+- **본사 전달 완료**: `babycube-admin-hq` PR #1(`develop` ← `feat/publishing`, 커밋 b187476 · 추출 기준 82dd078) · 확인용 https://babycube-admin-publishing.vercel.app (Vercel 팀 sungho-2597s-projects). 키트 `.claude/settings.json` deny 에 `npx vercel`·`git push` 가 있어 배포·푸시는 사용자가 `!` 로 친다
+- **원본** = 기획 저장소 `metamonster-dev/rentmall-planning` `apps/admin-seller/index.html` v0.4 (커밋 f3526f4 시점 · 라인 색인 `화면-라인색인.md`). 배포본 rentique-admin-seller 는 그보다 옛것. 개발 저장소 `babycube-admin-seller`(로컬 클론 `../babycube-admin-seller`) `reference/` 는 08-19 동결 — 시각 대조용
+- **구조(A안 · GPT 권고)**: 한 저장소 두 앱 — `main.tsx` 가 실행 모드로 고른다(`npm run dev` 본사 · `npm run dev:seller` 셀러 5174). 경로가 겹쳐(/products /promo …) 접두사 없이 앱을 나눴다. 셀러 = `src/SellerApp.tsx` · `src/pages/sellerGnbSections.tsx` · `src/pages/seller/`. 본사 화면은 import 하지 않고 **복사 후 변형**, 공용화는 `CalcBreakdown` 만(쓸 때 공용 위치로)
+- **추출** `npm run export:publishing -- <폴더> --app seller` — 전달본엔 그 앱 것만, `main.tsx` 는 그 앱 하나만 연다. 본사 추출본은 앱 분리 전과 글자 단위로 같다(검증). 셀러 전달 문서 `scripts/export-publishing/files-seller/` 는 아직 없다
+- **0단계 완료**(c639612 · 5aad659): 골격(원본 SCREEN_MAP 8그룹 27항목 · 임시 화면 `pendingScreen`) · 원본 시드 덤프 `src/pages/seller/seed/*.data.ts`(자동 생성 — 손대지 않는다 · 상품 60 · 결제 182 · 처리단위 183 …) · GNB 배지 원본 식(9·5·5·5·11·3·4·2·2·6)
+- **도구 `docs/seller/tools/`**(playwright-core 필요 · 원본은 기획 저장소를 sparse clone 해 `apps/admin-seller` 에서 `python -m http.server 5190`): 비교판 캡처 `capture-orig.mjs <출력폴더>`(48화면 png+json) · 시드 덤프 `orig-dump.mjs` → `gen-seed.mjs <seeds.json> src/pages/seller/seed <원본커밋>` · 기준일 FB_TODAY **2026-06-29**
+- **기획 변경 대장** `docs/seller/plan-changes.md` — ① 고객사 추가 기획 보드(https://claude.ai/artifact/CDPCWHnmQE7QVk9AwKcmLB · 셀러 5건: 네이버페이 표시·추가 연락처·수거 요청사항·환급 안내 문구·본사 쿠폰 무영향) ② 판정 회신 3·7·9~13차 미반영 7건(직영 계정 메뉴·스토어 문구 · 보증금 0원 · 환불 미리보기 · 변심 반품 출고비 · 방문 반납 버튼 · 판매 상세 추가 연락처)
+- **다음**: 대표 화면 발주 관리 목록·상세(대조 `docs/seller/pilot-saleProc.md` · GPT 의견 반영) — 사용자 결정 대기 후 작업
+- **원본 특이점(기획 확인 필요)**: 셀러 목록에 본사 자체 처리단위 6건 섞임 · 결제에 없는 처리단위 1건 · 표 결제금액(계산) ≠ 저장 amt
 
 ---
 
