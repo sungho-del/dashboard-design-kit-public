@@ -29,7 +29,10 @@
 - **상품·마케팅·게시판·시스템·대시보드 완료**(2026-11-04): `ProductsPage`(목록 · 가격 5칸 표에서 고침) · `ProductFormPage`(본사 상품 상세 복사 → 셀러 규칙 · 수정/등록 겸용 · Q-63) · `CouponPages` · `BoardPages`·`BoardDetailPages` · `SystemPages` · `SellerDashboardPage`(정답 `sellerDashboard.golden.ts`) — **원본 메뉴 27항목 전부 화면**(임시 자리 `SellerPendingPage` 삭제)
   - 직영 계정 미리보기(D-337 · Q-69) = 주소에 `?account=direct` — 숨김 메뉴 7개 · 스토어 안내 변경 · 이동해도 유지(`sellerAccount.ts` · GNB 는 `SellerGnb` 한 곳)
   - 결과·기획 확인 `docs/seller/plan-changes.md` ⑦
-- **다음**: 전체 UX 검수 → 전달 문서 `scripts/export-publishing/files-seller/` → 셀러 추출본 점검 → babycube-admin-seller PR(푸시는 사용자 `!`) → 보드의 본사 항목을 hq PR #1 에
+- **주문 상세(통합)** `/order-details/{주문번호}`(원본 `orderDetail`) · `/products/new` = 상품 등록 폼 — 셀러 화면 49(메뉴 27 + 상세 22)
+- **셀러 전달 준비 완료**(2026-11-04): 전달 문서 `scripts/export-publishing/files-seller/`(README · SCREENS · INTEGRATION) · 추출본 단독 typecheck·lint·테스트 1,654·build 통과 ·
+  `babycube-admin-seller` 로컬 브랜치 `feat/publishing`(origin/develop 82eb141 기준) 커밋 **2caba90**(publishing/ + tsconfig·eslint 제외 2줄 · 루트 tsc·test 594·check·next build 통과 · eslint 기존 14건) — **푸시·PR 전**(사용자 `!git push -u origin feat/publishing` 후 PR). PR 설명문 scratchpad `seller-pr-body.md`
+- **다음**: UX 검수 결과 반영 → 보드의 본사 항목(01 네이버페이·FAQ · 02 추가 연락처 · 06 본사 쿠폰 등록 폼)을 hq 에 반영해 hq PR #1 에 커밋 추가
 - **원본 특이점(기획 확인 필요)**: 셀러 목록에 본사 자체 처리단위 6건 섞임 · 결제에 없는 처리단위 1건 · 표 결제금액(계산) ≠ 저장 amt
 
 ---

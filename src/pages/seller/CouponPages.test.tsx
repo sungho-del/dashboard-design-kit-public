@@ -114,6 +114,14 @@ describe("쿠폰 등록/수정", () => {
     expect(onNavSelect).not.toHaveBeenCalled();
   });
 
+  it("적용 대상(전체·렌트·판매) — 정책 P-MKT-001 · 보드 06 · 기본 전체", async () => {
+    const { user } = renderAt(CouponFormPage, "/promo/new");
+    expect(screen.getByRole("radio", { name: "전체" })).toBeChecked();
+    await user.click(screen.getByRole("radio", { name: "렌트" }));
+    expect(screen.getByRole("radio", { name: "렌트" })).toBeChecked();
+    expect(screen.getByText(/\[렌트 전용\]/)).toBeInTheDocument();
+  });
+
   it("없는 쿠폰 — 찾을 수 없음", () => {
     renderAt(CouponFormPage, "/promo/CP-0000-00");
     expect(screen.getByText("찾을 수 없는 쿠폰입니다")).toBeInTheDocument();

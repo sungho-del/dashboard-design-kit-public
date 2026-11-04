@@ -36,6 +36,7 @@ import {
   NEW_PATH,
   STATUS_TONE,
   STAT_OPTIONS,
+  TARGET_OPTIONS,
   conditionOf,
   contentOf,
   couponStatusOf,
@@ -394,6 +395,15 @@ function CouponFormBody({
           />
         </FormField>
         <Help text={COUPON_COPY.minHelp} />
+        <FormField label="적용 대상" required group>
+          <SegmentedControl
+            className="self-start"
+            items={TARGET_OPTIONS}
+            value={draft.target}
+            onValueChange={(v) => set("target", v as CouponDraft["target"])}
+          />
+        </FormField>
+        <Help text={COUPON_COPY.targetHelp} />
       </Section>
 
       <Section title="사용 기간">

@@ -15,6 +15,8 @@ import { COUPONS, type SellerCoupon } from "./seed/store.data";
  * ## 원본과 다르게 둔 곳
  * - 수정 저장에도 신규와 같은 검사(쿠폰명·할인값)를 건다 — 원본 `efSave` 는 검사 없이 빈 쿠폰명도 저장했다
  * - 오류는 알림이 아니라 칸 아래(폼 규격 §29) · 문구는 원본 그대로
+ * - **적용 대상**(전체·렌트·판매) 칸을 더했다 — 원본 v0.4 폼에는 없지만 정책 P-MKT-001 「쿠폰 등록 폼에 적용 대상 입력」 ·
+ *   보드 06(본사 폼 = 셀러 폼 + …, 「적용 대상 아래」)이 전제한다. 셀러 개발 저장소 폼과 같은 문구. 시드에 값이 없어 「전체」로 연다
  * ====================================================================== */
 
 export const LIST_PATH = "/promo";
@@ -81,6 +83,8 @@ export interface CouponDraft {
   start: string;
   end: string;
   stat: "사용" | "사용중지";
+  /** 적용 대상 — 정책 P-MKT-001 · 보드 06(원본 v0.4 폼에는 없다). 시드에 값이 없어 「전체」로 연다 */
+  target: "전체" | "렌트" | "판매";
 }
 
 const digits = (v: number | string) =>
@@ -97,6 +101,7 @@ export const draftOf = (c?: SellerCoupon): CouponDraft =>
         start: c.start,
         end: c.end,
         stat: c.stat === "사용중지" ? "사용중지" : "사용",
+        target: "전체",
       }
     : {
         name: "",
@@ -107,6 +112,7 @@ export const draftOf = (c?: SellerCoupon): CouponDraft =>
         start: "",
         end: "",
         stat: "사용",
+        target: "전체",
       };
 
 export const NAME_MAX = 40;
@@ -127,6 +133,11 @@ export const DC_TYPES = [
   { value: "rate", label: "정률 (%)" },
   { value: "amt", label: "정액 (원)" },
 ];
+export const TARGET_OPTIONS = [
+  { value: "전체", label: "전체" },
+  { value: "렌트", label: "렌트" },
+  { value: "판매", label: "판매" },
+];
 export const STAT_OPTIONS = [
   { value: "사용", label: "사용" },
   { value: "사용중지", label: "사용중지" },
@@ -139,6 +150,8 @@ export const COUPON_COPY = {
   minPlaceholder: "최소 구매 금액 (선택)",
   minHelp:
     "입력한 **주문 금액 이상** 구매할 때만 쿠폰을 사용할 수 있습니다. 예) **50,000** 입력 시 **5만원 이상 구매** 시 사용 가능. 비우면 **구매 금액 조건 없음**.",
+  targetHelp:
+    "렌트 전용은 렌트 주문에만, 판매 전용은 구매 주문에만 적용됩니다. 사용자 몰 쿠폰 카드에 **[렌트 전용]**/**[구매 전용]** 배지로 보입니다.",
   periodHelp:
     "쿠폰을 사용할 수 있는 기간입니다. **종료일을 비우면 기한 없이 상시** 사용됩니다.",
   issuedHelp: "등록 시 오늘 날짜로 **발행일**이 기록됩니다.",
