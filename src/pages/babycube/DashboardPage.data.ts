@@ -89,7 +89,8 @@ export const asPeriod = (value: string): PeriodValue =>
  * ## 집계 계약 (GPT 검토 `dash-gpt-review.md` §2 — 바꾸지 말 것)
  * - **결제 = 주문번호**(`orderNo`). 처리단위가 여럿인 결제를 여러 번 세지 않는다
  * - 렌트 계열 = 렌트 처리단위를 **포함한** 결제 수 · 판매도 같다.
- *   혼합 결제는 **양쪽에 한 번씩** 나온다 → 칩 합 ≠ 기간 합계(전체 = 고유 결제 수). 정상이다
+ *   렌트와 판매는 한 번에 결제되지 않아(디자인 §3 #19 · `DM` #23) 칩 합 = 기간 합계(전체 = 고유 결제 수).
+ *   계산은 혼합 결제가 와도 양쪽에 한 번씩 세는 규칙 그대로다
  * - 금액 = 처리단위별 `payTotalOf`(주문 상세 「결제금액」과 같은 함수) 합. 보증금 제외 ·
  *   취소·반품 상태여도 결제 기록을 지우거나 환불을 빼지 않는다(순매출 차트가 아니다)
  * - 기준일 = `DEMO_TODAY`(시연 기준일) 포함 7/30/90일 **연속** — 결제가 없는 날도 0 으로 채운다
@@ -212,14 +213,13 @@ export const revenueTotals = byPeriod((t) => t.revenueTotal);
  *
  * ⚠️ **원본 v0.4 에 없는 숫자다**(원본은 전사 단일 계열 · 합계 없음, proto.html:3081~3084).
  * 칩과 기간 합계는 사용자 결정(2026-09-18 · 2026-11-03 유지)으로 둔 예외다.
- * 건수 칩 합은 기간 합계와 다를 수 있다 — 혼합 결제가 양쪽에 들기 때문이다(`COUNT_NOTE`).
+ * 렌트와 판매는 한 번에 결제되지 않아 건수 칩 합이 기간 합계와 같다(디자인 §3 #19).
  */
 export const orderCountSeriesTotals = byPeriod((t) => t.countSeries);
 export const revenueSeriesTotals = byPeriod((t) => t.revenueSeries);
 
-/** 칩 아래 한 줄 — 무엇을 셌는지. 칩 합과 합계가 다른 이유를 여기서 말한다 */
-export const COUNT_NOTE =
-  "결제 기준 · 렌트와 판매를 함께 결제하면 양쪽에 1건씩";
+/** 칩 아래 한 줄 — 무엇을 셌는지(디자인 §3 #19) */
+export const COUNT_NOTE = "결제 기준";
 export const REVENUE_NOTE = "결제금액 기준 · 보증금 제외";
 
 /** 기간 → `2026.09.20~2026.10.19` (접근 설명용 — 연도 포함) */

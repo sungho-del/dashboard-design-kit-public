@@ -398,15 +398,20 @@ describe("BabycubeDashboardPage (S01 대시보드)", () => {
       expect(revenueChart()).toHaveAccessibleName(/2026\.09\.20~/);
     });
 
-    it("칩 아래 한 줄이 무엇을 셌는지 말한다 — 혼합 결제 때문에 칩 합과 합계가 다를 수 있다", () => {
+    it("칩 아래 한 줄이 무엇을 셌는지 말한다 — 「결제 기준」(디자인 §3 #19)", () => {
       renderPage();
-      expect(
-        screen.getByText(
-          "결제 기준 · 렌트와 판매를 함께 결제하면 양쪽에 1건씩",
-        ),
-      ).toBeVisible();
+      expect(screen.getByText("결제 기준")).toBeVisible();
       expect(screen.getByText("결제금액 기준 · 보증금 제외")).toBeVisible();
     });
+
+    /** 디자인 §3 #19 · `DM` #23 — 렌트와 판매는 한 번에 결제되지 않아 칩 합이 기간 합계와 같다 */
+    it.each(["1w", "1m", "3m"] as const)(
+      "%s 건수 칩 합 = 기간 합계",
+      (period) => {
+        const { rent, sale } = orderCountSeriesTotals[period];
+        expect(rent + sale).toBe(orderCountTotals[period]);
+      },
+    );
 
     it("두 차트 모두 그라디언트 면으로 그린다", () => {
       renderPage();

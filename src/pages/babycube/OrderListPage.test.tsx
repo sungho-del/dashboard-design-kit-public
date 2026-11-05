@@ -216,15 +216,16 @@ describe("OrderListPage (BabyCube S08 주문 목록)", () => {
 
     /** 원본 `orderRowDetail` — 주문번호가 **그 처리단위의** 상세로 간다(도착은 App 테스트가 본다) */
     it("주문번호를 누르면 그 처리단위의 상세 경로로 간다", async () => {
-      const { user, onNavSelect } = renderPage("?q=20261017200511");
+      const { user, onNavSelect } = renderPage("?q=20261012131744");
 
-      /* 같은 주문번호의 렌트(U-R03)·판매(U-S03)는 서로 다른 상세로 간다 */
-      await user.click(screen.getByRole("button", { name: "20261017200511" }));
-      expect(onNavSelect).toHaveBeenLastCalledWith("/orders-all/U-R03");
-
-      await user.click(typeCard("판매"));
-      await user.click(screen.getByRole("button", { name: "20261017200511" }));
-      expect(onNavSelect).toHaveBeenLastCalledWith("/orders-all/U-S03");
+      /* 같은 주문번호의 렌트 두 건(U-R09·U-R22)은 서로 다른 상세로 간다 */
+      const [first, second] = screen.getAllByRole("button", {
+        name: "20261012131744",
+      });
+      await user.click(first);
+      expect(onNavSelect).toHaveBeenLastCalledWith("/orders-all/U-R09");
+      await user.click(second);
+      expect(onNavSelect).toHaveBeenLastCalledWith("/orders-all/U-R22");
     });
 
     /** 링크 글자만 눌려 「못 들어가는 곳인가」 헷갈리던 것 — 행 어디를 눌러도 간다(사용자 결정 2026-11-02) */
