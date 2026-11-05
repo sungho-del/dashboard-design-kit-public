@@ -22,7 +22,7 @@ import {
  * | `findApplication`     | 경로의 id → 신청 레코드                          |
  * | `SECTIONS`            | 섹션 제목 2종 (원본 `sellerReview.form` 순서)    |
  * | `KIND_LABEL`          | 상품 취급 유형 어휘 (`렌트+판매` …)              |
- * | `COMMISSION_HINT`·`HYGIENE_HINT` | 심사 결과 안내 문구 (원본 그대로)     |
+ * | `COMMISSION_HINT`      | 수수료율 안내 문구 (개발 그대로) — 위생인증 안내는 부록 A C73 으로 지웠다 |
  *
  * ## 뼈대가 이 파일에 기대하는 계약
  * - **승인요청 상태만 심사할 수 있다**(`REVIEWABLE_STATUS`). 이미 승인·반려된 건은
@@ -57,7 +57,3 @@ export const COMMISSION_HINT =
 
 /** 수수료율 자리표시 — 개발 그대로 */
 export const COMMISSION_PLACEHOLDER = "0.01~100";
-
-/** 위생인증 안내 — 원본 문구 그대로 */
-export const HYGIENE_HINT =
-  "위생인증은 입점 승인 후 관리하는 항목입니다. 기본값은 '인증안됨'이며 승인 셀러에 한해 부여합니다.";

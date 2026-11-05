@@ -410,15 +410,15 @@ export const APPLICATIONS: Application[] = ROWS.map(
 
 /**
  * 승인·반려 창과 알림 문구 — 원본 v0.4(`gateApprove` · `_MODAL_CFG.reject` · `confirmReject` ·
- * `gateApproveGo`) 그대로다. **목록 일괄과 상세가 같은 문구를 쓴다.**
+ * `gateApproveGo`) 자리. 창 본문·경고·반려 입력칸·반려 안내는 부록 A C74~C77 문구다.
+ * **목록 일괄과 상세가 같은 문구를 쓴다.**
  * 승인 창의 셀러별 수수료율·위생인증 입력은 원본에 없는 우리 추가다(위 계약 참고).
  */
 export const REVIEW_COPY = {
   approveTitle: (count: number) =>
     `입점 심사 승인${count > 1 ? ` (${count}건)` : ""}`,
-  approveBody:
-    "승인하면 입점 상태로 전환되어 셀러가 상품을 등록·판매할 수 있게 됩니다.",
-  approveWarning: "승인 후에는 이 화면에서 되돌릴 수 없습니다.",
+  approveBody: "승인하면 셀러 계정이 만들어집니다.",
+  approveWarning: "승인 후에는 되돌릴 수 없습니다.",
   /* 일괄 승인 창에만 — 셀러별로 정할 값이 있다는 것을 먼저 말한다 */
   approveRates: "셀러별 수수료율과 위생인증을 확정해 주세요.",
   /** 일괄 승인 — 개발 「모든 셀러의 수수료율을 확인해 주세요. {COMMISSION_RATE_MESSAGE}」 */
@@ -428,9 +428,9 @@ export const REVIEW_COPY = {
     count > 1 ? `${count}건 승인 처리되었습니다.` : "승인 처리되었습니다.",
   rejectTitle: (count: number) =>
     `입점 반려 사유 입력${count > 1 ? ` (${count}건)` : ""}`,
-  rejectPlaceholder:
-    "반려 사유를 입력하세요 (예: 사업자등록증 미비, KC 미인증, 취급 품목 부적합 등)",
-  rejectNote: "입력한 사유는 입점 심사 상세에 기록됩니다.",
+  rejectPlaceholder: "예: 사업자등록증 확인 불가",
+  rejectNote:
+    "반려 사유는 알림톡으로 신청자에게 전달됩니다. 반려 후에는 되돌릴 수 없습니다.",
   rejectEmpty: "반려 사유를 입력해주세요.",
   rejectConfirm: "반려 처리",
   rejected: (count: number) =>

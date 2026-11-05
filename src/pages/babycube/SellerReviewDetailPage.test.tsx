@@ -181,13 +181,13 @@ describe("SellerReviewDetailPage (S04-D 입점 심사 상세)", () => {
       ).toBeVisible();
     });
 
-    it("위생인증은 기본 인증안됨이고 안내 문구를 붙인다", () => {
+    it("위생인증은 기본 인증안됨이고 안내 문구는 없다 (부록 A C73 삭제)", () => {
       renderAt(REQUESTED);
 
       expect(screen.getByRole("radio", { name: "인증안됨" })).toBeChecked();
       expect(
-        screen.getByText(/위생인증은 입점 승인 후 관리하는 항목입니다/),
-      ).toBeVisible();
+        screen.queryByText(/위생인증은 입점 승인 후 관리하는 항목입니다/),
+      ).toBeNull();
     });
 
     /** 원본: 승인 건은 「승인일」 줄만 — 해당 없는 반려일을 '-' 로 세우지 않는다 */
@@ -289,8 +289,12 @@ describe("SellerReviewDetailPage (S04-D 입점 심사 상세)", () => {
       await user.click(screen.getByRole("button", { name: "승인" }));
 
       const dialog = screen.getByRole("dialog", { name: "입점 심사 승인" });
+      /* 목록 일괄과 같은 창 문구(부록 A C74 · C75) */
       expect(
-        within(dialog).getByText("승인 후에는 이 화면에서 되돌릴 수 없습니다."),
+        within(dialog).getByText("승인하면 셀러 계정이 만들어집니다."),
+      ).toBeVisible();
+      expect(
+        within(dialog).getByText("승인 후에는 되돌릴 수 없습니다."),
       ).toBeVisible();
 
       await user.click(

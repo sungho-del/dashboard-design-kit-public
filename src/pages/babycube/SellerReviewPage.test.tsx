@@ -474,12 +474,10 @@ describe("SellerReviewPage (S04 입점 심사)", () => {
 
       const dialog = screen.getByRole("dialog", { name: "입점 심사 승인" });
       expect(
-        within(dialog).getByText(
-          "승인하면 입점 상태로 전환되어 셀러가 상품을 등록·판매할 수 있게 됩니다.",
-        ),
+        within(dialog).getByText("승인하면 셀러 계정이 만들어집니다."),
       ).toBeVisible();
       expect(
-        within(dialog).getByText("승인 후에는 이 화면에서 되돌릴 수 없습니다."),
+        within(dialog).getByText("승인 후에는 되돌릴 수 없습니다."),
       ).toBeVisible();
     });
 
@@ -672,10 +670,12 @@ describe("SellerReviewPage (S04 입점 심사)", () => {
       });
       expect(within(dialog).getByRole("textbox")).toHaveAttribute(
         "placeholder",
-        "반려 사유를 입력하세요 (예: 사업자등록증 미비, KC 미인증, 취급 품목 부적합 등)",
+        "예: 사업자등록증 확인 불가",
       );
       expect(
-        within(dialog).getByText("입력한 사유는 입점 심사 상세에 기록됩니다."),
+        within(dialog).getByText(
+          "반려 사유는 알림톡으로 신청자에게 전달됩니다. 반려 후에는 되돌릴 수 없습니다.",
+        ),
       ).toBeVisible();
     });
 

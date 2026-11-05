@@ -33,7 +33,6 @@ import {
   COMMISSION_HINT,
   COMMISSION_PLACEHOLDER,
   findApplication,
-  HYGIENE_HINT,
   isReviewable,
   KIND_LABEL,
   SECTIONS,
@@ -402,7 +401,7 @@ function SellerReviewDetailBody({
               />
             </FormField>
             {/* `self-start` — 세로 배치가 선택 버튼을 폭 가득 늘리지 않게(셀러 상세와 같다) */}
-            <FormField label="위생인증" group description={HYGIENE_HINT}>
+            <FormField label="위생인증" group>
               <SegmentedControl
                 className="self-start"
                 items={HYGIENE_OPTIONS}
