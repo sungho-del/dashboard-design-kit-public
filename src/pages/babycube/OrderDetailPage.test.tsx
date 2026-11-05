@@ -632,12 +632,13 @@ describe("클레임 모드", () => {
 
       expect(labelsOf("refund")).toEqual([
         "결제금액",
-        "반품 배송비",
+        "반품 배송비(편도) 차감",
         "환불 예정액",
       ]);
       expect(lines["결제금액"]).toBe("119,000원");
-      expect(lines["반품 배송비"]).toBe("\u221212,000원");
-      expect(hints["반품 배송비"]).toBe("편도 · 고객 귀책 · 환불액에서 차감");
+      expect(lines["반품 배송비(편도) 차감"]).toBe("\u221212,000원");
+      /* 부록 A C44 「반품 배송비(편도) 차감 (고객 귀책)」 — 괄호는 보조 글자 */
+      expect(hints["반품 배송비(편도) 차감"]).toBe("고객 귀책");
       expect(lines["환불 예정액"]).toBe("107,000원");
       expect(
         Object.keys(hints).some((label) =>
@@ -656,13 +657,13 @@ describe("클레임 모드", () => {
       expect(labelsOf("pay")).toEqual(["결제금액"]);
       expect(labelsOf("depositRefund")).toEqual([
         "보증금",
-        "반품 배송비",
+        "반품 배송비(편도) 차감",
         "보증금 반환 예정액",
       ]);
       expect(lines["보증금 반환 예정액"]).toBe("142,000원");
-      expect(amount(lines["보증금"]) - amount(lines["반품 배송비"])).toBe(
-        142000,
-      );
+      expect(
+        amount(lines["보증금"]) - amount(lines["반품 배송비(편도) 차감"]),
+      ).toBe(142000);
       expect(valueOf("귀책 판정")).toBe("고객 귀책");
     });
 
@@ -688,7 +689,7 @@ describe("클레임 모드", () => {
       const { lines } = await openStatement(user);
 
       expect(lines["보증금 반환 완료"]).toBe("130,000원");
-      expect(lines["반품 배송비"]).toBeUndefined();
+      expect(lines["반품 배송비(편도) 차감"]).toBeUndefined();
       expect(valueOf("배송비 부담")).toBe("판매자 부담");
       expect(valueOf("보증금 상태")).toBe("전액환급");
     });

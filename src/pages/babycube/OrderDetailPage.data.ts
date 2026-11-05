@@ -651,12 +651,15 @@ const claimBlocksOf = (order: Order): CalcBlock[] => {
     ];
   }
 
-  /* 반품 — 렌트는 보증금, 판매는 결제금액이 기준이다 */
-  const feeLines = (from: string) =>
+  /*
+   * 반품 — 렌트는 보증금, 판매는 결제금액이 기준이다.
+   * 줄 이름은 부록 A C44 「반품 배송비(편도) 차감 (고객 귀책)」 — 괄호 설명은 보조 글자로(렌트·판매 같은 줄)
+   */
+  const feeLines =
     fee > 0
       ? [
-          calcLine("returnFee", "반품 배송비", less(fee), {
-            hint: `편도 · 고객 귀책 · ${from} 차감`,
+          calcLine("returnFee", "반품 배송비(편도) 차감", less(fee), {
+            hint: "고객 귀책",
           }),
         ]
       : [];
@@ -667,7 +670,7 @@ const claimBlocksOf = (order: Order): CalcBlock[] => {
         key: "depositRefund",
         label: "보증금",
         emphasis: true,
-        lines: [depositBase, ...feeLines("보증금에서"), depositResult],
+        lines: [depositBase, ...feeLines, depositResult],
       },
     ];
   }
@@ -678,7 +681,7 @@ const claimBlocksOf = (order: Order): CalcBlock[] => {
       emphasis: true,
       lines: [
         payLineOf(order, "subtotal"),
-        ...feeLines("환불액에서"),
+        ...feeLines,
         calcLine(
           "refund",
           done ? "환불 완료" : "환불 예정액",
