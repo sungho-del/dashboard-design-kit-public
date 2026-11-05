@@ -126,8 +126,13 @@ import { ProductRejectModal } from "./shared/ProductRejectModal";
  * - 반려는 사유 필수 — 상품 목록과 **같은 창**(`shared/ProductRejectModal`). 승인은 확인 창 없이
  * - [수정 저장] 은 원본 `pfValidate` 를 통과해야 한다. 통과하면 알림 후 **목록으로 간다**(원본 흐름)
  * - [취소]·[목록] 은 확인 없이 목록으로 간다(원본 `pfCancel`)
- * - 등록 주체·유형도 고칠 수 있다(원본 — 2026-10-19 사용자 결정 「기획대로 열기」).
- *   유형을 바꾸면 트리가 달라 카테고리를 비운다(원본은 비우지 않아 다른 유형의 분류가 남았다)
+ * - 등록 주체도 고칠 수 있다(원본 — 2026-10-19 사용자 결정 「기획대로 열기」)
+ * - **입점 상품은 금액 칸·유형을 잠근다**(디자인 §3 #1·#2 · 판정 Q20-3·4 — 개발 `priceLocked`).
+ *   잠그는 칸: 렌트 원가·렌트 할인·기본 렌트일·보증금·기간 옵션 전부·판매 원가·판매 할인·
+ *   배송비·회수 배송비·픽업/반납 요금(금액·「무료」)·반품/교환 배송비·옵션가(행·일괄).
+ *   여는 칸: 렌트 수량·재고·옵션 재고·택배사·방문 수령/공항 픽업 체크·주소록·옵션명/값/사용여부(D-296).
+ *   안내는 머리 상품 정보 줄 아래 한 번(부록 A B2) · 유형 칸은 잠금 표시만(부록 A C1 안내 삭제)
+ * - 유형을 바꾸면 트리가 달라 카테고리를 비운다(원본은 비우지 않아 다른 유형의 분류가 남았다)
  *
  * ## 퍼블 범위
  * 입력·계산·행 추가/삭제·슬롯 토글은 **이 상품 본문의 state** 만 바꾼다. 저장·승인·반려는 알림만 띄우고,
@@ -267,10 +272,13 @@ function ReadField({
 function FeeField({
   label,
   fee,
+  disabled = false,
   onChange,
 }: {
   label: string;
   fee: Fee;
+  /** 입점 상품 금액 잠금 — 금액과 「무료」 체크를 함께 잠근다(개발 `FeeControl`) */
+  disabled?: boolean;
   onChange: (patch: Partial<Fee>) => void;
 }) {
   return (
@@ -279,7 +287,7 @@ function FeeField({
         <Input
           inputMode="numeric"
           placeholder="숫자만 입력"
-          disabled={fee.free}
+          disabled={disabled || fee.free}
           value={fee.free ? "" : withCommas(fee.amount)}
           onChange={(event) =>
             onChange({ amount: onlyDigits(event.target.value) })
@@ -293,6 +301,7 @@ function FeeField({
         /* `Checkbox` 는 보이는 글자로 이름을 잇는다(aria-labelledby). 칸마다 같은 「무료」 라 그 연결을 풀고 칸 이름을 붙인다 */
         aria-labelledby={undefined}
         aria-label={`${label} 무료`}
+        disabled={disabled}
         checked={fee.free}
         onChange={(event) => onChange({ free: event.target.checked })}
       />
@@ -453,6 +462,14 @@ function ProductDetailBody({
 
   const errors = tried ? validate(draft) : {};
   const rent = draft.mode === "rent";
+  /*
+    입점 상품의 금액·유형은 입점사 소관 — 값은 보이되 고칠 수 없다(디자인 §3 #1·#2 · 판정 Q20-3·4 ·
+    개발 `priceLocked`). 렌트 수량·재고·옵션 재고·택배사·방문 수령/공항 픽업 체크·주소록·옵션명/값은 연다(D-296)
+  */
+  const priceLocked = product.source === "seller";
+  /** 잠근 세그먼트 — 버튼마다 잠근다(`SegmentedControl` 은 항목 단위 `disabled`) */
+  const lockable = <T extends { value: string; label: string }>(items: T[]) =>
+    items.map((item) => ({ ...item, disabled: priceLocked }));
 
   /* 첫 오류로 이동 — 섹션을 펼친 **다음 그림**에서야 입력칸이 생기므로 효과에서 옮긴다 */
   useEffect(() => {
@@ -711,7 +728,7 @@ function ProductDetailBody({
         <FormField label={label} group>
           <SegmentedControl
             className="self-start"
-            items={ON_OFF}
+            items={lockable(ON_OFF)}
             value={on ? "on" : "off"}
             onValueChange={(next) =>
               set(kind === "rent" ? "rentDiscOn" : "saleDiscOn", next === "on")
@@ -729,6 +746,7 @@ function ProductDetailBody({
                 className="w-20"
                 aria-label={`${label} 단위`}
                 options={DISCOUNT_TYPES}
+                disabled={priceLocked}
                 value={type}
                 onValueChange={(next) =>
                   set(
@@ -743,6 +761,7 @@ function ProductDetailBody({
               id={fieldId(errorKey)}
               inputMode="numeric"
               placeholder={kind === "rent" ? "렌트가에서" : "판매가에서"}
+              disabled={priceLocked}
               value={type === "amt" ? withCommas(value) : value}
               invalid={Boolean(errors[errorKey])}
               onChange={(event) =>
@@ -772,10 +791,23 @@ function ProductDetailBody({
         />
       }
       header={
-        /* 배지는 **저장된** 상태다(회원·셀러 상세와 같다) — 화면에서 고친 전시 선택과 섞지 않는다 */
+        /*
+          배지는 **저장된** 상태다(회원·셀러 상세와 같다) — 화면에서 고친 전시 선택과 섞지 않는다.
+          입점 상품은 상품 정보 줄 아래에 금액 잠금 안내 한 줄(부록 A B2 「상단 상품 정보 줄에 1번만」).
+          줄마다 따로 말줄임한다 — 한 줄로 이으면 긴 상품명에서 안내가 잘린다
+        */
         <PageHeader
           title={COPY.title}
-          description={`${product.name} · ${product.id} · ${product.seller}`}
+          description={
+            <>
+              <span className="block truncate">
+                {`${product.name} · ${product.id} · ${product.seller}`}
+              </span>
+              {priceLocked ? (
+                <span className="block truncate">{COPY.priceLock}</span>
+              ) : null}
+            </>
+          }
           badges={
             <>
               <Tag tone={statusMeta.tone} dot>
@@ -836,12 +868,13 @@ function ProductDetailBody({
         ) : (
           <>
             <FormField label="유형" required group>
+              {/* 입점 상품은 잠근 세그먼트만 — 안내 문장은 두지 않는다(부록 A C1 「(삭제) · 잠금 표시만」) */}
               <SegmentedControl
                 className="self-start"
-                items={[
+                items={lockable([
                   { value: "rent", label: "렌트" },
                   { value: "sale", label: "판매" },
-                ]}
+                ])}
                 value={draft.mode}
                 onValueChange={(next) => changeMode(next as ProductMode)}
               />
@@ -988,6 +1021,7 @@ function ProductDetailBody({
                 id={fieldId("rentBase")}
                 inputMode="numeric"
                 placeholder="0"
+                disabled={priceLocked}
                 value={withCommas(draft.rentBase)}
                 invalid={Boolean(errors.rentBase)}
                 onChange={(event) =>
@@ -1014,6 +1048,7 @@ function ProductDetailBody({
               <Input
                 inputMode="numeric"
                 placeholder="0"
+                disabled={priceLocked}
                 value={draft.baseRentDays}
                 onChange={(event) =>
                   set("baseRentDays", onlyDigits(event.target.value))
@@ -1046,6 +1081,7 @@ function ProductDetailBody({
                 id={fieldId("deposit")}
                 inputMode="numeric"
                 placeholder="0"
+                disabled={priceLocked}
                 value={withCommas(draft.deposit)}
                 invalid={Boolean(errors.deposit)}
                 onChange={(event) =>
@@ -1056,7 +1092,7 @@ function ProductDetailBody({
             <FormField label="기간 옵션" group>
               <SegmentedControl
                 className="self-start"
-                items={ON_OFF}
+                items={lockable(ON_OFF)}
                 value={draft.periodOn ? "on" : "off"}
                 onValueChange={(next) => set("periodOn", next === "on")}
               />
@@ -1082,6 +1118,7 @@ function ProductDetailBody({
                         aria-label={`${label} 일수`}
                         inputMode="numeric"
                         placeholder="일수"
+                        disabled={priceLocked}
                         value={row.days}
                         invalid={Boolean(errors.periods)}
                         onChange={(event) =>
@@ -1099,6 +1136,7 @@ function ProductDetailBody({
                         aria-label={`${label} 장기 렌트 할인가`}
                         inputMode="numeric"
                         placeholder="숫자만 입력"
+                        disabled={priceLocked}
                         value={withCommas(row.price)}
                         invalid={Boolean(errors.periods)}
                         onChange={(event) =>
@@ -1113,6 +1151,7 @@ function ProductDetailBody({
                         variant="ghost"
                         size="small"
                         label={`${label} 삭제`}
+                        disabled={priceLocked}
                         onClick={() => removePeriod(row.id)}
                         icon={<X strokeWidth={1.2} aria-hidden />}
                       />
@@ -1149,7 +1188,7 @@ function ProductDetailBody({
                 ) : null}
                 <div className="flex flex-wrap items-center gap-2">
                   <TextButton
-                    disabled={draft.periods.length >= PERIOD_MAX}
+                    disabled={priceLocked || draft.periods.length >= PERIOD_MAX}
                     onClick={addPeriod}
                   >
                     <Plus size={16} strokeWidth={1.2} aria-hidden />
@@ -1180,6 +1219,7 @@ function ProductDetailBody({
                 id={fieldId("saleBase")}
                 inputMode="numeric"
                 placeholder="0"
+                disabled={priceLocked}
                 value={withCommas(draft.saleBase)}
                 invalid={Boolean(errors.saleBase)}
                 onChange={(event) =>
@@ -1638,12 +1678,14 @@ function ProductDetailBody({
             <FeeField
               label="배송비"
               fee={draft.shipFee}
+              disabled={priceLocked}
               onChange={(patch) => setFee("shipFee", patch)}
             />
             {rent ? (
               <FeeField
                 label="회수 배송비"
                 fee={draft.collectFee}
+                disabled={priceLocked}
                 onChange={(patch) => setFee("collectFee", patch)}
               />
             ) : null}
@@ -1651,6 +1693,7 @@ function ProductDetailBody({
               <Input
                 inputMode="numeric"
                 placeholder="숫자만 입력"
+                disabled={priceLocked}
                 value={withCommas(draft.returnFee)}
                 onChange={(event) =>
                   set("returnFee", onlyDigits(event.target.value))
@@ -1661,6 +1704,7 @@ function ProductDetailBody({
               <Input
                 inputMode="numeric"
                 placeholder="숫자만 입력"
+                disabled={priceLocked}
                 value={withCommas(draft.exchangeFee)}
                 onChange={(event) =>
                   set("exchangeFee", onlyDigits(event.target.value))
@@ -1723,12 +1767,14 @@ function ProductDetailBody({
                 <FeeField
                   label="픽업 요금"
                   fee={draft.pickupFee}
+                  disabled={priceLocked}
                   onChange={(patch) => setFee("pickupFee", patch)}
                 />
                 {rent ? (
                   <FeeField
                     label="반납 요금"
                     fee={draft.pickupReturnFee}
+                    disabled={priceLocked}
                     onChange={(patch) => setFee("pickupReturnFee", patch)}
                   />
                 ) : null}
@@ -1782,12 +1828,14 @@ function ProductDetailBody({
                 <FeeField
                   label="공항 픽업 요금"
                   fee={draft.airportFee}
+                  disabled={priceLocked}
                   onChange={(patch) => setFee("airportFee", patch)}
                 />
                 {rent ? (
                   <FeeField
                     label="공항 반납 요금"
                     fee={draft.airportReturnFee}
+                    disabled={priceLocked}
                     onChange={(patch) => setFee("airportReturnFee", patch)}
                   />
                 ) : null}
@@ -1951,6 +1999,7 @@ function ProductDetailBody({
                       aria-label="일괄 옵션가"
                       inputMode="numeric"
                       placeholder="옵션가"
+                      disabled={priceLocked}
                       value={withCommas(bulkPrice)}
                       onChange={(event) =>
                         setBulkPrice(onlyDigits(event.target.value))
@@ -2055,6 +2104,7 @@ function ProductDetailBody({
                                     className="w-28"
                                     aria-label={`${name} 옵션가`}
                                     inputMode="numeric"
+                                    disabled={priceLocked}
                                     value={withCommas(row.price)}
                                     onChange={(event) =>
                                       setOptionRow(key, {

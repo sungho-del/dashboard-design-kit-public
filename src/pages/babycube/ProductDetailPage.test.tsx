@@ -113,6 +113,86 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
     });
   });
 
+  /** 디자인 §3 #1 · 판정 Q20-3·4 · 부록 A B2 — 값은 보이되 고칠 수 없다(개발 `priceLocked`) */
+  describe("입점 상품 금액 칸 잠금", () => {
+    const LOCK_HELP =
+      "입점 상품의 금액은 입점사가 정합니다. 고칠 곳은 하단 바의 [반려 처리]로 알려 주세요.";
+
+    it("안내는 머리 상품 정보 줄 아래 한 번만 — 섹션마다 되풀이하지 않는다", () => {
+      renderAt("BL240814");
+
+      expect(within(header()).getByText(LOCK_HELP)).toBeVisible();
+      expect(screen.getAllByText(LOCK_HELP)).toHaveLength(1);
+    });
+
+    it("렌트 금액 칸은 값을 보인 채 잠기고, 렌트 수량은 열려 있다", async () => {
+      const { user } = renderAt("BL240814");
+
+      expect(textbox("렌트 원가")).toHaveValue("1,500");
+      for (const name of [
+        "렌트 원가",
+        "렌트 할인 값",
+        "기본 렌트일",
+        "보증금",
+        "기간 옵션 1 일수",
+        "기간 옵션 1 장기 렌트 할인가",
+      ])
+        expect(textbox(name)).toBeDisabled();
+      expect(
+        screen.getByRole("combobox", { name: "렌트 할인 단위" }),
+      ).toBeDisabled();
+      for (const group of ["렌트 할인", "기간 옵션"])
+        for (const radio of within(
+          screen.getByRole("radiogroup", { name: group }),
+        ).getAllByRole("radio"))
+          expect(radio).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "기간 옵션 추가" }),
+      ).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "기간 옵션 1 삭제" }),
+      ).toBeDisabled();
+
+      expect(textbox("렌트 수량")).toBeEnabled();
+      await user.clear(textbox("렌트 수량"));
+      await user.type(textbox("렌트 수량"), "2");
+      expect(textbox("렌트 수량")).toHaveValue("2");
+    });
+
+    it("배송·옵션의 금액은 잠기고, 택배사·수령 방법·옵션명·재고는 열려 있다", () => {
+      renderAt("BL240814");
+
+      for (const name of [
+        "배송비",
+        "회수 배송비",
+        "반품배송비 (편도)",
+        "교환배송비 (왕복)",
+        "기본 구성 옵션가",
+        "일괄 옵션가",
+      ])
+        expect(textbox(name)).toBeDisabled();
+
+      expect(screen.getByRole("combobox", { name: "택배사" })).toBeEnabled();
+      expect(
+        screen.getByRole("checkbox", { name: /방문 수령 추가 제공/ }),
+      ).toBeEnabled();
+      expect(
+        screen.getByRole("checkbox", { name: /공항 픽업 추가 제공/ }),
+      ).toBeEnabled();
+      expect(textbox("옵션 1 옵션명")).toBeEnabled();
+      expect(textbox("기본 구성 재고수량")).toBeEnabled();
+      expect(textbox("일괄 재고수량")).toBeEnabled();
+    });
+
+    it("판매 상품은 판매 원가·판매 할인이 잠기고 재고 수량은 열려 있다", () => {
+      renderAt("KB820417");
+
+      expect(textbox("판매 원가")).toBeDisabled();
+      expect(textbox("판매 할인 값")).toBeDisabled();
+      expect(textbox("재고 수량")).toBeEnabled();
+    });
+  });
+
   describe("섹션 구성 — 렌트·판매가 서로 대체된다", () => {
     it("렌트는 「가격 · 렌트 기간」 과 렌트 수량, 판매는 「가격」 과 재고 수량", () => {
       renderAt("BL240814");
@@ -144,8 +224,8 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
   });
 
   describe("가격 계산 (원본 `pfDiscAbs` · 원/일)", () => {
-    it("렌트가 = 원가 − 할인, 최종 렌트 금액 = 렌트가 × 기본 렌트일", async () => {
-      const { user } = renderAt("BL240814");
+    it("렌트가 = 원가 − 할인, 최종 렌트 금액 = 렌트가 × 기본 렌트일", () => {
+      renderAt("BL240814");
       const price = section(/가격 · 렌트 기간/);
 
       expect(within(price).getByText("1,300원/일")).toBeVisible();
@@ -159,35 +239,6 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
       expect(within(finalRow()).getByText("39,000원")).toBeVisible();
       expect(
         within(price).getByText("렌트가 1,300원/일 × 기본 렌트일 30일"),
-      ).toBeVisible();
-
-      await user.clear(textbox("기본 렌트일"));
-      await user.type(textbox("기본 렌트일"), "10");
-      expect(within(finalRow()).getByText("13,000원")).toBeVisible();
-
-      await user.clear(textbox("기본 렌트일"));
-      expect(
-        within(price).getByText("위 기본 렌트일을 입력하면 계산됩니다."),
-      ).toBeVisible();
-    });
-
-    it("정률 할인은 원가의 % 를 반올림한 원 단위다", async () => {
-      const { user } = renderAt("BL240814");
-
-      await user.click(
-        screen.getByRole("combobox", { name: "렌트 할인 단위" }),
-      );
-      await user.click(
-        within(await screen.findByRole("listbox")).getByRole("option", {
-          name: "%",
-        }),
-      );
-      await user.clear(textbox("렌트 할인 값"));
-      await user.type(textbox("렌트 할인 값"), "10");
-
-      /* 1,500 × 10% = 150 */
-      expect(
-        within(section(/가격 · 렌트 기간/)).getByText("1,350원/일"),
       ).toBeVisible();
     });
 
@@ -209,29 +260,6 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
       expect(within(first).getByText("39,000원")).toBeVisible();
       expect(within(first).getByText("35,100원")).toBeVisible();
       expect(within(first).getByText("10% 할인")).toBeVisible();
-    });
-
-    /** 원본은 6번째에 경고 창을 띄우려 하지만 그려지지 않는다 — 잠그고 이유를 곁에 적는다 */
-    it("5개가 차면 [추가] 가 잠기고 이유가 늘 보인다 · 지우면 다시 열린다", async () => {
-      const { user } = renderAt("BL240814");
-      const add = () => screen.getByRole("button", { name: "기간 옵션 추가" });
-
-      await user.click(add());
-      await user.click(add());
-      await user.click(add());
-
-      expect(
-        screen.getAllByRole("group", { name: /^기간 옵션 \d$/ }),
-      ).toHaveLength(5);
-      expect(add()).toBeDisabled();
-      expect(
-        screen.getByText(/기간 옵션은 최대 5개까지 등록할 수 있습니다/),
-      ).toBeVisible();
-
-      await user.click(
-        screen.getByRole("button", { name: "기간 옵션 5 삭제" }),
-      );
-      expect(add()).toBeEnabled();
     });
   });
 
@@ -263,20 +291,15 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
   });
 
   describe("유형", () => {
-    it("유형을 바꾸면 카테고리를 비우고, 가격·수량 섹션이 그 유형 것으로 바뀐다", async () => {
+    /** 디자인 §3 #2 · 부록 A C1 — 잠금 표시만, 안내 문장은 없다 */
+    it("입점 상품은 유형을 바꿀 수 없다 — 안내 없이 잠긴 세그먼트만", async () => {
       const { user } = renderAt("BL240814");
 
+      expect(screen.getByRole("radio", { name: "렌트" })).toBeDisabled();
+      expect(screen.getByRole("radio", { name: "판매" })).toBeDisabled();
       await user.click(screen.getByRole("radio", { name: "판매" }));
-
-      expect(
-        screen.getByRole("combobox", { name: "대분류" }),
-      ).toHaveTextContent("대분류 선택");
-      expect(screen.getByText("카테고리 (판매)")).toBeVisible();
-      expect(screen.getByRole("heading", { name: /^가격/ })).toBeVisible();
-      expect(screen.getByRole("heading", { name: /재고 수량/ })).toBeVisible();
-      expect(
-        screen.getByRole("radiogroup", { name: "상품 상태" }),
-      ).toBeVisible();
+      expect(screen.getByText("카테고리 (렌트)")).toBeVisible();
+      expect(screen.queryByText(/유형을 바꾸지 않습니다/)).toBeNull();
     });
 
     it("중고 판매 상품은 최초 구매일·등급을 받고, 새상품으로 바꾸면 사라진다", async () => {
@@ -419,40 +442,18 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
       expect(onNavSelect).not.toHaveBeenCalled();
     });
 
-    it("렌트 수량 0 · 기간 옵션 반쪽 입력 · 태그 11개는 막는다", async () => {
+    it("렌트 수량 0 · 태그 11개는 막는다", async () => {
       const { user } = renderAt("BL240814");
 
       await user.clear(textbox("렌트 수량"));
-      await user.clear(textbox("기간 옵션 1 장기 렌트 할인가"));
       await user.type(textbox("검색 태그"), ", a, b, c, d, e, f, g, h");
       await user.click(screen.getByRole("button", { name: "수정 저장" }));
 
       expect(screen.getByText("렌트 수량을 입력해주세요.")).toBeVisible();
       expect(
-        screen.getByText(
-          "기간 옵션은 일수와 장기 렌트 할인가를 함께 입력해주세요.",
-        ),
-      ).toBeVisible();
-      expect(
         screen.getByText("검색 태그는 최대 10개까지 입력할 수 있습니다."),
       ).toBeVisible();
     });
-
-    /** Q-63 · 개발 26c59cb — 렌트 보증금이 비었거나 1 미만이면 막는다 */
-    it.each([[""], ["0"]])(
-      "렌트 보증금 「%s」 는 칸 아래 「보증금을 입력해 주세요.」 로 막는다",
-      async (value) => {
-        const { user, onNavSelect } = renderAt("BL240814");
-
-        await user.clear(textbox(/보증금/));
-        if (value) await user.type(textbox(/보증금/), value);
-        await user.click(screen.getByRole("button", { name: "수정 저장" }));
-
-        expect(screen.getByText("보증금을 입력해 주세요.")).toBeVisible();
-        await waitFor(() => expect(textbox(/보증금/)).toHaveFocus());
-        expect(onNavSelect).not.toHaveBeenCalled();
-      },
-    );
 
     /** 원본도 재고를 검사하지 않는다 — 재고 0 은 품절이라는 정상 상태다 */
     it("판매 상품의 재고 0 은 저장을 막지 않는다", async () => {
@@ -608,13 +609,13 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
   });
 
   describe("배송", () => {
-    it("무료면 금액 칸이 잠기고, 풀면 다시 적을 수 있다", async () => {
-      const { user } = renderAt("BL240814");
-      const fee = () => screen.getByRole("textbox", { name: "배송비" });
+    it("입점 상품은 「무료」 체크도 금액과 함께 잠긴다", () => {
+      renderAt("BL240814");
 
-      expect(fee()).toBeDisabled();
-      await user.click(screen.getByRole("checkbox", { name: "배송비 무료" }));
-      expect(fee()).toBeEnabled();
+      expect(screen.getByRole("textbox", { name: "배송비" })).toBeDisabled();
+      expect(
+        screen.getByRole("checkbox", { name: "배송비 무료" }),
+      ).toBeDisabled();
     });
 
     it("회수·반납 요금은 렌트에만 있다", async () => {

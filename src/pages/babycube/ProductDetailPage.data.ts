@@ -688,6 +688,12 @@ export const validate = (
 
 export const COPY = {
   title: "상품 상세 (수정)",
+  /**
+   * 입점 상품 금액 칸 잠금 안내 — 회신 부록 A B2 「문구 그대로, 상단 상품 정보 줄에 1번만 표시」
+   * (개발 `PriceLockHelp` 는 가격·배송·옵션 3섹션에 반복 · 디자인 §3 #1 · D-297)
+   */
+  priceLock:
+    "입점 상품의 금액은 입점사가 정합니다. 고칠 곳은 하단 바의 [반려 처리]로 알려 주세요.",
   sections: {
     name: "상품명",
     mode: "유형",
