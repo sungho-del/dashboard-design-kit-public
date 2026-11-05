@@ -1,5 +1,8 @@
 import type { ChartSeries } from "../../components/ui";
-import { MEMBERS } from "./MemberListPage.data";
+import {
+  DEFAULT_FILTER as MEMBER_DEFAULT_FILTER,
+  MEMBERS,
+} from "./MemberListPage.data";
 import { payTotalOf } from "./OrderDetailPage.data";
 import {
   DEMO_TODAY,
@@ -9,7 +12,10 @@ import {
   type OrderType,
 } from "./OrderListPage.data";
 import { LISTED_PRODUCTS } from "./ProductListPage.data";
-import { SELLERS } from "./SellerListPage.data";
+import {
+  DEFAULT_FILTER as SELLER_DEFAULT_FILTER,
+  SELLERS,
+} from "./SellerListPage.data";
 import { APPLICATIONS, REVIEWABLE_STATUS } from "./SellerReviewPage.data";
 import { SETTLEMENT_SUMMARY } from "./settlement.data";
 
@@ -304,9 +310,8 @@ export const num = (value: number) => value.toLocaleString("ko-KR");
  * 지표 — **3그룹 × 3장 = 9장.** 그룹 카드 제목은 `title`(2026-09-18 배치 · 2026-11-03 되돌림)
  *
  * - `navId` 가 있을 때만 링크(원본 `go`). 오늘 방문자·오늘 가입자는 갈 곳이 없다
- * - ⚠️ 타일 수는 **도착 화면의 기본 탭 수와 다를 수 있다** — 전체 회원 30 은 정상 20 뿐 아니라
- *   정지·휴면·탈퇴를 포함하고, 입점 등록 상품 30 은 판매중 17 외 상태를 포함한다(원본 산식).
- *   기본 탭에 맞추려고 타일을 줄이지 않는다
+ * - 정상 회원·입점 셀러는 **각 목록 처음 화면과 같은 값**이다(판정 Q6) — 목록의 `DEFAULT_FILTER`
+ *   상태 카드 수를 그대로 센다. 입점 등록 상품 30 은 판매중 17 외 상태를 포함한다(원본 산식)
  */
 export const METRIC_GROUPS = [
   {
@@ -322,10 +327,12 @@ export const METRIC_GROUPS = [
         ),
         unit: "명",
       },
-      /* 탈퇴 포함 전체 (원본 `MEMBERS.length`) */
+      /* 회원 목록 처음 화면(정상 카드)과 같은 값 — 판정 Q6 · 원본 「전체 회원」 `MEMBERS.length` */
       {
-        label: "전체 회원",
-        value: num(MEMBERS.length),
+        label: "정상 회원",
+        value: num(
+          MEMBERS.filter((m) => m.status === MEMBER_DEFAULT_FILTER).length,
+        ),
         unit: "명",
         navId: "/members",
       },
@@ -352,9 +359,11 @@ export const METRIC_GROUPS = [
         navId: "/products",
       },
       {
-        label: "전체 입점 셀러",
-        /* 본사 제외 · 퇴점·퇴점 처리중 포함(원본 `!s.hq`) — 이름과 범위가 다른 것은 기획 확인 */
-        value: num(SELLERS.filter((s) => !s.isHeadquarters).length),
+        label: "입점 셀러",
+        /* 셀러 목록 처음 화면(입점 카드)과 같은 값 — 입점 상태만 · 퇴점 제외 · 본사 행 포함(판정 Q6 · 디자인 §1) */
+        value: num(
+          SELLERS.filter((s) => s.status === SELLER_DEFAULT_FILTER).length,
+        ),
         unit: "사",
         navId: "/sellers",
       },

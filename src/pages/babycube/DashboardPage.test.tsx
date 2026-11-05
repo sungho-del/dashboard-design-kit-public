@@ -274,14 +274,22 @@ describe("BabycubeDashboardPage (S01 대시보드)", () => {
       expect(valueOf("오늘 가입자")).toBe(
         fmt(MEMBERS.filter((m) => m.date.startsWith(DEMO_TODAY)).length),
       );
-      expect(valueOf("전체 회원")).toBe(fmt(MEMBERS.length));
+      /* 판정 Q6 — 각 목록 처음 화면(정상 · 입점 카드)과 같은 값. 전체 30 · 본사 제외 37 이 아니다 */
+      expect(valueOf("정상 회원")).toBe(
+        fmt(MEMBERS.filter((m) => m.status === "active").length),
+      );
+      expect(valueOf("정상 회원")).toBe("20");
       expect(valueOf("입점 심사 요청")).toBe(
         fmt(APPLICATIONS.filter((a) => a.status === "requested").length),
       );
       expect(valueOf("입점 등록 상품")).toBe(fmt(LISTED_PRODUCTS.length));
-      expect(valueOf("전체 입점 셀러")).toBe(
-        fmt(SELLERS.filter((s) => !s.isHeadquarters).length),
+      expect(valueOf("입점 셀러")).toBe(
+        fmt(SELLERS.filter((s) => s.status === "active").length),
       );
+      expect(valueOf("입점 셀러")).toBe("32"); // 본사 행 포함 · 퇴점 처리중·퇴점 제외
+      expect(
+        SELLERS.find((s) => s.isHeadquarters && s.status === "active"),
+      ).toBeDefined();
       expect(valueOf("셀러 거래액(판매가)")).toBe(
         fmt(SETTLEMENT_SUMMARY.sales),
       );
