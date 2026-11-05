@@ -62,6 +62,19 @@ export const VAT_RATE = 0.1;
 export const TAX_SUPPLIER = "BabyCube(본사)";
 
 /**
+ * 세금계산서 발행일 — 매월 10일(휴일이면 다음 영업일) 자동 발행, **지급·보류와 분리**(판정 Q4).
+ * 이번 달은 10.10(토) → 10.12(월). 지급일과 같은 날이지만 지급 처리에 묶이지 않는다
+ */
+export const TAX_ISSUE_DATE = "2026-10-12";
+
+/**
+ * 자동 발행이 실패해 「미발행」으로 남은 계산서(셀러 id) — [발행]은 이 건에만(판정 Q4).
+ * 몇 건을 둘지는 기획 확인 요청 19번 — 답 전까지 지금 화면(발행완료 2 · 미발행 5) 그대로 두되,
+ * 정산 지급 상태에서는 떼었다(「지급·보류와 분리」)
+ */
+const TAX_ISSUE_FAILED = ["S-201", "S-228", "S-229", "S-230", "S-231"];
+
+/**
  * 셀러 정산 상태 6종 — 원본 G-2(지급대기 → 확인요청 → 확인완료 → 지급완료 + 예외 이의제기·보류).
  * 키·라벨·톤은 지금 셀러 정산 화면(`SellerSettlementPage.data.ts` `STATUS_META`)과 같다.
  */
@@ -485,14 +498,14 @@ export interface TaxInvoiceRow {
   supplier: string;
   /** 공급받는자 = 셀러 */
   buyer: string;
-  /** 작성일 = 회차 지급일 — 이번 시연의 표시 기준(실발행 정책 확정 아님) */
+  /** 작성일 = 발행일 `TAX_ISSUE_DATE`(매월 10일 · 휴일이면 다음 영업일 — 판정 Q4) */
   date: string;
   /** 공급가액 = 판매 수수료 */
   supply: number;
   /** 세액 = round(공급가액 × 10%) — 원본 `Math.round` */
   vat: number;
   total: number;
-  /** 지급완료 회차만 발행완료(원본 `issued = stat === '지급완료'`) */
+  /** 자동 발행 = 발행완료 · 자동 발행 실패 = 미발행(`pending`) — 지급 상태와 무관(판정 Q4) */
   status: TaxInvoiceStatus;
 }
 
@@ -507,11 +520,11 @@ export const taxInvoicesOf = (rows: SettlementRow[]): TaxInvoiceRow[] =>
         sellerId: row.sellerId,
         supplier: TAX_SUPPLIER,
         buyer: row.name,
-        date: PAYOUT_DATE,
+        date: TAX_ISSUE_DATE,
         supply: row.fee,
         vat,
         total: row.fee + vat,
-        status: row.status === "paid" ? "issued" : "pending",
+        status: TAX_ISSUE_FAILED.includes(row.sellerId) ? "pending" : "issued",
       };
     });
 

@@ -165,11 +165,11 @@ describe("정산 내역/명세서 · 세금계산서", () => {
     expect(onNavSelect).toHaveBeenCalledWith("/settle-statement/2026.05");
   });
 
-  it("세금계산서 — 원본 숫자 · 수취완료만 [다운로드]", async () => {
+  it("세금계산서 — 원본 숫자 · 수취완료만 [다운로드] · 그 밖은 「매월 10일 발행」(판정 Q4)", async () => {
     const { user } = renderAt(SettleTaxPage, "/settle-tax");
     const rows = bodyRows();
     expect(within(rows[0]).getByText("206,635원")).toBeInTheDocument();
-    expect(within(rows[0]).getByText("정산 확정 시 발행")).toBeInTheDocument();
+    expect(within(rows[0]).getByText("매월 10일 발행")).toBeInTheDocument();
     await user.click(within(rows[1]).getByRole("button", { name: "다운로드" }));
     expect(
       await screen.findByText("2026.05 세금계산서 다운로드"),

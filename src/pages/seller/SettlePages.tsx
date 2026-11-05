@@ -402,7 +402,7 @@ export function SettleTaxPage(props: SellerNavProps) {
         selected={sel.selected.length}
       >
         <Table>
-          {/* 모든 열에 폭 — 합 940(실측 필요 폭 922 · 1280 본문 976 안). 「정산 확정 시 발행」은 두 줄로 접힌다 */}
+          {/* 모든 열에 폭 — 합 940(실측 필요 폭 922 · 1280 본문 976 안). 「매월 10일 발행」(판정 Q4)은 1280 에서 두 줄로 접힌다 */}
           <colgroup>
             <col className="w-13" />
             <col className="w-22" />
@@ -478,7 +478,7 @@ export function SettleTaxPage(props: SellerNavProps) {
                     </Button>
                   ) : (
                     <span className="break-keep text-text-sub">
-                      정산 확정 시 발행
+                      매월 10일 발행
                     </span>
                   )}
                 </TableTd>

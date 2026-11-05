@@ -126,7 +126,7 @@ describe("셀러 정산 — 요약 · 산출 내역 (한 카드)", () => {
       within(calc()).getByText(/보증금·연체료·배상액은 매출 정산과/),
     ).toBeVisible();
     expect(
-      within(calc()).getByText(/지급완료 시 수수료 세금계산서가/),
+      within(calc()).getByText("세금계산서는 매월 10일에 발행됩니다(연동 준비 중)."),
     ).toBeVisible();
   });
 
@@ -386,15 +386,15 @@ describe("셀러 정산 — 확인 모달 3종 (알림만 · 상태 그대로)",
     expect(value("지급 예정액")).toBe("32,143원");
     expect(within(dialog).queryByText("환수액")).toBeNull();
     expect(
-      within(dialog).getByText(/세금계산서가 동시 발행됩니다/),
+      within(dialog).getByText(
+        /세금계산서는 매월 10일에 발행됩니다\(연동 준비 중\)/,
+      ),
     ).toBeVisible();
 
     await user.click(
       within(dialog).getByRole("button", { name: "지급완료 처리" }),
     );
-    expect(
-      await screen.findByText("베베하우스 지급 완료 → 세금계산서 발행"),
-    ).toBeVisible();
+    expect(await screen.findByText("베베하우스 지급 완료")).toBeVisible();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(cellsOf("베베하우스")[9]).toBe("확인완료");
   });
@@ -435,9 +435,7 @@ describe("셀러 정산 — 확인 모달 3종 (알림만 · 상태 그대로)",
       "10/14 유선 협의 — 원 명세대로 지급",
     );
     await user.click(within(dialog).getByRole("button", { name: "지급 처리" }));
-    expect(
-      await screen.findByText("맘스케어 지급 완료 → 세금계산서 발행"),
-    ).toBeVisible();
+    expect(await screen.findByText("맘스케어 지급 완료")).toBeVisible();
     expect(cellsOf("맘스케어")[9]).toBe("보류");
   });
 

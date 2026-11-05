@@ -139,6 +139,10 @@ describe("셀러 명세 — 코지베이비 (확인요청 · 안심케어 보전
     );
     expect(calcNotes).toHaveLength(2);
     expect(calcNotes[0]).toMatch(/^입점사 지급액 = 확정 매출/);
+    /* 판정 Q4 · 부록 A A7 — 세금계산서는 지급과 분리(정산 확정 시 동시 발행이 아니다) */
+    expect(calcNotes[0]).toMatch(
+      /귀속됩니다\. 세금계산서는 매월 10일에 발행됩니다\(연동 준비 중\)\.$/,
+    );
     expect(calcNotes[1]).toMatch(/^보증금·연체료·배상은 보증금 내역/);
     expect(screen.getByText(/1회 지급 완결/).closest("li")).not.toBeNull();
     expect(screen.getByText("매출 확정 기준").closest("li")).not.toBeNull();

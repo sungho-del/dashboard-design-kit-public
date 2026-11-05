@@ -152,7 +152,7 @@ export function TaxInvoiceListPage({
         summary={filterSummary(filters)}
         onReset={resetFilters}
       >
-        {/* 원본 다중 칩(전체·발행대기·발행완료) — 값이 둘뿐이라 셀렉트 하나와 뜻이 같다 */}
+        {/* 원본 다중 칩(전체·발행대기·발행완료 — 「미발행」) — 값이 둘뿐이라 셀렉트 하나와 뜻이 같다 */}
         <Select
           className="w-36"
           aria-label="발행상태"

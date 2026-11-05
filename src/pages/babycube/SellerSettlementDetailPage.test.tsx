@@ -203,9 +203,7 @@ describe("셀러 정산 상세 — 베베하우스(확인완료 · 안심케어 
     await user.click(
       within(dialog).getByRole("button", { name: "지급완료 처리" }),
     );
-    expect(
-      await screen.findByText("베베하우스 지급 완료 → 세금계산서 발행"),
-    ).toBeVisible();
+    expect(await screen.findByText("베베하우스 지급 완료")).toBeVisible();
     expect(valueOf("정산 상태")).toBe("확인완료");
   });
 });

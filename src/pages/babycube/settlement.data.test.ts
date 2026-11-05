@@ -10,6 +10,7 @@ import {
   TAX_INVOICES,
   findStatement,
   sellerSettlementsOf,
+  taxInvoicesOf,
   settleTxOf,
 } from "./settlement.data";
 
@@ -229,7 +230,7 @@ describe("세금계산서", () => {
     expect(TAX_INVOICES.some((item) => item.buyer === "리틀스텝")).toBe(false);
   });
 
-  it("공급가액 = 수수료, 세액은 반올림, 지급완료만 발행완료", () => {
+  it("공급가액 = 수수료, 세액은 반올림, 작성일 = 발행일 10.12", () => {
     const of = (buyer: string) =>
       TAX_INVOICES.find((item) => item.buyer === buyer)!;
     expect(of("베베하우스")).toMatchObject({
@@ -244,6 +245,23 @@ describe("세금계산서", () => {
     expect(of("코지베이비").vat).toBe(510); // 510.3
     expect(of("아기별상사")).toMatchObject({ vat: 2_280, status: "issued" });
     expect(of("베이비루").status).toBe("issued");
+  });
+
+  /** 판정 Q4 — 매월 10일 자동 발행, 지급·보류와 분리. 미발행 = 자동 발행 실패 건(예시 수는 질문 19) */
+  it("발행 상태는 정산 지급 상태를 따라가지 않는다", () => {
+    const flipped = taxInvoicesOf(
+      SELLER_SETTLEMENTS.map((row) =>
+        row.name === "베이비루"
+          ? { ...row, status: "held" as const }
+          : row.name === "리틀베이비"
+            ? { ...row, status: "paid" as const }
+            : row,
+      ),
+    );
+    const statusOf = (buyer: string) =>
+      flipped.find((item) => item.buyer === buyer)?.status;
+    expect(statusOf("베이비루")).toBe("issued");
+    expect(statusOf("리틀베이비")).toBe("pending");
   });
 
   it("공급가액 합 = 수수료 합", () => {

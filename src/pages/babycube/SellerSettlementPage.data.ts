@@ -377,10 +377,10 @@ export const UNPAID_SELLERS = SELLER_SETTLEMENTS.filter((row) => row.unpaid > 0)
   .map((row) => row.name)
   .join(", ");
 
-/** 산출 내역 아래 안내 상자 — 원본 `SETTLE_FOOT` 를 두 줄로 */
+/** 산출 내역 아래 안내 상자 — 원본 `SETTLE_FOOT` 를 두 줄로(부록 A A7 · 판정 Q4 — 세금계산서는 지급과 분리) */
 export const SETTLE_NOTES = [
   "보증금·연체료·배상액은 매출 정산과 분리해 보증금 정산에서 처리합니다.",
-  "지급완료 시 수수료 세금계산서가 동시 발행됩니다.",
+  "세금계산서는 매월 10일에 발행됩니다(연동 준비 중).",
 ];
 
 /* =========================================================================
@@ -461,9 +461,11 @@ export const payLinesOf = (row: SettlementRow): StatementLine[] => {
 export const GATE_COPY = {
   pay: {
     title: (name: string) => `정산 지급 실행 · ${name}`,
-    note: "지급완료 처리 시 세금계산서가 동시 발행됩니다. 처리 후 되돌릴 수 없습니다.",
+    /* 부록 A A10 · 판정 Q4 — 세금계산서는 지급과 분리 */
+    note: "세금계산서는 매월 10일에 발행됩니다(연동 준비 중). 처리 후 되돌릴 수 없습니다.",
     confirm: "지급완료 처리",
-    done: (name: string) => `${name} 지급 완료 → 세금계산서 발행`,
+    /* 판정 Q4 「지급·보류와 분리」 — 알림에서 세금계산서 발행을 말하지 않는다 */
+    done: (name: string) => `${name} 지급 완료`,
   },
   hold: {
     title: (name: string) => `보류 종결 — 협의 결론 기록 · ${name}`,
@@ -473,8 +475,8 @@ export const GATE_COPY = {
     note: "보류 회차는 외부 협의 결론 요지를 기록해야 지급 처리할 수 있습니다. 기록 후 익영업일 지급완료 처리됩니다(수정 합의 시 명세 수정 재발송 후 지급).",
     empty: "외부 협의 결론 요지를 입력해주세요.",
     confirm: "지급 처리",
-    /* 원본 `gateHoldGo` → `settleSetStat(…,'지급완료')` 의 알림 */
-    done: (name: string) => `${name} 지급 완료 → 세금계산서 발행`,
+    /* 원본 `gateHoldGo` → `settleSetStat(…,'지급완료')` 의 알림 — 세금계산서 발행은 말하지 않는다(판정 Q4) */
+    done: (name: string) => `${name} 지급 완료`,
   },
   reissue: {
     title: (name: string) => `수정 명세 재발송 · ${name}`,
