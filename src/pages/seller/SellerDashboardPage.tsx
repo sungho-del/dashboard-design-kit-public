@@ -247,11 +247,13 @@ export function SellerDashboardPage(props: SellerNavProps) {
                   <span className="w-10 shrink-0">
                     {n.pin && <Tag size="small">고정</Tag>}
                   </span>
-                  <span className="body-medium min-w-0 flex-1 truncate text-text">
-                    {n.title}
-                  </span>
+                  {/* 일자는 「고정」 칸 바로 옆 — 카드 오른쪽 끝에 두면 제목과 멀어 잘 안 읽혔다(사용자 2026-11-05).
+                      고정 칸 폭을 비워 두므로 일자가 모든 줄에서 같은 세로선에 선다 */}
                   <span className="body-small shrink-0 text-text-sub tabular-nums">
                     {n.date}
+                  </span>
+                  <span className="body-medium min-w-0 flex-1 truncate text-text">
+                    {n.title}
                   </span>
                 </button>
               </li>
