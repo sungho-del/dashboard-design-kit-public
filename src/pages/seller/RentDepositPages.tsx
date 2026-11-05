@@ -279,17 +279,18 @@ export function RentDepositPage(props: SellerNavProps) {
         }
       >
         <Table>
-          {/* 앞 2개는 `FROZEN_LEFT` 와 짝(합 212). 합 1124 — 1440 카드 안에 스크롤 없이 들어간다 */}
+          {/* 앞 2개는 `FROZEN_LEFT` 와 짝(합 212). 합 1124 — 1440 카드 안에 스크롤 없이 들어간다.
+              상품 232 = 가장 긴 예시 이름 + 안심케어 칩이 한 줄(206). 그만큼 회원·금액 세 열·보증금 상태에서 덜었다(2026-11-05 실측) */}
           <colgroup>
             <col className="w-13" />
             <col className="w-40" />
-            <col className="w-20" />
-            <col className="w-44" />
+            <col className="w-17" />
+            <col className="w-58" />
+            <col className="w-21" />
+            <col className="w-22" />
             <col className="w-24" />
             <col className="w-24" />
-            <col className="w-28" />
-            <col className="w-24" />
-            <col className="w-36" />
+            <col className="w-34" />
             <col className="w-28" />
           </colgroup>
           <TableHead>
@@ -357,8 +358,8 @@ export function RentDepositPage(props: SellerNavProps) {
                     </TableTd>
                     <TableTd>{u.mem}</TableTd>
                     <TableTd>
-                      {/* 긴 이름은 낱말 단위로 두 줄까지 — 폭을 열 안쪽(176 − 24)에 묶는다 */}
-                      <span className="line-clamp-2 block w-38 break-keep">
+                      {/* 긴 이름은 낱말 단위로 두 줄까지 — 폭을 열 안쪽(232 − 24)에 묶는다 */}
+                      <span className="line-clamp-2 block w-52 break-keep">
                         {u.prod}
                         {careOf(u) && (
                           <>
