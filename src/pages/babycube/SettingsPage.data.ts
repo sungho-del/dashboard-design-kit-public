@@ -9,7 +9,7 @@
  * 이 파일이 드는 것은 문구(라벨·placeholder·섹션 안내)와 저장값·글자 수 제한이다.
  *
  * ## 뼈대가 이 파일에 기대하는 계약
- * - `SAVED_SETTINGS` 의 키 9개가 뼈대의 입력 9개와 짝이다
+ * - `SAVED_SETTINGS` 의 키 11개가 뼈대의 입력 11개와 짝이다
  * - `REQUIRED_KEYS` 는 **라벨의 `*` 표시**에만 쓰인다.
  *   ⚠️ **저장을 막는 검증이 아니다** — 원본 `setSave`(proto.html:4135)는 필수값을
  *   검사하지 않고 알림만 띄운다.
@@ -23,15 +23,23 @@
  *   업무/점심 시간에는 `운영시간.`·`점심시간.` 접두어가 붙는다
  * - `max`(글자 수 제한)가 통째로 빠져 있었다
  * - 저장값이 지어낸 자리 채움(대표자 김하늘·성동구 주소·접두어 없는 시간)이었다 → 원본 `SET` 으로(2026-11-03)
+ *
+ * ## 판정 Q18 — 설정 값이 사용자 푸터·고객센터의 기준 (2026-11-05)
+ * - 대표 번호는 고객센터 번호로 통합 — 판매자 구획 「전화 번호」를 뺐다(「상담 전화 번호」 하나)
+ * - 통신판매업 신고번호 · 이메일 · 호스팅서비스 칸 추가 — 값은 고객사 확인 후 전달이라 비워 둔다.
+ *   ⚠️ 라벨은 판정 글자 그대로 · 구획(판매자 / 푸터정보 끝)·자리표시(라벨 글자)·필수 아님·글자 수 제한 없음은
+ *   기획 확인 요청 37번 답 전까지의 임시다
  * ---------------------------------------------------------------------- */
 
 export type SettingKey =
   | "company"
   | "bizNumber"
   | "ceo"
-  | "phone"
   | "roadAddress"
   | "detailAddress"
+  | "mailOrderNo"
+  | "email"
+  | "hosting"
   | "centerPhone"
   | "workHours"
   | "lunchHours";
@@ -42,8 +50,9 @@ export type SectionId = "seller" | "customer";
  * 저장돼 있던 값 = 뼈대의 초기값. 원본 `SET`(proto.html:4128~4130) 그대로다.
  *
  * - 업무·점심 시간의 `운영시간.`·`점심시간.` 접두어는 **값의 일부**다 — 사용자 앱에 그대로 찍힌다
- * - 대표자·전화는 셀러 목록의 본사 행(`SellerListPage.data.ts` S-0001)과 같은 값이다
+ * - 대표자·상담 전화는 셀러 목록의 본사 행(`SellerListPage.data.ts` S-0001)과 같은 값이다
  *   (원본도 `SET` 과 본사 셀러 `S-000` 이 같다 — proto.html:954). 두 화면이 서로를 읽지는 않는다
+ * - 새 세 칸(통신판매업 신고번호·이메일·호스팅서비스)은 빈 값 — 고객사 확인 후 전달(판정 Q18)
  * - 대표자명에 상호가 들어간 것도 원본 샘플 그대로다(글자만 판정 Q17 대로 「베이비큐브」 — 상호 자체는 기존 미답 항목)
  * - 회사명은 「주식회사 렌티크」(판정 Q17 — 원본 「BabyCube」)
  */
@@ -51,9 +60,11 @@ export const SAVED_SETTINGS: Record<SettingKey, string> = {
   company: "주식회사 렌티크",
   bizNumber: "000-81-00001",
   ceo: "베이비큐브",
-  phone: "02-1588-0000",
   roadAddress: "서울특별시 강남구 테헤란로 501",
   detailAddress: "12층 (06168)",
+  mailOrderNo: "",
+  email: "",
+  hosting: "",
   centerPhone: "02-1588-0000",
   workHours: "운영시간. 평일 10:00 ~ 17:00 (주말·공휴일 휴무)",
   lunchHours: "점심시간. 평일 13:00 ~ 14:00",
@@ -69,7 +80,6 @@ export const REQUIRED_KEYS: SettingKey[] = [
   "company",
   "bizNumber",
   "ceo",
-  "phone",
   "roadAddress",
   "centerPhone",
   "workHours",
@@ -106,7 +116,8 @@ export const SECTIONS: Record<
 /** 필드 문구 — 라벨 · placeholder · 글자 수 제한. 전부 원본 값이다 */
 export const FIELD_COPY: Record<
   SettingKey,
-  { label: string; placeholder: string; max: number }
+  /* `max` 없음 = 글자 수 제한 없음(새 세 칸 — 기획 확인 요청 37번) */
+  { label: string; placeholder: string; max?: number }
 > = {
   company: { label: "회사명", placeholder: "예) 주식회사 렌티크", max: 40 },
   bizNumber: {
@@ -115,13 +126,19 @@ export const FIELD_COPY: Record<
     max: 20,
   },
   ceo: { label: "대표자명", placeholder: "대표자명", max: 20 },
-  phone: { label: "전화 번호", placeholder: "예) 02-1588-0000", max: 20 },
   roadAddress: { label: "주소", placeholder: "도로명 주소", max: 80 },
   detailAddress: {
     label: "상세 주소 · 우편번호",
     placeholder: "상세 주소 · 우편번호",
     max: 80,
   },
+  /* 판정 Q18 새 칸 — 라벨은 판정 글자 그대로, 자리표시는 라벨(대표자명과 같은 꼴) */
+  mailOrderNo: {
+    label: "통신판매업 신고번호",
+    placeholder: "통신판매업 신고번호",
+  },
+  email: { label: "이메일", placeholder: "이메일" },
+  hosting: { label: "호스팅서비스", placeholder: "호스팅서비스" },
   centerPhone: {
     label: "상담 전화 번호",
     placeholder: "예) 02-1588-0000",

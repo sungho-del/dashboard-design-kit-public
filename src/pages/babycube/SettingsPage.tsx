@@ -29,7 +29,8 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * ## 화면 유형: 설정형 폼 (원본 `SCREENS.settings` proto.html:4137~4155 · 4124~4127 주석)
  *
  * ```
- * 판매자 / 푸터정보   ← 회사명* · 사업자 등록 번호* · 대표자명* · 전화 번호* · 주소*(도로명 / 상세·우편번호)
+ * 판매자 / 푸터정보   ← 회사명* · 사업자 등록 번호* · 대표자명* · 주소*(도로명 / 상세·우편번호) ·
+ *                      통신판매업 신고번호 · 이메일 · 호스팅서비스 (판정 Q18 — 대표 번호는 상담 전화 번호로 통합)
  *                      안내 「사용자 앱 푸터의 사업자 정보로 노출됩니다. …」
  * 고객 센터 정보      ← 상담 전화 번호* · 업무 시간* · 점심 시간
  *                      안내 「사용자 앱 고객센터·주문 문의 안내에 노출됩니다.」
@@ -48,7 +49,8 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * 3. **간격을 페이지가 지정하지 않는다** — 카드 24는 `AppShell` gap-6,
  *    필드 20은 `CardBody` gap-5, 라벨↔입력 6은 `FormField` gap-1.5
  * 4. **입력 폭 상한은 원본 값**(`setInput` 4번째 인자) — 회사명 280 · 번호·대표자 240 ·
- *    주소 두 칸 각 420 · 업무/점심 520. 폭은 레이아웃이라 뼈대에 둔다
+ *    주소 두 칸 각 420 · 업무/점심 520. 폭은 레이아웃이라 뼈대에 둔다.
+ *    판정 Q18 새 칸(원본 없음)은 신고번호 240(번호 칸과 같게) · 이메일·호스팅 280(회사명과 같게)
  * 5. 안내(`nv-help`)는 구획 **아래**(필드 뒤)에 붙는다
  *
  * ## 저장 — 화면 전체 [저장] 하나 = 두 구획 한 번에 (구획별 저장 없음 · proto.html:4134~4135)
@@ -195,9 +197,12 @@ export function SettingsPage({
         {field("company", "max-w-70")}
         {field("bizNumber", "max-w-60")}
         {field("ceo", "max-w-60")}
-        {field("phone", "max-w-60", true)}
         {field("roadAddress", "max-w-105")}
         {field("detailAddress", "max-w-105")}
+        {/* 판정 Q18 새 칸 — 구획·순서는 기획 확인 요청 37번 답 전까지 임시(판매자 구획 끝) */}
+        {field("mailOrderNo", "max-w-60")}
+        {field("email", "max-w-70")}
+        {field("hosting", "max-w-70")}
       </Section>
 
       <Section

@@ -105,7 +105,7 @@ describe("SettingsPage", () => {
     it("필드 순서도 원본을 따른다", () => {
       renderPage();
 
-      // 판매자 섹션이 먼저이므로 앞의 6개가 그 섹션 필드다
+      // 판매자 섹션이 먼저이므로 앞의 8개가 그 섹션 필드다(새 세 칸은 그 끝 — 판정 Q18 · 자리는 기획 확인 요청 37번)
       expect(
         screen
           .getAllByRole("textbox")
@@ -114,9 +114,11 @@ describe("SettingsPage", () => {
         FIELD_COPY.company.placeholder,
         FIELD_COPY.bizNumber.placeholder,
         FIELD_COPY.ceo.placeholder,
-        FIELD_COPY.phone.placeholder,
         FIELD_COPY.roadAddress.placeholder,
         FIELD_COPY.detailAddress.placeholder,
+        FIELD_COPY.mailOrderNo.placeholder,
+        FIELD_COPY.email.placeholder,
+        FIELD_COPY.hosting.placeholder,
         FIELD_COPY.centerPhone.placeholder,
         FIELD_COPY.workHours.placeholder,
         FIELD_COPY.lunchHours.placeholder,
@@ -202,17 +204,29 @@ describe("SettingsPage", () => {
       expect(field("점심 시간")).toHaveValue("점심시간. 평일 13:00 ~ 14:00");
     });
 
-    it("대표자·전화가 셀러 목록 본사 행과 같다", () => {
+    it("대표자·상담 전화가 셀러 목록 본사 행과 같다", () => {
       const hq = SELLERS.find((seller) => seller.isHeadquarters);
       expect(hq?.ceo).toBe(SAVED_SETTINGS.ceo);
-      expect(hq?.phone).toBe(SAVED_SETTINGS.phone);
+      expect(hq?.phone).toBe(SAVED_SETTINGS.centerPhone);
+    });
+
+    /* 판정 Q18 — 대표 번호는 고객센터 번호로 통합 · 통신판매업 신고번호·이메일·호스팅서비스 칸 추가(값은 고객사 확인 후) */
+    it("대표 번호는 「상담 전화 번호」 하나 · 새 세 칸은 비어 있고 필수가 아니다", () => {
+      renderPage();
+
+      expect(screen.queryByRole("textbox", { name: "전화 번호" })).toBeNull();
+      expect(field("상담 전화 번호")).toHaveValue("02-1588-0000");
+      for (const label of ["통신판매업 신고번호", "이메일", "호스팅서비스"]) {
+        expect(field(label)).toHaveValue("");
+        expect(field(label)).not.toHaveAttribute("aria-required");
+      }
     });
 
     it("사업자 등록 번호는 숫자 전용 키보드를 강제하지 않는다 (하이픈 포함 값)", () => {
       renderPage();
 
       expect(field("사업자 등록 번호")).not.toHaveAttribute("inputmode");
-      expect(field("전화 번호")).toHaveAttribute("inputmode", "tel");
+      expect(field("상담 전화 번호")).toHaveAttribute("inputmode", "tel");
     });
 
     it("입력 폭 상한이 원본 px 그대로다", () => {
@@ -223,7 +237,9 @@ describe("SettingsPage", () => {
       expect(widthOf("회사명")).toHaveClass("max-w-70"); // 280
       expect(widthOf("사업자 등록 번호")).toHaveClass("max-w-60"); // 240
       expect(widthOf("대표자명")).toHaveClass("max-w-60");
-      expect(widthOf("전화 번호")).toHaveClass("max-w-60");
+      expect(widthOf("통신판매업 신고번호")).toHaveClass("max-w-60");
+      expect(widthOf("이메일")).toHaveClass("max-w-70");
+      expect(widthOf("호스팅서비스")).toHaveClass("max-w-70");
       expect(widthOf("주소")).toHaveClass("max-w-105"); // 420
       expect(widthOf("상세 주소 · 우편번호")).toHaveClass("max-w-105");
       expect(widthOf("상담 전화 번호")).toHaveClass("max-w-60");
