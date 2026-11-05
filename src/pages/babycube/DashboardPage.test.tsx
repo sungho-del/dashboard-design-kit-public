@@ -285,7 +285,9 @@ describe("BabycubeDashboardPage (S01 대시보드)", () => {
       expect(valueOf("셀러 거래액(판매가)")).toBe(
         fmt(SETTLEMENT_SUMMARY.sales),
       );
-      expect(valueOf("지급 예정 총액")).toBe(fmt(SETTLEMENT_SUMMARY.payout));
+      expect(valueOf("이번 회차 지급 총액")).toBe(
+        fmt(SETTLEMENT_SUMMARY.payout),
+      );
       expect(valueOf("본사 수수료 수익")).toBe(fmt(SETTLEMENT_SUMMARY.fee));
     });
 

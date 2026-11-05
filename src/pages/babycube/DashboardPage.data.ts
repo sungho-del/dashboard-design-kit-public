@@ -377,7 +377,7 @@ export const METRIC_GROUPS = [
         navId: "/settle-seller",
       },
       {
-        label: "지급 예정 총액",
+        label: "이번 회차 지급 총액",
         value: num(SETTLEMENT_SUMMARY.payout),
         unit: "원",
         navId: "/settle-seller",

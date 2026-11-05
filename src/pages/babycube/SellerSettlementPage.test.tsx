@@ -83,7 +83,7 @@ describe("셀러 정산 — 요약 · 산출 내역 (한 카드)", () => {
     renderPage();
     expect(screen.getByText("2026년 9월 정산")).toBeVisible();
     expect(screen.getByText("지급일 2026.10.12")).toBeVisible();
-    /* 타일 묶음 — 같은 라벨(「지급 예정 총액」)이 합산 명세에도 있다 */
+    /* 타일 묶음 — 같은 라벨(「이번 회차 지급 총액」)이 합산 명세에도 있다 */
     const summaryCard = screen
       .getByText("셀러 거래액(판매가)")
       .closest(".grid") as HTMLElement;
@@ -91,7 +91,7 @@ describe("셀러 정산 — 요약 · 산출 내역 (한 카드)", () => {
       ["셀러 거래액(판매가)", "489,700"],
       ["본사 수수료 수익", "54,321"],
       ["정산 대상", "8"],
-      ["지급 예정 총액", "436,138"],
+      ["이번 회차 지급 총액", "436,138"],
     ]) {
       const tile = within(summaryCard)
         .getByText(label)
@@ -113,7 +113,7 @@ describe("셀러 정산 — 요약 · 산출 내역 (한 카드)", () => {
     expect(lineValue("안심케어 보전")).toBe("+30,000원");
     expect(lineValue("포인트 사용분")).toBe("3,000원");
     /* 지급 합 436,138 ≠ net 합 358,738 — 리틀스텝 미회수를 다른 셀러 지급과 상계하지 않는다 */
-    expect(lineValue("지급 예정 총액")).toBe("436,138원");
+    expect(lineValue("이번 회차 지급 총액")).toBe("436,138원");
     /* 미회수는 경고 줄 하나 — 어느 셀러인지까지. 굵은 각주 문단은 없다 */
     expect(lineValue("미회수리틀스텝 · 별도 청구")).toBe("77,400원");
     expect(
@@ -188,7 +188,7 @@ describe("셀러 정산 — 요약 · 산출 내역 (한 카드)", () => {
   it("요약·합산은 필터와 무관하다", async () => {
     const { user } = renderPage();
     await user.type(screen.getByPlaceholderText("셀러명 검색"), "없는셀러");
-    expect(lineValue("지급 예정 총액")).toBe("436,138원");
+    expect(lineValue("이번 회차 지급 총액")).toBe("436,138원");
     expect(screen.getByText("정산 대상 입점사 (총 0개사)")).toBeVisible();
   });
 });
@@ -219,7 +219,7 @@ describe("셀러 정산 — 정산 설정(안심케어 금액)", () => {
     ).toBeVisible();
     expect(input).toHaveValue("7,000");
     /* 설정값은 정산 금액을 바꾸지 않는다(원본도 어디서도 읽지 않는다) */
-    expect(lineValue("지급 예정 총액")).toBe("436,138원");
+    expect(lineValue("이번 회차 지급 총액")).toBe("436,138원");
   });
 });
 

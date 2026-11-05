@@ -42,7 +42,6 @@ import { CARE_FEE } from "./OrderListPage.data";
  *   안심케어 금액 설정은 맨 아래 「정산 설정」 작은 카드
  *
  * ## ⚠️ 기획 확인 필요 (원본 그대로 둔 모순)
- * - 「지급 예정 총액」에 **이미 지급완료된** 셀러 금액도 더한다(원본 산식 그대로)
  * - 안심케어 금액 설정값은 어디에서도 읽히지 않는다(원본 `CARE_PRICE`). 초기값은 주문 명세의
  *   가입 요금 `CARE_FEE` 와 맞췄다(원본은 「신설 시 0원」)
  * - 지급 모달의 환수 줄 이름이 「환수액」이라 명세의 「취소·반품 차감」과 다르다(원본 그대로)
@@ -106,13 +105,14 @@ export const SUMMARY_SUB = `지급일 ${dotted(PAYOUT_DATE)}`;
 
 /**
  * 요약 4값 — 원본 순서·단위. 모집단은 **필터와 무관한 전체 셀러**(원본).
- * ⚠️ 기획 확인 필요: 「지급 예정 총액」에 지급완료 셀러 금액도 들어간다(원본 산식)
+ * 「이번 회차 지급 총액」 = 지급완료 셀러 금액도 더한다 — 이름만 바꾸고 계산 그대로(판정 Q2 · 디자인 §1).
+ * 남은 지급은 사이드바 할 일 배지·상태 필터로 본다
  */
 export const summaryStatsOf = (summary: SettlementSummary) => [
   { label: "셀러 거래액(판매가)", value: num(summary.sales), unit: "원" },
   { label: "본사 수수료 수익", value: num(summary.fee), unit: "원" },
   { label: "정산 대상", value: num(summary.sellerCount), unit: "개사" },
-  { label: "지급 예정 총액", value: num(summary.payout), unit: "원" },
+  { label: "이번 회차 지급 총액", value: num(summary.payout), unit: "원" },
 ];
 export const SUMMARY_STATS = summaryStatsOf(SETTLEMENT_SUMMARY);
 export { SETTLEMENT_SUMMARY as SUMMARY };

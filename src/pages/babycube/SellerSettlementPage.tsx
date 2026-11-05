@@ -341,7 +341,7 @@ export function SellerSettlementPage({
             <SettlementCalc
               lines={statementLinesOf(SUMMARY, {
                 listLabel: "셀러 확정 거래액",
-                totalLabel: "지급 예정 총액",
+                totalLabel: "이번 회차 지급 총액",
                 unpaidBy: UNPAID_SELLERS,
               })}
               notes={SETTLE_NOTES}

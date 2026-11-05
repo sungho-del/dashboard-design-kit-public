@@ -425,7 +425,7 @@ export interface SettlementSummary {
   point: number;
   /**
    * 지급 총액 = Σ셀러별 지급액(하한 뒤 합산 — 미회수와 상계하지 않는다).
-   * ⚠️ **기획 확인 필요**: 원본 「지급 예정 총액」은 지급완료 셀러 금액까지 더한다
+   * 지급완료 셀러 금액까지 더한다 — 화면 이름 「이번 회차 지급 총액」(판정 Q2 · 계산 그대로)
    */
   payout: number;
   unpaid: number;
