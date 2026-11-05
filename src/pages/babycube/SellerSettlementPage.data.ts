@@ -32,9 +32,8 @@ import { CARE_FEE } from "./OrderListPage.data";
  * - 상태별 업무 버튼은 `gateOf(status)` 가 정한다(없으면 버튼 없음)
  *
  * ## 원본과 다르게 둔 곳 (근거)
- * - **거래액 라벨 「(정가)」 → 「(할인 후)」** — 정산 기준이 할인 후 상품 소계다(사용자 결정
- *   2026-11-02 ②). 정가라고 적으면 숫자와 라벨이 서로 다른 말을 한다. 도움말 `list`·`point` 문구도
- *   같은 이유로 「정가」를 뺐다. ⚠️ 기획 확인 필요(원본은 할인 전 정가 기준)
+ * - **거래액 라벨 「(정가)」 → 「(판매가)」** — 정산 매출 = 셀러 할인 적용 후 판매가 − 셀러 쿠폰(판정 Q1 ·
+ *   계산식 그대로). 「입점사」는 「셀러」(판정 Q10). 도움말 `list`·`point` 문구도 같은 이유로 「정가」를 뺐다
  * - 지급 모달 예시 문구의 날짜를 이 회차(2026.09 · 10.12 지급)에 맞췄다(원본 8/12 · 6/18)
  * - **산출 내역 모양**(사용자 승인 2026-11-03 — 원본 줄 나열이 계산 구조를 못 보였다): 매출(… = 정산 매출
  *   소계) · 차감 · 가산 세 묶음 → 지급액 → 미회수 경고 줄 → 참고(포인트). 괄호 설명은 보조 글자 `hint`,
@@ -110,7 +109,7 @@ export const SUMMARY_SUB = `지급일 ${dotted(PAYOUT_DATE)}`;
  * ⚠️ 기획 확인 필요: 「지급 예정 총액」에 지급완료 셀러 금액도 들어간다(원본 산식)
  */
 export const summaryStatsOf = (summary: SettlementSummary) => [
-  { label: "입점사 거래액(할인 후)", value: num(summary.sales), unit: "원" },
+  { label: "셀러 거래액(판매가)", value: num(summary.sales), unit: "원" },
   { label: "본사 수수료 수익", value: num(summary.fee), unit: "원" },
   { label: "정산 대상", value: num(summary.sellerCount), unit: "개사" },
   { label: "지급 예정 총액", value: num(summary.payout), unit: "원" },
@@ -274,7 +273,7 @@ export const statementLinesOf = (
     {
       key: "list",
       label: listLabel,
-      hint: "할인 후",
+      hint: "판매가",
       value: won(d.sales),
       group: "sales",
     },

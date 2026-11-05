@@ -85,10 +85,10 @@ describe("셀러 정산 — 요약 · 산출 내역 (한 카드)", () => {
     expect(screen.getByText("지급일 2026.10.12")).toBeVisible();
     /* 타일 묶음 — 같은 라벨(「지급 예정 총액」)이 합산 명세에도 있다 */
     const summaryCard = screen
-      .getByText("입점사 거래액(할인 후)")
+      .getByText("셀러 거래액(판매가)")
       .closest(".grid") as HTMLElement;
     for (const [label, value] of [
-      ["입점사 거래액(할인 후)", "489,700"],
+      ["셀러 거래액(판매가)", "489,700"],
       ["본사 수수료 수익", "54,321"],
       ["정산 대상", "8"],
       ["지급 예정 총액", "436,138"],
@@ -104,7 +104,7 @@ describe("셀러 정산 — 요약 · 산출 내역 (한 카드)", () => {
     renderPage();
     expect(screen.getByText("산출 내역")).toBeVisible();
     expect(screen.getByText("전 입점사 합산")).toBeVisible();
-    expect(lineValue("입점사 확정 거래액")).toBe("489,700원");
+    expect(lineValue("셀러 확정 거래액")).toBe("489,700원");
     expect(lineValue("셀러 쿠폰")).toBe("−15,000원");
     expect(lineValue("정산 매출")).toBe("474,700원");
     expect(lineValue("판매 수수료셀러별 요율")).toBe("−54,321원");
@@ -233,7 +233,7 @@ describe("셀러 정산 — 표", () => {
     expect(heads).toEqual([
       "정산 회차",
       "셀러",
-      "거래액(할인 후)",
+      "거래액(판매가)",
       "셀러쿠폰",
       "수수료",
       "PG수수료",

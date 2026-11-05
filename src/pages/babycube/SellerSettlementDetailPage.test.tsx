@@ -92,7 +92,7 @@ describe("셀러 정산 상세 — 베베하우스(확인완료 · 안심케어 
 
   it("정산 명세 — 셀러 요율 보조 글자 · 지급 예정액 · 0 인 줄(과 빈 묶음)은 없다", () => {
     renderAt("/settle-seller/S-229");
-    expect(valueOf("확정 거래액할인 후")).toBe("23,100원");
+    expect(valueOf("확정 거래액판매가")).toBe("23,100원");
     expect(hasRow("셀러 쿠폰")).toBe(false);
     expect(valueOf("정산 매출")).toBe("23,100원");
     expect(valueOf("판매 수수료요율 9.8%")).toBe("−2,264원");

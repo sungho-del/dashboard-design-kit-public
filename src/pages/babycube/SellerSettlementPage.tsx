@@ -340,7 +340,7 @@ export function SellerSettlementPage({
             </h3>
             <SettlementCalc
               lines={statementLinesOf(SUMMARY, {
-                listLabel: "입점사 확정 거래액",
+                listLabel: "셀러 확정 거래액",
                 totalLabel: "지급 예정 총액",
                 unpaidBy: UNPAID_SELLERS,
               })}
@@ -436,7 +436,7 @@ export function SellerSettlementPage({
             <TableRow>
               <TableTh>정산 회차</TableTh>
               <TableTh>셀러</TableTh>
-              <TableTh align="right">거래액(할인 후)</TableTh>
+              <TableTh align="right">거래액(판매가)</TableTh>
               <TableTh align="right">셀러쿠폰</TableTh>
               <TableTh align="right">수수료</TableTh>
               <TableTh align="right">PG수수료</TableTh>

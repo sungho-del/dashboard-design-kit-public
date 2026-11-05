@@ -282,7 +282,7 @@ describe("BabycubeDashboardPage (S01 대시보드)", () => {
       expect(valueOf("전체 입점 셀러")).toBe(
         fmt(SELLERS.filter((s) => !s.isHeadquarters).length),
       );
-      expect(valueOf("입점사 거래액(할인 후)")).toBe(
+      expect(valueOf("셀러 거래액(판매가)")).toBe(
         fmt(SETTLEMENT_SUMMARY.sales),
       );
       expect(valueOf("지급 예정 총액")).toBe(fmt(SETTLEMENT_SUMMARY.payout));
