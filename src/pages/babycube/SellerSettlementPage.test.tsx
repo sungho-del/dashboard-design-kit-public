@@ -2,6 +2,8 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { SellerSettlementPage } from "./SellerSettlementPage";
+import { SETTLE_TIP, statementLinesOf } from "./SellerSettlementPage.data";
+import { SETTLEMENT_SUMMARY } from "./settlement.data";
 
 /* -------------------------------------------------------------------------
  * 셀러 정산 (BO-STL-002) — 기획 v0.4 `SCREENS.settleSeller`
@@ -173,7 +175,8 @@ describe("셀러 정산 — 요약 · 산출 내역 (한 카드)", () => {
     expect(fee.textContent?.startsWith("−")).toBe(true);
   });
 
-  it("도움말 ⓘ 는 환수 · 보전 · 미회수 3곳만(원본 SETTLE_TIP 문구)", () => {
+  /** 셀러 귀속 3줄도 ⓘ 를 달지만(부록 A B5 · 2026-11-05) 예시 값이 0원이라 이 회차에는 줄이 없다 */
+  it("도움말 ⓘ 는 환수 · 보전 · 미회수 3곳 + 셀러 귀속 3줄(원본 SETTLE_TIP 문구)", () => {
     renderPage();
     const tips = within(calc())
       .getAllByRole("button", { name: /도움말$/ })
@@ -183,6 +186,35 @@ describe("셀러 정산 — 요약 · 산출 내역 (한 카드)", () => {
       "안심케어 보전 도움말",
       "미회수 도움말",
     ]);
+  });
+
+  /** 판정 Q3 · Q20-3·4 — 개발처럼 위약금 · 픽업 요금 · 배송비(셀러 귀속)를 가산 줄로, 0원 초과일 때만 */
+  it("셀러 귀속 3줄은 0원 초과일 때만 가산 묶음에 ⓘ 와 함께 선다", () => {
+    const labelsOf = (amounts: typeof SETTLEMENT_SUMMARY) =>
+      statementLinesOf(amounts).map((line) => line.key);
+    expect(labelsOf(SETTLEMENT_SUMMARY)).not.toContain("penalty");
+
+    const lines = statementLinesOf({
+      ...SETTLEMENT_SUMMARY,
+      penalty: 1_700,
+      pickupFee: 5_000,
+      shippingFee: 3_000,
+    });
+    const owned = lines.filter((line) => line.hint === "셀러 귀속");
+    expect(
+      owned.map((line) => [line.label, line.value, line.group, line.tip]),
+    ).toEqual([
+      ["위약금", "+1,700원", "add", SETTLE_TIP.penalty],
+      ["픽업 요금", "+5,000원", "add", SETTLE_TIP.pickup],
+      ["배송비", "+3,000원", "add", SETTLE_TIP.shipping],
+    ]);
+    /* 보전 뒤 · 지급액 앞 */
+    const keys = lines.map((line) => line.key);
+    expect(keys.indexOf("penalty")).toBe(keys.indexOf("care") + 1);
+    expect(keys.indexOf("shipping")).toBe(keys.indexOf("total") - 1);
+    expect(SETTLE_TIP.shipping).toBe(
+      "고객이 부담한 출고비·반품비·출고 후 취소 배송비는 실비로 셀러에게 귀속됩니다(수수료 비대상).",
+    );
   });
 
   it("요약·합산은 필터와 무관하다", async () => {

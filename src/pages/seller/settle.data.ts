@@ -116,6 +116,10 @@ export interface SettleSummary {
   pg: number;
   cancel: number;
   care: number;
+  /** 셀러 귀속 — 위약금 · 픽업 요금 · 배송비(가산 · 수수료 비대상). 예시 값 없음(0 — 본사 기획 확인 요청 18번) */
+  penalty: number;
+  pickup: number;
+  shipping: number;
   payout: number;
   unpaid: number;
 }
@@ -151,7 +155,11 @@ export function settleSummary(): SettleSummary {
     ),
     (u) => u.careClaim ?? 0,
   );
-  const net = gmv - fee - pg - cancel + care;
+  /* 셀러 귀속 3종 — 예시 값이 없다(값을 지어내지 않는다 · 본사 정산과 같다) */
+  const penalty = 0;
+  const pickup = 0;
+  const shipping = 0;
+  const net = gmv - fee - pg - cancel + care + penalty + pickup + shipping;
   return {
     units,
     sale,
@@ -164,6 +172,9 @@ export function settleSummary(): SettleSummary {
     pg,
     cancel,
     care,
+    penalty,
+    pickup,
+    shipping,
     payout: Math.max(0, net),
     unpaid: Math.max(0, -net),
   };
@@ -190,6 +201,12 @@ export const SETTLE_TIP = {
   cancel:
     "전월 이전에 확정되어 이미 지급된 건이 취소·반품 완료로 종결되면, 그 금액을 이번 지급액에서 되돌려 받습니다(환수). 환수액은 지난 회차에 셀러가 실제로 받은 금액(정산 매출 − 판매 수수료 − PG 수수료)이며, 판매 수수료는 본사가 환입합니다. 확정된 적 없는 건의 취소·반품은 매출에서 빼기만 하고 차감하지 않습니다.",
   care: "안심케어 가입 건의 복원 가능 파손은 본사 부담이라, 복원비를 셀러에게 보전해 지급액에 더합니다.",
+  /* 셀러 귀속 3줄 — 위약금·픽업 요금 = 개발 `SETTLE_TIP` 그대로 · 배송비 = 부록 A B5 바꿈(입점사 매출 정산도 같이) */
+  penalty:
+    "렌트·연장 취소 위약금은 회수·재소독 비용 주체인 셀러에게 귀속됩니다(수수료 비대상).",
+  pickup: "자체 수령 픽업·반납 요금은 셀러 수입입니다(수수료 비대상).",
+  shipping:
+    "고객이 부담한 출고비·반품비·출고 후 취소 배송비는 실비로 셀러에게 귀속됩니다(수수료 비대상).",
   point:
     "포인트 사용분은 본사가 부담합니다. 셀러는 정가 기준으로 정산받으므로 지급액에는 영향이 없습니다.",
   unpaid:
@@ -265,6 +282,20 @@ export function settleBlocksOf(
           },
         ]
       : [];
+  /* 셀러 귀속 3줄 — 개발 순서(위약금 · 픽업 요금 · 배송비) · 0원 초과일 때만(본사 판정 Q3 · Q20-3·4) */
+  for (const [key, label, amount] of [
+    ["penalty", "위약금", d.penalty],
+    ["pickup", "픽업 요금", d.pickup],
+    ["shipping", "배송비", d.shipping],
+  ] as const)
+    if (amount > 0)
+      add.push({
+        key,
+        label,
+        hint: "셀러 귀속",
+        value: plus(amount),
+        tip: SETTLE_TIP[key],
+      });
   const result: CalcLine[] = [
     { key: "total", label: totalLabel, value: won(d.payout), kind: "total" },
   ];

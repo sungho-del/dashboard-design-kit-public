@@ -27,8 +27,11 @@ import { SELLERS } from "./SellerListPage.data";
  *   ⚠️ **기획 확인 필요**: 정책 B-2 문구는 「수수료 10%」, 원본 코드·셀러 마스터는 셀러별 요율
  * - 환수 = 지난 회차에 **실제 지급한 금액**(고정값 `PAST_PAYOUTS` — 지금 요율로 다시 계산하지 않는다)
  * - 안심케어 보전 = 이번 회차 확정(반납완료) 렌트 중 복원비 청구가 **승인**된 것의 청구액
- * - net = 정산 매출 − 수수료 − PG − 환수 + 보전 · 지급액 = max(0, net) · 미회수 = max(0, −net)(별도 청구, 이월 없음)
- * - 포인트 = 본사 부담 · 정산 영향 없음(참고 값). 보증금·안심케어 가입 요금·배송비는 매출에 넣지 않는다
+ * - 셀러 귀속 = 위약금 · 픽업 요금 · 배송비 — 가산(수수료 비대상 · 판정 Q3 · Q20-3·4 「develop대로」).
+ *   예시 값이 없어 모두 0원이다(화면에는 0원 초과일 때만 줄이 선다 — 예시 값은 기획 확인 요청 18번)
+ * - net = 정산 매출 − 수수료 − PG − 환수 + 보전 + 셀러 귀속 · 지급액 = max(0, net) · 미회수 = max(0, −net)(별도 청구, 이월 없음)
+ *   — 「매출 − 차감 + 가산 = 지급액」(판정 Q3, 0원 하한 행 제외)
+ * - 포인트 = 본사 부담 · 정산 영향 없음(참고 값). 보증금·안심케어 가입 요금·배송비는 매출에 넣지 않는다(배송비는 셀러 귀속 가산)
  *
  * ## 처리단위 판정 (원본 순서 그대로)
  * 1. 취소·반품이 걸렸고 불성립(반려·거부·재반송)이 아니면 **제외**(`voided`) —
@@ -262,9 +265,13 @@ export interface SettlementRow {
   pg: number;
   clawback: number;
   care: number;
+  /** 셀러 귀속 — 위약금 · 픽업 요금 · 배송비(가산 · 수수료 비대상). 예시 값 없음(0) */
+  penalty: number;
+  pickupFee: number;
+  shippingFee: number;
   /** 포인트 사용 — 본사 부담, 참고 값 */
   point: number;
-  /** 순차감 = 수수료 + PG + 환수 − 보전 (보전이 크면 음수 = 가산) */
+  /** 순차감 = 수수료 + PG + 환수 − 보전 − 셀러 귀속 (가산이 크면 음수) */
   netDeduction: number;
   /** net = 정산 매출 − 순차감 — 음수일 수 있다 */
   net: number;
@@ -327,7 +334,12 @@ const rowOf = (
   const pg = hq ? 0 : Math.round(revenue * PG_RATE);
   const clawback = sum(transactions, (tx) => tx.clawback);
   const care = sum(included, (tx) => tx.care);
-  const netDeduction = fee + pg + clawback - care;
+  /* 셀러 귀속 3종 — 예시 값이 없다(기획 확인 요청 18번 — 값을 지어내지 않는다) */
+  const penalty = 0;
+  const pickupFee = 0;
+  const shippingFee = 0;
+  const netDeduction =
+    fee + pg + clawback - care - (penalty + pickupFee + shippingFee);
   const net = revenue - netDeduction;
   const seed: SettlementSeed = hq
     ? { status: "paid" }
@@ -349,6 +361,9 @@ const rowOf = (
     pg,
     clawback,
     care,
+    penalty,
+    pickupFee,
+    shippingFee,
     point: sum(included, (tx) => tx.order.point),
     netDeduction,
     net,
@@ -422,6 +437,9 @@ export interface SettlementSummary {
   pg: number;
   clawback: number;
   care: number;
+  penalty: number;
+  pickupFee: number;
+  shippingFee: number;
   point: number;
   /**
    * 지급 총액 = Σ셀러별 지급액(하한 뒤 합산 — 미회수와 상계하지 않는다).
@@ -445,6 +463,9 @@ export const summaryOf = (rows: SettlementRow[]): SettlementSummary => {
     pg: total((row) => row.pg),
     clawback: total((row) => row.clawback),
     care: total((row) => row.care),
+    penalty: total((row) => row.penalty),
+    pickupFee: total((row) => row.pickupFee),
+    shippingFee: total((row) => row.shippingFee),
     point: total((row) => row.point),
     payout: total((row) => row.payout),
     unpaid: total((row) => row.unpaid),

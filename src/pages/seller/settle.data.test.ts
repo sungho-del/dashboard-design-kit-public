@@ -3,6 +3,7 @@ import { UNITS } from "./seed/orders.data";
 import {
   DEPOSIT_LIST,
   DEPOSIT_UNITS,
+  SETTLE_TIP,
   SETTLE_TX,
   STATEMENTS,
   SUMMARY,
@@ -39,8 +40,10 @@ describe("정산 — 원본 정답 대조", () => {
   });
 
   it("2026.06 명세 합계가 원본 settleMyData 와 같다", () => {
-    const { units, ...rest } = SUMMARY;
+    /* 셀러 귀속 3종(판정 Q3 · 개발대로)은 원본에 없는 칸이라 대조에서 뺀다 — 예시 값은 0원 */
+    const { units, penalty, pickup, shipping, ...rest } = SUMMARY;
     expect({ ...rest, included: units.length }).toEqual(SETTLE_SUM_GOLDEN);
+    expect([penalty, pickup, shipping]).toEqual([0, 0, 0]);
   });
 
   it("각주 — 반영 14건 · 1,979,000원 · 제외 142건(원본 캡처)", () => {
@@ -112,6 +115,28 @@ describe("정산 명세 묶음", () => {
       "안심케어 보전=+5,400원",
       "지급 예정액=1,639,695원",
       "포인트 사용분 본사 부담=21,400원",
+    ]);
+  });
+
+  /** 본사 판정 Q3 · 부록 A B5(입점사 매출 정산도 같이) — 셀러 귀속 3줄은 0원 초과일 때만 ⓘ 와 함께 가산에 */
+  it("셀러 귀속 3줄은 0원 초과일 때만 가산 묶음에 선다", () => {
+    const addOf = (blocks: ReturnType<typeof settleBlocksOf>) =>
+      blocks.find((b) => b.key === "add")?.lines ?? [];
+    expect(addOf(settleBlocksOf(SUMMARY)).map((l) => l.key)).toEqual(["care"]);
+
+    const lines = addOf(
+      settleBlocksOf({
+        ...SUMMARY,
+        penalty: 1700,
+        pickup: 5000,
+        shipping: 3000,
+      }),
+    );
+    expect(lines.map((l) => [l.label, l.hint, l.value, l.tip])).toEqual([
+      ["안심케어 보전", "손상에 대한 본사 복원비", "+5,400원", SETTLE_TIP.care],
+      ["위약금", "셀러 귀속", "+1,700원", SETTLE_TIP.penalty],
+      ["픽업 요금", "셀러 귀속", "+5,000원", SETTLE_TIP.pickup],
+      ["배송비", "셀러 귀속", "+3,000원", SETTLE_TIP.shipping],
     ]);
   });
 

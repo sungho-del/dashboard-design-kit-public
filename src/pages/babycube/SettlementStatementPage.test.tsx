@@ -84,7 +84,7 @@ const ALL_NOS = [
   "STM-2609-0229",
 ];
 
-describe("표 (원본 8열 · 본사 1 + 셀러 정산 행)", () => {
+describe("표 (원본 8열 + 가산 열 · 본사 1 + 셀러 정산 행)", () => {
   it("열 이름·순서가 원본 그대로고, 체크박스·No·엑셀이 없다", () => {
     renderPage();
 
@@ -98,6 +98,7 @@ describe("표 (원본 8열 · 본사 1 + 셀러 정산 행)", () => {
       "정산월",
       "매출",
       "차감(수수료·PG·취소)",
+      "가산(보전·셀러 귀속)",
       "지급액",
       "상태",
       "명세서",
@@ -116,7 +117,7 @@ describe("표 (원본 8열 · 본사 1 + 셀러 정산 행)", () => {
     );
   });
 
-  it("금액 3열만 오른쪽(머리글 포함) · [명세서] 열은 오른쪽 고정 · 버튼이 그 안에 있다", () => {
+  it("금액 4열만 오른쪽(머리글 포함) · [명세서] 열은 오른쪽 고정 · 버튼이 그 안에 있다", () => {
     renderPage();
 
     const heads = within(screen.getByRole("table")).getAllByRole(
@@ -125,10 +126,15 @@ describe("표 (원본 8열 · 본사 1 + 셀러 정산 행)", () => {
     const right = heads
       .filter((th) => th.className.includes("text-right"))
       .map((th) => th.textContent);
-    expect(right).toEqual(["매출", "차감(수수료·PG·취소)", "지급액"]);
-    expect(heads[7].className.split(" ")).toContain("sticky");
+    expect(right).toEqual([
+      "매출",
+      "차감(수수료·PG·취소)",
+      "가산(보전·셀러 귀속)",
+      "지급액",
+    ]);
+    expect(heads[8].className.split(" ")).toContain("sticky");
 
-    const last = rowOf("STM-2609-0226").querySelectorAll("td")[7];
+    const last = rowOf("STM-2609-0226").querySelectorAll("td")[8];
     expect(last.className.split(" ")).toContain("sticky");
     expect(
       within(last).getByRole("button", { name: "베이비루 명세서" }),
@@ -136,25 +142,46 @@ describe("표 (원본 8열 · 본사 1 + 셀러 정산 행)", () => {
     expect(rowOf("STM-2609-0226").querySelectorAll("td")[4].className).toMatch(
       /text-right/,
     );
+    expect(rowOf("STM-2609-0226").querySelectorAll("td")[5].className).toMatch(
+      /text-right/,
+    );
   });
 
   it.each([
-    // 번호, 정산 대상, 매출, 차감(수수료+PG+환수), 지급액, 상태
-    ["STM-2609-0001", "자체본사", "171,600원", "-", "171,600원", "지급완료"],
+    // 번호, 정산 대상, 매출, 차감(수수료+PG+환수), 가산(보전+셀러 귀속), 지급액, 상태
+    [
+      "STM-2609-0001",
+      "자체본사",
+      "171,600원",
+      "-",
+      "-",
+      "171,600원",
+      "지급완료",
+    ],
     [
       "STM-2609-0226",
       "입점사베이비루",
       "109,000원",
       "−16,350원",
+      "-",
       "92,650원",
       "지급완료",
     ],
-    ["STM-2609-0227", "입점사리틀스텝", "0원", "−77,400원", "0원", "이의제기"],
+    [
+      "STM-2609-0227",
+      "입점사리틀스텝",
+      "0원",
+      "−77,400원",
+      "-",
+      "0원",
+      "이의제기",
+    ],
     [
       "STM-2609-0201",
       "입점사리틀베이비",
       "84,000원",
       "−10,920원",
+      "-",
       "73,080원",
       "지급대기",
     ],
@@ -163,6 +190,7 @@ describe("표 (원본 8열 · 본사 1 + 셀러 정산 행)", () => {
       "입점사코지베이비",
       "37,800원",
       "−6,237원",
+      "+18,000원",
       "49,563원",
       "확인요청",
     ],
@@ -171,6 +199,7 @@ describe("표 (원본 8열 · 본사 1 + 셀러 정산 행)", () => {
       "입점사베베하우스",
       "23,100원",
       "−2,957원",
+      "+12,000원",
       "32,143원",
       "확인완료",
     ],
@@ -179,21 +208,40 @@ describe("표 (원본 8열 · 본사 1 + 셀러 정산 행)", () => {
       "입점사맘스케어",
       "14,000원",
       "−1,750원",
+      "-",
       "12,250원",
       "보류",
     ],
-  ])("%s — 사례표 금액", (no, target, revenue, deduction, payout, status) => {
-    renderPage();
+  ])(
+    "%s — 사례표 금액",
+    (no, target, revenue, deduction, addition, payout, status) => {
+      renderPage();
 
-    const cells = cellsOf(rowOf(no));
-    expect(cells.slice(1, 7)).toEqual([
-      target,
-      "2026.09",
-      revenue,
-      deduction,
-      payout,
-      status,
-    ]);
+      const cells = cellsOf(rowOf(no));
+      expect(cells.slice(1, 8)).toEqual([
+        target,
+        "2026.09",
+        revenue,
+        deduction,
+        addition,
+        payout,
+        status,
+      ]);
+    },
+  );
+
+  /** 판정 Q3 — 매출 − 차감 + 가산 = 지급액(0원 하한 행 리틀스텝은 기획 확인 요청 20번) */
+  it("0원 하한 행 밖에서는 매출 − 차감 + 가산 = 지급액이다", () => {
+    renderPage();
+    const amount = (text: string) =>
+      text === "-" ? 0 : Number(text.replace(/[^0-9]/g, ""));
+
+    for (const no of ALL_NOS.filter((no) => no !== "STM-2609-0227")) {
+      const [, , , revenue, deduction, addition, payout] = cellsOf(rowOf(no));
+      expect(amount(revenue) - amount(deduction) + amount(addition)).toBe(
+        amount(payout),
+      );
+    }
   });
 });
 

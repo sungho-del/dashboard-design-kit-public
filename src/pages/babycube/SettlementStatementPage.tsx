@@ -37,6 +37,7 @@ import {
   STATUS_OPTIONS,
   TARGET_KIND_LABEL,
   TARGET_OPTIONS,
+  additionText,
   deductionText,
   detailPathOf,
   filterSummary,
@@ -53,10 +54,11 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * ## 구성 — 원본 v0.4 `SCREENS.settleStatement` (proto.html 4619~4631)
  * ```
  * 검색조건 (정산 대상 · 상태 · 검색 대상 + 검색어)        ← FilterBar, 펼친 채로 열린다
- * 목록 (총 N건) / 표 8열 / 페이지네이션 10·20·50·100      ← 엑셀·체크박스·No·정렬 없음(원본)
+ * 목록 (총 N건) / 표 9열 / 페이지네이션 10·20·50·100      ← 엑셀·체크박스·No·정렬 없음(원본)
  * ```
  * 명세서번호 · [명세서] · 행 클릭 → 정산 명세서 상세(`/settle-statement/{명세서번호}`).
- * [명세서] 열은 오른쪽 고정(1280 에서도 보인다) · 금액 3열은 오른쪽 정렬.
+ * [명세서] 열은 오른쪽 고정(1280 에서도 보인다) · 금액 4열(매출·차감·가산·지급액)은 오른쪽 정렬.
+ * 가산(보전·셀러 귀속) 열은 차감 다음(판정 Q3).
  *
  * ## 이 파일은 도메인을 모른다 — 도메인은 `./SettlementStatementPage.data.ts` 에 있다
  *
@@ -88,7 +90,7 @@ export interface SettlementStatementPageProps {
   onNavSelect: (id: string) => void;
 }
 
-const COLUMN_COUNT = 8;
+const COLUMN_COUNT = 9;
 
 export function SettlementStatementPage({
   navOpen,
@@ -208,14 +210,18 @@ export function SettlementStatementPage({
         }
       >
         <Table>
-          {/* 합 1032 — 1440 은 다 보이고, 1280(976)은 표 안에서 밀린다. 그래도 [명세서] 열은 오른쪽에 붙박는다 */}
+          {/*
+            합 1128 — 1440(상자 1136)은 다 보이고, 1280(976)은 표 안에서 밀린다. 그래도 [명세서] 열은 오른쪽에 붙박는다.
+            가산 열을 넣으며(판정 Q3) 매출·지급액 128 → 112(실측 내용 94) · 가산 128(머리 123)
+          */}
           <colgroup>
             <col className="w-36" />
             <col className="w-44" />
             <col className="w-24" />
-            <col className="w-32" />
+            <col className="w-28" />
             <col className="w-34" />
             <col className="w-32" />
+            <col className="w-28" />
             <col className="w-28" />
             <col className="w-28" />
           </colgroup>
@@ -224,9 +230,10 @@ export function SettlementStatementPage({
               <TableTh>명세서번호</TableTh>
               <TableTh>정산 대상</TableTh>
               <TableTh>정산월</TableTh>
-              {/* 금액 3열은 계산을 맞춰 읽는 열이라 오른쪽(§7-2 계산 영역 예외 — 셀러 정산과 같다) */}
+              {/* 금액 4열은 계산을 맞춰 읽는 열이라 오른쪽(§7-2 계산 영역 예외 — 셀러 정산과 같다) */}
               <TableTh align="right">매출</TableTh>
               <TableTh align="right">차감(수수료·PG·취소)</TableTh>
+              <TableTh align="right">가산(보전·셀러 귀속)</TableTh>
               <TableTh align="right">지급액</TableTh>
               <TableTh align="center">상태</TableTh>
               <TableTh className={ACTION_TH}>명세서</TableTh>
@@ -269,6 +276,9 @@ export function SettlementStatementPage({
                       </TableTd>
                       <TableTd align="right" className="tabular-nums">
                         {deductionText(row)}
+                      </TableTd>
+                      <TableTd align="right" className="tabular-nums">
+                        {additionText(row)}
                       </TableTd>
                       {/* 지급액은 굵게(원본 `<b>`) — TableTd 의 body-medium 과 겹치지 않게 span 에 */}
                       <TableTd align="right" className="tabular-nums">
