@@ -14,3 +14,5 @@ claude-in-chrome 의 `left_click` 은 JS 로 `scrollIntoView` 한 직후에는 *
 - 31개 화면을 도는 JS 루프를 `javascript_tool` 한 번에 await 하면 45초 CDP 타임아웃이 난다. 비동기로 띄우고 `window.__out` 에 쌓은 뒤 폴링한다. 타임아웃 난 루프는 계속 돌므로 **페이지를 다시 navigate 해서 죽인 뒤** 재시작할 것.
 - Vite 개발 서버는 잘못 인코딩된 URL(`%E0%A4%A`)을 직접 열면 앱 이전에 500 을 낸다. 앱 레벨 동작은 `history.pushState` + 앱의 `app:navigate` 이벤트로 확인한다. 이 요청은 HMR 로 열린 탭에 Vite 에러 오버레이도 띄운다(Esc 로 닫기, 제품 결함 아님).
 - 스크린샷 좌표계와 CSS px 이 다를 수 있다(같은 탭에서 500 폭 → 2560 CSS px / 1568 스크린샷 폭으로 바뀐 적 있음). `getBoundingClientRect` 값을 클릭에 쓰기 전에 `스크린샷폭 / innerWidth` 비율을 곱한다.
+- 2026-11-05: 부모가 준 scratchpad `pw/node_modules/playwright-core` 가 package.json·index.js 없이 깨져 있었다(설치 금지라 재설치 안 함). 같은 폴더 `pw/cdp.mjs` 가 `ms-playwright/chromium_headless_shell-1217` 을 CDP(Node 24 내장 WebSocket)로 직접 몬다 — 실마우스·insertText·콘솔 수집 가능. 다음에도 import 가 죽으면 이것부터 확인.
+- Bash 도구는 heredoc 본문의 `\` 를 `\` 로 줄이고, 어떤 긴 본문은 "unexpected EOF … `'`" 로 통째로 거절한다 — 스크립트는 40줄 안팎으로 나눠 `>>` 로 붙이고, 정규식은 `\d` 대신 `[0-9]` 처럼 백슬래시 없이 쓴다.

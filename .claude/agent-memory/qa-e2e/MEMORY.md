@@ -1,2 +1,2 @@
 - [Static-only QA runs](feedback_static-only-qa-runs.md) — 범위를 코드 대조로 좁히면 브라우저를 띄우지 말고, 못 돌린 검사는 blocked/SKIP 으로 짧게 보고
-- [Browser tool quirks](feedback_browser-tool-quirks.md) — 실클릭 무반응 시 스크린샷 후 재시도 · 헤드리스 콘솔 수집 · JS 루프 타임아웃 회피
+- [Browser tool quirks](feedback_browser-tool-quirks.md) — 실클릭 무반응 · 헤드리스 콘솔 · JS 루프 타임아웃 · playwright-core 깨짐 시 pw/cdp.mjs · heredoc 백슬래시
