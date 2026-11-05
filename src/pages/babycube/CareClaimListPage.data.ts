@@ -53,7 +53,7 @@ import {
  * - `파손(복원가능)` 배지 색이 원본 사전에 없어 회색으로 나온다(1922) → 보증금과 같은 판정 사전
  *   (`INSPECTION_META` — `critical`)을 쓴다
  * - 반려 카드 툴팁이 **상품** 문장이다(2818) → 지금은 부록 A C48 문장(승인 카드는 C47).
- *   청구 접수 카드는 원본에 툴팁이 없어 두지 않는다(C46 자리 — 질문 30)
+ *   청구 접수 카드는 원본에 툴팁이 없었다 → 부록 A C46 문장
  * - ⚠️ **기획 확인 필요**: 반려 안내는 「셀러가 보증금 차감 여부를 다시 판단합니다」(부록 A C48·C58)인데, 원본 반려 건의
  *   보증금은 이미 전액환급이다(1557). 우리도 원본대로 둔다(사용자 결정 ④ — U-R19 전액환급 · 질문 22)
  * - ⚠️ **기획 확인 필요**: 「익월 정산 보전」의 회차는 승인일이 아니라 **렌트 종료(반납 확정)월**로 정한다
@@ -114,13 +114,18 @@ export const REVIEWABLE_STATUS: CareClaimStatus = "received";
 /**
  * 청구 상태 → 라벨 · tone · 상태 카드 툴팁(원본 `STAT_TIP`).
  * 원본 배지: 청구 접수 b-prog · 승인 b-done · 반려 b-exc — 입점 심사와 같은 대응(warning/default/critical).
- * 청구 접수는 원본에 툴팁이 없다(`tip` 없음).
+ * 청구 접수는 원본에 툴팁이 없었다 — 부록 A C46 문장을 넣는다.
  */
 export const STATUS_META: Record<
   CareClaimStatus,
   { label: string; tone: TagTone; tip?: string }
 > = {
-  received: { label: CARE_CLAIM_STATUS_LABEL.received, tone: "warning" },
+  received: {
+    label: CARE_CLAIM_STATUS_LABEL.received,
+    tone: "warning",
+    /* 부록 A C46 — 기한 표현만 DM 에 맞춘 예외 문장 */
+    tip: "접수일 기준 3번째 영업일까지 승인 또는 반려합니다.",
+  },
   approved: {
     label: CARE_CLAIM_STATUS_LABEL.approved,
     tone: "default",

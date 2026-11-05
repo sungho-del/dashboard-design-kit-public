@@ -169,6 +169,17 @@ describe("CareClaimListPage (S14 안심케어 승인)", () => {
       expect(screen.queryByText(/판매를 내린 상태/)).toBeNull();
     });
 
+    it("청구 접수 카드 툴팁은 「접수일 기준 3번째 영업일까지 승인 또는 반려합니다.」 (부록 A C46)", async () => {
+      const { user } = renderPage();
+      await user.hover(statusBox("청구 접수 1건"));
+      expect(
+        await screen.findByText(
+          "접수일 기준 3번째 영업일까지 승인 또는 반려합니다.",
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText(/은행 영업일/)).toBeNull();
+    });
+
     it("승인 카드 툴팁은 「복원비가 다음 달 정산에 더해집니다.」 (부록 A C47)", async () => {
       const { user } = renderPage();
       await user.hover(statusBox("승인 2건"));
