@@ -71,11 +71,11 @@ describe("리뷰 정보 (노출 중 RV-30)", () => {
     ).toEqual(["리뷰 정보 접기", "노출 관리 접기"]);
   });
 
-  it("값 — 작성자·상태·별점·작성일·셀러·상품 (원본 줄 순서) · 내용 전문 · 답글 없음은 흐린 문구", () => {
+  it("값 — 작성자·상태·별점·작성일·셀러·상품 (원본 줄 순서) · 주문번호 · 내용 전문 · 답글 없음은 흐린 문구", () => {
     renderAt("/reviews-admin/RV-30");
 
     expect(screen.getAllByRole("term").map((term) => term.textContent)).toEqual(
-      ["작성자", "상태", "별점", "작성일", "셀러", "상품"],
+      ["작성자", "상태", "별점", "작성일", "셀러", "상품", "주문번호"],
     );
     expect(
       screen.getAllByRole("definition").map((value) => value.textContent),
@@ -83,9 +83,10 @@ describe("리뷰 정보 (노출 중 RV-30)", () => {
       "서하준",
       "노출",
       "(4점)",
-      "2026.09.04",
+      "2026.09.20",
       "아이랑",
       "바구니형 카시트 코지",
+      "20260829190512",
     ]);
     expect(
       screen.getByRole("img", { name: "별점 4점 (5점 만점)" }),
@@ -189,9 +190,10 @@ describe("노출 관리 — 숨김 중이면 [복원] (RV-28)", () => {
       "노하린",
       "숨김",
       "(1점)",
-      "2026.09.14",
+      "2026.09.20",
       "아기별상사",
       "기내반입 유모차 포켓",
+      "20260910114856",
     ]);
   });
 
@@ -214,6 +216,14 @@ describe("이동", () => {
 
     await user.click(screen.getByRole("button", { name: "목록" }));
     expect(onNavSelect).toHaveBeenCalledWith("/reviews-admin");
+  });
+
+  /* 판정 Q12 · 디자인 §1 — 주문 상품(처리단위) 1건당 리뷰 1개 · 주문번호는 그 처리단위의 주문 상세로 */
+  it("주문번호 → 그 리뷰를 쓴 처리단위의 주문 상세", async () => {
+    const { user, onNavSelect } = renderAt("/reviews-admin/RV-27");
+
+    await user.click(screen.getByRole("button", { name: "20260820151024" }));
+    expect(onNavSelect).toHaveBeenCalledWith("/orders-all/U-R28");
   });
 
   it("없는 리뷰 — 찾을 수 없음 + [리뷰 목록으로]", async () => {

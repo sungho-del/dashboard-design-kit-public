@@ -10,6 +10,7 @@ import { LIST_PATH, findReview, type Review } from "./ReviewListPage.data";
  * - `findReview(id)` → 리뷰 | `undefined` (목록과 같은 배열 `REVIEWS`)
  * - 구역 2개 제목은 `SECTIONS` — 원본 `리뷰 정보` · `노출 관리`
  * - 문구는 `COPY` — 도움말·토스트·오류는 원본 문장 그대로
+ * - `orderPathOf(review)` — 「주문번호」 줄이 여는 주문 상세(처리단위 1건당 리뷰 1개 — 판정 Q12)
  * - 숨김 사유 글자 수 `REASON_MAX`(원본 `maxlength=60`)
  *
  * ## 퍼블 범위 (사용자 결정 2026-11-03)
@@ -67,6 +68,9 @@ export const textOrDash = (value: string) => value.trim() || EMPTY_TEXT;
 
 /** 별점 옆 숫자 — 원본 `(4점)` */
 export const scoreText = (rating: number) => `(${rating}점)`;
+
+/** 주문번호 링크 — 그 리뷰를 쓴 처리단위의 주문 상세(판정 Q12 · 주문 목록과 같은 경로) */
+export const orderPathOf = (review: Review) => `/orders-all/${review.unit}`;
 
 /** 머리 부제 — 리뷰 id · 작성자 · 상품 */
 export const headlineOf = (review: Review) =>

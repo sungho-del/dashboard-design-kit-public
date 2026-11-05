@@ -17,16 +17,17 @@ import {
  * 검색조건(펼침·요약·대소문자 무시·기간 빠른 선택) · 정렬 3단 · 페이지 · 빈 상태·초기화 ·
  * 행/회원명 → 상세 · 원본에 없는 엑셀·체크박스·미리보기가 없다 · `?preview=`.
  *
- * 사례표 (원장 25행 → 11명, 기본 순서 = 최근 업데이트 순)
+ * 사례표 (원장 25행 → 11명, 기본 순서 = 최근 업데이트 순 · 리뷰 지급은 확정 뒤 — 판정 Q12)
  * | 회원   | 보유  | 누적 지급 | 누적 차감 | 업데이트          |
  * | 임채원 | 1,200 | 1,200     | 0         | 2026.10.16 20:15  |
+ * | 안지성 | 500   | 2,500     | 2,000     | 2026.10.15 17:30  | ← U-R11 사용 2,000
  * | 황보라 | 1,100 | 1,100     | 0         | 2026.10.15 09:40  |
- * | 안지성 | 500   | 2,500     | 2,000     | 2026.10.08 16:44  | ← U-R11 사용 2,000
+ * | 노하린 | 600   | 3,600     | 3,000     | 2026.10.14 10:05  | ← U-S35 사용 3,000
  * | 홍다인 | 1,600 | 1,600     | 0         | 2026.10.06 14:00  |
  * | 오세린 | 0     | 500       | 500       | 2026.10.02 10:05  | ← 리뷰 회수
- * | 장시우 · 최유나 · 송예린 · 유가은 500 | (백도윤은 리뷰 지급 없음 — 문의 Q-8835) |
- * | 노하린 | 600   | 3,600     | 3,000     | 2026.09.21 10:05  | ← U-S35 사용 3,000
- * | 서하준 | 100   | 500       | 400       | 2026.09.07 10:30  | ← 관리자 회수 400
+ * | 최유나 · 장시우 · 유가은 500 | (백도윤은 리뷰 지급 없음 — 문의 Q-8835) |
+ * | 서하준 | 100   | 500       | 400       | 2026.09.23 10:30  | ← 관리자 회수 400
+ * | 송예린 | 500   | 500       | 0         | 2026.09.18 16:00  |
  * ---------------------------------------------------------------------- */
 type User = ReturnType<typeof userEvent.setup>;
 
@@ -102,15 +103,15 @@ const searchBox = () =>
 
 const PAGE_ONE = [
   "임채원",
-  "황보라",
   "안지성",
+  "황보라",
+  "노하린",
   "홍다인",
   "오세린",
-  "장시우",
   "최유나",
-  "노하린",
-  "송예린",
+  "장시우",
   "유가은",
+  "서하준",
 ];
 
 describe("표 (원본 7열 · 조회 전용)", () => {
@@ -156,9 +157,9 @@ describe("표 (원본 7열 · 조회 전용)", () => {
   it.each([
     // 회원, 보유, 누적 지급, 누적 차감, 업데이트
     ["임채원", "1,200P", "1,200P", "0P", "2026.10.16 20:15"],
-    ["안지성", "500P", "2,500P", "2,000P", "2026.10.08 16:44"],
+    ["안지성", "500P", "2,500P", "2,000P", "2026.10.15 17:30"],
     ["오세린", "0P", "500P", "500P", "2026.10.02 10:05"],
-    ["노하린", "600P", "3,600P", "3,000P", "2026.09.21 10:05"],
+    ["노하린", "600P", "3,600P", "3,000P", "2026.10.14 10:05"],
   ])("사례표 %s — 보유 %s · 지급 %s · 차감 %s", (name, ...expected) => {
     renderPage();
 
@@ -235,6 +236,35 @@ describe("원장 정합 — 한 원천에서 목록·상세·회원 상세·주�
       expect(order, entry.id).toBeDefined();
       expect(entry.at >= order!.date.slice(0, 16)).toBe(true);
     }
+  });
+
+  /*
+   * 판정 Q12 — 리뷰(후기 지급)는 판매 구매확정 · 렌트 반납완료 뒤. 처리단위가 아직 확정 전인 6행은
+   * 처리단위를 바꿀지 행을 뺄지 정하지 않아 예외로 둔다(반영 단계 2b 보고)
+   */
+  it("리뷰 지급은 그 처리단위 확정 뒤다 — 확정 전 처리단위 6행만 예외", () => {
+    const pending = new Set([
+      "U-R09",
+      "U-R22",
+      "U-S07",
+      "U-S08",
+      "U-R10",
+      "U-R17",
+    ]);
+    let checked = 0;
+    for (const entry of POINT_LEDGER.filter((item) => item.kind === "earn")) {
+      const units = ORDERS.filter(
+        (order) =>
+          order.orderNo === entry.orderNo && order.buyerId === entry.memberId,
+      );
+      if (units.every((order) => pending.has(order.id))) continue;
+      for (const order of units) {
+        expect(order.confirmedAt, entry.id).not.toBeNull();
+        expect(entry.at > order.confirmedAt!, entry.id).toBe(true);
+      }
+      checked += 1;
+    }
+    expect(checked).toBe(12);
   });
 
   it("구분 4종이 다 있고, 지급은 리뷰 500·100P · 잔액이 음수로 내려가지 않는다", () => {
@@ -316,14 +346,14 @@ describe("검색조건 (펼친 채로 · 즉시 적용)", () => {
       vi.useRealTimers();
     });
 
-    it("1주일(10.13~10.19) — 그 사이 업데이트된 두 명만", async () => {
+    it("1주일(10.13~10.19) — 그 사이 업데이트된 네 명만", async () => {
       const { user } = renderPage();
 
       await user.click(screen.getByRole("button", { name: "업데이트 기간" }));
       const panel = await screen.findByRole("dialog");
       await user.click(within(panel).getByRole("button", { name: "1주일" }));
 
-      expect(visibleNames()).toEqual(["임채원", "황보라"]);
+      expect(visibleNames()).toEqual(["임채원", "안지성", "황보라", "노하린"]);
       expect(
         screen.getByText("업데이트 기간 2026.10.13~2026.10.19"),
       ).toBeVisible();
@@ -364,13 +394,13 @@ describe("정렬 (보유 · 누적 지급 · 누적 차감 · 업데이트 일�
     ]);
   });
 
-  it("업데이트 일시 오름차순 — 가장 오래된 서하준이 맨 위, 정렬하면 1페이지로", async () => {
+  it("업데이트 일시 오름차순 — 가장 오래된 송예린이 맨 위, 정렬하면 1페이지로", async () => {
     const { user } = renderPage();
 
     await user.click(screen.getByRole("button", { name: "2" }));
     await user.click(sortButton("업데이트 일시"));
 
-    expect(visibleNames()[0]).toBe("서하준");
+    expect(visibleNames()[0]).toBe("송예린");
     expect(
       screen.getByRole("button", { name: "1", current: "page" }),
     ).toBeInTheDocument();
@@ -382,7 +412,7 @@ describe("페이지 (10 · 20 · 50 · 100)", () => {
     const { user } = renderPage();
 
     await user.click(screen.getByRole("button", { name: "2" }));
-    expect(visibleNames()).toEqual(["서하준"]);
+    expect(visibleNames()).toEqual(["송예린"]);
     expect(column(CELL.no)).toEqual(["1"]);
 
     await chooseOption(user, "페이지당 개수", "20개씩 보기");

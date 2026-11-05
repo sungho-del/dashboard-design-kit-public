@@ -122,7 +122,7 @@ describe("PointDetailPage (포인트 현황 상세)", () => {
     it("안지성: 계산 순서 총 지급 +2,500 → 총 사용(차감) −2,000 → 보유 500 · 경고색 없음 · 지급 기간", () => {
       renderAt(pathOf("jisung.ahn@example.com"));
 
-      expect(valueOf("지급 기간")).toBe("2026.10.01 ~ 2026.10.08");
+      expect(valueOf("지급 기간")).toBe("2026.10.01 ~ 2026.10.15");
       expect(tileTexts()).toEqual([
         "총 지급 포인트+2,500P",
         "총 사용(차감) 포인트−2,000P",
@@ -140,23 +140,24 @@ describe("PointDetailPage (포인트 현황 상세)", () => {
       renderAt(pathOf("jisung.ahn@example.com"));
 
       expect(screen.getByText("포인트 이력 (3)")).toBeVisible();
+      /* 리뷰 지급은 구매확정(U-S09 10-14 13:10) 뒤 — 판정 Q12 */
       expect(historyRows()).toEqual([
+        [
+          "2026.10.15 17:30",
+          "+500P",
+          "지급",
+          "포토 후기 작성",
+          orderNoOf("U-S09"),
+          "500P",
+          "시스템 자동",
+        ],
         [
           "2026.10.08 16:44",
           "−2,000P",
           "사용",
           "렌트 결제 사용",
           orderNoOf("U-R11"),
-          "500P",
-          "시스템 자동",
-        ],
-        [
-          "2026.10.07 17:30",
-          "+500P",
-          "지급",
-          "포토 후기 작성",
-          orderNoOf("U-S09"),
-          "2,500P",
+          "0P",
           "시스템 자동",
         ],
         [
@@ -188,7 +189,7 @@ describe("PointDetailPage (포인트 현황 상세)", () => {
         "600P",
         "500P",
       ]);
-      expect(valueOf("지급 기간")).toBe("2026.08.27 ~ 2026.10.16");
+      expect(valueOf("지급 기간")).toBe("2026.09.18 ~ 2026.10.16");
     });
 
     it("노하린: 사용 3,000 은 주문 U-S35 · 보유 600", () => {
@@ -280,7 +281,7 @@ describe("PointDetailPage (포인트 현황 상세)", () => {
       );
 
       expect(screen.queryByRole("table")).toBeNull();
-      expect(valueOf("지급 기간")).toBe("2026.10.01 ~ 2026.10.08");
+      expect(valueOf("지급 기간")).toBe("2026.10.01 ~ 2026.10.15");
     });
 
     it("?preview=loading — 값 대신 스켈레톤", () => {

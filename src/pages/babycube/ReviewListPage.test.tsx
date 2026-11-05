@@ -95,7 +95,7 @@ describe("표 (원본 7열 · 표 하나뿐)", () => {
         "리틀베이비",
         "디럭스 유모차 클래식",
         "성장단계 추천으로 골랐는데 우리 아이한테 딱 맞아요.",
-        "2026.09.21",
+        "2026.10.14",
         "노출",
       ],
       [
@@ -103,7 +103,7 @@ describe("표 (원본 7열 · 표 하나뿐)", () => {
         "아기별상사",
         "기내반입 유모차 포켓",
         "숨김 (욕설·비방 내용)",
-        "2026.09.14",
+        "2026.09.20",
         "숨김",
       ],
       [
@@ -111,7 +111,7 @@ describe("표 (원본 7열 · 표 하나뿐)", () => {
         "아이랑",
         "바구니형 카시트 코지",
         "상태가 새것 같아요. 벨트가 살짝 빡빡한 것 빼면 만족합니다.",
-        "2026.09.04",
+        "2026.09.20",
         "노출",
       ],
       [
@@ -119,7 +119,7 @@ describe("표 (원본 7열 · 표 하나뿐)", () => {
         "베베하우스",
         "베드사이드 침대 코모",
         "조립 기사님이 친절했고 위생 상태 최고예요.",
-        "2026.08.27",
+        "2026.09.18",
         "노출",
       ],
     ]);
@@ -235,6 +235,15 @@ describe("공통 데이터와 맞물림", () => {
       expect(paid.map((entry) => entry.at)).toEqual([review.date]);
       expect(review.date > order.date).toBe(true);
       expect(review.date.slice(0, 10) <= DEMO_TODAY).toBe(true);
+    }
+  });
+
+  /* 판정 Q12 · 디자인 §1 — 판매 = 구매확정 후, 렌트 = 반납완료 후(처리단위의 매출 확정 시각) */
+  it("작성일은 그 처리단위의 구매확정·반납완료 뒤다", () => {
+    for (const review of REVIEWS) {
+      const order = ORDERS.find((item) => item.id === review.unit)!;
+      expect(order.confirmedAt, review.id).not.toBeNull();
+      expect(review.date > order.confirmedAt!, review.id).toBe(true);
     }
   });
 
