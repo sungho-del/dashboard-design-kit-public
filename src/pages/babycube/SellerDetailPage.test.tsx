@@ -10,7 +10,7 @@ import { SellerDetailPage } from "./SellerDetailPage";
  * ## 무엇을 검증하는가
  * 렌더 여부가 아니라 **동작과 정책**이다 —
  * 경로의 id 로 그 셀러를 찾는가 · 필수 값·수수료율 범위를 검증하는가 ·
- * **본사 계정은 상태만 잠그고 수수료율은 0% 이상을 받는가** · [퇴점] 저장이 확인 창을 거치는가 ·
+ * **본사 계정은 상태·위생인증만 잠그고 수수료율은 0% 이상을 받는가** · [퇴점] 저장이 확인 창을 거치는가 ·
  * 서류 미리보기 · 등록 상품 표(원본 컬럼·배지·페이지) · 셀러를 오갈 때 고친 값이 따라가지 않는가 ·
  * 없는 셀러에게 돌아갈 길을 주는가.
  * ---------------------------------------------------------------------- */
@@ -197,7 +197,7 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
   });
 
   /**
-   * ⚠️ 본사 계정 — **상태(입점)만 잠근다**. 수수료율은 처음 0%, 수정 가능 · 본사 행만 0% 이상
+   * ⚠️ 본사 계정 — **상태(입점)·위생인증(「인증 (본사 직영)」)만 잠근다**. 수수료율은 처음 0%, 수정 가능 · 본사 행만 0% 이상
    * (판정 Q20-1 · Q20-5 · 디자인 §3 #15 — 2026-10-15 「수수료율 0% 잠금」을 풀었다).
    */
   describe("본사 계정", () => {
@@ -260,10 +260,18 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       expect(screen.queryByText("변경 내용을 저장했습니다")).toBeNull();
     });
 
-    it("나머지(셀러 정보·위생인증·취급 유형)는 고치고 저장할 수 있다", async () => {
+    /** 판정 Q20-2 · 디자인 §3 #16 — 「인증」 고정(잠금), 표시 「인증 (본사 직영)」 */
+    it("위생인증은 세그먼트 없이 「인증 (본사 직영)」 이다", () => {
+      renderAt(HEADQUARTERS);
+      const operation = section("운영 정보");
+
+      expect(within(operation).queryByRole("radio")).toBeNull();
+      expect(within(operation).getByText("인증 (본사 직영)")).toBeVisible();
+    });
+
+    it("나머지(셀러 정보·취급 유형)는 고치고 저장할 수 있다", async () => {
       const { user } = renderAt(HEADQUARTERS);
 
-      expect(screen.getByRole("radio", { name: "인증안됨" })).toBeEnabled();
       await user.click(screen.getByRole("radio", { name: "판매" }));
       await user.type(field("대표자"), "님");
       await user.click(saveButton());

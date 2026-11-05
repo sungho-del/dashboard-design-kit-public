@@ -56,6 +56,7 @@ import {
   FIELD_COPY,
   findSeller,
   HEADQUARTERS_NOTICE,
+  HQ_HYGIENE_TEXT,
   HYGIENE_OPTIONS,
   hygieneValue,
   INTRO_PLACEHOLDER,
@@ -120,7 +121,8 @@ import {
  * 섹션은 접을 수 있다(원본도 섹션마다 접기 버튼이 있다).
  *
  * ## 원본 정책 — 화면이 강제하는 것
- * - **본사 계정은 상태(입점)만 잠근다** — 나머지는 일반 셀러처럼 고친다. 수수료율도 입력칸이고(처음 0%)
+ * - **본사 계정은 상태(입점)·위생인증(「인증 (본사 직영)」 — 판정 Q20-2)만 잠근다** — 나머지는 일반 셀러처럼
+ *   고친다. 수수료율도 입력칸이고(처음 0%)
  *   본사 행만 0% 이상을 받는다(판정 Q20-1 · Q20-5 · 디자인 §3 #15 — 2026-10-15 「0% 잠금」을 풀었다).
  *   본사 행 칸 아래 안내·6~16% 경고는 없다(기획 확인 요청 3번 답 대기 — 개발도 본사 행 경고 없음)
  * - 셀러명·대표자·연락처는 **필수**, 글자 수 한도 40·20·20(원본 `gInput`)
@@ -725,14 +727,21 @@ function SellerDetailBody({
               />
             </FormField>
 
-            <FormField label="위생인증" group>
-              <SegmentedControl
-                className="self-start"
-                items={HYGIENE_OPTIONS}
-                value={draft.hygiene}
-                onValueChange={set("hygiene")}
-              />
-            </FormField>
+            {/* 본사 행 위생인증은 「인증」 고정 — 읽는 값 「인증 (본사 직영)」(판정 Q20-2 · 디자인 §3 #16) */}
+            {hq ? (
+              <ReadField label="위생인증">
+                <span className="body-medium text-text">{HQ_HYGIENE_TEXT}</span>
+              </ReadField>
+            ) : (
+              <FormField label="위생인증" group>
+                <SegmentedControl
+                  className="self-start"
+                  items={HYGIENE_OPTIONS}
+                  value={draft.hygiene}
+                  onValueChange={set("hygiene")}
+                />
+              </FormField>
+            )}
 
             <InfoList>
               <InfoItem label="입점일">{ymd(seller.date)}</InfoItem>

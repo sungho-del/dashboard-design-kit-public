@@ -34,7 +34,7 @@ import { COUPONS, couponStatus } from "./CouponListPage.data";
  * | `BIZ_TYPES`          | 사업자 유형 택1 (법인/개인)                       |
  * | `DEAL_SCOPES`        | 상품 취급 유형 택1 (전체/렌트/판매)               |
  * | `SELLER_STATES`      | 상태 택1 (입점/퇴점 처리중/퇴점)                  |
- * | `HYGIENE_OPTIONS`    | 위생인증 택1                                      |
+ * | `HYGIENE_OPTIONS`    | 위생인증 택1 (본사 행은 `HQ_HYGIENE_TEXT` 읽는 값) |
  * | `SALE_STATUS_META`   | 등록 상품 표의 판매 상태 배지                     |
  * | `EXIT_COPY`          | 퇴점 확인 창 문구                                 |
  * | `BANK_COPY`          | 정산 정보 카드 문구 (개발 `BankAccountCard` 그대로) |
@@ -42,7 +42,8 @@ import { COUPONS, couponStatus } from "./CouponListPage.data";
  * | `bankAccountError`   | [계좌 저장] 검사 (개발 `validateBankAccount`)      |
  *
  * ## 뼈대가 이 파일에 기대하는 계약
- * - **본사 계정은 상태(입점)만 잠근다** — 나머지는 일반 셀러처럼 고친다. 수수료율은 본사 행도 입력칸(처음 0%)
+ * - **본사 계정은 상태(입점)·위생인증(「인증」 고정 — 판정 Q20-2)만 잠근다** — 나머지는 일반 셀러처럼 고친다.
+ *   수수료율은 본사 행도 입력칸(처음 0%)
  *   (판정 Q20-1 · 디자인 §3 #15 — 2026-10-15 「수수료율 0% 잠금」을 풀었다)
  * - 수수료율은 **0 초과 100 이하 · 소수 둘째 자리까지**, **본사 행만 0 이상**(판정 Q20-5 · `SellerListPage.data.ts` 의 공용 규칙).
  *   벗어난 값은 저장할 수 없다. 6~16% 밖은 막지 않고 칸 아래 경고만(디자인 §3 #12)
@@ -130,6 +131,9 @@ export const HYGIENE_OPTIONS = [
 
 export const hygieneValue = (certified: boolean) =>
   certified ? "certified" : "none";
+
+/** 본사 행 위생인증 — 「인증」 고정, 읽는 값(판정 Q20-2 「표시 「인증 (본사 직영)」」 · 디자인 §3 #16) */
+export const HQ_HYGIENE_TEXT = "인증 (본사 직영)";
 
 /** 등록 상품 표의 `유형` 열 — 둘 다 취급하는 상품은 배지 둘(원본 `modeTags`) */
 export const DEAL_KIND_LABEL: Record<DealKind, string> = {
