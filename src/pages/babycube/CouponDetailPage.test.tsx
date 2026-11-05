@@ -55,7 +55,7 @@ function valueOf(label: string): string {
   return term.nextElementSibling?.textContent ?? "";
 }
 
-const EXPIRED_NOTE = "사용 기간이 지나 만료로 표시됩니다 (저장값: 사용)";
+const EXPIRED_NOTE = "사용 기간이 지나 만료로 표시됩니다";
 
 describe("CouponDetailPage (쿠폰 상세)", () => {
   it("머리 — 제목 「쿠폰 상세」 · 쿠폰코드·셀러·쿠폰명 · 상태 배지", () => {
@@ -118,7 +118,7 @@ describe("CouponDetailPage (쿠폰 상세)", () => {
     expect(valueOf("상태")).toBe("사용");
   });
 
-  it("만료 CP-2606-03 — 만료 배지 + 저장값 보조문", () => {
+  it("만료 CP-2606-03 — 만료 배지 + 보조문 (「(저장값: …)」 없음 · 부록 A B18)", () => {
     renderAt("/promo/CP-2606-03");
 
     expect(valueOf("상태")).toBe(`만료${EXPIRED_NOTE}`);

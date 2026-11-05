@@ -70,8 +70,8 @@ export const discountDetailOf = (coupon: Coupon) =>
       }
     : { prefix: "정액", strong: won(coupon.discountValue), note: null };
 
-/** 만료 보조문 — 저장값은 `사용`인데 화면은 `만료`일 때만(원본 5310~5312) */
+/** 만료 보조문 — 저장값은 `사용`인데 화면은 `만료`일 때만(원본 5310~5312) · 「(저장값: …)」은 부록 A B18 로 뺐다 */
 export const expiredNoteOf = (coupon: Coupon) =>
   coupon.stored === "사용" && isExpired(coupon)
-    ? `사용 기간이 지나 만료로 표시됩니다 (저장값: ${coupon.stored})`
+    ? "사용 기간이 지나 만료로 표시됩니다"
     : null;
