@@ -153,15 +153,31 @@ describe("SellerReviewDetailPage (S04-D 입점 심사 상세)", () => {
 
   describe("심사 결과 — 본사가 정하는 것", () => {
     /** 신청 단계의 0% 는 "아직 정하지 않음" — 빈 칸으로 열리고, 원본처럼 필수 표시가 붙는다 */
-    it("수수료율은 필수이고 빈 칸으로 열리며 원본 안내를 붙인다", () => {
+    /** 디자인 §3 #12 · 판정 Q20-5 — 개발 안내·자리표시 그대로 */
+    it("수수료율은 필수이고 빈 칸으로 열리며 범위를 말하는 안내를 붙인다", () => {
       renderAt(REQUESTED);
 
       expect(commissionBox()).toHaveValue("");
       expect(commissionBox()).toBeRequired();
+      expect(commissionBox()).toHaveAttribute("placeholder", "0.01~100");
       expect(
         within(section(RESULT)).getByText(
-          "신청 접수 시 0%로 시작하며, 최고관리자가 심사 시 직접 입력합니다.",
+          "신청 접수 시 0%로 시작하며, 최고관리자가 심사 시 0보다 크고 100 이하(소수 둘째 자리까지)로 직접 입력합니다.",
         ),
+      ).toBeVisible();
+    });
+
+    /** 디자인 §3 #12 · D-217 — 6~16% 밖은 막지 않고 칸 아래 경고 */
+    it("6~16% 밖이면 칸 아래 경고를 보이고, 승인은 막지 않는다", async () => {
+      const { user } = renderAt(REQUESTED);
+      const warning =
+        "일반적인 범위(6~16%)를 벗어난 요율이에요. 저장 전에 확인해 주세요.";
+
+      await user.type(commissionBox(), "5.5");
+      expect(within(section(RESULT)).getByText(warning)).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "승인" }));
+      expect(
+        screen.getByRole("dialog", { name: "입점 심사 승인" }),
       ).toBeVisible();
     });
 
@@ -246,19 +262,26 @@ describe("SellerReviewDetailPage (S04-D 입점 심사 상세)", () => {
 
       await user.click(screen.getByRole("button", { name: "승인" }));
 
-      expect(screen.getByText("수수료율을 입력해 주세요.")).toBeVisible();
+      expect(
+        screen.getByText(
+          "셀러 수수료율은 0보다 크고 100 이하, 소수 둘째 자리까지 입력해 주세요.",
+        ),
+      ).toBeVisible();
       expect(screen.queryByRole("dialog")).toBeNull();
     });
 
-    it("0% 로는 승인할 수 없다", async () => {
+    it.each([["0"], ["7.125"]])("「%s」 로는 승인할 수 없다", async (value) => {
       const { user } = renderAt(REQUESTED);
 
-      await user.type(commissionBox(), "0");
+      await user.type(commissionBox(), value);
       await user.click(screen.getByRole("button", { name: "승인" }));
 
       expect(
-        screen.getByText("0보다 크고 100 이하로 입력해 주세요."),
+        screen.getByText(
+          "셀러 수수료율은 0보다 크고 100 이하, 소수 둘째 자리까지 입력해 주세요.",
+        ),
       ).toBeVisible();
+      expect(screen.queryByRole("dialog")).toBeNull();
     });
 
     /** 원본 `gateApprove` — 되돌릴 수 없는 처리라 확인 창을 거친다 */

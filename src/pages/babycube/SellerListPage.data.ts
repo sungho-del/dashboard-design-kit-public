@@ -185,6 +185,45 @@ export interface SellerBankAccount {
   bankbook?: { fileName: string; uploadedAt: string };
 }
 
+/* -------------------------------------------------------------------------
+ * 수수료율 규칙 — 개발 `lib/commission-rate.ts`(M-8 · D-217 · 판정 Q20-5 · 디자인 §3 #12).
+ * 셀러 목록 셀 · 셀러 상세 · 입점 심사 일괄 승인 · 입점 심사 상세 승인이 **이 규칙 하나**를 쓴다.
+ * 허용 = 0 < r ≤ 100 · 소수 둘째 자리까지. 6~16% 밖은 막지 않고 경고만 한다.
+ * 본사 행은 이 화면들에서 지금 입력칸이 없다(본사 행 0% 이상 허용은 다음 단계 — 디자인 §3 #15).
+ * ---------------------------------------------------------------------- */
+
+/** 허용 꼴이 아닐 때 — 개발 문구에서 「입점사」만 판정 Q10 대로 「셀러」 */
+export const COMMISSION_RATE_MESSAGE =
+  "셀러 수수료율은 0보다 크고 100 이하, 소수 둘째 자리까지 입력해 주세요.";
+
+/** 허용 범위 안이지만 일반 범위(6~16) 밖 — 경고 한 줄(저장은 막지 않는다) */
+export const COMMISSION_RATE_WARNING =
+  "일반적인 범위(6~16%)를 벗어난 요율이에요. 저장 전에 확인해 주세요.";
+
+/** 입력 글자 → 허용 요율 · 아니면 `null` (개발 `parseCommissionRateText`) */
+export const parseCommissionRate = (value: string): number | null => {
+  const text = value.trim();
+  if (!/^\d+(?:\.\d{1,2})?$/.test(text)) return null;
+  const rate = Number(text);
+  return rate > 0 && rate <= 100 ? rate : null;
+};
+
+/** 6~16% 밖인가 — 허용 요율일 때만 참(개발 `isAtypicalCommissionRate`) */
+export const isAtypicalCommission = (rate: number | null) =>
+  rate !== null && (rate < 6 || rate > 16);
+
+/** 입력칸은 숫자와 점만 받는다(개발 `replace(/[^0-9.]/g, "")`) */
+export const commissionInput = (value: string) => value.replace(/[^0-9.]/g, "");
+
+/** 셀러 목록 셀 [수정] 알림 — 개발 `CommissionRateCell` 그대로(목록 셀에는 경고 자리가 없어 알림 뒤에 붙인다) */
+export const COMMISSION_CELL_COPY = {
+  saved: (name: string, rate: number) =>
+    `${name} 수수료율을 ${rate}%로 수정했습니다.` +
+    (isAtypicalCommission(rate) ? ` ${COMMISSION_RATE_WARNING}` : ""),
+  unchanged: (name: string, rate: number) =>
+    `${name} 수수료율은 이미 ${rate}%로 적용되어 있습니다.`,
+};
+
 /**
  * 상태값 → 표시 라벨 · Tag tone · 설명.
  *

@@ -34,6 +34,9 @@ import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
 import { PERIOD_PRESETS } from "../../lib/periodPresets";
 import { useSearchParams } from "../../lib/router";
 import {
+  COMMISSION_CELL_COPY,
+  COMMISSION_RATE_MESSAGE,
+  commissionInput,
   DATE_FIELDS,
   DEFAULT_FILTER,
   EMPTY_CELL,
@@ -43,6 +46,7 @@ import {
   HYGIENE_BADGE,
   HYGIENE_FILTERS,
   num,
+  parseCommissionRate,
   PAGE_SIZE,
   PAGE_SIZES,
   productCount,
@@ -318,7 +322,7 @@ function CommissionCell({
         inputMode="decimal"
         aria-label={`${seller.name} 수수료율`}
         value={draft ?? String(seller.commission)}
-        onChange={(event) => onDraftChange(event.target.value)}
+        onChange={(event) => onDraftChange(commissionInput(event.target.value))}
         /* Enter 로도 확정된다 — 버튼까지 가지 않고 끝낼 수 있어야 한다 */
         onKeyDown={(event) => {
           if (event.key === "Enter") onCommit();
@@ -418,25 +422,31 @@ export function SellerListPage({
 
   /**
    * [수정] — 원본은 셀에서 고치고 [수정] 을 눌러 확정한다.
-   * 숫자가 아니거나 범위를 벗어나면 **되돌리고 알린다** — 조용히 버리면
+   * 허용 꼴(0 초과 100 이하 · 소수 둘째 자리)이 아니면 **되돌리고 알린다** — 조용히 버리면
    * 사용자는 고쳐졌다고 믿는다. 맞으면 알리기만 한다(저장은 개발 영역).
    */
   const commitCommission = (seller: Seller) => {
     const raw = draft[seller.id];
     if (raw === undefined) return;
 
-    const value = Number(raw.trim());
-    if (!raw.trim() || Number.isNaN(value) || value < 0 || value > 100) {
+    /* 0 초과 100 이하 · 소수 둘째 자리까지(판정 Q20-5 · 개발 `parseCommissionRate`) */
+    const value = parseCommissionRate(raw);
+    if (value === null) {
       setDraft((prev) => {
         const next = { ...prev };
         delete next[seller.id];
         return next;
       });
-      toast("수수료율은 0~100 사이의 숫자로 입력해 주세요");
+      toast(COMMISSION_RATE_MESSAGE);
       return;
     }
 
-    toast(`${seller.name} 수수료율을 ${value}% 로 변경했습니다`);
+    /* 6~16% 밖이면 막지 않고 알림 뒤에 경고를 붙인다(디자인 §3 #12 · D-217) */
+    toast(
+      value === seller.commission
+        ? COMMISSION_CELL_COPY.unchanged(seller.name, value)
+        : COMMISSION_CELL_COPY.saved(seller.name, value),
+    );
   };
 
   /*

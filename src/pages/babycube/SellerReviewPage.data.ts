@@ -1,4 +1,8 @@
 import type { TagTone } from "../../components/ui";
+import {
+  COMMISSION_RATE_MESSAGE,
+  parseCommissionRate,
+} from "./SellerListPage.data";
 
 /* -------------------------------------------------------------------------
  * S04 입점 심사 (BabyCube 본사 운영 어드민) — 목록형 화면의 **도메인 층**
@@ -32,7 +36,7 @@ import type { TagTone } from "../../components/ui";
  * - **`REVIEWABLE_STATUS` 만 심사 대상이다.** 뼈대는 이 값으로 행 선택 가능 여부를 정한다 —
  *   이미 처리된 건을 다시 처리하지 못하게 한다(원본은 모든 행을 고를 수 있지만 재처리를 허용할 근거가 없다)
  * - **승인하려면 셀러별 수수료율이 있어야 한다** — `commissionError` 하나로 목록 일괄·상세 승인이
- *   같은 규칙(0 초과 100 이하)을 쓴다(2026-10-15 사용자 결정. 원본 v0.4 는 승인 시 수수료율을
+ *   같은 규칙(0 초과 100 이하 · 소수 둘째 자리 · 6~16% 밖은 경고만)을 쓴다(2026-10-15 사용자 결정. 원본 v0.4 는 승인 시 수수료율을
  *   검사하지 않지만, 개발 앱의 승인 계약이 셀러마다 수수료율·위생인증을 받는다)
  *
  * ## 상태 어휘 — **`승인요청`** 이다 (원본 v0.4 화면은 `승인신청`)
@@ -417,7 +421,8 @@ export const REVIEW_COPY = {
   approveWarning: "승인 후에는 이 화면에서 되돌릴 수 없습니다.",
   /* 일괄 승인 창에만 — 셀러별로 정할 값이 있다는 것을 먼저 말한다 */
   approveRates: "셀러별 수수료율과 위생인증을 확정해 주세요.",
-  rateError: "모든 셀러의 수수료율을 0보다 크고 100 이하로 입력해 주세요.",
+  /** 일괄 승인 — 개발 「모든 셀러의 수수료율을 확인해 주세요. {COMMISSION_RATE_MESSAGE}」 */
+  rateError: `모든 셀러의 수수료율을 확인해 주세요. ${COMMISSION_RATE_MESSAGE}`,
   approveConfirm: "승인 처리",
   approved: (count: number) =>
     count > 1 ? `${count}건 승인 처리되었습니다.` : "승인 처리되었습니다.",
@@ -441,22 +446,13 @@ export const HYGIENE_OPTIONS = [
 export const hygieneValue = (certified: boolean) =>
   certified ? "certified" : "none";
 
-export const COMMISSION_MIN = 0;
-export const COMMISSION_MAX = 100;
-
 /**
- * 수수료율 검증 — **목록 일괄 승인과 상세 승인이 같은 규칙**을 쓴다(0 초과 100 이하).
- * 빈 칸과 0 을 모두 막는다 — 신청 단계의 0% 그대로 승인하면 수수료를 정하지 않은 채 입점시킨다.
+ * 수수료율 검증 — **목록 일괄 승인과 상세 승인이 같은 규칙**을 쓴다(0 초과 100 이하 · 소수 둘째 자리까지 —
+ * 판정 Q20-5 · 셀러 목록·상세와 같은 `parseCommissionRate`). 빈 칸과 0 을 모두 막는다 — 신청 단계의 0% 그대로
+ * 승인하면 수수료를 정하지 않은 채 입점시킨다. 6~16% 밖은 막지 않고 경고만(`isAtypicalCommission`)
  */
-export const commissionError = (value: string) => {
-  if (value.trim() === "") return "수수료율을 입력해 주세요.";
-  const parsed = Number(value);
-  if (Number.isNaN(parsed)) return "숫자만 입력할 수 있습니다.";
-  if (parsed <= COMMISSION_MIN || parsed > COMMISSION_MAX) {
-    return `${COMMISSION_MIN}보다 크고 ${COMMISSION_MAX} 이하로 입력해 주세요.`;
-  }
-  return null;
-};
+export const commissionError = (value: string) =>
+  parseCommissionRate(value) === null ? COMMISSION_RATE_MESSAGE : null;
 
 /** 승인 창의 수수료율 첫 값 — 신청 단계의 0 은 "아직 정하지 않음"이라 빈 칸으로 연다 */
 export const rateDraft = (application: Application) =>

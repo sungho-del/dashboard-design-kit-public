@@ -79,7 +79,11 @@ import {
   type TextFieldKey,
 } from "./SellerDetailPage.data";
 import {
+  COMMISSION_RATE_WARNING,
+  commissionInput,
   HQ_BADGE,
+  isAtypicalCommission,
+  parseCommissionRate,
   STATUS_META,
   type BizType,
   type DealScope,
@@ -120,7 +124,8 @@ import {
  * - **본사 계정은 상태(입점)·수수료율(0%)만 잠근다** — 나머지는 일반 셀러처럼 고친다
  *   (2026-10-15 사용자 결정. 원본은 수수료율 입력칸을 열어 두지만 안내 문구가 "0% 확정"이다)
  * - 셀러명·대표자·연락처는 **필수**, 글자 수 한도 40·20·20(원본 `gInput`)
- * - 수수료율은 **0~100** 이다. 범위를 벗어나면 저장을 막고 이유를 낸다
+ * - 수수료율은 **0 초과 100 이하 · 소수 둘째 자리까지**다(판정 Q20-5). 벗어나면 저장을 막고 이유를 낸다.
+ *   6~16% 밖은 막지 않고 칸 아래 경고 한 줄(디자인 §3 #12 · 개발 「6~16 밖은 경고만」). 입력칸은 숫자·점만 받는다
  * - **[퇴점] 으로 바꿔 저장하면 확인 창**(원본 `gateQuit` · 개발 `ExitGate` — 디자인 §3 #11) — 진행 중 렌트·
  *   미정산 회차·미해결 클레임·판매 가능한 상품·유효 쿠폰을 세어 보여 주고, 남은 건이 있어도
  *   **막지 않고 경고만** 한다(경고 판정에서 쿠폰은 뺀다). 안내 둘: 판매중지·전시중지·쿠폰 사용중지 / 알림톡·세션 종료
@@ -696,7 +701,18 @@ function SellerDetailBody({
             {hq ? null : (
               <FormField
                 label="수수료율"
-                description={COMMISSION_HINT}
+                description={
+                  <>
+                    {COMMISSION_HINT}
+                    {isAtypicalCommission(
+                      parseCommissionRate(draft.commission),
+                    ) ? (
+                      <span className="block text-text-warning">
+                        {COMMISSION_RATE_WARNING}
+                      </span>
+                    ) : null}
+                  </>
+                }
                 error={errorOf(errors.commission)}
                 suffix="%"
               >
@@ -706,7 +722,9 @@ function SellerDetailBody({
                   inputMode="decimal"
                   placeholder="0"
                   value={draft.commission}
-                  onChange={(event) => set("commission")(event.target.value)}
+                  onChange={(event) =>
+                    set("commission")(commissionInput(event.target.value))
+                  }
                 />
               </FormField>
             )}

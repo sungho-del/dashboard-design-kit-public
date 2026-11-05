@@ -31,12 +31,18 @@ import {
 } from "../../lib/router";
 import {
   COMMISSION_HINT,
+  COMMISSION_PLACEHOLDER,
   findApplication,
   HYGIENE_HINT,
   isReviewable,
   KIND_LABEL,
   SECTIONS,
 } from "./SellerReviewDetailPage.data";
+import {
+  COMMISSION_RATE_WARNING,
+  isAtypicalCommission,
+  parseCommissionRate,
+} from "./SellerListPage.data";
 import {
   BIZ_TYPE_LABEL,
   commissionError,
@@ -102,7 +108,7 @@ import {
  *    (원본 `noSave`) — 고칠 수 있을 것처럼 보이는 칸은 고친 값이 사라지는 오해를 낳는다
  * 2. **처리된 건의 수수료율·위생인증은 읽기 전용이다.** 원본은 열어 두지만 저장할 곳이 없다.
  *    처리 뒤 운영 값 수정은 셀러 관리 화면의 일이다
- * 3. **승인에 수수료율이 필요하다**(0 초과 100 이하) — 원본은 검사하지 않지만, 목록 일괄 승인과
+ * 3. **승인에 수수료율이 필요하다**(0 초과 100 이하 · 소수 둘째 자리 · 6~16% 밖은 칸 아래 경고만) — 원본은 검사하지 않지만, 목록 일괄 승인과
  *    같은 규칙이어야 한다(2026-10-15 사용자 결정)
  *
  * ## 데이터 상태 (§D8 · `src/lib/dataStatus.ts`)
@@ -368,7 +374,17 @@ function SellerReviewDetailBody({
             <FormField
               label="수수료율"
               required
-              description={COMMISSION_HINT}
+              description={
+                <>
+                  {COMMISSION_HINT}
+                  {/* 6~16% 밖이면 칸 아래 경고 — 막지 않는다(디자인 §3 #12 · D-217) */}
+                  {isAtypicalCommission(parseCommissionRate(commission)) ? (
+                    <span className="block text-text-warning">
+                      {COMMISSION_RATE_WARNING}
+                    </span>
+                  ) : null}
+                </>
+              }
               error={touched ? (error ?? undefined) : undefined}
               suffix="%"
             >
@@ -376,7 +392,7 @@ function SellerReviewDetailBody({
                 noMinWidth
                 className="w-24"
                 inputMode="decimal"
-                placeholder="0"
+                placeholder={COMMISSION_PLACEHOLDER}
                 value={commission}
                 onChange={(event) =>
                   setCommission(event.target.value.replace(/[^0-9.]/g, ""))

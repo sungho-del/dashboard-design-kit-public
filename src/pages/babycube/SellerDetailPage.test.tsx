@@ -490,17 +490,45 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       expect(await screen.findByText("변경 내용을 저장했습니다")).toBeVisible();
     });
 
-    /** 범위를 벗어난 값으로 저장하면 플랫폼 수수료가 잘못 계산된다 */
-    it("0~100 을 벗어나면 저장하지 않고 이유를 낸다", async () => {
+    /** 판정 Q20-5 — 0 초과 100 이하 · 소수 둘째 자리까지. 벗어나면 플랫폼 수수료가 잘못 계산된다 */
+    it.each([["140"], ["0"], ["12.345"]])(
+      "「%s」 는 저장하지 않고 이유를 낸다",
+      async (value) => {
+        const { user } = renderAt(NORMAL);
+        const input = within(section("운영 정보")).getByRole("textbox");
+
+        await user.clear(input);
+        await user.type(input, value);
+        await user.click(saveButton());
+
+        expect(
+          screen.getByText(
+            "셀러 수수료율은 0보다 크고 100 이하, 소수 둘째 자리까지 입력해 주세요.",
+          ),
+        ).toBeVisible();
+        expect(screen.queryByText("변경 내용을 저장했습니다")).toBeNull();
+      },
+    );
+
+    /** 디자인 §3 #12 · D-217 — 6~16% 밖은 막지 않고 칸 아래 경고 한 줄 */
+    it("6~16% 밖이면 칸 아래 경고를 보이지만 저장은 막지 않는다 · 입력칸은 숫자·점만", async () => {
       const { user } = renderAt(NORMAL);
       const input = within(section("운영 정보")).getByRole("textbox");
+      const warning =
+        "일반적인 범위(6~16%)를 벗어난 요율이에요. 저장 전에 확인해 주세요.";
+
+      expect(screen.queryByText(warning)).toBeNull();
+      await user.clear(input);
+      await user.type(input, "2a0");
+      expect(input).toHaveValue("20");
+      expect(screen.getByText(warning)).toBeVisible();
+
+      await user.click(saveButton());
+      expect(await screen.findByText("변경 내용을 저장했습니다")).toBeVisible();
 
       await user.clear(input);
-      await user.type(input, "140");
-      await user.click(saveButton());
-
-      expect(screen.getByText("0~100 사이로 입력해 주세요.")).toBeVisible();
-      expect(screen.queryByText("변경 내용을 저장했습니다")).toBeNull();
+      await user.type(input, "16");
+      expect(screen.queryByText(warning)).toBeNull();
     });
 
     it("필수 값을 비우면 저장하지 않고 이유를 낸다", async () => {

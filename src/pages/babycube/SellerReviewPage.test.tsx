@@ -525,7 +525,7 @@ describe("SellerReviewPage (S04 입점 심사)", () => {
       );
 
       expect(within(approveModal()).getByRole("alert")).toHaveTextContent(
-        "모든 셀러의 수수료율을 0보다 크고 100 이하로 입력해 주세요.",
+        "모든 셀러의 수수료율을 확인해 주세요. 셀러 수수료율은 0보다 크고 100 이하, 소수 둘째 자리까지 입력해 주세요.",
       );
 
       await user.type(
@@ -537,6 +537,44 @@ describe("SellerReviewPage (S04 입점 심사)", () => {
       );
       expect(approveModal()).toBeVisible();
       expect(screen.queryByText("승인 처리되었습니다.")).toBeNull();
+    });
+
+    /** 디자인 §3 #12 · D-217 — 6~16% 밖이 하나라도 있으면 목록 아래 경고, 처리는 막지 않는다 */
+    it("6~16% 밖 요율이 있으면 경고를 보이고, 그래도 승인된다", async () => {
+      const { user } = renderPage();
+      const warning =
+        "일반적인 범위(6~16%)를 벗어난 요율이에요. 저장 전에 확인해 주세요.";
+
+      await pick(user, "코지베이비");
+      await user.click(
+        within(bar()).getByRole("button", { name: "승인 처리" }),
+      );
+      await user.type(
+        within(approveModal()).getByLabelText("코지베이비 수수료율"),
+        "12",
+      );
+      expect(within(approveModal()).queryByText(warning)).toBeNull();
+      await user.type(
+        within(approveModal()).getByLabelText("코지베이비 수수료율"),
+        ".75",
+      );
+      expect(
+        within(approveModal()).getByLabelText("코지베이비 수수료율"),
+      ).toHaveValue("12.75");
+      expect(within(approveModal()).queryByText(warning)).toBeNull();
+      await user.clear(
+        within(approveModal()).getByLabelText("코지베이비 수수료율"),
+      );
+      await user.type(
+        within(approveModal()).getByLabelText("코지베이비 수수료율"),
+        "18",
+      );
+      expect(within(approveModal()).getByText(warning)).toBeVisible();
+
+      await user.click(
+        within(approveModal()).getByRole("button", { name: "승인 처리" }),
+      );
+      expect(await screen.findByText("승인 처리되었습니다.")).toBeVisible();
     });
 
     it("여러 건 중 하나만 비어도 전부 처리되지 않는다", async () => {

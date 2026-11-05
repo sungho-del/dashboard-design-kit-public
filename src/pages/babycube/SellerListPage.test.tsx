@@ -733,7 +733,7 @@ describe("수수료율 인라인 수정", () => {
 
     expect(feeOf("아기별상사")).toHaveValue("15");
     expect(
-      await screen.findByText("아기별상사 수수료율을 15% 로 변경했습니다"),
+      await screen.findByText("아기별상사 수수료율을 15%로 수정했습니다."),
     ).toBeVisible();
   });
 
@@ -744,23 +744,57 @@ describe("수수료율 인라인 수정", () => {
     await user.type(feeOf("베이비무브"), "7{Enter}");
 
     expect(
-      await screen.findByText("베이비무브 수수료율을 7% 로 변경했습니다"),
+      await screen.findByText("베이비무브 수수료율을 7%로 수정했습니다."),
     ).toBeVisible();
   });
 
   /*
-   * 범위를 벗어나거나 숫자가 아니면 **되돌리고 알린다.** 조용히 버리면
-   * 사용자는 고쳐졌다고 믿는다.
+   * 허용 꼴(0 초과 100 이하 · 소수 둘째 자리 — 판정 Q20-5)이 아니면 **되돌리고 알린다.**
+   * 조용히 버리면 사용자는 고쳐졌다고 믿는다.
    */
-  it("0~100 밖의 값은 되돌리고 알린다", async () => {
+  it.each([["150"], ["0"], ["9.555"]])(
+    "「%s」 는 되돌리고 알린다",
+    async (value) => {
+      const { user } = renderPage();
+
+      await user.clear(feeOf("아기별상사"));
+      await user.type(feeOf("아기별상사"), `${value}{Enter}`);
+
+      expect(feeOf("아기별상사")).toHaveValue("12");
+      expect(
+        await screen.findByText(
+          "셀러 수수료율은 0보다 크고 100 이하, 소수 둘째 자리까지 입력해 주세요.",
+        ),
+      ).toBeVisible();
+    },
+  );
+
+  it("숫자·점 밖의 글자는 칸에 들어가지 않는다", async () => {
     const { user } = renderPage();
 
     await user.clear(feeOf("아기별상사"));
-    await user.type(feeOf("아기별상사"), "150{Enter}");
+    await user.type(feeOf("아기별상사"), "1a3.5%");
+    expect(feeOf("아기별상사")).toHaveValue("13.5");
+  });
 
-    expect(feeOf("아기별상사")).toHaveValue("12");
+  /** 디자인 §3 #12 · D-217 — 6~16% 밖은 막지 않고 알림 뒤에 경고(목록 셀에는 경고 자리가 없다) */
+  it("6~16% 밖이면 저장 알림 뒤에 경고를 붙인다 · 같은 값이면 이미 적용됐다고 한다", async () => {
+    const { user } = renderPage();
+
+    await user.clear(feeOf("아기별상사"));
+    await user.type(feeOf("아기별상사"), "20{Enter}");
     expect(
-      await screen.findByText("수수료율은 0~100 사이의 숫자로 입력해 주세요"),
+      await screen.findByText(
+        "아기별상사 수수료율을 20%로 수정했습니다. 일반적인 범위(6~16%)를 벗어난 요율이에요. 저장 전에 확인해 주세요.",
+      ),
+    ).toBeVisible();
+
+    await user.clear(feeOf("베이비무브"));
+    await user.type(feeOf("베이비무브"), "9.50{Enter}");
+    expect(
+      await screen.findByText(
+        "베이비무브 수수료율은 이미 9.5%로 적용되어 있습니다.",
+      ),
     ).toBeVisible();
   });
 

@@ -1,6 +1,8 @@
 import type { TagTone } from "../../components/ui";
 import {
+  COMMISSION_RATE_MESSAGE,
   FILTERS,
+  parseCommissionRate,
   SELLERS,
   type BizType,
   type DealKind,
@@ -43,7 +45,8 @@ import { COUPONS, couponStatus } from "./CouponListPage.data";
  * - **본사 계정은 상태(입점)와 수수료율(0%)만 잠근다** — 나머지는 일반 셀러처럼 고친다
  *   (2026-10-15 사용자 결정. 원본은 상태만 고정하고 수수료율 입력칸을 열어 두지만, 같은 자리의
  *   안내 문구가 "수수료율 0% 확정"이라 화면이 스스로 모순된다)
- * - 수수료율은 **0~100** 이다. 범위를 벗어난 값은 저장할 수 없다
+ * - 수수료율은 **0 초과 100 이하 · 소수 둘째 자리까지**(판정 Q20-5 · `SellerListPage.data.ts` 의 공용 규칙).
+ *   벗어난 값은 저장할 수 없다. 6~16% 밖은 막지 않고 칸 아래 경고만(디자인 §3 #12)
  * - 퇴점 확인 창은 다섯 줄이다(디자인 §3 #11 · 개발 `ExitGate`) — 진행 중 렌트 · 미정산 회차 · 미해결 클레임 ·
  *   **판매 가능한 상품 = 판매중 + 품절** · 유효 쿠폰(이 셀러 쿠폰 중 지금 「사용」). 정산은 금액이 아니라 **회차**다.
  *   남은 건이 있어도 **막지 않고 경고만** 한다 — 경고 판정에서 쿠폰은 뺀다(미종결 건이 아니라 함께 내려가는 대상)
@@ -180,19 +183,9 @@ export const HQ_COMMISSION_NOTE = "본사 고정";
 export const COMMISSION_HINT =
   "셀러 정산(플랫폼 수수료) 계산의 기준 요율입니다.";
 
-/** 수수료율 허용 범위. 벗어나면 저장할 수 없다 */
-export const COMMISSION_MIN = 0;
-export const COMMISSION_MAX = 100;
-
-export const commissionError = (value: string) => {
-  if (value.trim() === "") return "수수료율을 입력해 주세요.";
-  const parsed = Number(value);
-  if (Number.isNaN(parsed)) return "숫자만 입력할 수 있습니다.";
-  if (parsed < COMMISSION_MIN || parsed > COMMISSION_MAX) {
-    return `${COMMISSION_MIN}~${COMMISSION_MAX} 사이로 입력해 주세요.`;
-  }
-  return null;
-};
+/** 수수료율 검사 — 허용 꼴(0 초과 100 이하 · 소수 둘째 자리)이 아니면 개발 문구 한 줄(빈 칸·글자·범위 모두) */
+export const commissionError = (value: string) =>
+  parseCommissionRate(value) === null ? COMMISSION_RATE_MESSAGE : null;
 
 /** 저장 성공 알림 — 원본 하단 액션 바의 [저장하기] 결과 */
 export const SAVED_TEXT = "변경 내용을 저장했습니다";

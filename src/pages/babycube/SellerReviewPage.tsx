@@ -67,6 +67,11 @@ import {
   type Application,
   type ApplicationStatus,
 } from "./SellerReviewPage.data";
+import {
+  COMMISSION_RATE_WARNING,
+  isAtypicalCommission,
+  parseCommissionRate,
+} from "./SellerListPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
 /* =========================================================================
@@ -860,6 +865,16 @@ export function SellerReviewPage({
               </li>
             ))}
           </ul>
+          {/* 6~16% 밖이 하나라도 있으면 목록 아래 경고 — 막지 않는다(디자인 §3 #12 · D-217) */}
+          {pending.some((item) =>
+            isAtypicalCommission(
+              parseCommissionRate(drafts[item.id]?.rate ?? ""),
+            ),
+          ) ? (
+            <p className="body-small text-text-warning">
+              {COMMISSION_RATE_WARNING}
+            </p>
+          ) : null}
           {rateError ? (
             <p role="alert" className="body-small text-text-critical">
               {REVIEW_COPY.rateError}

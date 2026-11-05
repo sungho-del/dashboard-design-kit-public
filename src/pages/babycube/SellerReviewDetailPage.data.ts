@@ -27,7 +27,7 @@ import {
  * ## 뼈대가 이 파일에 기대하는 계약
  * - **승인요청 상태만 심사할 수 있다**(`REVIEWABLE_STATUS`). 이미 승인·반려된 건은
  *   읽기 전용이고 하단 바에 [승인]·[반려] 가 뜨지 않는다(원본 — 종결 건은 [목록]만)
- * - **승인하려면 수수료율이 있어야 한다**(0 초과 100 이하 — 목록 일괄과 같은 규칙)
+ * - **승인하려면 수수료율이 있어야 한다**(0 초과 100 이하 · 소수 둘째 자리 — 목록 일괄과 같은 규칙)
  * ---------------------------------------------------------------------- */
 
 export const findApplication = (id: string): Application | undefined =>
@@ -50,9 +50,12 @@ export const KIND_LABEL: Record<ApplicationKind, string> = {
 export const isReviewable = (application: Application) =>
   application.status === REVIEWABLE_STATUS;
 
-/** 수수료율 안내 — 원본 문구 그대로 */
+/** 수수료율 안내 — 개발 문구 그대로(디자인 §3 #12 · 판정 Q20-5 · SellerReviewDetailScreen) */
 export const COMMISSION_HINT =
-  "신청 접수 시 0%로 시작하며, 최고관리자가 심사 시 직접 입력합니다.";
+  "신청 접수 시 0%로 시작하며, 최고관리자가 심사 시 0보다 크고 100 이하(소수 둘째 자리까지)로 직접 입력합니다.";
+
+/** 수수료율 자리표시 — 개발 그대로 */
+export const COMMISSION_PLACEHOLDER = "0.01~100";
 
 /** 위생인증 안내 — 원본 문구 그대로 */
 export const HYGIENE_HINT =
