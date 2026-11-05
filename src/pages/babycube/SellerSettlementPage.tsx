@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 import { Search } from "lucide-react";
 import {
   AppShell,
@@ -48,7 +48,6 @@ import {
   gateOf,
   listTitleOf,
   matchesFilters,
-  num,
   PAGE_SIZE,
   PAGE_SIZES,
   payLinesOf,
@@ -93,7 +92,7 @@ const ACTION_TD = `sticky right-0 z-1 bg-inherit ${ACTION_EDGE}`;
  *                                       전체 셀러 합 — 필터와 무관
  * 검색조건(펼침 · 요약 · 초기화)       ← 상태 셀렉트 · 셀러명
  * 정산 대상 입점사 (총 N개사) / 표 10열 / 페이지(10·20·50·100)
- * 정산 설정                            ← 안심케어 가입 금액 한 줄(화면 안 값 + 알림)
+ * 안심케어 금액              모든 셀러 공통 ← 안심케어 가입 금액 5,000원 한 줄(조회만 — 부록 A B6-3)
  * ```
  * 표 10열: 셀러 · 거래액 · 셀러쿠폰 · 수수료 · PG수수료 · 취소·반품 차감 · 안심케어 · 지급액 · 상태 · 처리.
  * 체크박스·No·정렬·엑셀은 **없다**(원본 그대로).
@@ -124,7 +123,7 @@ const ACTION_TD = `sticky right-0 z-1 bg-inherit ${ACTION_EDGE}`;
  * - 상태 배지 톤은 공통 `SETTLEMENT_STATUS_META`(원본 b-prog/b-done/b-exc 아님) · 금액 셀 색 없음 ·
  *   **금액 열은 머리글까지 오른쪽 정렬**(자릿수 비교 — 사용자 승인 2026-11-03)
  * - 요약·합산 명세 두 카드 → 한 카드 · 소제목 「정산 대상 입점사 · N개사」 + 「목록 (총 N건)」 → 목록 머리 하나 ·
- *   안심케어 금액 설정(플랫폼 전체 설정)은 정산 흐름 밖 맨 아래 「정산 설정」
+ *   안심케어 금액(모든 셀러 공통 · 조회만)은 정산 흐름 밖 맨 아래 「안심케어 금액」
  * - 행 클릭 → 상세(사용자 결정 2026-11-02 — 원본은 셀러명·[상세]만)
  *
  * ## 회신으로 되살린 것
@@ -254,7 +253,6 @@ export function SellerSettlementPage({
   activeNav,
   onNavSelect,
 }: SellerSettlementPageProps) {
-  const { toast } = useToast();
   const dataStatus = asStatus(useSearchParams().get("preview"));
 
   const [filters, setFilters] = useState<SettlementFilters>(EMPTY_FILTERS);
@@ -263,18 +261,6 @@ export function SellerSettlementPage({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [gate, setGate] = useState<SettlementRow | null>(null);
-
-  /* 안심케어 금액 — 화면 안 값. 확정(포커스 이탈·Enter)하면 알림만 */
-  const careId = useId();
-  const [carePrice, setCarePrice] = useState(CARE_PRICE_COPY.initial);
-  const [careText, setCareText] = useState(num(CARE_PRICE_COPY.initial));
-  const commitCare = () => {
-    const value = CARE_PRICE_COPY.parse(careText);
-    setCareText(value ? num(value) : "");
-    if (value === carePrice) return;
-    setCarePrice(value);
-    toast(CARE_PRICE_COPY.done(value));
-  };
 
   const patch = (next: Partial<SettlementFilters>) => {
     setFilters((prev) => ({ ...prev, ...next }));
@@ -544,30 +530,25 @@ export function SellerSettlementPage({
         </Table>
       </DataTableShell>
 
-      {/* 정산 설정 — 플랫폼 전체 설정이라 정산 흐름 밖, 맨 아래 한 줄(원본 `settleSeller.care`) */}
+      {/* 안심케어 금액 — 모든 셀러 공통 값이라 정산 흐름 밖, 맨 아래 한 줄(원본 `settleSeller.care`) ·
+          조회만(부록 A B6-3 — 입력칸·툴팁 없이 읽는 값) */}
       <Card>
-        <CardHeader title={CARE_PRICE_COPY.title} />
+        <CardHeader
+          title={CARE_PRICE_COPY.title}
+          action={
+            <span className="body-medium text-text-sub">
+              {CARE_PRICE_COPY.scope}
+            </span>
+          }
+        />
         <CardBody>
           <div className="flex flex-wrap items-center gap-3">
-            <label htmlFor={careId} className="label-medium-bold text-text">
+            <span className="label-medium-bold text-text">
               {CARE_PRICE_COPY.label}
-            </label>
-            <div className="flex items-center gap-2">
-              <Input
-                id={careId}
-                className="w-60"
-                inputClassName="text-right tabular-nums"
-                inputMode="numeric"
-                placeholder="0"
-                value={careText}
-                onChange={(event) => setCareText(event.target.value)}
-                onBlur={commitCare}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") commitCare();
-                }}
-              />
-              <span className="body-medium text-text">원</span>
-            </div>
+            </span>
+            <span className="body-medium tabular-nums text-text">
+              {CARE_PRICE_COPY.value}
+            </span>
             <span className="body-small text-text-sub">
               {CARE_PRICE_COPY.help}
             </span>

@@ -227,33 +227,31 @@ describe("셀러 정산 — 요약 · 산출 내역 (한 카드)", () => {
   });
 });
 
-describe("셀러 정산 — 정산 설정(안심케어 금액)", () => {
-  it("맨 아래 「정산 설정」 카드 — 표보다 뒤에 있다", () => {
+describe("셀러 정산 — 안심케어 금액(조회만)", () => {
+  it("맨 아래 「안심케어 금액」 카드 — 표보다 뒤에 있다", () => {
     renderPage();
-    const settings = screen.getByRole("heading", { name: "정산 설정" });
+    const settings = screen.getByRole("heading", { name: "안심케어 금액" });
     expect(
       screen.getByRole("table").compareDocumentPosition(settings) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
-  it("초기값은 가입 요금 5,000 · 바꿔 확정하면 알림, 같은 값이면 알림 없음", async () => {
-    const { user } = renderPage();
-    const input = screen.getByRole("textbox", { name: "안심케어 가입 금액" });
-    expect(input).toHaveValue("5,000");
+  /** 부록 A B6-1 ~ B6-4 — 입력칸·툴팁 없이 「5,000원」 읽기 전용 · 「모든 셀러 공통」 */
+  it("가입 금액 5,000원을 읽는 값으로만 보인다 — 입력칸이 없다", () => {
+    renderPage();
+    /* 한 줄 = 라벨 · 값 · 안내 */
+    const row = screen.getByText("안심케어 가입 금액").parentElement!;
 
-    await user.click(input);
-    await user.tab();
-    expect(screen.queryByText(/안심케어 금액을/)).toBeNull();
-
-    await user.clear(input);
-    await user.type(input, "7000원{Enter}");
+    expect(screen.getByText("모든 셀러 공통")).toBeVisible();
+    expect([...row.children].map((element) => element.textContent)).toEqual([
+      "안심케어 가입 금액",
+      "5,000원",
+      "렌트 주문 시 고객이 내는 안심케어 가입 금액입니다.",
+    ]);
     expect(
-      await screen.findByText("안심케어 금액을 7,000원으로 설정했습니다."),
-    ).toBeVisible();
-    expect(input).toHaveValue("7,000");
-    /* 설정값은 정산 금액을 바꾸지 않는다(원본도 어디서도 읽지 않는다) */
-    expect(lineValue("이번 회차 지급 총액")).toBe("436,138원");
+      screen.queryByRole("textbox", { name: "안심케어 가입 금액" }),
+    ).toBeNull();
   });
 });
 
