@@ -41,6 +41,7 @@ import { SELLERS } from "./SellerListPage.data";
  * | `draftOf`        | 상품 → 처음 값                                      |
  * | `newDraft`       | 직영 등록의 처음 값 — 개발 `createDefaultProductForm` |
  * | `validate`       | 개발 `validateProductForm(form, 'publish')` 문구 그대로(디자인 §3 #3) |
+ * |                  | — 직영 폼에서 더한 검사는 `direct` 일 때만(입점 상품은 원본 `pfValidate` 그대로) |
  * | `COPY`           | 안내·오류·알림 문구 (원본 그대로)                   |
  * ---------------------------------------------------------------------- */
 
@@ -669,8 +670,13 @@ export const tagCount = (tags: string) =>
 /* -------------------------------------------------------------------------
  * 저장 검사 — 개발 `validateProductForm(form, 'publish')` 문구 그대로(디자인 §3 #3 · 직영·입점 공용 폼)
  *
- * 재고 수량은 빈 칸만 막는다(0 = 품절은 정상). 숨은 유형의 칸(렌트 상품의 판매가 등)은 검사하지 않는다.
- * 대표이미지는 업로드가 개발 영역이라 새 등록에서는 늘 걸린다 — 배너·팝업 신규 등록과 같다.
+ * 숨은 유형의 칸(렌트 상품의 판매가 등)은 검사하지 않는다.
+ *
+ * **직영 폼에서 더한 검사는 직영 상품(신규·수정)에만 건다** — 최초 구매일·중고 등급 · 기본 렌트일 ·
+ * 기간 옵션 일수 중복 · 재고 빈 칸(0 = 품절은 정상) · 대표이미지 · 옵션 입력/적용. 디자인 §3 #3 은 직영 폼
+ * 요청이라 입점 상품의 저장 조건은 원본 `pfValidate` 그대로 둔다(대표이미지 없는 입점 상품은 업로드가
+ * 없어 오류를 풀 수 없다). 대표이미지는 업로드가 개발 영역이라 직영 새 등록에서는 늘 걸린다 —
+ * 배너·팝업 신규 등록과 같다.
  * ---------------------------------------------------------------------- */
 
 /** 오류를 붙일 칸 — 뼈대가 이 이름으로 입력칸 id 를 만들고 첫 오류로 이동한다 */
@@ -774,13 +780,15 @@ export type SectionKey =
   | "option"
   | "display";
 
+/** `direct` — 직영 상품(신규·수정)인가. 직영 폼에서 더한 검사만 이 값으로 가른다(위 머리 주석) */
 export const validate = (
   draft: ProductDraft,
+  direct: boolean,
 ): Partial<Record<FieldKey, string>> => {
   const errors: Partial<Record<FieldKey, string>> = {};
   const rent = draft.mode === "rent";
 
-  const used = !rent && draft.condition === "used";
+  const used = direct && !rent && draft.condition === "used";
 
   if (draft.name.trim() === "") errors.name = COPY.errors.name;
   if (used && draft.firstBuyDate === "")
@@ -795,7 +803,7 @@ export const validate = (
       num(draft.rentDiscVal) > 100
     )
       errors.rentDisc = COPY.errors.rentDisc;
-    if (!(num(draft.baseRentDays) > 0))
+    if (direct && !(num(draft.baseRentDays) > 0))
       errors.baseRentDays = COPY.errors.baseRentDays;
     /* Q-63 · 개발 26c59cb — 비었거나 1 미만이면 막는다(우리 폼에는 임시저장이 없어 저장마다 검사) */
     if (num(draft.deposit) < 1) errors.deposit = COPY.errors.deposit;
@@ -805,7 +813,7 @@ export const validate = (
         .map((row) => num(row.days));
       if (draft.periods.some((row) => num(row.days) > 0 !== num(row.price) > 0))
         errors.periods = COPY.errors.periods;
-      else if (new Set(filled).size !== filled.length)
+      else if (direct && new Set(filled).size !== filled.length)
         errors.periods = COPY.errors.periodsDuplicate;
     }
     if (!(num(draft.rentQty) > 0)) errors.rentQty = COPY.errors.rentQty;
@@ -817,10 +825,10 @@ export const validate = (
       num(draft.saleDiscVal) > 100
     )
       errors.saleDisc = COPY.errors.saleDisc;
-    if (draft.stock === "") errors.stock = COPY.errors.stock;
+    if (direct && draft.stock === "") errors.stock = COPY.errors.stock;
   }
   /* 퍼블은 업로드가 없어(개발 영역) 직영 신규 등록은 이 오류까지만 시연된다 — 배너·팝업과 같다 */
-  if (!draft.mainImage) errors.mainImage = COPY.errors.mainImage;
+  if (direct && !draft.mainImage) errors.mainImage = COPY.errors.mainImage;
   if (draft.stage === "") errors.stage = COPY.errors.stage;
   if (!draft.certs.some((row) => row.type !== "")) {
     errors.certs = COPY.errors.certs;
@@ -833,7 +841,7 @@ export const validate = (
     errors.pickupAddress = COPY.errors.pickupAddress;
   if (draft.airportOn && draft.airport === "")
     errors.airport = COPY.errors.airport;
-  if (draft.optionOn) {
+  if (direct && draft.optionOn) {
     const option = optionError(draft);
     if (option) errors.options = option;
   }

@@ -492,6 +492,27 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
       ).toBeVisible();
     });
 
+    /**
+     * 디자인 §3 #3 후속 — 직영 폼에서 더한 검사는 입점 상품에 걸지 않는다.
+     * 이미지 X 입점 상품은 업로드가 없어 대표이미지 오류를 풀 수 없다(직영 신규는 아래 「빈 폼을 등록하면」이 막는다)
+     */
+    it.each([["MC240812"], ["MC447210"]])(
+      "입점 상품 %s 는 대표이미지 없이도 저장 검사를 통과한다",
+      async (code) => {
+        const { user, onNavSelect } = renderAt(code);
+        expect(
+          within(section(/상품이미지/)).getByRole("button", {
+            name: "대표이미지 등록",
+          }),
+        ).toBeVisible();
+
+        await user.click(screen.getByRole("button", { name: "수정 저장" }));
+
+        expect(screen.queryByText("대표이미지를 등록해주세요.")).toBeNull();
+        expect(onNavSelect).toHaveBeenCalledWith("/products");
+      },
+    );
+
     /** 원본도 재고를 검사하지 않는다 — 재고 0 은 품절이라는 정상 상태다 */
     it("판매 상품의 재고 0 은 저장을 막지 않는다", async () => {
       const { user, onNavSelect } = renderAt("KB781520");

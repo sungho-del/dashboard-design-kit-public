@@ -140,7 +140,8 @@ import { ProductRejectModal } from "./shared/ProductRejectModal";
  * - **입점 상품의 판매 상태는 고치지 않는다** — 처분(하단 바)으로만 바뀐다. 처분 건(반려·재심사요청)은 전시 상태도 잠근다
  * - 처분 버튼은 상태가 정한다(`canApprove`/`canReject` — 목록과 같은 규칙)
  * - 반려는 사유 필수 — 상품 목록과 **같은 창**(`shared/ProductRejectModal`). 승인은 확인 창 없이
- * - [수정 저장] 은 `validate`(개발 `validateProductForm` 문구)를 통과해야 한다. 입점 상품은 알림 후 **목록으로 간다**(원본 흐름)
+ * - [수정 저장] 은 `validate`(개발 `validateProductForm` 문구)를 통과해야 한다. 입점 상품은 알림 후 **목록으로 간다**(원본 흐름).
+ *   직영 폼에서 더한 검사(대표이미지·재고 빈 칸·기본 렌트일·옵션 적용 등)는 직영에만 건다 — 입점 상품은 원본 `pfValidate` 그대로
  * - 입점 상품의 [취소]·[목록] 은 확인 없이 목록으로 간다(원본 `pfCancel`)
  * - **등록 주체는 읽는 값이다** — 입점 = 셀러명 · 직영 = 「본사」(디자인 §3 #13 · 판정 ⑭ 「본사가 바꿀 수 없음」.
  *   2026-10-19 「기획대로 열기」로 열었던 셀렉트를 닫았다)
@@ -490,7 +491,6 @@ function ProductDetailBody({
       prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
     );
 
-  const errors = tried ? validate(draft) : {};
   const rent = draft.mode === "rent";
   /*
     입점 상품의 금액·유형은 입점사 소관 — 값은 보이되 고칠 수 없다(디자인 §3 #1·#2 · 판정 Q20-3·4 ·
@@ -500,6 +500,7 @@ function ProductDetailBody({
   /* 직영 = 신규 등록 또는 본사 직영 상품. 금액·유형·판매 상태가 열리고 처분 대상이 아니다(개발 `direct`) */
   const direct = !product || isDirect(product);
   const priceLocked = !direct;
+  const errors = tried ? validate(draft, direct) : {};
   /** 잠근 세그먼트 — 버튼마다 잠근다(`SegmentedControl` 은 항목 단위 `disabled`) */
   const lockable = <T extends { value: string; label: string }>(items: T[]) =>
     items.map((item) => ({ ...item, disabled: priceLocked }));
@@ -513,7 +514,7 @@ function ProductDetailBody({
 
   const save = () => {
     setTried(true);
-    const found = validate(draft);
+    const found = validate(draft, direct);
     const keys = Object.keys(found) as FieldKey[];
     if (keys.length > 0) {
       /* 오류가 든 섹션은 펼친다 — 접힌 채로 두면 "저장이 안 되는데 이유가 안 보인다" */
