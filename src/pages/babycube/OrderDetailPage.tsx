@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronUp, ShoppingCart } from "lucide-react";
 import {
   AppShell,
@@ -86,6 +86,8 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * 배송비 부담 + 팝업과 같은 환불·반환 결과 줄 `claimResultsOf`)이 따로 선다(새 카드가 아니다 — 원본 구획 유지),
  * 상품정보에 상태 두 칸, 명세에 클레임 묶음, 처리 이력에 클레임이 **실제로 거친 단계**가 붙는다. [목록]은 그 클레임 목록으로.
  * 모드와 맞지 않는 처리단위(취소 경로로 반품 건 · 렌트 교환)는 「찾을 수 없음」이다.
+ * 번호 없이 들어오면(`/orders-cancel/`) 예시 건을 그리지 않고 그 목록으로 보낸다(개발 §2-4 · 부록 A B10).
+ * 없는 번호·조각 둘은 「찾을 수 없음」 그대로다.
  *
  * ## 퍼블 범위
  * 고치는 값이 없다 — 접기·명세 팝업·[목록] 이동뿐이다. 처리단위가 바뀌면 `key` 로 처음부터.
@@ -182,10 +184,16 @@ export function OrderDetailPage(props: OrderDetailPageProps) {
   const { listPath, listLabel, noun } = MODES[mode];
   /* 경로는 `{목록}/{처리단위}` **한 조각**이어야 한다 */
   const rest = pathname.slice(listPath.length + 1);
+  /* 번호 없이 들어온 상세(`/orders-all/`)는 그 목록으로 — 예시 건을 그리지 않는다(개발 §2-4) */
+  const blank = rest === "";
+  useEffect(() => {
+    if (blank) onNavSelect(listPath);
+  }, [blank, listPath, onNavSelect]);
   const order = rest.includes("/")
     ? undefined
     : findOrder(lastPathSegment(pathname), mode);
 
+  if (blank) return null;
   if (!order) {
     return (
       <AppShell

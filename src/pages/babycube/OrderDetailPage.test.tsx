@@ -184,6 +184,23 @@ describe("OrderDetailPage", () => {
       expect(screen.getByText("찾을 수 없는 주문입니다")).toBeVisible();
     });
 
+    it.each([
+      ["/orders-all/", "/orders-all"],
+      ["/orders-cancel/", "/orders-cancel"],
+      ["/orders-return/", "/orders-return"],
+      ["/orders-exchange/", "/orders-exchange"],
+    ])(
+      "번호 없이 들어오면(%s) 예시 건도 「찾을 수 없음」도 없이 그 목록으로 간다",
+      (path, list) => {
+        const { onNavSelect } = renderAt(path);
+
+        expect(onNavSelect).toHaveBeenCalledTimes(1);
+        expect(onNavSelect).toHaveBeenCalledWith(list);
+        expect(screen.queryByText(/찾을 수 없는/)).not.toBeInTheDocument();
+        expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+      },
+    );
+
     it("구역은 접을 수 있다", async () => {
       const { user } = renderAt("/orders-all/U-R01");
 
