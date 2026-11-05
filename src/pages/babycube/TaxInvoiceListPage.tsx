@@ -20,12 +20,12 @@ import {
   TableTd,
   TableTh,
   Tag,
-  useToast,
 } from "../../components/ui";
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
 import { useSearchParams } from "../../lib/router";
 import {
-  ACTION_META,
+  ACTION_LABEL,
+  ACTION_PENDING,
   EMPTY_DESCRIPTION,
   EMPTY_FILTERS,
   EMPTY_TITLE,
@@ -50,7 +50,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *
  * ## 화면 유형: 목록형 (상세 없음 — 원본에도 없다)
  * 검색조건(`FilterBar`) + 데이터 테이블 + 페이지네이션. 행 클릭·체크박스·No·정렬·엑셀이 **없다**(원본).
- * 처리 열의 버튼만 누를 수 있고, 누르면 토스트만 뜬다(목록 상태는 그대로). 처리 열은 오른쪽 고정(1280 에서도 보인다).
+ * 처리 열 버튼은 비활성 + 「연동 준비 중」 + 툴팁(부록 A · 개발과 같다 — 연동되면 연다). 처리 열은 오른쪽 고정(1280 에서도 보인다).
  *
  * ## 이 파일은 도메인을 모른다 — 도메인은 `./TaxInvoiceListPage.data.ts` 에 있다
  *
@@ -97,7 +97,6 @@ export function TaxInvoiceListPage({
   activeNav,
   onNavSelect,
 }: TaxInvoiceListPageProps) {
-  const { toast } = useToast();
   const [filters, setFilters] = useState<TaxFilters>(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
@@ -221,20 +220,21 @@ export function TaxInvoiceListPage({
       >
         <Table>
           {/*
-            `table-fixed` 라 폭 지정이 필수다. 합계(1116)가 곧 표 폭 — 좁은 창(1280)에서는 표 안에서 가로로 민다.
+            `table-fixed` 라 폭 지정이 필수다. 합계(1136 = 1440 의 표 상자)가 곧 표 폭 — 좁은 창(1280)에서는 표 안에서 가로로 민다.
             계산서번호는 한 줄로(`TX-2609-0226` 굵게 + 좌우 여백) · 공급자는 늘 「베이비큐브(본사)」라 그만큼만.
-            처리 열은 오른쪽에 붙박아 [발행]·[다운로드]가 스크롤 밖으로 사라지지 않게 한다
+            처리 열은 오른쪽에 붙박아 [발행]·[다운로드]가 스크롤 밖으로 사라지지 않게 한다.
+            처리 열 180 = [다운로드] 72 + 8 + 「연동 준비 중」 58 + 셀 여백 36(실측 139 + 36) — 공급받는자·금액 열에서 덜어냈다
           */}
           <colgroup>
             <col className="w-36" />
             <col className="w-32" />
-            <col className="w-38" />
+            <col className="w-32" />
             <col className="w-25" />
-            <col className="w-35" />
-            <col className="w-30" />
-            <col className="w-33" />
+            <col className="w-34" />
+            <col className="w-26" />
+            <col className="w-29" />
             <col className="w-25" />
-            <col className="w-25" />
+            <col className="w-45" />
           </colgroup>
           <TableHead>
             <TableRow>
@@ -264,9 +264,9 @@ export function TaxInvoiceListPage({
                 ))
               : paged.map((row) => {
                   const status = STATUS_META[row.status];
-                  const action = ACTION_META[row.status];
+                  const action = ACTION_LABEL[row.status];
                   return (
-                    /* 상세가 없어 행 클릭이 없다(원본) — 처리 버튼만 누른다 */
+                    /* 상세가 없어 행 클릭이 없다(원본) */
                     <TableRow key={row.no}>
                       <TableTd>
                         <span className="body-medium-bold whitespace-nowrap">
@@ -293,14 +293,20 @@ export function TaxInvoiceListPage({
                         </Tag>
                       </TableTd>
                       <TableTd className={ACTION_TD}>
-                        <Button
-                          variant={action.variant}
-                          size="small"
-                          aria-label={`${row.no} ${action.label}`}
-                          onClick={() => toast(action.message(row.no))}
-                        >
-                          {action.label}
-                        </Button>
+                        <span className="flex items-center gap-2 whitespace-nowrap">
+                          <Button
+                            variant="secondary"
+                            size="small"
+                            disabled
+                            title={ACTION_PENDING.title}
+                            aria-label={`${row.no} ${action}`}
+                          >
+                            {action}
+                          </Button>
+                          <span className="body-small text-text-sub">
+                            {ACTION_PENDING.note}
+                          </span>
+                        </span>
                       </TableTd>
                     </TableRow>
                   );

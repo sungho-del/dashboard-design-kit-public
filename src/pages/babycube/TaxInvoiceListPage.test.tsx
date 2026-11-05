@@ -116,7 +116,7 @@ describe("표 — 사례표 숫자", () => {
         vat,
         total,
         status,
-        status === "발행완료" ? "다운로드" : "발행",
+        `${status === "발행완료" ? "다운로드" : "발행"}연동 준비 중`,
       ]);
     });
   });
@@ -185,31 +185,28 @@ describe("검색조건", () => {
   });
 });
 
-describe("처리 열 — 토스트만, 상태는 그대로", () => {
-  it("미발행 [발행] → 「{번호} 세금계산서 발행」 · 여전히 미발행", async () => {
-    const { user } = renderPage();
+/** 부록 A 세금계산서 「—」 줄 — 비활성 [발행]/[다운로드] + 「연동 준비 중」 + 툴팁(개발 `settle-tax/columns.tsx` 와 같다) */
+describe("처리 열 — 비활성 + 「연동 준비 중」", () => {
+  it.each([
+    ["TX-2609-0201", "발행"],
+    ["TX-2609-1042", "다운로드"],
+  ])(
+    "%s [%s] 은 비활성 · 툴팁 「세금계산서 연동 준비 중」 · 옆에 「연동 준비 중」",
+    async (no, label) => {
+      const { user } = renderPage();
+      const button = screen.getByRole("button", { name: `${no} ${label}` });
 
-    await user.click(screen.getByRole("button", { name: "TX-2609-0201 발행" }));
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute("title", "세금계산서 연동 준비 중");
+      expect(button.nextElementSibling?.textContent).toBe("연동 준비 중");
 
-    expect(
-      await screen.findByText("TX-2609-0201 세금계산서 발행"),
-    ).toBeInTheDocument();
-    expect(cells(rowOf("TX-2609-0201"))[7]).toBe("미발행");
-    expect(nos()).toHaveLength(7);
-  });
-
-  it("발행완료 [다운로드] → 「{번호} 다운로드」", async () => {
-    const { user } = renderPage();
-
-    await user.click(
-      screen.getByRole("button", { name: "TX-2609-1042 다운로드" }),
-    );
-
-    expect(
-      await screen.findByText("TX-2609-1042 다운로드"),
-    ).toBeInTheDocument();
-    expect(cells(rowOf("TX-2609-1042"))[7]).toBe("발행완료");
-  });
+      /* 눌러도 아무 일이 없다 — 알림 없음 · 상태 그대로 */
+      await user.click(button);
+      expect(screen.queryByText(`${no} 세금계산서 발행`)).toBeNull();
+      expect(screen.queryByText(`${no} 다운로드`)).toBeNull();
+      expect(nos()).toHaveLength(7);
+    },
+  );
 
   it("발행완료 행에는 [발행]이, 미발행 행에는 [다운로드]가 없다", () => {
     renderPage();
