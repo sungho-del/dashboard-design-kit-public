@@ -71,7 +71,7 @@ const header = () =>
     .closest("header") as HTMLElement;
 
 const APPLY = "신청 정보 (입점 전)";
-const RESULT = "심사 결과 (입점 승인 후)";
+const RESULT = "심사 결과";
 
 /** 승인요청 · 승인됨 · 반려됨 (v0.4 `SELLER_REVIEW` 샘플) */
 const REQUESTED = "SR-318";
@@ -215,11 +215,8 @@ describe("SellerReviewDetailPage (S04-D 입점 심사 상세)", () => {
       const labels = Array.from(result.querySelectorAll("dt")).map(
         (dt) => dt.textContent,
       );
-      expect(labels.slice(0, 3)).toEqual([
-        "심사 상태",
-        "반려 사유",
-        "수수료율",
-      ]);
+      /* 판정 Q11 — 반려 = 반려 사유·반려일. 수수료율·위생인증 줄이 없다(「심사 상태」는 기획 확인 요청 34번) */
+      expect(labels).toEqual(["심사 상태", "반려 사유"]);
     });
 
     it("두 카드의 라벨 폭이 같다 — 값 시작선이 맞는다", () => {

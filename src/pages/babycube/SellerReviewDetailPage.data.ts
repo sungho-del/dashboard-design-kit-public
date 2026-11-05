@@ -36,7 +36,8 @@ export const findApplication = (id: string): Application | undefined =>
 /** 원본 `sellerReview.form` 의 섹션 구성 순서 */
 export const SECTIONS = {
   apply: "신청 정보 (입점 전)",
-  result: "심사 결과 (입점 승인 후)",
+  /* 부록 A A18 · 판정 Q11 — 「(입점 승인 후)」를 뺐다(반려 건에도 같은 제목) */
+  result: "심사 결과",
 } as const;
 
 /** 상품 취급 유형 — 원본 `[렌트+판매][렌트][판매]` */

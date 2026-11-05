@@ -76,18 +76,20 @@ import {
  * ```
  * 신청 정보 (입점 전)     ← 셀러명 · 대표명 · 연락처 · 사업자 유형 ·
  *                           상품 취급 유형 · 서류 2종 · 신청일(초까지)
- * 심사 결과 (입점 승인 후) ← 심사 상태 · [반려 사유 · 반려일] · 수수료율(%)* · [승인일] · 위생인증
+ * 심사 결과              ← 승인요청: 심사 상태 · 수수료율(%)* · 위생인증 (입력)
+ *                           승인: 심사 상태 · 수수료율 · 승인일 · 위생인증 / 반려: 심사 상태 · 반려 사유 · 반려일
  * [목록]                                      [승인] [반려]   ← 하단 액션 바 (승인요청 건만)
  * ```
  *
  * ## 두 섹션이 갈라져 있는 이유 (원본 제목이 그것을 말한다)
- * 위는 **셀러가 낸 것**(입점 전), 아래는 **본사가 정하는 것**(승인 후)이다.
+ * 위는 **셀러가 낸 것**(입점 전), 아래는 **본사가 정하는 것**이다.
  *
  * ## 원본 정책 — 화면이 강제하는 것
  * - **승인요청 상태만 심사할 수 있다.** 처리된 건은 읽기 전용이고 하단 바에 [목록]만 남는다
  * - **[승인] 은 확인 창을 거친다**(원본 `gateApprove` — 되돌릴 수 없는 처리라서)
  * - **반려에는 사유가 필수다** — 목록 일괄과 **같은 창**(`ReviewRejectModal`)을 쓴다
- * - 반려 건은 「반려 사유」 줄에 사유와 반려일, 승인 건은 「승인일」 줄만 낸다
+ * - 반려 건은 「반려 사유」 줄에 사유와 반려일만(수수료율·위생인증 없음), 승인 건은 승인일·요율·위생(판정 Q11 ·
+ *   제목 「심사 결과」 — 부록 A A18). 「심사 상태」 줄은 세 상태 모두 그대로(기획 확인 요청 34번)
  *
  * ## 표기 (2026-11-03 UX 검수)
  * - **반려 사유는 심사 상태 바로 아래** — 반려 건에서 가장 먼저 읽을 값이다(원본은 수수료율 다음).
@@ -410,7 +412,10 @@ function SellerReviewDetailBody({
             </FormField>
           </>
         ) : (
-          /* 처리된 건 — 원본: 승인 건은 「승인일」, 반려 건은 「반려 사유 (반려일)」 만 */
+          /*
+            처리된 건 — 판정 Q11 상태별 항목: 승인 = 승인일·요율·위생 / 반려 = 반려 사유·반려일
+            (반려 건은 수수료율·위생인증 줄이 없다). 「심사 상태」 줄은 기획 확인 요청 34번 답 전까지 그대로
+          */
           <InfoList>
             <InfoItem label="심사 상태" labelWidth={LABEL_WIDTH}>
               <Tag tone={meta.tone} dot>
@@ -429,19 +434,21 @@ function SellerReviewDetailBody({
                 </span>
               </InfoItem>
             ) : null}
-            <InfoItem label="수수료율" labelWidth={LABEL_WIDTH}>
-              {application.commissionRate > 0
-                ? `${application.commissionRate}%`
-                : "-"}
-            </InfoItem>
-            {application.status === "approved" ? (
-              <InfoItem label="승인일" labelWidth={LABEL_WIDTH}>
-                {ymd(application.approvedAt)}
-              </InfoItem>
-            ) : null}
-            <InfoItem label="위생인증" labelWidth={LABEL_WIDTH}>
-              {hygieneLabel}
-            </InfoItem>
+            {application.status === "rejected" ? null : (
+              <>
+                <InfoItem label="수수료율" labelWidth={LABEL_WIDTH}>
+                  {application.commissionRate > 0
+                    ? `${application.commissionRate}%`
+                    : "-"}
+                </InfoItem>
+                <InfoItem label="승인일" labelWidth={LABEL_WIDTH}>
+                  {ymd(application.approvedAt)}
+                </InfoItem>
+                <InfoItem label="위생인증" labelWidth={LABEL_WIDTH}>
+                  {hygieneLabel}
+                </InfoItem>
+              </>
+            )}
           </InfoList>
         )}
       </Section>
