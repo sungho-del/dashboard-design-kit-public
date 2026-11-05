@@ -258,7 +258,7 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       renderAt(HEADQUARTERS);
 
       expect(
-        screen.getByRole("heading", { name: "등록 상품 (3)" }),
+        screen.getByRole("heading", { name: "등록 상품 (4)" }),
       ).toBeVisible();
 
       const headers = within(section(/^등록 상품/))
@@ -320,6 +320,36 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
 
       const rejected = within(section("등록 상품 (12)")).getByText("반려");
       expect(rejected.className.split(/\s+/)).toContain("text-text-critical");
+    });
+
+    /** 디자인 §3 #3 — 직영 상품 등록·수정의 진입점은 본사 행 등록 상품 머리(사이드바 메뉴 없음) */
+    it("본사 행은 [+ 상품 등록] 으로 직영 등록, 상품코드로 직영 상품 상세에 간다", async () => {
+      const { user, onNavSelect } = renderAt(HEADQUARTERS);
+      const products = section(/^등록 상품/);
+
+      await user.click(
+        within(products).getByRole("button", { name: "상품 등록" }),
+      );
+      expect(onNavSelect).toHaveBeenCalledWith("/products/new");
+
+      await user.click(
+        within(products).getByRole("button", { name: "PR270901" }),
+      );
+      expect(onNavSelect).toHaveBeenCalledWith("/products/PR270901");
+    });
+
+    /** 입점 셀러 행을 이을지는 기획 확인 중(질문 16) — 글자로 둔다 */
+    it("입점 셀러는 [+ 상품 등록] 이 없고 상품코드는 글자다", () => {
+      renderAt(NORMAL);
+      const products = section(/^등록 상품/);
+
+      expect(
+        within(products).queryByRole("button", { name: "상품 등록" }),
+      ).toBeNull();
+      expect(
+        within(products).queryByRole("button", { name: "AR118203" }),
+      ).toBeNull();
+      expect(within(products).getByText("AR118203")).toBeVisible();
     });
 
     it("등록한 상품이 없으면 표 대신 빈 상태를 낸다", () => {

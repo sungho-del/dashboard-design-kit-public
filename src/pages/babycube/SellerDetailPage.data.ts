@@ -151,6 +151,10 @@ export const SHOWN_META = {
   hidden: { label: "숨김", tone: "default" as TagTone },
 };
 
+/** 본사 행 등록 상품 — 직영 상품 등록 · 상품코드 → 상품 상세(디자인 §3 #3) */
+export const PRODUCT_NEW_PATH = "/products/new";
+export const PRODUCT_PATH = (code: string) => `/products/${code}`;
+
 /** 등록 상품 표 페이지 — 원본 `pager("sellerProds")`, 목록과 같은 규격 */
 export const PRODUCT_PAGE_SIZE = 10;
 export const PRODUCT_PAGE_SIZES = [10, 20, 50, 100];

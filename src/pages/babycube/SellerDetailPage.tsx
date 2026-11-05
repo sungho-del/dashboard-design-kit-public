@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { ChevronDown, ChevronUp, Store } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Store } from "lucide-react";
 import {
   AppShell,
   Button,
@@ -30,6 +30,7 @@ import {
   TableTh,
   Tag,
   Textarea,
+  TextButton,
   useToast,
 } from "../../components/ui";
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
@@ -56,6 +57,8 @@ import {
   INTRO_PLACEHOLDER,
   PRODUCT_EMPTY_DESCRIPTION,
   PRODUCT_EMPTY_TITLE,
+  PRODUCT_NEW_PATH,
+  PRODUCT_PATH,
   PRODUCT_PAGE_SIZE,
   PRODUCT_PAGE_SIZES,
   ratingText,
@@ -98,8 +101,9 @@ import {
  * 셀러 정보   ← 셀러명* · 대표자* · 연락처* · 사업자 유형* · 상품 취급 유형* ·
  *               사업자등록증 · 통신판매업신고증 · 상태* · 소개
  * 운영 정보   ← 수수료율(%) · 위생인증 · 입점일 · 등록 상품수 · 평점
- * 등록 상품 (N) ← 표(No · 유형 · 판매 상태 · 상품코드 · 상품명 · 카테고리 ·
+ * 등록 상품 (N) ← (본사 행) [+ 상품 등록] · 표(No · 유형 · 판매 상태 · 상품코드 · 상품명 · 카테고리 ·
  *                     상품등록일 · 최종수정일 · 전시상태) + 페이지
+ *                 본사 행의 상품코드 → 직영 상품 상세(`/products/{코드}`) · [+ 상품 등록] → `/products/new`
  * [목록]                                   [취소] [저장하기]   ← 하단 액션 바 (화면 아래 고정)
  * ```
  * 섹션은 접을 수 있다(원본도 섹션마다 접기 버튼이 있다).
@@ -587,6 +591,19 @@ function SellerDetailBody({
         busy={busy}
         dim={dim}
       >
+        {/* 본사 행 — 직영 상품 등록 진입점(디자인 §3 #3 · 개발 「사이드바 메뉴 없음 · 07-03 삭제」) */}
+        {hq && !loading ? (
+          <div className="flex justify-end">
+            <Button
+              variant="secondary"
+              size="small"
+              onClick={() => onNavSelect(PRODUCT_NEW_PATH)}
+            >
+              <Plus size={16} strokeWidth={1.2} aria-hidden />
+              상품 등록
+            </Button>
+          </div>
+        ) : null}
         {loading ? (
           <LoadingLines rows={3} />
         ) : seller.catalog.length === 0 ? (
@@ -655,9 +672,22 @@ function SellerDetailBody({
                             {saleMeta.label}
                           </Tag>
                         </TableTd>
-                        {/* 원본은 상품 상세 링크 — 상품 상세 화면이 생기면 단다 */}
+                        {/*
+                          본사 행은 직영 상품 상세(수정)로 잇는다(디자인 §3 #3). 입점 셀러 행을 이을지는
+                          기획 확인 중이라(질문 16) 글자로 둔다
+                        */}
                         <TableTd className="tabular-nums">
-                          {product.code}
+                          {hq ? (
+                            <TextButton
+                              onClick={() =>
+                                onNavSelect(PRODUCT_PATH(product.code))
+                              }
+                            >
+                              {product.code}
+                            </TextButton>
+                          ) : (
+                            product.code
+                          )}
                         </TableTd>
                         <TableTd ellipsis>{product.name}</TableTd>
                         <TableTd>{product.category}</TableTd>

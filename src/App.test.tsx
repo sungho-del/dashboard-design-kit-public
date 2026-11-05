@@ -101,6 +101,26 @@ describe("App (전달본)", () => {
     ).toBeVisible();
   });
 
+  /** 디자인 §3 #3 — 직영 상품 등록·수정은 셀러 상세 본사 행에서 들어간다(사이드바 메뉴 없음) */
+  it("셀러 상세 본사 행의 [+ 상품 등록] 은 직영 상품 등록에 도착한다", async () => {
+    renderAt("/sellers/S-0001");
+
+    await userEvent.click(screen.getByRole("button", { name: "상품 등록" }));
+    expect(window.location.pathname).toBe("/products/new");
+    expect(pageTitle()).toBe("상품 등록");
+  });
+
+  it("셀러 상세 본사 행의 상품코드는 직영 상품 상세에 도착한다", async () => {
+    renderAt("/sellers/S-0001");
+
+    await userEvent.click(screen.getByRole("button", { name: "HQ240806" }));
+    expect(window.location.pathname).toBe("/products/HQ240806");
+    expect(pageTitle()).toBe("상품 상세 (수정)");
+    expect(
+      screen.getByText("폴딩 놀이매트 220 그레이 · HQ240806 · 본사"),
+    ).toBeVisible();
+  });
+
   /** 같은 주문번호의 두 처리단위(U-R03 렌트 · U-S03 판매)는 서로 다른 상세로 간다 */
   it("주문 목록의 주문번호를 누르면 그 처리단위의 주문 상세에 도착한다", async () => {
     renderAt("/orders-all");
