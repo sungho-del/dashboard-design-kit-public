@@ -40,6 +40,7 @@ import {
   useSearchParams,
 } from "../../lib/router";
 import {
+  activeCouponCount,
   BANK_COPY,
   BANK_MAX,
   bankAccountError,
@@ -71,6 +72,7 @@ import {
   SAVED_TEXT,
   SECTIONS,
   SELLER_STATES,
+  UNRESOLVED_ROWS,
   SHOWN_META,
   stampText,
   ymd,
@@ -119,8 +121,9 @@ import {
  *   (2026-10-15 사용자 결정. 원본은 수수료율 입력칸을 열어 두지만 안내 문구가 "0% 확정"이다)
  * - 셀러명·대표자·연락처는 **필수**, 글자 수 한도 40·20·20(원본 `gInput`)
  * - 수수료율은 **0~100** 이다. 범위를 벗어나면 저장을 막고 이유를 낸다
- * - **[퇴점] 으로 바꿔 저장하면 확인 창**(원본 `gateQuit`) — 남은 렌트·정산·클레임·판매 중 상품을
- *   세어 보여 주고, 남은 건이 있어도 **막지 않고 경고만** 한다
+ * - **[퇴점] 으로 바꿔 저장하면 확인 창**(원본 `gateQuit` · 개발 `ExitGate` — 디자인 §3 #11) — 진행 중 렌트·
+ *   미정산 회차·미해결 클레임·판매 가능한 상품·유효 쿠폰을 세어 보여 주고, 남은 건이 있어도
+ *   **막지 않고 경고만** 한다(경고 판정에서 쿠폰은 뺀다). 안내 둘: 판매중지·전시중지·쿠폰 사용중지 / 알림톡·세션 종료
  *
  * ## 퍼블 범위 (2026-10-15 사용자 결정)
  * 저장·퇴점 처리·서류 다운로드는 **토스트만** 띄운다. 고친 값은 화면 안에만 산다.
@@ -519,7 +522,9 @@ function SellerDetailBody({
 
   const confirmExit = () => {
     setExitOpen(false);
-    toast(EXIT_COPY.done(saleableCount(seller.catalog)));
+    toast(
+      EXIT_COPY.done(saleableCount(seller.catalog), activeCouponCount(seller)),
+    );
   };
 
   const errorOf = (message: string | undefined) =>
@@ -562,7 +567,9 @@ function SellerDetailBody({
   });
 
   const exitWork = exitRows(seller);
-  const hasOpenWork = exitWork.slice(0, 3).some((row) => row.count > 0);
+  const hasOpenWork = exitWork
+    .slice(0, UNRESOLVED_ROWS)
+    .some((row) => row.count > 0);
 
   return (
     <AppShell
@@ -939,8 +946,12 @@ function SellerDetailBody({
             ))}
           </dl>
           <p className="body-small text-text-sub">
-            {EXIT_COPY.note(saleableCount(seller.catalog))}
+            {EXIT_COPY.note(
+              saleableCount(seller.catalog),
+              activeCouponCount(seller),
+            )}
           </p>
+          <p className="body-small text-text-sub">{EXIT_COPY.notice}</p>
           {hasOpenWork ? (
             <p className="body-small text-text-warning">{EXIT_COPY.warning}</p>
           ) : null}

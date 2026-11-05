@@ -567,21 +567,34 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       await user.click(saveButton());
     };
 
-    it("남은 렌트·정산·클레임·판매 중 상품을 세어 보이고, 남은 건이 있으면 경고한다", async () => {
+    /** 디자인 §3 #11 · 개발 `ExitGate` — 다섯 줄 · 안내 둘 · 쿠폰은 경고 판정에서 뺀다 */
+    it("진행 중 렌트·미정산 회차·미해결 클레임·판매 가능한 상품·유효 쿠폰을 세어 보이고, 남은 건이 있으면 경고한다", async () => {
       const { user } = renderAt(NORMAL);
 
       await toClosed(user);
 
       const dialog = screen.getByRole("dialog", {
-        name: "셀러 퇴점 처리 · 아기별상사",
+        name: "퇴점 처리 확인 · 아기별상사",
       });
       const valueOf = (label: string) =>
         within(dialog).getByText(label).nextElementSibling?.textContent;
-      expect(valueOf("진행 중인 렌트")).toBe("3건");
-      expect(valueOf("미지급 정산")).toBe("없음");
-      expect(valueOf("진행 중인 클레임")).toBe("1건");
+      expect(valueOf("진행 중 렌트")).toBe("3건");
+      expect(valueOf("미정산 회차")).toBe("없음");
+      expect(valueOf("미해결 클레임")).toBe("1건");
       /* 판매중 8 + 품절 1 — 반려·재심사요청·판매중지는 세지 않는다 */
-      expect(valueOf("판매 중인 상품")).toBe("9개");
+      expect(valueOf("판매 가능한 상품")).toBe("9개");
+      /* 쿠폰관리의 아기별상사 「사용」 쿠폰 1장(CP-2609-01) */
+      expect(valueOf("유효 쿠폰")).toBe("1장");
+      expect(
+        within(dialog).getByText(
+          "퇴점하면 로그인할 수 없고 판매 가능한 상품 9개는 판매중지·전시중지로 전환됩니다. 유효 쿠폰 1장은 사용중지로 전환되어 고객 쿠폰함·주문서에서 사라집니다.",
+        ),
+      ).toBeVisible();
+      expect(
+        within(dialog).getByText(
+          "퇴점 처리 시 셀러에게 알림톡(퇴점 처리 완료)이 발송되고 입점사 어드민 세션이 종료됩니다.",
+        ),
+      ).toBeVisible();
       expect(
         within(dialog).getByText(/남아 있는 건은 퇴점 후에도/),
       ).toBeVisible();
@@ -591,19 +604,38 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       );
       expect(
         await screen.findByText(
-          "퇴점 처리되었습니다 — 등록 상품 9개가 판매중지로 전환되었습니다.",
+          "퇴점 처리했습니다. 상품 9개를 판매중지했습니다. 쿠폰 1장을 사용중지했습니다.",
         ),
       ).toBeVisible();
     });
 
-    it("남은 일이 없으면 「없음」만 있고 경고는 없다", async () => {
+    it("판매 가능한 상품만 남아도 경고한다 — 쿠폰 문장은 쿠폰이 있을 때만", async () => {
       const { user } = renderAt(QUIET);
 
       await toClosed(user);
 
       const dialog = screen.getByRole("dialog");
-      expect(within(dialog).getAllByText("없음")).toHaveLength(3);
+      expect(within(dialog).getAllByText("없음")).toHaveLength(4);
+      expect(
+        within(dialog).getByText(
+          "퇴점하면 로그인할 수 없고 판매 가능한 상품 1개는 판매중지·전시중지로 전환됩니다.",
+        ),
+      ).toBeVisible();
+      expect(within(dialog).getByText(/남아 있는 건은/)).toBeVisible();
+    });
+
+    it("남은 일이 없으면 「없음」만 있고 경고는 없다", async () => {
+      const { user } = renderAt("S-206");
+
+      await toClosed(user);
+
+      const dialog = screen.getByRole("dialog");
+      expect(within(dialog).getAllByText("없음")).toHaveLength(5);
       expect(within(dialog).queryByText(/남아 있는 건은/)).toBeNull();
+      await user.click(
+        within(dialog).getByRole("button", { name: "퇴점 처리" }),
+      );
+      expect(await screen.findByText("퇴점 처리했습니다.")).toBeVisible();
     });
 
     it("[취소] 하면 처리하지 않고 고른 값은 남는다", async () => {
@@ -618,7 +650,7 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
 
       expect(screen.queryByRole("dialog")).toBeNull();
       expect(screen.getByRole("radio", { name: "퇴점" })).toBeChecked();
-      expect(screen.queryByText(/퇴점 처리되었습니다/)).toBeNull();
+      expect(screen.queryByText(/퇴점 처리했습니다/)).toBeNull();
     });
 
     it("퇴점 처리중으로 바꾸는 것은 확인 창 없이 저장한다", async () => {

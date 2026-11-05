@@ -10,6 +10,7 @@ import {
   type SellerProduct,
   type SellerStatus,
 } from "./SellerListPage.data";
+import { COUPONS, couponStatus } from "./CouponListPage.data";
 
 /* -------------------------------------------------------------------------
  * S03-D 셀러 상세 (BO-SEL-002) — 도메인 층
@@ -43,8 +44,9 @@ import {
  *   (2026-10-15 사용자 결정. 원본은 상태만 고정하고 수수료율 입력칸을 열어 두지만, 같은 자리의
  *   안내 문구가 "수수료율 0% 확정"이라 화면이 스스로 모순된다)
  * - 수수료율은 **0~100** 이다. 범위를 벗어난 값은 저장할 수 없다
- * - 퇴점 확인 창의 숫자는 **판매 중 상품 = 판매중 + 품절**, 정산은 금액이 아니라 **회차**다
- *   (원본 `sellerExitCount`). 남은 건이 있어도 **막지 않고 경고만** 한다
+ * - 퇴점 확인 창은 다섯 줄이다(디자인 §3 #11 · 개발 `ExitGate`) — 진행 중 렌트 · 미정산 회차 · 미해결 클레임 ·
+ *   **판매 가능한 상품 = 판매중 + 품절** · 유효 쿠폰(이 셀러 쿠폰 중 지금 「사용」). 정산은 금액이 아니라 **회차**다.
+ *   남은 건이 있어도 **막지 않고 경고만** 한다 — 경고 판정에서 쿠폰은 뺀다(미종결 건이 아니라 함께 내려가는 대상)
  * ---------------------------------------------------------------------- */
 
 /**
@@ -196,46 +198,70 @@ export const commissionError = (value: string) => {
 export const SAVED_TEXT = "변경 내용을 저장했습니다";
 
 /* -------------------------------------------------------------------------
- * 퇴점 확인 창 — 원본 `gateQuit` (C-5 ⓐ)
+ * 퇴점 확인 창 — 원본 `gateQuit` (C-5 ⓐ) · 개발 `ExitGate`(디자인 §3 #11 · D-218)
  *
  * 저장된 상태가 퇴점이 아닌데 [퇴점] 으로 바꿔 저장할 때만 뜬다.
  * 0건이어도 줄을 지우지 않는다 — "없음"을 읽는 것이 곧 확인이다.
  * ---------------------------------------------------------------------- */
 
-/** 판매 중인 상품 — **판매중 + 품절**만(원본). 임시저장·반려·재심사요청은 퇴점이 덮지 않는다 */
+/** 판매 가능한 상품 — **판매중 + 품절**만(원본). 임시저장·반려·재심사요청은 퇴점이 덮지 않는다 */
 export const saleableCount = (catalog: SellerProduct[]) =>
   catalog.filter(
     (product) =>
       product.saleStatus === "onSale" || product.saleStatus === "soldout",
   ).length;
 
+/**
+ * 유효 쿠폰 — 이 셀러가 발행한 쿠폰 중 지금 「사용」 상태(중지·만료 제외).
+ * 개발은 서버 값(`activeCouponCount`)이다. 퍼블은 쿠폰관리 원장(`COUPONS`)에서 센다
+ */
+export const activeCouponCount = (seller: Seller) =>
+  COUPONS.filter(
+    (coupon) =>
+      coupon.hq === null &&
+      coupon.seller === seller.name &&
+      couponStatus(coupon) === "active",
+  ).length;
+
+/** 경고를 판정하는 줄 수 — 앞 네 줄. 쿠폰은 미종결 건이 아니라 퇴점과 함께 내려가는 대상이라 뺀다(개발) */
+export const UNRESOLVED_ROWS = 4;
+
 export const exitRows = (seller: Seller) => {
   const work = seller.openWork ?? { rents: 0, settlements: 0, claims: 0 };
   return [
-    { label: "진행 중인 렌트", count: work.rents, unit: "건" },
-    { label: "미지급 정산", count: work.settlements, unit: "회차" },
-    { label: "진행 중인 클레임", count: work.claims, unit: "건" },
+    { label: "진행 중 렌트", count: work.rents, unit: "건" },
+    { label: "미정산 회차", count: work.settlements, unit: "회" },
+    { label: "미해결 클레임", count: work.claims, unit: "건" },
     {
-      label: "판매 중인 상품",
+      label: "판매 가능한 상품",
       count: saleableCount(seller.catalog),
       unit: "개",
     },
+    { label: "유효 쿠폰", count: activeCouponCount(seller), unit: "장" },
   ];
 };
 
 export const EXIT_COPY = {
-  title: (name: string) => `셀러 퇴점 처리 · ${name}`,
+  title: (name: string) => `퇴점 처리 확인 · ${name}`,
   none: "없음",
-  note: (products: number) =>
-    `퇴점 처리 시 퇴점일이 기록되고 이 셀러의 상품 ${products}개가 판매중지로 전환됩니다(임시저장 초안은 그대로 둡니다).`,
+  /** 첫 안내 — 개발 문장에서 「임시저장·반려·재심사요청 이력은 덮지 않습니다.」 만 뺐다(부록 A C71) */
+  note: (products: number, coupons: number) =>
+    `퇴점하면 로그인할 수 없고 판매 가능한 상품 ${products}개는 판매중지·전시중지로 전환됩니다.` +
+    (coupons > 0
+      ? ` 유효 쿠폰 ${coupons}장은 사용중지로 전환되어 고객 쿠폰함·주문서에서 사라집니다.`
+      : ""),
+  /** 둘째 안내(D-218 · D-219) — 앱 이름은 「입점사 어드민」(판정 Q10 「메뉴·앱 이름은 그대로」) */
+  notice:
+    "퇴점 처리 시 셀러에게 알림톡(퇴점 처리 완료)이 발송되고 입점사 어드민 세션이 종료됩니다.",
   /* 렌트·정산·클레임이 남았을 때만 덧붙는다 — 막지 않고 알린다 */
   warning:
     "남아 있는 건은 퇴점 후에도 이어서 처리해야 합니다 — 잔여 주문·정산을 먼저 마무리하려면 [퇴점 처리중]으로 두세요.",
   confirm: "퇴점 처리",
-  done: (products: number) =>
-    products > 0
-      ? `퇴점 처리되었습니다 — 등록 상품 ${products}개가 판매중지로 전환되었습니다.`
-      : "퇴점 처리되었습니다.",
+  /** 완료 알림 — 개발 그대로(0 인 줄은 붙이지 않는다) */
+  done: (products: number, coupons: number) =>
+    "퇴점 처리했습니다." +
+    (products > 0 ? ` 상품 ${products}개를 판매중지했습니다.` : "") +
+    (coupons > 0 ? ` 쿠폰 ${coupons}장을 사용중지했습니다.` : ""),
 };
 
 /* -------------------------------------------------------------------------
