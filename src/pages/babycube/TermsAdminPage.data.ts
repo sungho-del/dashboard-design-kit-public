@@ -20,12 +20,14 @@ import { DEMO_TODAY } from "./OrderListPage.data";
  *   저장 버튼 라벨(`등록`/`수정 저장`)도 같은 값에서 갈린다
  * - `updatedAt` 은 `""`(한 번도 저장한 적 없음) 이거나 `YYYY-MM-DD` — 화면은 점 표기
  * - `TERMS` 가 **빈 배열이어도 화면이 성립해야 한다** — 뼈대가 우측에 빈 상태를 그린다
+ * - `scheduled` 가 있는 문서만 현행본/개정 예정본 전환과 [예약 취소] 가 나온다(아래 「시행일」)
  *
  * ## 시행일 (판정 Q15 · 디자인 §1)
  * 시행일 칸 필수 · 기본 오늘+7일 · 「중요 변경 (30일 전 공지)」 체크 시 +30일 · 지난 날짜 선택 불가.
  * 오늘 = 시연 기준일(`DEMO_TODAY`). 「시행일에 자동 교체」는 서버 일이다.
- * ⚠️ 예약(개정 예정본)이 있을 때만 보이는 현행본/개정 예정본 전환·[예약 취소]는 만들지 않았다 —
- * 저장이 알림만이라 예약이 생기지 않고, 예약 예시를 넣을지는 기획 확인 요청 23번 답을 기다린다.
+ * 예약(개정 예정본 `scheduled`)이 있을 때만 현행본/개정 예정본 전환과 [예약 취소] 가 나온다(판정 Q15).
+ * ⚠️ 예약 예시는 넣지 않았다 — 12종 모두 `scheduled` 가 없어 지금 화면에는 보이지 않는다(기획 확인 요청 23번).
+ * 저장이 알림만이라 저장으로 예약이 생기지도 않는다.
  *
  * ## 기획 확인 필요 (원본대로 두고 기록만)
  * - 개인정보 처리방침 4항이 참조하는 「개인정보 제3자 제공 동의」(필수)가 미작성이다
@@ -43,6 +45,16 @@ export interface TermsDoc {
   body: string;
   /** 최종 수정일 `YYYY-MM-DD`. 한 번도 저장한 적 없으면 `""` */
   updatedAt: string;
+  /** 개정 예정본(예약). 없으면 전환·[예약 취소] 가 나오지 않는다 — 판정 Q15 */
+  scheduled?: TermsSchedule;
+}
+
+/** 개정 예정본 — 시행일에 현행본과 자동 교체된다(서버 일) */
+export interface TermsSchedule {
+  /** 개정 예정본 본문 */
+  body: string;
+  /** 시행일 `YYYY-MM-DD` */
+  effectiveAt: string;
 }
 
 export const TERMS: TermsDoc[] = [
@@ -175,11 +187,14 @@ export const updatedText = (doc: Pick<TermsDoc, "updatedAt">) =>
     ? "미작성"
     : `최종 수정 ${doc.updatedAt.replace(/-/g, ".")}`;
 
-/** 시연 기준일(오늘) — 시행일 칸이 이날 전을 막는다 */
-export const TODAY = (() => {
-  const [y, m, d] = DEMO_TODAY.split("-").map(Number);
+/** `YYYY-MM-DD` → 그날 0시(로컬) */
+export const dateOf = (ymd: string) => {
+  const [y, m, d] = ymd.split("-").map(Number);
   return new Date(y, m - 1, d);
-})();
+};
+
+/** 시연 기준일(오늘) — 시행일 칸이 이날 전을 막는다 */
+export const TODAY = dateOf(DEMO_TODAY);
 
 /** 시행일 기본값 — 오늘 +7일 · 「중요 변경」이면 +30일(판정 Q15) */
 export const effectiveDefault = (important: boolean) =>
@@ -193,6 +208,14 @@ export const effectiveDefault = (important: boolean) =>
 export const EFFECTIVE_COPY = {
   label: "시행일",
   important: "중요 변경 (30일 전 공지)",
+};
+
+/** 예약 글자 — 판정 Q15 「예약이 있을 때만 현행본/개정 예정본 전환과 [예약 취소]」 그대로 */
+export const SCHEDULE_COPY = {
+  switchLabel: "현행본/개정 예정본 전환",
+  current: "현행본",
+  scheduled: "개정 예정본",
+  cancel: "예약 취소",
 };
 
 /** 원본 알림 문구(3562~3564) — 저장은 알림만 띄우고 저장본은 바꾸지 않는다 */

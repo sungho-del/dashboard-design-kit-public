@@ -341,6 +341,62 @@ describe("TermsAdminPage", () => {
     });
   });
 
+  /* 판정 Q15 — 예약이 있을 때만 현행본/개정 예정본 전환과 [예약 취소]. 예시 0건이라 데이터를 갈아끼워 본다 */
+  describe("개정 예정본(예약)", () => {
+    const SCHEDULED_BODY = "제1조 (목적) 개정 예정 본문";
+    const switcher = () =>
+      screen.queryByRole("radiogroup", { name: "현행본/개정 예정본 전환" });
+
+    it("예약이 없으면 전환·[예약 취소] 가 없다", () => {
+      renderPage();
+
+      expect(switcher()).toBeNull();
+      expect(screen.queryByRole("button", { name: "예약 취소" })).toBeNull();
+    });
+
+    it("예약이 있으면 현행본 ↔ 개정 예정본을 오가고, [예약 취소] 하면 전환이 걷히고 현행본으로 돌아온다", async () => {
+      const actual = await vi.importActual<
+        typeof import("./TermsAdminPage.data")
+      >("./TermsAdminPage.data");
+      const [first, ...rest] = actual.TERMS;
+      state.override = [
+        {
+          ...first,
+          scheduled: { body: SCHEDULED_BODY, effectiveAt: "2026-11-18" },
+        },
+        ...rest,
+      ];
+      const { user } = renderPage();
+      const radio = (name: string) =>
+        within(switcher() as HTMLElement).getByRole("radio", { name });
+
+      /* 처음은 현행본 — 지금 편집 폼 그대로 */
+      expect(radio("현행본")).toBeChecked();
+      expect(editorValue()).toBe(first.body);
+      expect(screen.getByRole("button", { name: "수정 저장" })).toBeVisible();
+      expect(screen.queryByRole("button", { name: "예약 취소" })).toBeNull();
+
+      await user.click(radio("개정 예정본"));
+      expect(editorValue()).toBe(SCHEDULED_BODY);
+      expect(editor()).toHaveAttribute("readonly");
+      expect(screen.getByRole("button", { name: /시행일/ })).toHaveTextContent(
+        "2026.11.18",
+      );
+      expect(screen.queryByRole("button", { name: "수정 저장" })).toBeNull();
+
+      await user.click(screen.getByRole("button", { name: "예약 취소" }));
+      expect(switcher()).toBeNull();
+      expect(editorValue()).toBe(first.body);
+      expect(screen.getByRole("button", { name: "수정 저장" })).toBeVisible();
+
+      /* 저장본은 바꾸지 않는다(퍼블 범위) — 다른 문서를 다녀오면 예약이 다시 보인다 */
+      await user.click(docItem("개인정보 처리방침"));
+      expect(switcher()).toBeNull();
+      await user.click(docItem("서비스 이용약관"));
+      expect(radio("현행본")).toBeChecked();
+    });
+  });
+
   describe("빈 상태", () => {
     it("문서가 하나도 없으면 편집 카드가 두 줄로 사유를 밝힌다", () => {
       state.override = [];

@@ -13,14 +13,17 @@ import {
   FormField,
   Gnb,
   PageHeader,
+  SegmentedControl,
   Tag,
   Textarea,
   useToast,
 } from "../../components/ui";
 import {
+  dateOf,
   EFFECTIVE_COPY,
   effectiveDefault,
   MESSAGES,
+  SCHEDULE_COPY,
   TERMS,
   TODAY,
   updatedText,
@@ -93,7 +96,11 @@ import { cn } from "../../lib/cn";
  * - 본문에 보이는 라벨 `약관 내용`(원본은 라벨 없음) — 편집기의 접근성 이름이다
  * - **시행일 칸 + 「중요 변경 (30일 전 공지)」 체크**(판정 Q15) — 본문 아래. 기본 오늘+7 · 체크하면 +30 ·
  *   지난 날짜는 고를 수 없고, 칸을 비울 수 없다(필수 — 고른 날을 다시 눌러도 지워지지 않는다).
- *   문서를 바꾸면 본문처럼 기본값으로 돌아온다. 현행본/개정 예정본 전환·[예약 취소]는 data 주석
+ *   문서를 바꾸면 본문처럼 기본값으로 돌아온다
+ * - **예약(개정 예정본)이 있을 때만 [현행본][개정 예정본] 전환 + [예약 취소]**(판정 Q15) — 본문 위 세그먼트.
+ *   현행본 = 위 편집 폼 그대로 · 개정 예정본 = 그 본문(읽기만)과 시행일(잠금) + 하단 [예약 취소].
+ *   [예약 취소] 는 그 문서에 머무는 동안 전환을 걷고 현행본으로 돌아온다 — 저장본은 바꾸지 않아(퍼블 범위)
+ *   문서를 바꾸면 예약이 다시 보인다(편집 초안과 같다). 예약이 없으면 지금 화면 그대로(예시 0건 — data 주석)
  *
  * ## 알려진 한계
  * 문서를 바꾸면 **저장하지 않은 본문은 사라진다.** 원본도 같다(경고 없음).
@@ -121,8 +128,13 @@ export function TermsAdminPage({
   /* 시행일 — 판정 Q15. 기본 오늘+7, 「중요 변경」이면 +30 */
   const [important, setImportant] = useState(false);
   const [effectiveAt, setEffectiveAt] = useState(() => effectiveDefault(false));
+  /* 예약(개정 예정본) — 판정 Q15. 있을 때만 전환 · [예약 취소] 는 이 문서에 머무는 동안만 걷는다 */
+  const [showScheduled, setShowScheduled] = useState(false);
+  const [scheduleCanceled, setScheduleCanceled] = useState(false);
 
   const current = terms.find((doc) => doc.id === selectedId);
+  const schedule = scheduleCanceled ? undefined : current?.scheduled;
+  const viewingScheduled = schedule !== undefined && showScheduled;
 
   /** 문서 전환 — 편집기는 언제나 **고른 문서의 저장된 본문**에서 다시 시작한다 */
   const selectDoc = (id: string) => {
@@ -130,6 +142,13 @@ export function TermsAdminPage({
     setDraft(terms.find((doc) => doc.id === id)?.body ?? "");
     setImportant(false);
     setEffectiveAt(effectiveDefault(false));
+    setShowScheduled(false);
+    setScheduleCanceled(false);
+  };
+
+  const cancelSchedule = () => {
+    setScheduleCanceled(true);
+    setShowScheduled(false);
   };
 
   const toggleImportant = (next: boolean) => {
@@ -268,36 +287,76 @@ export function TermsAdminPage({
                 }
               />
               <CardBody>
-                <FormField label="약관 내용" required>
-                  <Textarea
-                    minRows={12}
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    placeholder={`${current.name} 내용을 입력하세요.`}
+                {/* 예약이 있을 때만 — 보기 전환이라 본문 위(회원 상세 결제 구분과 같은 자리·크기) */}
+                {schedule && (
+                  <SegmentedControl
+                    aria-label={SCHEDULE_COPY.switchLabel}
+                    items={[
+                      { value: "current", label: SCHEDULE_COPY.current },
+                      { value: "scheduled", label: SCHEDULE_COPY.scheduled },
+                    ]}
+                    value={viewingScheduled ? "scheduled" : "current"}
+                    onValueChange={(value) =>
+                      setShowScheduled(value === "scheduled")
+                    }
                   />
-                </FormField>
-                <FormField label={EFFECTIVE_COPY.label} required>
-                  <DatePicker
-                    className="w-60"
-                    value={effectiveAt}
-                    /* 필수 — 고른 날을 다시 눌러 지우는 것은 받지 않는다 */
-                    onChange={(next) => next && setEffectiveAt(next)}
-                    disabledDates={{ before: TODAY }}
-                    defaultMonth={effectiveAt}
-                  />
-                </FormField>
-                {/* Checkbox 는 루트가 이미 `<label>` 이라 FormField 로 감싸지 않는다 */}
-                <Checkbox
-                  label={EFFECTIVE_COPY.important}
-                  checked={important}
-                  onChange={(event) => toggleImportant(event.target.checked)}
-                />
+                )}
+                {schedule && viewingScheduled ? (
+                  <>
+                    {/* 개정 예정본은 읽기만 — 회신은 전환과 [예약 취소] 까지만 정했다 */}
+                    <FormField label="약관 내용">
+                      <Textarea minRows={12} value={schedule.body} readOnly />
+                    </FormField>
+                    <FormField label={EFFECTIVE_COPY.label}>
+                      <DatePicker
+                        className="w-60"
+                        value={dateOf(schedule.effectiveAt)}
+                        disabled
+                      />
+                    </FormField>
+                  </>
+                ) : (
+                  <>
+                    <FormField label="약관 내용" required>
+                      <Textarea
+                        minRows={12}
+                        value={draft}
+                        onChange={(event) => setDraft(event.target.value)}
+                        placeholder={`${current.name} 내용을 입력하세요.`}
+                      />
+                    </FormField>
+                    <FormField label={EFFECTIVE_COPY.label} required>
+                      <DatePicker
+                        className="w-60"
+                        value={effectiveAt}
+                        /* 필수 — 고른 날을 다시 눌러 지우는 것은 받지 않는다 */
+                        onChange={(next) => next && setEffectiveAt(next)}
+                        disabledDates={{ before: TODAY }}
+                        defaultMonth={effectiveAt}
+                      />
+                    </FormField>
+                    {/* Checkbox 는 루트가 이미 `<label>` 이라 FormField 로 감싸지 않는다 */}
+                    <Checkbox
+                      label={EFFECTIVE_COPY.important}
+                      checked={important}
+                      onChange={(event) =>
+                        toggleImportant(event.target.checked)
+                      }
+                    />
+                  </>
+                )}
               </CardBody>
               <CardFooter>
-                {/* 원본은 본문이 비어 있으면 `등록`, 있으면 `수정 저장` 이다 */}
-                <Button onClick={save}>
-                  {current.body === "" ? "등록" : "수정 저장"}
-                </Button>
+                {viewingScheduled ? (
+                  <Button variant="secondary" onClick={cancelSchedule}>
+                    {SCHEDULE_COPY.cancel}
+                  </Button>
+                ) : (
+                  /* 원본은 본문이 비어 있으면 `등록`, 있으면 `수정 저장` 이다 */
+                  <Button onClick={save}>
+                    {current.body === "" ? "등록" : "수정 저장"}
+                  </Button>
+                )}
               </CardFooter>
             </>
           )}
