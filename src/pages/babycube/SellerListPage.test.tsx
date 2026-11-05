@@ -2,6 +2,8 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { SellerListPage } from "./SellerListPage";
+import { SELLERS } from "./SellerListPage.data";
+import { LISTED_PRODUCTS } from "./ProductListPage.data";
 
 /* -------------------------------------------------------------------------
  * S03 셀러 관리 — 목록형
@@ -311,14 +313,14 @@ describe("SellerListPage (S03 셀러 관리)", () => {
     });
 
     /**
-     * 원본 v0.4 표기 — 상품수 `184개` · 평점 `★ 4.8`.
+     * 원본 v0.4 표기 — 상품수 `N개` · 평점 `★ 4.8`. 상품수는 상품 목록과 같은 수다(판정 Q9 — 아래).
      * 수수료율은 **셀 안 입력칸**이다(원본 `feecell`) — 글자가 아니라 값으로 확인한다.
      */
     it("상품수·평점을 원본 표기대로 내고, 수수료율은 셀 입력칸에 담는다", () => {
       renderPage();
 
       const row = rowOf("아기별상사");
-      expect(within(row).getByText("184개")).toBeVisible();
+      expect(within(row).getByText("3개")).toBeVisible();
       expect(within(row).getByText("★ 4.8")).toBeVisible();
       expect(within(row).getByLabelText("아기별상사 수수료율")).toHaveValue(
         "12",
@@ -682,6 +684,29 @@ describe("정렬", () => {
     await user.click(sortButton("상품수"));
     expect(header("상품수")).toHaveAttribute("aria-sort", "none");
     expect(visibleNames()).toEqual(original);
+  });
+
+  /** 판정 Q9 — 상품수 = 임시저장을 뺀 전체(상품 목록과 같은 수). 상품 목록의 그 셀러 행을 센다 */
+  it("상품수는 상품 목록의 그 셀러 상품 수와 같다", () => {
+    renderPage();
+
+    const listedOf = (name: string) =>
+      LISTED_PRODUCTS.filter((p) => p.seller === name).length;
+
+    for (const row of bodyRows()) {
+      const name = within(cellsOf(row)[2]).getByRole("button").textContent!;
+      if (SELLERS.find((s) => s.name === name)!.isHeadquarters) continue; // 기획 확인 요청 24번
+      expect(cellsOf(row)[9].textContent).toBe(`${listedOf(name)}개`);
+    }
+    /* 화면에 안 보이는 탭·페이지까지 — 셀러 상세의 등록 상품 표도 같은 행이다 */
+    for (const seller of SELLERS.filter((s) => !s.isHeadquarters)) {
+      expect(seller.products).toBe(listedOf(seller.name));
+      expect(seller.catalog.map((p) => p.code)).toEqual(
+        LISTED_PRODUCTS.filter((p) => p.seller === seller.name).map(
+          (p) => p.id,
+        ),
+      );
+    }
   });
 
   it("평점 정렬은 소수까지 비교한다", async () => {

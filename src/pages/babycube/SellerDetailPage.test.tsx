@@ -74,7 +74,7 @@ const header = () =>
 const field = (name: string) => screen.getByRole("textbox", { name });
 const saveButton = () => screen.getByRole("button", { name: "저장하기" });
 
-/** 일반 셀러(상품 12개 · 남은 일 있음) · 본사 계정 · 남은 일 없는 셀러 */
+/** 일반 셀러(상품 3개 · 남은 일 있음) · 본사 계정 · 남은 일 없는 셀러(상품 0 · 계좌 미등록) */
 const NORMAL = "S-1042";
 const HEADQUARTERS = "S-0001";
 const QUIET = "S-1190";
@@ -221,7 +221,7 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       const operation = section("운영 정보");
 
       expect(within(operation).getByText("★ 4.8")).toBeVisible();
-      expect(within(operation).getByText("184개")).toBeVisible();
+      expect(within(operation).getByText("3개")).toBeVisible();
     });
   });
 
@@ -355,35 +355,48 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       ).toBeVisible();
     });
 
-    /** 원본 `pager("sellerProds")` — 10개씩, No 는 페이지 안 순번(`start + i + 1`) */
-    it("10개씩 나눠 보여주고 No 는 이어지는 순번이다", async () => {
-      const { user } = renderAt(NORMAL);
-      const products = section("등록 상품 (12)");
-      const nos = () =>
-        within(products)
-          .getAllByRole("row")
-          .slice(1)
-          .map((row) => within(row).getAllByRole("cell")[0].textContent);
+    /**
+     * 판정 Q9 — 등록 상품수 = 임시저장을 뺀 전체(상품 목록과 같은 수). 「등록 상품수」 · 「등록 상품 (N)」 ·
+     * 표의 행이 모두 상품 목록의 그 셀러 행이다(아기별상사 = AS730125 · AS902715 · AS563019).
+     */
+    it("등록 상품수 · 표 제목 건수 · 표 행이 상품 목록과 같다", () => {
+      renderAt(NORMAL);
 
-      expect(nos()).toHaveLength(10);
-      expect(nos()[0]).toBe("1");
-
-      await user.click(within(products).getByRole("button", { name: "2" }));
-      expect(nos()).toEqual(["11", "12"]);
+      expect(within(section("운영 정보")).getByText("3개")).toBeVisible();
+      const products = section("등록 상품 (3)");
+      const codes = within(products)
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => within(row).getAllByRole("cell")[3].textContent);
+      expect(codes).toEqual(["AS730125", "AS902715", "AS563019"]);
     });
 
-    /** 원본 `modeTags` — 렌트·판매 둘 다면 배지 둘. 판매 상태는 상품 관리와 같은 어휘·색 */
+    /**
+     * 원본 `pager("sellerProds")` — 10개씩, No 는 페이지 안 순번(`start + i + 1`).
+     * 상품 목록에 10개 넘는 셀러가 없어(판정 Q9 — 같은 원천) 지금 샘플은 모두 한 쪽이다
+     */
+    it("No 는 페이지 안 순번이다", () => {
+      renderAt("S-201");
+      const nos = within(section("등록 상품 (5)"))
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => within(row).getAllByRole("cell")[0].textContent);
+
+      expect(nos).toEqual(["1", "2", "3", "4", "5"]);
+    });
+
+    /** 원본 `modeTags` — 유형 배지. 판매 상태는 상품 관리와 같은 어휘·색 */
     it("유형·판매 상태·전시상태를 배지로 낸다", () => {
-      renderAt(NORMAL);
-      const row = within(section("등록 상품 (12)"))
-        .getByText("렌트 겸용 젖병 워머")
+      renderAt("S-231");
+      const products = section("등록 상품 (4)");
+      const row = within(products)
+        .getByText("UV 젖병소독기 미니")
         .closest("tr") as HTMLElement;
 
-      expect(within(row).getByText("렌트")).toBeVisible();
       expect(within(row).getByText("판매")).toBeVisible();
       expect(within(row).getByText("전시중")).toBeVisible();
 
-      const rejected = within(section("등록 상품 (12)")).getByText("반려");
+      const rejected = within(products).getByText("반려");
       expect(rejected.className.split(/\s+/)).toContain("text-text-critical");
     });
 
@@ -412,9 +425,9 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
         within(products).queryByRole("button", { name: "상품 등록" }),
       ).toBeNull();
       expect(
-        within(products).queryByRole("button", { name: "AR118203" }),
+        within(products).queryByRole("button", { name: "AS730125" }),
       ).toBeNull();
-      expect(within(products).getByText("AR118203")).toBeVisible();
+      expect(within(products).getByText("AS730125")).toBeVisible();
     });
 
     it("등록한 상품이 없으면 표 대신 빈 상태를 낸다", () => {
@@ -674,13 +687,13 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       expect(valueOf("진행 중 렌트")).toBe("3건");
       expect(valueOf("미정산 회차")).toBe("없음");
       expect(valueOf("미해결 클레임")).toBe("1건");
-      /* 판매중 8 + 품절 1 — 반려·재심사요청·판매중지는 세지 않는다 */
-      expect(valueOf("판매 가능한 상품")).toBe("9개");
+      /* 판매중 2 — 판매중지(AS563019)는 세지 않는다 */
+      expect(valueOf("판매 가능한 상품")).toBe("2개");
       /* 쿠폰관리의 아기별상사 「사용」 쿠폰 1장(CP-2609-01) */
       expect(valueOf("유효 쿠폰")).toBe("1장");
       expect(
         within(dialog).getByText(
-          "퇴점하면 로그인할 수 없고 판매 가능한 상품 9개는 판매중지·전시중지로 전환됩니다. 유효 쿠폰 1장은 사용중지로 전환되어 고객 쿠폰함·주문서에서 사라집니다.",
+          "퇴점하면 로그인할 수 없고 판매 가능한 상품 2개는 판매중지·전시중지로 전환됩니다. 유효 쿠폰 1장은 사용중지로 전환되어 고객 쿠폰함·주문서에서 사라집니다.",
         ),
       ).toBeVisible();
       expect(
@@ -697,13 +710,14 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       );
       expect(
         await screen.findByText(
-          "퇴점 처리했습니다. 상품 9개를 판매중지했습니다. 쿠폰 1장을 사용중지했습니다.",
+          "퇴점 처리했습니다. 상품 2개를 판매중지했습니다. 쿠폰 1장을 사용중지했습니다.",
         ),
       ).toBeVisible();
     });
 
+    /* 맘스케어 — 남은 일·쿠폰 없음 · 판매중 1(MC447210) */
     it("판매 가능한 상품만 남아도 경고한다 — 쿠폰 문장은 쿠폰이 있을 때만", async () => {
-      const { user } = renderAt(QUIET);
+      const { user } = renderAt("S-228");
 
       await toClosed(user);
 

@@ -1,4 +1,9 @@
 import type { TagCustomStyle, TagTone } from "../../components/ui";
+import {
+  categoryNameOf,
+  LISTED_PRODUCTS,
+  type Product,
+} from "./ProductListPage.data";
 
 /* -------------------------------------------------------------------------
  * S03 셀러 관리 (BabyCube 본사 운영 어드민) — 목록형 화면의 **도메인 층**
@@ -138,7 +143,7 @@ export interface Seller {
   date: string;
   /** 퇴점일 — 퇴점 셀러는 퇴점한 날, 퇴점 처리중 셀러는 **예정일**. 입점 셀러는 `null` */
   exitDate: string | null;
-  /** 등록 상품수 */
+  /** 등록 상품수 — 입점 셀러는 `catalog` 길이(판정 Q9 · `withListedProducts`). 본사 행만 샘플 값(질문 24) */
   products: number;
   /** 평점 (5점 만점, 소수 한 자리) */
   rating: number;
@@ -157,7 +162,7 @@ export interface Seller {
   salesLicense: SellerDocument;
   /** 셀러 소개 — 원본 `소개` 텍스트영역 */
   intro: string;
-  /** 등록 상품 — 상세의 표가 그대로 쓴다. `products` 수와 다를 수 있다(샘플은 일부만 든다) */
+  /** 등록 상품 — 상세의 표가 그대로 쓴다. 입점 셀러는 상품 목록의 그 셀러 행이다(판정 Q9) */
   catalog: SellerProduct[];
   /**
    * 퇴점 확인 창이 세는 **남은 일** — 원본 `sellerExitCount` 의 셋(판매 중 상품은 `catalog` 에서 센다).
@@ -335,8 +340,9 @@ export const HQ_BADGE = {
  * 간이 샘플 — 원본 v0.4 `SELLERS` 의 25곳 (S-201 ~ S-225) + 주문 쪽 셀러 6곳 (S-226 ~ S-231)
  *
  * 목록을 2페이지 이상으로 채우려고 원본 값을 그대로 옮겼다(이름·대표·연락처·상태·입점일·
- * 상품수·평점·수수료율·사업자/취급 유형·위생인증·서류번호·소개·퇴점일). 등록 상품 표는 비어 있다.
- * 순서: id · 셀러명 · 대표 · 연락처 · 상태 · 입점일 · 상품수 · 평점 · 수수료율 ·
+ * 평점·수수료율·사업자/취급 유형·위생인증·서류번호·소개·퇴점일). 상품수·등록 상품은 상품 목록에서 센다(판정 Q9 —
+ * 아래 `withListedProducts` · 원본 v0.4 의 상품수 숫자는 버렸다).
+ * 순서: id · 셀러명 · 대표 · 연락처 · 상태 · 입점일 · 평점 · 수수료율 ·
  *       사업자 유형 · 취급 유형 · 위생인증 · 사업자등록번호 · 통신판매업 신고번호 · 소개 · 퇴점(예정)일
  * ---------------------------------------------------------------------- */
 type BriefRow = [
@@ -346,7 +352,6 @@ type BriefRow = [
   string,
   SellerStatus,
   string,
-  number,
   number,
   number,
   BizType,
@@ -366,7 +371,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3201-1188",
     "active",
     "2024-01-10",
-    128,
     4.9,
     10,
     "corporate",
@@ -383,7 +387,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3202-2277",
     "active",
     "2024-03-22",
-    96,
     4.8,
     11,
     "corporate",
@@ -400,7 +403,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3203-3366",
     "exiting",
     "2024-06-01",
-    210,
     4.7,
     12,
     "individual",
@@ -418,7 +420,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3204-4455",
     "active",
     "2024-09-14",
-    74,
     4.9,
     9,
     "corporate",
@@ -435,7 +436,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3205-5544",
     "active",
     "2025-02-03",
-    152,
     4.6,
     13,
     "individual",
@@ -452,7 +452,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3206-6710",
     "active",
     "2024-10-02",
-    63,
     4.8,
     8,
     "corporate",
@@ -469,7 +468,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3207-7820",
     "active",
     "2024-11-11",
-    88,
     4.7,
     14,
     "individual",
@@ -486,7 +484,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3208-8930",
     "closed",
     "2024-12-05",
-    45,
     4.9,
     9.5,
     "corporate",
@@ -504,7 +501,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3209-9040",
     "active",
     "2025-01-19",
-    112,
     4.6,
     11.5,
     "corporate",
@@ -521,7 +517,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3210-1150",
     "active",
     "2025-02-27",
-    57,
     4.8,
     8.5,
     "individual",
@@ -538,7 +533,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3211-2260",
     "active",
     "2025-03-14",
-    134,
     4.9,
     12.5,
     "corporate",
@@ -555,7 +549,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3212-3370",
     "active",
     "2025-03-30",
-    71,
     4.5,
     13.5,
     "individual",
@@ -572,7 +565,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3213-4480",
     "active",
     "2025-04-08",
-    39,
     4.7,
     7,
     "corporate",
@@ -589,7 +581,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3214-5590",
     "active",
     "2025-04-22",
-    96,
     4.8,
     15,
     "individual",
@@ -606,7 +597,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3215-6600",
     "exiting",
     "2025-05-06",
-    60,
     4.4,
     6,
     "corporate",
@@ -624,7 +614,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3216-7710",
     "active",
     "2025-05-20",
-    83,
     4.9,
     10.5,
     "corporate",
@@ -641,7 +630,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3217-8820",
     "active",
     "2025-06-03",
-    52,
     4.6,
     16,
     "individual",
@@ -658,7 +646,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3218-9930",
     "active",
     "2025-06-17",
-    108,
     4.8,
     9.8,
     "corporate",
@@ -675,7 +662,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3219-1040",
     "active",
     "2025-07-01",
-    44,
     4.7,
     11.8,
     "individual",
@@ -692,7 +678,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3220-2150",
     "active",
     "2025-07-15",
-    127,
     4.9,
     12.2,
     "corporate",
@@ -709,7 +694,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3221-3260",
     "active",
     "2025-08-02",
-    66,
     4.5,
     8.8,
     "individual",
@@ -726,7 +710,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3222-4370",
     "active",
     "2025-08-19",
-    91,
     4.8,
     13.8,
     "corporate",
@@ -743,7 +726,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3223-5480",
     "closed",
     "2025-09-05",
-    38,
     4.3,
     7.5,
     "individual",
@@ -761,7 +743,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3224-6590",
     "active",
     "2025-09-21",
-    79,
     4.9,
     14.5,
     "corporate",
@@ -778,7 +759,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3225-7600",
     "active",
     "2025-10-10",
-    55,
     4.6,
     6.5,
     "individual",
@@ -798,7 +778,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3226-8140",
     "active",
     "2026-03-12",
-    4,
     4.7,
     12,
     "corporate",
@@ -815,7 +794,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3227-9251",
     "active",
     "2026-04-02",
-    4,
     4.6,
     11,
     "individual",
@@ -832,7 +810,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3228-1362",
     "active",
     "2026-04-20",
-    4,
     4.8,
     9.5,
     "corporate",
@@ -849,7 +826,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3229-2473",
     "active",
     "2026-05-08",
-    3,
     4.5,
     9.8,
     "individual",
@@ -866,7 +842,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3230-3584",
     "active",
     "2026-06-01",
-    3,
     4.7,
     8,
     "corporate",
@@ -883,7 +858,6 @@ const BRIEF_ROWS: BriefRow[] = [
     "010-3231-4695",
     "active",
     "2026-06-15",
-    4,
     4.6,
     13.5,
     "corporate",
@@ -903,7 +877,6 @@ const toSeller = ([
   phone,
   status,
   join,
-  products,
   rating,
   commission,
   bizType,
@@ -913,7 +886,7 @@ const toSeller = ([
   salesNo,
   intro,
   exit,
-]: BriefRow): Seller => ({
+]: BriefRow): SellerSeed => ({
   id,
   name,
   isHeadquarters: false,
@@ -922,7 +895,6 @@ const toSeller = ([
   commission,
   date: `${join} 09:00`,
   exitDate: exit ? `${exit} 00:00` : null,
-  products,
   rating,
   hygiene,
   status,
@@ -931,12 +903,41 @@ const toSeller = ([
   bizLicense: { fileName: "사업자등록증.pdf", number: bizNo },
   salesLicense: { fileName: "통신판매업 신고증.pdf", number: salesNo },
   intro,
-  catalog: [],
 });
 
 const BRIEF_SELLERS = BRIEF_ROWS.map(toSeller);
 
-export const SELLERS: Seller[] = [
+/** 상품 목록 한 행 → 셀러 상세 「등록 상품」 표 한 행 */
+const toSellerProduct = (product: Product): SellerProduct => ({
+  kinds: [product.mode],
+  saleStatus: product.status,
+  code: product.id,
+  name: product.name,
+  category: categoryNameOf(product),
+  createdAt: product.date,
+  updatedAt: product.updatedAt,
+  shown: product.display === "shown",
+});
+
+/** 샘플 한 곳 — 입점 셀러는 상품수·등록 상품을 들지 않는다(`withListedProducts` 가 채운다) */
+type SellerSeed = Omit<Seller, "products" | "catalog"> &
+  Partial<Pick<Seller, "products" | "catalog">>;
+
+/**
+ * 판정 Q9 — **등록 상품수 = 임시저장을 뺀 전체(상품 목록과 같은 수)**. 셀러 목록 「상품수」 · 셀러 상세
+ * 「등록 상품수」 · 「등록 상품 (N)」 표가 모두 상품 목록(`LISTED_PRODUCTS`)의 그 셀러 행 하나를 읽는다
+ * (상품 목록에는 임시저장 초안이 들어오지 않는다). 상품 목록과 셀러는 셀러명으로 잇는다(상품 행에 셀러 코드가 없다).
+ * **본사 행은 샘플 값 그대로** — 직영 상품은 상품 목록에 나오지 않아 기획 확인 요청 24번 답을 기다린다.
+ */
+const withListedProducts = (seed: SellerSeed): Seller => {
+  if (seed.isHeadquarters) return { products: 0, catalog: [], ...seed };
+  const catalog = LISTED_PRODUCTS.filter(
+    (product) => product.seller === seed.name,
+  ).map(toSellerProduct);
+  return { ...seed, catalog, products: catalog.length };
+};
+
+const SELLER_SEEDS: SellerSeed[] = [
   {
     /* 본사 직영 — 수수료율은 처음 0%, 수정 가능(판정 Q20-1) */
     id: "S-0001",
@@ -1016,7 +1017,6 @@ export const SELLERS: Seller[] = [
     commission: 12,
     date: "2025-11-04 10:20",
     exitDate: null,
-    products: 184,
     rating: 4.8,
     hygiene: true,
     status: "active",
@@ -1041,128 +1041,6 @@ export const SELLERS: Seller[] = [
       number: "2025-서울성동-01142",
     },
     intro: "신생아 용품을 중심으로 렌트와 판매를 함께 운영합니다.",
-    catalog: [
-      {
-        kinds: ["rent"],
-        saleStatus: "onSale",
-        code: "AR118203",
-        name: "잘레토 전동 바운서 4세대",
-        category: "바운서·스윙",
-        createdAt: "2026-02-14 10:02:31",
-        updatedAt: "2026-08-01 09:18:45",
-        shown: true,
-      },
-      {
-        kinds: ["sale"],
-        saleStatus: "onSale",
-        code: "AS118477",
-        name: "휴대용 젖병 소독기",
-        category: "분유·이유식",
-        createdAt: "2026-03-02 15:41:09",
-        updatedAt: "2026-03-02 15:41:09",
-        shown: true,
-      },
-      {
-        kinds: ["rent", "sale"],
-        saleStatus: "onSale",
-        code: "AB118530",
-        name: "렌트 겸용 젖병 워머",
-        category: "분유·이유식",
-        createdAt: "2026-03-10 10:11:02",
-        updatedAt: "2026-07-02 11:40:17",
-        shown: true,
-      },
-      {
-        kinds: ["rent"],
-        saleStatus: "onSale",
-        code: "AR118602",
-        name: "신생아 스윙 바운서 라이트",
-        category: "바운서·스윙",
-        createdAt: "2026-03-18 14:05:44",
-        updatedAt: "2026-03-18 14:05:44",
-        shown: true,
-      },
-      {
-        kinds: ["sale"],
-        saleStatus: "soldout",
-        code: "AS118655",
-        name: "오가닉 거즈 손수건 10매",
-        category: "목욕·위생",
-        createdAt: "2026-04-01 09:30:10",
-        updatedAt: "2026-08-12 16:20:31",
-        shown: true,
-      },
-      {
-        kinds: ["sale"],
-        saleStatus: "rejected",
-        code: "AS118701",
-        name: "무형광 아기 세제 2L",
-        category: "목욕·위생",
-        createdAt: "2026-04-09 13:12:55",
-        updatedAt: "2026-04-15 10:01:03",
-        shown: false,
-      },
-      {
-        kinds: ["rent"],
-        saleStatus: "onSale",
-        code: "AR118744",
-        name: "휴대용 아기 침대 트래블",
-        category: "아기침대",
-        createdAt: "2026-04-22 17:48:20",
-        updatedAt: "2026-06-30 09:15:42",
-        shown: true,
-      },
-      {
-        kinds: ["sale"],
-        saleStatus: "rereview",
-        code: "AS118790",
-        name: "실리콘 이유식 스푼 세트",
-        category: "분유·이유식",
-        createdAt: "2026-05-03 11:26:37",
-        updatedAt: "2026-09-02 15:44:08",
-        shown: false,
-      },
-      {
-        kinds: ["rent"],
-        saleStatus: "stopped",
-        code: "AR118812",
-        name: "전동 모빌 스타라이트",
-        category: "장난감",
-        createdAt: "2026-05-14 10:02:19",
-        updatedAt: "2026-08-28 18:07:55",
-        shown: false,
-      },
-      {
-        kinds: ["sale"],
-        saleStatus: "onSale",
-        code: "AS118856",
-        name: "아기 손톱깎이 세트",
-        category: "목욕·위생",
-        createdAt: "2026-05-27 15:39:00",
-        updatedAt: "2026-05-27 15:39:00",
-        shown: true,
-      },
-      {
-        kinds: ["rent", "sale"],
-        saleStatus: "onSale",
-        code: "AB118901",
-        name: "접이식 하이체어 클래식",
-        category: "유아 가구",
-        createdAt: "2026-06-08 12:21:48",
-        updatedAt: "2026-07-19 13:33:26",
-        shown: true,
-      },
-      {
-        kinds: ["sale"],
-        saleStatus: "onSale",
-        code: "AS118947",
-        name: "수유 쿠션 코튼",
-        category: "수유용품",
-        createdAt: "2026-06-21 09:58:13",
-        updatedAt: "2026-06-21 09:58:13",
-        shown: true,
-      },
-    ],
   },
   {
     id: "S-1078",
@@ -1173,7 +1051,6 @@ export const SELLERS: Seller[] = [
     commission: 9.5,
     date: "2026-01-16 15:42",
     exitDate: null,
-    products: 96,
     rating: 4.6,
     hygiene: true,
     status: "active",
@@ -1185,18 +1062,6 @@ export const SELLERS: Seller[] = [
       number: "2025-부산해운대-00714",
     },
     intro: "이동 장비 전문 — 유모차·카시트만 취급합니다.",
-    catalog: [
-      {
-        kinds: ["rent"],
-        saleStatus: "onSale",
-        code: "BR220154",
-        name: "디럭스 유모차 스톨라 프로",
-        category: "유모차",
-        createdAt: "2026-01-20 11:22:03",
-        updatedAt: "2026-07-14 13:55:20",
-        shown: true,
-      },
-    ],
   },
   {
     id: "S-1123",
@@ -1207,7 +1072,6 @@ export const SELLERS: Seller[] = [
     commission: 14,
     date: "2026-03-02 09:05",
     exitDate: null,
-    products: 57,
     rating: 4.4,
     hygiene: false,
     status: "active",
@@ -1219,28 +1083,6 @@ export const SELLERS: Seller[] = [
       number: "2025-경기성남-02233",
     },
     intro: "수면 용품과 침구를 판매합니다.",
-    catalog: [
-      {
-        kinds: ["sale"],
-        saleStatus: "onSale",
-        code: "CS330871",
-        name: "원목 범퍼 아기침대",
-        category: "아기침대",
-        createdAt: "2026-04-08 16:30:55",
-        updatedAt: "2026-06-02 10:04:12",
-        shown: true,
-      },
-      {
-        kinds: ["sale"],
-        saleStatus: "stopped",
-        code: "CS330902",
-        name: "사계절 순면 이불 세트",
-        category: "침구",
-        createdAt: "2026-04-19 09:12:40",
-        updatedAt: "2026-08-25 17:41:06",
-        shown: false,
-      },
-    ],
   },
   {
     /* 퇴점 처리중 — `exitDate` 는 **퇴점 예정일**이다(원본 `quitAt`). 앞으로 나갈 셀러라 미래 날짜다 */
@@ -1252,7 +1094,6 @@ export const SELLERS: Seller[] = [
     commission: 8,
     date: "2026-04-21 13:38",
     exitDate: "2026-11-30 00:00",
-    products: 23,
     rating: 4.1,
     hygiene: false,
     status: "exiting",
@@ -1274,18 +1115,6 @@ export const SELLERS: Seller[] = [
       number: "2024-인천연수-00588",
     },
     intro: "유아 가구와 안전용품을 취급합니다. 현재 퇴점 절차를 진행 중입니다.",
-    catalog: [
-      {
-        kinds: ["rent"],
-        saleStatus: "stopped",
-        code: "DR440215",
-        name: "3in1 유아 카시트",
-        category: "카시트",
-        createdAt: "2025-11-03 14:20:18",
-        updatedAt: "2026-09-01 08:35:44",
-        shown: false,
-      },
-    ],
   },
   {
     id: "S-1190",
@@ -1296,7 +1125,6 @@ export const SELLERS: Seller[] = [
     commission: 11.5,
     date: "2026-05-09 11:11",
     exitDate: null,
-    products: 132,
     rating: 4.9,
     hygiene: true,
     status: "active",
@@ -1308,18 +1136,6 @@ export const SELLERS: Seller[] = [
       number: "2026-대구수성-01109",
     },
     intro: "친환경 소재 위주로 큐레이션한 렌트 전문 셀러입니다.",
-    catalog: [
-      {
-        kinds: ["rent"],
-        saleStatus: "onSale",
-        code: "ER550330",
-        name: "접이식 아기 욕조",
-        category: "목욕·위생",
-        createdAt: "2026-06-11 10:45:02",
-        updatedAt: "2026-06-11 10:45:02",
-        shown: true,
-      },
-    ],
   },
   {
     id: "S-1204",
@@ -1330,7 +1146,6 @@ export const SELLERS: Seller[] = [
     commission: 16,
     date: "2026-06-18 16:55",
     exitDate: "2026-07-30 09:40",
-    products: 0,
     rating: 3.9,
     hygiene: false,
     status: "closed",
@@ -1356,10 +1171,11 @@ export const SELLERS: Seller[] = [
     },
     intro: "담요·속싸개 전문. 퇴점이 완료된 셀러입니다.",
     /* 퇴점한 셀러라 노출 중인 상품이 없다 — 표가 빈 상태가 된다 */
-    catalog: [],
   },
   ...BRIEF_SELLERS,
 ];
+
+export const SELLERS: Seller[] = SELLER_SEEDS.map(withListedProducts);
 
 /**
  * 상태 대시 = 상태 필터. `value` 는 `SellerStatus` 와 같은 값이다 —
