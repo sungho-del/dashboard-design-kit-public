@@ -516,15 +516,19 @@ export const faultTextOf = (order: Order) =>
  * 배송비 부담 — 판매자 귀책이면 판매자가 진다.
  * 고객 귀책: 반품 = 편도 배송비를 렌트는 **보증금에서**, 판매는 **환불액에서** 차감한다
  * (사용자 결정 2026-11-02 — 원본은 「별도 청구」라 쓰고 환불액에서도 빼 이중 부담으로 읽혔다).
- * 교환 = 1차에는 교환 배송비를 받지 않아 고객 귀책도 「판매자 부담」(디자인 §3 #9 · 부록 A B11).
+ * 교환 = 1차에는 교환 배송비를 받지 않아 고객 귀책도 「판매자 부담」(디자인 §3 #9 · 부록 A B11) ·
+ * 판매자 귀책은 「판매자 부담 (하자·배송 문제)」(부록 A B11 비고 — develop `ExchangeDetail` 그대로).
  * 취소는 출고 전이라 배송비가 생기지 않는다.
  */
 export const feeBurdenOf = (order: Order) => {
   const claim = order.claim;
   if (!claim) return NONE;
   if (claim.type === "cancel") return "해당 없음 (발송 전 취소)";
+  if (claim.type === "exchange")
+    return claim.fault === "seller"
+      ? "판매자 부담 (하자·배송 문제)"
+      : "판매자 부담";
   if (claim.fault === "seller") return "판매자 부담";
-  if (claim.type === "exchange") return "판매자 부담";
   const fee = claimFeeOf(order);
   if (fee === 0) return "반품 배송비 무료";
   const from = order.type === "rent" ? "보증금에서" : "환불액에서";

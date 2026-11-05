@@ -717,6 +717,17 @@ describe("클레임 모드", () => {
       expect(valueOf("발송 여부")).toBe("발송 후 · 한진택배 502610112137");
     });
 
+    /** 부록 A B11 비고 — 판매자 귀책 분기 「판매자 부담 (하자·배송 문제)」 는 그대로(develop `ExchangeDetail`) */
+    it("교환 판매자 귀책은 「판매자 부담 (하자·배송 문제)」 — 반품 판매자 귀책은 「판매자 부담」 그대로", () => {
+      renderAt("/orders-exchange/U-S21");
+      expect(valueOf("귀책 판정")).toBe("판매자 귀책");
+      expect(valueOf("배송비 부담")).toBe("판매자 부담 (하자·배송 문제)");
+      cleanup();
+
+      renderAt("/orders-return/U-R27");
+      expect(valueOf("배송비 부담")).toBe("판매자 부담");
+    });
+
     it("교환 거부는 「재배송」이라 말하지 않는다", async () => {
       const { user } = renderAt("/orders-exchange/U-S28");
       const { messages } = await openStatement(user);
