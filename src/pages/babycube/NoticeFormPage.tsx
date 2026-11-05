@@ -38,6 +38,7 @@ import {
   type NoticeAudience,
   type NoticeStatus,
 } from "./NoticeListPage.data";
+import { DEMO_TODAY } from "./OrderListPage.data";
 import { FORM_COPY, formDescription } from "./NoticeFormPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
@@ -64,7 +65,8 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * 구역 접기 · 하단 바 · 찾을 수 없음 · 공지마다 본문 `key` · `?preview=loading|refreshing`
  *
  * ## 원본 정책
- * - 필수는 **제목 하나**(원본 `noticeSave`). 글자 수 제한·시작일 필수·기간 순서 검사 없음
+ * - 필수는 **제목 · 게시 시작일**(판정 ⑬). 새 등록은 시작일을 오늘(`DEMO_TODAY`)로 미리 채운다.
+ *   종료일은 선택(비우면 상시). 글자 수 제한·기간 순서 검사 없음(원본 `noticeSave`)
  * - 노출 여부는 **[저장] 에서만 확정되는 초안**이다 — 머리 배지는 저장된 값
  * - [목록]·[취소] 는 확인 없이 목록으로(보던 대상 탭으로)
  *
@@ -75,7 +77,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * ## 원본과 다르게 둔 곳 (근거)
  * 1. 머리를 그린다 — 원본은 `nvEditPage` 의 title 인자가 그려지지 않는다(UI-287 결함).
  *    제목 「공지 등록」/「공지 수정」(형제 FAQ 폼과 같은 꼴) + `고객 공지 · N-U31`(신규 `고객 공지 작성`) + 저장된 상태 배지
- * 2. 빈 제목은 입력칸 아래 오류(원본은 토스트 — 폼 규격 §29)
+ * 2. 빈 제목·시작일은 입력칸 아래 오류(원본은 토스트 — 폼 규격 §29)
  * 3. 하단 버튼 [취소][등록|저장] 순서(사용자 결정 — 회원·셀러 상세와 같게. 원본은 반대)
  * 4. 없는 공지 ID 면 「찾을 수 없는 공지입니다」(원본은 빈 수정 폼 — 결함)
  * 5. 공지 대상·공지 ID 는 `InfoList` 로 읽는 값(비활성 입력칸 대신 — 셀러 상세와 같은 규칙)
@@ -235,9 +237,10 @@ const draftOf = (notice: Notice | undefined): Draft => ({
   /* 신규는 원본처럼 `게시` 로 등록된다 */
   status: notice?.status ?? "posted",
   pinned: notice?.pinned ?? false,
+  /* 새 등록은 시작일을 오늘로 미리 채운다(판정 ⑬) — 종료일은 비워 둔다(상시) */
   period: notice
     ? { from: toDate(notice.startsOn), to: toDate(notice.endsOn) }
-    : undefined,
+    : { from: toDate(DEMO_TODAY), to: undefined },
 });
 
 function NoticeFormBody({
@@ -263,13 +266,15 @@ function NoticeFormBody({
     (value: Draft[K]) =>
       setDraft((prev) => ({ ...prev, [field]: value }));
 
-  const titleError =
-    touched && draft.title.trim() === "" ? FORM_COPY.titleEmpty : undefined;
+  const titleEmpty = draft.title.trim() === "";
+  const startEmpty = !draft.period?.from;
+  const titleError = touched && titleEmpty ? FORM_COPY.titleEmpty : undefined;
+  const startError = touched && startEmpty ? FORM_COPY.startEmpty : undefined;
   const backToList = () => onNavSelect(listPathOf(audience));
 
   const save = () => {
     setTouched(true);
-    if (draft.title.trim() === "") return;
+    if (titleEmpty || startEmpty) return;
     toast(notice ? FORM_COPY.updated : FORM_COPY.created);
     backToList();
   };
@@ -366,13 +371,16 @@ function NoticeFormBody({
             </div>
             <FormField
               label={FORM_COPY.periodLabel}
+              required
               labelDescription={FORM_COPY.periodHint}
+              error={startError}
             >
               {/* 날짜 둘 + 화살표 폭(224)의 상한 — 카드 끝까지 빈 칸이 늘어나지 않게(원본 날짜칸 170 × 2) */}
               <DatePicker
                 className="max-w-60"
                 mode="range"
                 value={draft.period}
+                invalid={Boolean(startError)}
                 onChange={set("period")}
                 startPlaceholder="시작일"
                 endPlaceholder="종료일"

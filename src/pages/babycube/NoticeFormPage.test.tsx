@@ -7,7 +7,8 @@ import { NoticeFormPage } from "./NoticeFormPage";
 /* -------------------------------------------------------------------------
  * 공지 등록/수정 — 기획 v0.4 `DETAILS.noticeForm`
  *
- * 신규·수정 갈림(노출 여부·공지 ID 는 수정만) · 저장된 값 채움 · 머리 · 제목 필수 검사 ·
+ * 신규·수정 갈림(노출 여부·공지 ID 는 수정만) · 저장된 값 채움 · 머리 · 제목·시작일 필수 검사 ·
+ * 새 등록 시작일 = 오늘(시연 기준일 2026-10-19) ·
  * 알림 + 보던 탭 목록으로 · [목록]·[취소] · 찾을 수 없음 · 노출 여부는 초안(머리 배지는 저장값).
  * ---------------------------------------------------------------------- */
 class ObserverStub {
@@ -50,6 +51,9 @@ const valueOf = (label: string) =>
     ?.nextElementSibling?.textContent;
 
 const titleInput = () => screen.getByRole("textbox", { name: /제목/ });
+
+/** 게시 기간 트리거 — 「시작일 → 종료일」 두 칸을 한 버튼으로 연다 */
+const periodTrigger = () => screen.getByRole("button", { name: /게시 기간/ });
 
 describe("NoticeFormPage (공지 등록/수정)", () => {
   describe("수정 — /notices/{id}", () => {
@@ -156,10 +160,16 @@ describe("NoticeFormPage (공지 등록/수정)", () => {
       expect(screen.getByText("고객 공지 작성")).toBeVisible();
     });
 
-    it("제목만 있으면 등록된다 — 본문·기간은 비어도 된다(원본 검사)", async () => {
+    /** 판정 ⑬ — 시작일은 오늘로 미리 차 있어 제목만 넣으면 등록된다(본문·종료일은 비어도 된다) */
+    it("시작일은 오늘로 미리 차 있고 종료일은 비어 있다 — 제목만 넣으면 등록된다", async () => {
       const { user, onNavSelect } = renderAt("/notices/new?aud=seller");
+      const period = periodTrigger();
+      expect(period).toHaveTextContent("2026.10.19");
+      expect(period).toHaveTextContent("종료일");
+
       await user.click(screen.getByRole("button", { name: "등록" }));
       expect(screen.getByText("제목을 입력해주세요.")).toBeVisible();
+      expect(screen.queryByText("시작일을 입력해 주세요")).toBeNull();
       expect(onNavSelect).not.toHaveBeenCalled();
 
       await user.type(titleInput(), "새 공지");
@@ -167,6 +177,35 @@ describe("NoticeFormPage (공지 등록/수정)", () => {
       await user.click(screen.getByRole("button", { name: "등록" }));
       expect(await screen.findByText("공지가 등록되었습니다.")).toBeVisible();
       expect(onNavSelect).toHaveBeenLastCalledWith("/notices?aud=seller");
+    });
+
+    /** 판정 ⑬ · Q14 — 시작일을 비우면 「시작일을 입력해 주세요」로 막는다 */
+    it("시작일을 비우면 칸 아래 오류 — 등록·이동하지 않는다", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(2026, 9, 19));
+      try {
+        const { user, onNavSelect } = renderAt("/notices/new");
+        await user.type(titleInput(), "새 공지");
+        /* 미리 찬 시작일을 두 번 눌러 범위를 비운다(react-day-picker 범위 선택 해제) */
+        await user.click(periodTrigger());
+        const day = await screen.findByRole("button", {
+          name: /2026년 10월 19일/,
+        });
+        await user.click(day);
+        await user.click(
+          screen.getByRole("button", { name: /2026년 10월 19일/ }),
+        );
+        await user.keyboard("{Escape}");
+        expect(periodTrigger()).toHaveTextContent("시작일");
+
+        await user.click(screen.getByRole("button", { name: "등록" }));
+        expect(screen.getByText("시작일을 입력해 주세요")).toBeVisible();
+        expect(periodTrigger()).toHaveAttribute("aria-invalid", "true");
+        expect(onNavSelect).not.toHaveBeenCalled();
+        expect(screen.queryByText("공지가 등록되었습니다.")).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 
