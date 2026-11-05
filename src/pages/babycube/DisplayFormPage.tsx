@@ -33,6 +33,7 @@ import {
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
 import { usePathname, useSearchParams } from "../../lib/router";
 import { STATUS_OPTIONS, type BannerStatus } from "./BannerListPage.data";
+import { DEMO_TODAY } from "./OrderListPage.data";
 import {
   COPY,
   KIND_COPY,
@@ -50,8 +51,8 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * ## 구성 — 두 종류가 이 화면 하나를 쓴다(원본 「몸통 하나 공유」 3694-3695)
  * ```
  * [배너 등록 | 배너 수정]  /  [팝업 등록 | 팝업 수정]
- * 배너 정보 * (접기)  제목* · 이미지*(PC·모바일) · 노출 기간 · 노출 순서* · 노출 여부
- * 팝업 정보 * (접기)  제목* · 내용*(HTML 원문)  · 노출 기간 ·              노출 여부
+ * 배너 정보 * (접기)  제목* · 이미지*(PC·모바일) · 노출 기간*(시작일 필수) · 노출 순서* · 노출 여부
+ * 팝업 정보 * (접기)  제목* · 내용*(HTML 원문)  · 노출 기간*(시작일 필수) ·              노출 여부
  * [목록]                         ([삭제]) [취소] [등록|저장]   ← 하단 고정 바
  * ```
  * 경로 `/display/new|{id}` · `/popups/new|{id}` — 종류는 경로가 정한다. 그 밖은 「찾을 수 없음」.
@@ -77,6 +78,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * 2. 검증은 입력칸 아래 오류(원본은 알림 — 문구는 원본 그대로)
  * 3. 하단 버튼 [삭제][취소][등록|저장] 순서(형제 결정 — 원본은 [삭제][저장][취소])
  * 4. 없는 id 는 「찾을 수 없는 X입니다」 + [X 관리로](형제 — 원본은 [목록]만 있는 빈 구역)
+ * 5. 노출 시작일 필수 · 새 등록은 오늘로 미리 채움(판정 Q14 — 원본은 시작일 필수 아님)
  * 5. 날짜는 단일 달력 두 칸 — 원본처럼 시작·종료를 **각자** 비울 수 있다(기간 달력은 한쪽만 못 고른다)
  * ====================================================================== */
 
@@ -251,7 +253,8 @@ const draftOf = (target: DisplayTarget): Draft => {
     pcImage: banner?.pcImage ?? false,
     mobileImage: banner?.mobileImage ?? false,
     body: popup?.body ?? "",
-    start: toDate(row?.startAt ?? ""),
+    /* 새 등록은 시작일을 오늘로 미리 채운다(판정 Q14) — 종료일은 비워 둔다(상시) */
+    start: toDate(row ? row.startAt : DEMO_TODAY),
     end: toDate(row?.endAt ?? ""),
     /* 신규 배너는 맨 뒤 자리(원본 `ord: arr.length + 1` 3704) */
     order: String(banner?.order ?? orderOptions(true).length),
@@ -354,9 +357,10 @@ function DisplayFormBody({
           ? COPY.imageEmpty.mobileImage
           : undefined,
     body: !isBanner && draft.body.trim() === "" ? COPY.bodyEmpty : undefined,
-    /* 시작·종료가 **둘 다** 있을 때만 순서를 본다(원본 3747) */
-    period:
-      draft.start && draft.end && draft.end < draft.start
+    /* 시작일 필수(판정 Q14) → 시작·종료가 **둘 다** 있을 때 순서(원본 3747) */
+    period: !draft.start
+      ? COPY.startEmpty
+      : draft.end && draft.end < draft.start
         ? COPY.periodOrder
         : undefined,
   };
@@ -496,6 +500,7 @@ function DisplayFormBody({
 
                 <FormField
                   label={COPY.periodLabel}
+                  required
                   group
                   labelDescription={COPY.periodHelp}
                   error={shown(errors.period)}
@@ -506,6 +511,7 @@ function DisplayFormBody({
                       className="w-40"
                       aria-label="노출 시작일"
                       placeholder="시작일"
+                      invalid={touched && !draft.start}
                       value={draft.start}
                       onChange={set("start")}
                     />

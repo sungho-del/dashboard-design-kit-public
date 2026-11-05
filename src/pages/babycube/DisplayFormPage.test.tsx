@@ -213,9 +213,23 @@ describe("DisplayFormPage (배너/팝업 등록·수정)", () => {
       expect(BANNERS).toHaveLength(3);
     });
 
+    /* 판정 Q14 — 시작일 필수 · 비우면 「시작일을 입력해 주세요」 */
     it(
-      "종료일만 있어도 저장된다(원본 — 시작일 필수 아님)",
+      "시작일이 비면 막는다 — 종료일만 있어도",
       withBanner(fixture({ endAt: "2026-08-20" }), async () => {
+        const { user, onNavSelect } = renderAt("/display/BN-T");
+        await user.click(screen.getByRole("button", { name: "저장" }));
+        expect(screen.getByText("시작일을 입력해 주세요")).toBeVisible();
+        expect(
+          screen.getByRole("button", { name: /노출 시작일/ }),
+        ).toHaveAttribute("aria-invalid", "true");
+        expect(onNavSelect).not.toHaveBeenCalled();
+      }),
+    );
+
+    it(
+      "종료일은 선택 — 시작일만 있으면 저장된다",
+      withBanner(fixture({ startAt: "2026-08-01" }), async () => {
         const { user, onNavSelect } = renderAt("/display/BN-T");
         await user.click(screen.getByRole("button", { name: "저장" }));
         expect(await screen.findByText("저장되었습니다.")).toBeVisible();
@@ -265,6 +279,21 @@ describe("DisplayFormPage (배너/팝업 등록·수정)", () => {
       expect(screen.getByRole("radio", { name: "게시" })).toBeChecked();
       expect(barButtons()).toEqual(["목록", "취소", "등록"]);
     });
+
+    /* 판정 Q14 — 새 등록 때 시작일은 오늘(시연 기준일 10-19)로 미리 채움 · 종료일은 비어 있다 */
+    it.each(["/display/new", "/popups/new"])(
+      "%s — 시작일은 오늘로 미리 차 있고 종료일은 비어 있다",
+      (path) => {
+        renderAt(path);
+
+        expect(
+          screen.getByRole("button", { name: /노출 시작일/ }),
+        ).toHaveTextContent("2026.10.19");
+        expect(
+          screen.getByRole("button", { name: /노출 종료일/ }),
+        ).toHaveTextContent("종료일");
+      },
+    );
 
     it("이미지 [+] 는 알림만 — 등록은 이미지 필수 오류에서 멈춘다(퍼블 범위)", async () => {
       const { user, onNavSelect } = renderAt("/display/new");
