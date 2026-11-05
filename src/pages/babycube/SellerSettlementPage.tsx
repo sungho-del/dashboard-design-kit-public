@@ -53,6 +53,7 @@ import {
   PAGE_SIZES,
   payLinesOf,
   ROWS,
+  roundOf,
   SEARCH_PLACEHOLDER,
   SETTLE_NOTES,
   statementLinesOf,
@@ -126,15 +127,19 @@ const ACTION_TD = `sticky right-0 z-1 bg-inherit ${ACTION_EDGE}`;
  *   안심케어 금액 설정(플랫폼 전체 설정)은 정산 흐름 밖 맨 아래 「정산 설정」
  * - 행 클릭 → 상세(사용자 결정 2026-11-02 — 원본은 셀러명·[상세]만)
  *
+ * ## 회신으로 되살린 것
+ * - **정산 회차 열**(표 첫 열 · 디자인 §3 #10 「퍼블 주석 「되살리지 말 것」 해제」). 개발의 회차·셀러 두 열 고정 ·
+ *   회차 정렬 · `2026년 09월` 표기는 기획 확인 중이라(질문 13) 열만 두고 이 화면 표기(`2026년 9월`)를 쓴다
+ *
  * ## ⚠️ 원본에 없어 걷어낸 것 — 되살리지 말 것
- * 정산 회차 열 · 좌측 고정 열 · 엑셀 다운로드 · 행 클릭 「정산 미리보기」 모달 ·
+ * 좌측 고정 열(기획 확인 중 — 위) · 엑셀 다운로드 · 행 클릭 「정산 미리보기」 모달 ·
  * 필터 아래 상태 설명 문구(v0.4 에 없다) · 셀러명 검색의 회차 id 검색 · [확인요청]·[확인완료]·[협의 완료] 대행 버튼
  * ====================================================================== */
 
 /** 상세 경로 — 셀러 마스터 id 가 키다(한 회차만 다룬다 — 원본 `DETAILS.settlement`) */
 const detailPathOf = (row: SettlementRow) => `/settle-seller/${row.sellerId}`;
 
-const COLUMN_COUNT = 10;
+const COLUMN_COUNT = 11;
 
 /* =========================================================================
  * 확인 모달 3종 — 목록 처리 열과 상세 하단 바가 같은 창을 쓴다(원본 `settleActBtn` 공유)
@@ -410,20 +415,26 @@ export function SellerSettlementPage({
       >
         <Table>
           <colgroup>
-            {/* 합 1,056 — 1440 은 스크롤 없이 · 1280 은 표만 가로로 밀리고 처리 열은 오른쪽에 붙어 있다 */}
+            {/*
+              합 1,128 — 1440 은 스크롤 없이(표 상자 1,136) · 1280 은 표만 가로로 밀리고 처리 열은 오른쪽에 붙어 있다.
+              정산 회차 108(첫 칸 왼쪽 여백 24 포함 · 「2026년 9월」 실측 71)을 넣느라 셀러 96→88 · 셀러쿠폰·수수료·안심케어
+              96→92 · 지급액 104→96 · 상태 96→88 로 줄였다(실측 내용 폭 61 · 68 · 68 · 68 · 70 · 63 + 셀 여백 24)
+            */}
+            <col className="w-27" />
+            <col className="w-22" />
+            <col className="w-28" />
+            <col className="w-23" />
+            <col className="w-23" />
             <col className="w-24" />
             <col className="w-28" />
+            <col className="w-23" />
             <col className="w-24" />
-            <col className="w-24" />
-            <col className="w-24" />
-            <col className="w-28" />
-            <col className="w-24" />
-            <col className="w-26" />
-            <col className="w-24" />
+            <col className="w-22" />
             <col className="w-38" />
           </colgroup>
           <TableHead>
             <TableRow>
+              <TableTh>정산 회차</TableTh>
               <TableTh>셀러</TableTh>
               <TableTh align="right">거래액(할인 후)</TableTh>
               <TableTh align="right">셀러쿠폰</TableTh>
@@ -459,6 +470,9 @@ export function SellerSettlementPage({
                       clickable
                       onClick={() => openDetail(row)}
                     >
+                      <TableTd className="whitespace-nowrap tabular-nums">
+                        {roundOf(row)}
+                      </TableTd>
                       <TableTd>
                         <TextButton onClick={() => openDetail(row)}>
                           {row.name}

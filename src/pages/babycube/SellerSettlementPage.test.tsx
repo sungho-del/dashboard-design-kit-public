@@ -59,7 +59,7 @@ function lineValue(labelStart: string): string {
   return term.nextElementSibling?.textContent ?? "";
 }
 
-/** 표 본문 행 — 첫 칸이 셀러명 */
+/** 표 본문 행 — 첫 칸이 정산 회차, 둘째 칸이 셀러명 */
 const bodyRows = () =>
   within(screen.getByRole("table")).getAllByRole("row").slice(1);
 const rowOf = (seller: string) =>
@@ -224,12 +224,14 @@ describe("셀러 정산 — 정산 설정(안심케어 금액)", () => {
 });
 
 describe("셀러 정산 — 표", () => {
-  it("10열 · 체크박스·No·엑셀·회차 열 없음 · 8개사", () => {
+  /** 디자인 §3 #10 — 정산 회차 열은 첫 열(개발 `settle-seller/columns.tsx`) · 표기는 이 화면의 「2026년 9월」 */
+  it("11열 · 첫 열이 정산 회차 · 체크박스·No·엑셀 없음 · 8개사", () => {
     renderPage();
     const heads = within(screen.getByRole("table"))
       .getAllByRole("columnheader")
       .map((th) => th.textContent);
     expect(heads).toEqual([
+      "정산 회차",
       "셀러",
       "거래액(할인 후)",
       "셀러쿠폰",
@@ -242,6 +244,9 @@ describe("셀러 정산 — 표", () => {
       "처리",
     ]);
     expect(bodyRows()).toHaveLength(8);
+    expect(
+      bodyRows().map((row) => within(row).getAllByRole("cell")[0].textContent),
+    ).toEqual(Array(8).fill("2026년 9월"));
     /* 목록 머리 하나 — 카드 밖 소제목과 「목록 (총 N건)」 중복을 합쳤다 */
     expect(screen.getByText("정산 대상 입점사 (총 8개사)")).toBeVisible();
     expect(screen.queryByText(/^목록 \(총/)).toBeNull();
@@ -251,7 +256,7 @@ describe("셀러 정산 — 표", () => {
 
   it("셀 표기 — 쿠폰·환수·보전 0 은 `-`, 수수료·PG 는 0 이면 `0원`(부호 없음), 지급액 0원 하한", () => {
     renderPage();
-    expect(cellsOf("리틀스텝").slice(1, 9)).toEqual([
+    expect(cellsOf("리틀스텝").slice(2, 10)).toEqual([
       "0원",
       "-",
       "0원",
@@ -261,7 +266,7 @@ describe("셀러 정산 — 표", () => {
       "0원",
       "이의제기",
     ]);
-    expect(cellsOf("코지베이비").slice(1, 9)).toEqual([
+    expect(cellsOf("코지베이비").slice(2, 10)).toEqual([
       "37,800원",
       "-",
       "−5,103원",
@@ -271,7 +276,7 @@ describe("셀러 정산 — 표", () => {
       "49,563원",
       "확인요청",
     ]);
-    expect(cellsOf("아기별상사").slice(1, 9)).toEqual([
+    expect(cellsOf("아기별상사").slice(2, 10)).toEqual([
       "200,000원",
       "−10,000원",
       "−22,800원",
@@ -285,13 +290,13 @@ describe("셀러 정산 — 표", () => {
     const heads = within(screen.getByRole("table")).getAllByRole(
       "columnheader",
     );
-    for (const index of [1, 2, 3, 4, 5, 6, 7])
+    for (const index of [2, 3, 4, 5, 6, 7, 8])
       expect(heads[index]).toHaveClass("text-right");
-    expect(within(rowOf("아기별상사")).getAllByRole("cell")[7]).toHaveClass(
+    expect(within(rowOf("아기별상사")).getAllByRole("cell")[8]).toHaveClass(
       "text-right",
     );
     /* 9.8% × 23,100 = 2,263.8 → 반올림 */
-    expect(cellsOf("베베하우스")[3]).toBe("−2,264원");
+    expect(cellsOf("베베하우스")[4]).toBe("−2,264원");
   });
 
   it("처리 열 — 확인완료·보류 [지급완료] · 이의제기 [수정 명세 재발송] · 그 밖은 없음([상세]는 행 클릭과 겹쳐 뺐다)", () => {
@@ -359,7 +364,7 @@ describe("셀러 정산 — 확인 모달 3종 (알림만 · 상태 그대로)",
       await screen.findByText("베베하우스 지급 완료 → 세금계산서 발행"),
     ).toBeVisible();
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(cellsOf("베베하우스")[8]).toBe("확인완료");
+    expect(cellsOf("베베하우스")[9]).toBe("확인완료");
   });
 
   it("보류 [지급완료] — 결론 요지 필수(공백만이면 오류) · 다시 열면 비어 있다", async () => {
@@ -401,7 +406,7 @@ describe("셀러 정산 — 확인 모달 3종 (알림만 · 상태 그대로)",
     expect(
       await screen.findByText("맘스케어 지급 완료 → 세금계산서 발행"),
     ).toBeVisible();
-    expect(cellsOf("맘스케어")[8]).toBe("보류");
+    expect(cellsOf("맘스케어")[9]).toBe("보류");
   });
 
   it("이의제기 [수정 명세 재발송] — 이의 사유를 보이고, 검토 내용 필수", async () => {
@@ -437,7 +442,7 @@ describe("셀러 정산 — 확인 모달 3종 (알림만 · 상태 그대로)",
     expect(
       await screen.findByText(/수정 명세를 재발송했습니다 — 셀러 재확인을/),
     ).toBeVisible();
-    expect(cellsOf("리틀스텝")[8]).toBe("이의제기");
+    expect(cellsOf("리틀스텝")[9]).toBe("이의제기");
   });
 });
 
@@ -463,7 +468,7 @@ describe("셀러 정산 — 검색조건 · 빈 상태 · 페이지 · preview",
     const { user } = renderPage();
     await chooseStatus(user, "확인완료");
     expect(
-      bodyRows().map((row) => within(row).getAllByRole("cell")[0].textContent),
+      bodyRows().map((row) => within(row).getAllByRole("cell")[1].textContent),
     ).toEqual(expect.arrayContaining(["아이랑", "베베하우스"]));
     expect(bodyRows()).toHaveLength(2);
     expect(screen.getByText("정산 대상 입점사 (총 2개사)")).toBeVisible();
@@ -476,7 +481,7 @@ describe("셀러 정산 — 검색조건 · 빈 상태 · 페이지 · preview",
     await user.type(input, " 베이비 ");
     expect(
       bodyRows()
-        .map((row) => within(row).getAllByRole("cell")[0].textContent)
+        .map((row) => within(row).getAllByRole("cell")[1].textContent)
         .sort(),
     ).toEqual(["베이비루", "리틀베이비", "코지베이비"].sort());
 

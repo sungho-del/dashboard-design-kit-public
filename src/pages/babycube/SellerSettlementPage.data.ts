@@ -57,6 +57,12 @@ export type { SettlementRow, SettlementStatus };
 /** 목록 행 — 원장에 나오는 입점사, 원본 순서 그대로(정렬 없음) */
 export const ROWS: SettlementRow[] = SELLER_SETTLEMENTS;
 
+/**
+ * 「정산 회차」 열 — 표 첫 열(디자인 §3 #10 · 개발 `settle-seller/columns.tsx`). 표기는 이 화면의
+ * `2026년 9월` 꼴(개발은 `2026년 09월` · 고정 열·정렬과 함께 기획 확인 중 — 질문 13)
+ */
+export const roundOf = (row: SettlementRow) => roundLabel(row.round);
+
 /* =========================================================================
  * 단위 표기 — 원 · 천 단위 쉼표 · 차감 `−1,000원`(U+2212) · 가산 `+1,000원` · 0 은 부호 없이 `0원`
  * ====================================================================== */
