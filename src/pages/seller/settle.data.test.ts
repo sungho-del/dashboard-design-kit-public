@@ -118,6 +118,23 @@ describe("정산 명세 묶음", () => {
     ]);
   });
 
+  /** 부록 A A9-1 · B4-1 · B7 · A3 · B4-2 · A20 (개발 §3-2-1 — 입점사 매출 정산도 같이) */
+  it("확정 거래액은 「판매가」 · PG 수수료는 보조 글자 없이 · 도움말은 바뀐 문구", () => {
+    const lines = settleBlocksOf(SUMMARY).flatMap((b) => b.lines);
+    const line = (key: string) => lines.find((l) => l.key === key);
+    expect([line("list")?.hint, line("list")?.tip]).toEqual([
+      "판매가",
+      "전월에 구매확정·반납완료된 거래의 합계입니다.",
+    ]);
+    expect([line("pg")?.hint, line("pg")?.tip]).toEqual([
+      undefined,
+      "결제대행사에 내는 수수료입니다.",
+    ]);
+    expect(SETTLE_TIP.point).toBe(
+      "포인트 사용분은 본사가 부담합니다. 셀러는 판매가 기준으로 정산받으므로 지급액에는 영향이 없습니다.",
+    );
+  });
+
   /** 본사 판정 Q3 · 부록 A B5(입점사 매출 정산도 같이) — 셀러 귀속 3줄은 0원 초과일 때만 ⓘ 와 함께 가산에 */
   it("셀러 귀속 3줄은 0원 초과일 때만 가산 묶음에 선다", () => {
     const addOf = (blocks: ReturnType<typeof settleBlocksOf>) =>

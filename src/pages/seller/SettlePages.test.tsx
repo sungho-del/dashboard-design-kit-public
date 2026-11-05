@@ -55,6 +55,10 @@ describe("매출 정산", () => {
     const summary = screen.getByRole("region", { name: "정산 요약" });
     for (const v of ["1,895,000", "84,000", "1,979,000", "1,639,695"])
       expect(within(summary).getByText(v)).toBeInTheDocument();
+    /* 부록 A A9-1(개발 §3-2-1 — 입점사 매출 정산도 같이) */
+    expect(
+      within(summary).getByText("확정 거래액 (판매가)"),
+    ).toBeInTheDocument();
     expect(
       within(summary).getByText("지급일 2026.07.10 · D-3"),
     ).toBeInTheDocument();
@@ -221,6 +225,16 @@ describe("명세서 상세", () => {
     expect(await screen.findByText("STM-2605 저장")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "목록" }));
     expect(onNavSelect).toHaveBeenCalledWith("/settle-own");
+  });
+
+  /* 부록 A B8(개발 §3-2-1 — 입점사 매출 정산도 같이) · 대장 2부 [57] */
+  it("정산 정책 — 보증금 문장은 「분리 관리됩니다」 · 「미정의」 절 없음", () => {
+    renderAt(SettleStmtDetailPage, "/settle-statement/2026.06");
+    const policy = screen.getByText(/매출 확정 기준/).closest("p");
+    expect(policy?.textContent).toContain(
+      "보증금·연체료·배상은 보증금 내역에서 분리 관리됩니다. 지급 전 발견 오류는 본사가 직권 정정합니다.",
+    );
+    expect(policy?.textContent).not.toMatch(/미정의|이 명세에 포함되지/);
   });
 
   it("없는 회차 — 찾을 수 없음", () => {

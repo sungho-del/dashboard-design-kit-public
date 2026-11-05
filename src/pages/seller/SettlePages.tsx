@@ -119,7 +119,7 @@ export function SettleOwnPage(props: SellerNavProps) {
             [
               ["판매 확정 매출", SUMMARY.sale],
               ["렌트 확정 매출", SUMMARY.rent],
-              ["확정 거래액 (정가)", SUMMARY.list],
+              ["확정 거래액 (판매가)", SUMMARY.list],
               ["지급 예정액", SUMMARY.payout],
             ] as const
           ).map(([label, value]) => (
