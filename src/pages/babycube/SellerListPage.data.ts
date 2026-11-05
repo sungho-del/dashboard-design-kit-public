@@ -29,8 +29,8 @@ import type { TagCustomStyle, TagTone } from "../../components/ui";
  *   입점 셀러는 `null`. 뼈대는 퇴점일 **열**을 상태 필터가 `"closed"` 일 때만 붙인다(원본과 같다) —
  *   예정일은 열로 보이지 않고 퇴점일 기준 기간 필터에만 걸린다
  * - `DATE_FIELDS[].pick` 이 기간 필터가 훑을 값을 고른다 — `null` 이면 그 행은 기간에서 빠진다
- * - **본사 직영(`isHeadquarters`)은 수수료율 0% 확정**이다 — 목록·상세 모두 입력칸을 열지 않는다
- *   (2026-10-15 사용자 결정: 본사는 상태·수수료만 잠그고 나머지는 일반 셀러처럼 고친다)
+ * - **본사 직영(`isHeadquarters`)은 수수료율 처음 0%, 수정 가능**이다 — 목록·상세 모두 입력칸, 본사 행만 0% 이상
+ *   (판정 Q20-1 · Q20-5 · 디자인 §3 #15. 2026-10-15 「상태·수수료 잠금」 중 수수료 잠금을 풀었다 — 상태는 잠근다)
  * - `STATUS_META` 의 키는 `Seller["status"]` 유니온과 정확히 일치한다
  * - `FILTERS[0].value` 는 `"all"`(뼈대가 필터 해제로 취급)이고,
  *   나머지 `value` 는 **`SellerStatus` 와 같은 값**이다 — 뼈대가 상태별 건수를 셀 때 쓴다
@@ -189,7 +189,9 @@ export interface SellerBankAccount {
  * 수수료율 규칙 — 개발 `lib/commission-rate.ts`(M-8 · D-217 · 판정 Q20-5 · 디자인 §3 #12).
  * 셀러 목록 셀 · 셀러 상세 · 입점 심사 일괄 승인 · 입점 심사 상세 승인이 **이 규칙 하나**를 쓴다.
  * 허용 = 0 < r ≤ 100 · 소수 둘째 자리까지. 6~16% 밖은 막지 않고 경고만 한다.
- * 본사 행은 이 화면들에서 지금 입력칸이 없다(본사 행 0% 이상 허용은 다음 단계 — 디자인 §3 #15).
+ * **본사 행만 0% 이상**(판정 Q20-1 · Q20-5 · 디자인 §3 #15 · 개발 §2-1 「0 초과 규칙에 예외 추가」) —
+ * `parseCommissionRate(값, true)`. 본사 행 상한·소수 자리·경고·칸 아래 안내는 기획 확인 요청 3번 답을 기다린다
+ * (지금: 상한 100 · 소수 둘째 자리는 같은 규칙, 경고는 본사 행에 띄우지 않는다 — 개발과 같다).
  * ---------------------------------------------------------------------- */
 
 /** 허용 꼴이 아닐 때 — 개발 문구에서 「입점사」만 판정 Q10 대로 「셀러」 */
@@ -200,12 +202,15 @@ export const COMMISSION_RATE_MESSAGE =
 export const COMMISSION_RATE_WARNING =
   "일반적인 범위(6~16%)를 벗어난 요율이에요. 저장 전에 확인해 주세요.";
 
-/** 입력 글자 → 허용 요율 · 아니면 `null` (개발 `parseCommissionRateText`) */
-export const parseCommissionRate = (value: string): number | null => {
+/** 입력 글자 → 허용 요율 · 아니면 `null` (개발 `parseCommissionRateText`). 본사 행은 0 도 받는다 */
+export const parseCommissionRate = (
+  value: string,
+  headquarters = false,
+): number | null => {
   const text = value.trim();
   if (!/^\d+(?:\.\d{1,2})?$/.test(text)) return null;
   const rate = Number(text);
-  return rate > 0 && rate <= 100 ? rate : null;
+  return (headquarters ? rate >= 0 : rate > 0) && rate <= 100 ? rate : null;
 };
 
 /** 6~16% 밖인가 — 허용 요율일 때만 참(개발 `isAtypicalCommissionRate`) */
@@ -215,11 +220,16 @@ export const isAtypicalCommission = (rate: number | null) =>
 /** 입력칸은 숫자와 점만 받는다(개발 `replace(/[^0-9.]/g, "")`) */
 export const commissionInput = (value: string) => value.replace(/[^0-9.]/g, "");
 
-/** 셀러 목록 셀 [수정] 알림 — 개발 `CommissionRateCell` 그대로(목록 셀에는 경고 자리가 없어 알림 뒤에 붙인다) */
+/**
+ * 셀러 목록 셀 [수정] 알림 — 개발 `CommissionRateCell` 그대로(목록 셀에는 경고 자리가 없어 알림 뒤에 붙인다).
+ * 본사 행은 경고를 붙이지 않는다(개발도 본사 행 제외 — 기획 확인 요청 3번)
+ */
 export const COMMISSION_CELL_COPY = {
-  saved: (name: string, rate: number) =>
+  saved: (name: string, rate: number, headquarters = false) =>
     `${name} 수수료율을 ${rate}%로 수정했습니다.` +
-    (isAtypicalCommission(rate) ? ` ${COMMISSION_RATE_WARNING}` : ""),
+    (!headquarters && isAtypicalCommission(rate)
+      ? ` ${COMMISSION_RATE_WARNING}`
+      : ""),
   unchanged: (name: string, rate: number) =>
     `${name} 수수료율은 이미 ${rate}%로 적용되어 있습니다.`,
 };
@@ -917,7 +927,7 @@ const BRIEF_SELLERS = BRIEF_ROWS.map(toSeller);
 
 export const SELLERS: Seller[] = [
   {
-    /* 본사 직영 — 자기 자신에게 수수료를 매기지 않아 수수료율 0% 확정이다 */
+    /* 본사 직영 — 수수료율은 처음 0%, 수정 가능(판정 Q20-1) */
     id: "S-0001",
     name: "베이비큐브",
     isHeadquarters: true,

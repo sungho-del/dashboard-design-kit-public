@@ -50,7 +50,6 @@ import {
   PAGE_SIZE,
   PAGE_SIZES,
   productCount,
-  rate,
   score,
   SEARCH_FIELDS,
   SELLERS,
@@ -292,9 +291,9 @@ const loadingTable = (
 /**
  * 수수료율 셀 — 원본 `feecell`(숫자 입력 + `%` + [수정] 버튼).
  *
- * ## 본사는 입력 자리를 만들지 않는다
- * 본사 직영은 수수료율 **0% 확정**이다(2026-10-15 사용자 결정 — 상세와 같다).
- * 빈 입력칸을 띄우면 "정해야 하는 값"으로 읽힌다.
+ * ## 본사 행도 입력칸이다
+ * 본사 행 수수료율은 처음 0%, **수정 가능**하고 본사 행만 0% 이상을 받는다(판정 Q20-1 · Q20-5 ·
+ * 디자인 §3 #15 — 2026-10-15 「0% 확정이라 입력 자리를 만들지 않는다」를 풀었다).
  *
  * ## 입력 중인 값은 문자열로 둔다
  * 숫자로 바로 바꾸면 `9.` 처럼 **입력 도중의 상태**를 표현할 수 없다(소수점을 찍는 순간
@@ -311,8 +310,6 @@ function CommissionCell({
   onDraftChange: (next: string) => void;
   onCommit: () => void;
 }) {
-  if (seller.isHeadquarters) return <>{rate(seller.commission)}</>;
-
   return (
     <span className="flex items-center gap-2">
       <Input
@@ -429,8 +426,8 @@ export function SellerListPage({
     const raw = draft[seller.id];
     if (raw === undefined) return;
 
-    /* 0 초과 100 이하 · 소수 둘째 자리까지(판정 Q20-5 · 개발 `parseCommissionRate`) */
-    const value = parseCommissionRate(raw);
+    /* 0 초과 100 이하 · 소수 둘째 자리까지 · 본사 행만 0 이상(판정 Q20-5 · 개발 `parseCommissionRate`) */
+    const value = parseCommissionRate(raw, seller.isHeadquarters);
     if (value === null) {
       setDraft((prev) => {
         const next = { ...prev };
@@ -445,7 +442,7 @@ export function SellerListPage({
     toast(
       value === seller.commission
         ? COMMISSION_CELL_COPY.unchanged(seller.name, value)
-        : COMMISSION_CELL_COPY.saved(seller.name, value),
+        : COMMISSION_CELL_COPY.saved(seller.name, value, seller.isHeadquarters),
     );
   };
 

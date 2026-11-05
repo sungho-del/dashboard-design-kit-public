@@ -56,7 +56,6 @@ import {
   FIELD_COPY,
   findSeller,
   HEADQUARTERS_NOTICE,
-  HQ_COMMISSION_NOTE,
   HYGIENE_OPTIONS,
   hygieneValue,
   INTRO_PLACEHOLDER,
@@ -121,8 +120,9 @@ import {
  * 섹션은 접을 수 있다(원본도 섹션마다 접기 버튼이 있다).
  *
  * ## 원본 정책 — 화면이 강제하는 것
- * - **본사 계정은 상태(입점)·수수료율(0%)만 잠근다** — 나머지는 일반 셀러처럼 고친다
- *   (2026-10-15 사용자 결정. 원본은 수수료율 입력칸을 열어 두지만 안내 문구가 "0% 확정"이다)
+ * - **본사 계정은 상태(입점)만 잠근다** — 나머지는 일반 셀러처럼 고친다. 수수료율도 입력칸이고(처음 0%)
+ *   본사 행만 0% 이상을 받는다(판정 Q20-1 · Q20-5 · 디자인 §3 #15 — 2026-10-15 「0% 잠금」을 풀었다).
+ *   본사 행 칸 아래 안내·6~16% 경고는 없다(기획 확인 요청 3번 답 대기 — 개발도 본사 행 경고 없음)
  * - 셀러명·대표자·연락처는 **필수**, 글자 수 한도 40·20·20(원본 `gInput`)
  * - 수수료율은 **0 초과 100 이하 · 소수 둘째 자리까지**다(판정 Q20-5). 벗어나면 저장을 막고 이유를 낸다.
  *   6~16% 밖은 막지 않고 칸 아래 경고 한 줄(디자인 §3 #12 · 개발 「6~16 밖은 경고만」). 입력칸은 숫자·점만 받는다
@@ -143,9 +143,7 @@ import {
  *    비활성 입력칸은 "고칠 수 있을 것 같은데 안 되는 것"으로 읽힌다
  * 2. 하단 바 버튼 순서 [취소][저장하기] · 저장 알림 문구 — 회원 상세와 같게 맞췄다
  * 3. 등록 상품이 없으면 표 대신 빈 상태 안내(원본은 표 머리 + "연관 항목 없음")
- * 4. **본사 계정의 수수료율은 운영 정보 `InfoList` 첫 줄**(`0%` + 보조 글자 「본사 고정」) — 읽는 값이
- *    한 카드 안에서 「라벨 위 맨 글자」와 「회색 상자」 두 모양으로 갈리지 않게(2026-11-03 UX 검수).
- *    일반 셀러는 입력칸(`noMinWidth` · `w-24` — 몇 자리 숫자라 240 최소폭을 푼다)
+ * 4. 수수료율 입력칸은 `noMinWidth` · `w-24` — 몇 자리 숫자라 240 최소폭을 푼다(본사 행도 같다)
  * 5. **등록 상품 표는 가로 스크롤 상자 안**(`overflow-x-auto`)에 둔다 — 상자 없이 열 합이 카드보다
  *    넓어 페이지 전체가 가로로 밀렸다(1440 +20 · 1280 +180). 열 합 1084 라 1440 에서는 스크롤 없음,
  *    일시 두 열은 168 · 줄바꿈 없음(초까지 한 줄)
@@ -502,9 +500,7 @@ function SellerDetailBody({
     name: emptyError("name"),
     ceo: emptyError("ceo"),
     phone: emptyError("phone"),
-    commission: hq
-      ? undefined
-      : (commissionError(draft.commission) ?? undefined),
+    commission: commissionError(draft.commission, hq) ?? undefined,
   };
   const invalid = Object.values(errors).some(Boolean);
   const changed = (Object.keys(draft) as (keyof Draft)[]).some(
@@ -695,13 +691,13 @@ function SellerDetailBody({
         ) : (
           <>
             {/*
-              수수료율 — 이 화면에서 가장 중요한 입력이다.
-              본사는 0% 확정이라 입력칸을 열지 않는다(안내 문구는 상태 줄에 있다).
+              수수료율 — 이 화면에서 가장 중요한 입력이다. 본사 행도 입력칸(처음 0% · 0% 이상 — 디자인 §3 #15).
+              본사 행 칸 아래 안내·경고는 기획 확인 요청 3번 답 전까지 띄우지 않는다
             */}
-            {hq ? null : (
-              <FormField
-                label="수수료율"
-                description={
+            <FormField
+              label="수수료율"
+              description={
+                hq ? undefined : (
                   <>
                     {COMMISSION_HINT}
                     {isAtypicalCommission(
@@ -712,22 +708,22 @@ function SellerDetailBody({
                       </span>
                     ) : null}
                   </>
+                )
+              }
+              error={errorOf(errors.commission)}
+              suffix="%"
+            >
+              <Input
+                noMinWidth
+                className="w-24"
+                inputMode="decimal"
+                placeholder="0"
+                value={draft.commission}
+                onChange={(event) =>
+                  set("commission")(commissionInput(event.target.value))
                 }
-                error={errorOf(errors.commission)}
-                suffix="%"
-              >
-                <Input
-                  noMinWidth
-                  className="w-24"
-                  inputMode="decimal"
-                  placeholder="0"
-                  value={draft.commission}
-                  onChange={(event) =>
-                    set("commission")(commissionInput(event.target.value))
-                  }
-                />
-              </FormField>
-            )}
+              />
+            </FormField>
 
             <FormField label="위생인증" group>
               <SegmentedControl
@@ -739,17 +735,6 @@ function SellerDetailBody({
             </FormField>
 
             <InfoList>
-              {/* 본사 — 0% 확정이라 입력칸 대신 읽는 값 한 줄(위 「다르게 둔 곳」 4) */}
-              {hq ? (
-                <InfoItem label="수수료율">
-                  <span className="flex items-center gap-2">
-                    <span>0%</span>
-                    <span className="body-small text-text-sub">
-                      {HQ_COMMISSION_NOTE}
-                    </span>
-                  </span>
-                </InfoItem>
-              ) : null}
               <InfoItem label="입점일">{ymd(seller.date)}</InfoItem>
               <InfoItem label="등록 상품수">
                 {countText(seller.products)}

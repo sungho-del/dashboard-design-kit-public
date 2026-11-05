@@ -340,8 +340,8 @@ describe("SellerListPage (S03 셀러 관리)", () => {
       ).not.toBeInTheDocument();
     });
 
-    /** 본사는 수수료율 0% 확정 — 입력칸을 만들지 않는다. 셀러명 옆에는 「본사」 배지(원본 b-blue) */
-    it("본사 직영은 「본사」 배지를 달고 수수료율은 0% 로 고정이다", () => {
+    /** 판정 Q20-1 · 디자인 §3 #15 — 본사 행 수수료율은 처음 0%, 수정 가능. 셀러명 옆에는 「본사」 배지(원본 b-blue) */
+    it("본사 직영은 「본사」 배지를 달고 수수료율은 처음 0 인 입력칸이다", () => {
       renderPage();
 
       const row = rowOf("베이비큐브");
@@ -349,10 +349,12 @@ describe("SellerListPage (S03 셀러 관리)", () => {
       expect(
         (badge as HTMLElement).style.getPropertyValue("--tag-bg-color"),
       ).toBe("var(--color-surface-highlight-secondary)");
-      expect(cellsOf(row)[7].textContent).toBe("0%");
       expect(
-        within(row).queryByLabelText("베이비큐브 수수료율"),
-      ).not.toBeInTheDocument();
+        within(cellsOf(row)[7]).getByLabelText("베이비큐브 수수료율"),
+      ).toHaveValue("0");
+      expect(
+        within(cellsOf(row)[7]).getByRole("button", { name: "수정" }),
+      ).toBeEnabled();
     });
 
     /**
@@ -796,6 +798,26 @@ describe("수수료율 인라인 수정", () => {
         "베이비무브 수수료율은 이미 9.5%로 적용되어 있습니다.",
       ),
     ).toBeVisible();
+  });
+
+  /** 판정 Q20-5 · 디자인 §3 #15 — 본사 행만 0% 이상. 경고는 본사 행에 붙이지 않는다(기획 확인 요청 3번 · 개발과 같다) */
+  it("본사 행은 0% 를 받고, 6~16% 밖이어도 경고를 붙이지 않는다", async () => {
+    const { user } = renderPage();
+
+    await user.clear(feeOf("베이비큐브"));
+    await user.type(feeOf("베이비큐브"), "0{Enter}");
+    expect(
+      await screen.findByText(
+        "베이비큐브 수수료율은 이미 0%로 적용되어 있습니다.",
+      ),
+    ).toBeVisible();
+
+    await user.clear(feeOf("베이비큐브"));
+    await user.type(feeOf("베이비큐브"), "2.5{Enter}");
+    expect(
+      await screen.findByText("베이비큐브 수수료율을 2.5%로 수정했습니다."),
+    ).toBeVisible();
+    expect(screen.queryByText(/일반적인 범위/)).toBeNull();
   });
 
   /** 저장하지 않으므로(퍼블 범위) 초기화하면 고친 값이 모두 처음 값으로 돌아간다 */

@@ -10,7 +10,7 @@ import { SellerDetailPage } from "./SellerDetailPage";
  * ## 무엇을 검증하는가
  * 렌더 여부가 아니라 **동작과 정책**이다 —
  * 경로의 id 로 그 셀러를 찾는가 · 필수 값·수수료율 범위를 검증하는가 ·
- * **본사 계정은 상태·수수료율만 잠그는가** · [퇴점] 저장이 확인 창을 거치는가 ·
+ * **본사 계정은 상태만 잠그고 수수료율은 0% 이상을 받는가** · [퇴점] 저장이 확인 창을 거치는가 ·
  * 서류 미리보기 · 등록 상품 표(원본 컬럼·배지·페이지) · 셀러를 오갈 때 고친 값이 따라가지 않는가 ·
  * 없는 셀러에게 돌아갈 길을 주는가.
  * ---------------------------------------------------------------------- */
@@ -197,8 +197,8 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
   });
 
   /**
-   * ⚠️ 본사 계정 — **상태(입점)와 수수료율(0%)만 잠근다** (2026-10-15 사용자 결정).
-   * 원본은 상태만 고정하지만 안내 문구가 "수수료율 0% 확정"이라 수수료율도 잠근다.
+   * ⚠️ 본사 계정 — **상태(입점)만 잠근다**. 수수료율은 처음 0%, 수정 가능 · 본사 행만 0% 이상
+   * (판정 Q20-1 · Q20-5 · 디자인 §3 #15 — 2026-10-15 「수수료율 0% 잠금」을 풀었다).
    */
   describe("본사 계정", () => {
     it("상태 대신 「본사」·「입점」 배지와 안내 문구를 낸다", () => {
@@ -213,23 +213,51 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       expect(screen.queryByRole("radio", { name: "퇴점" })).toBeNull();
     });
 
-    it("수수료율은 입력칸 대신 0% 다", () => {
-      renderAt(HEADQUARTERS);
-
-      expect(within(section("운영 정보")).queryByRole("textbox")).toBeNull();
-      expect(within(section("운영 정보")).getByText("0%")).toBeVisible();
-    });
-
-    /** 읽는 값은 한 모양 — 0% 도 입점일·상품수·평점과 같은 정보 상자 안, 첫 줄이다 */
-    it("0% 는 운영 정보 상자의 첫 줄이고 「본사 고정」 이 붙는다", () => {
+    it("수수료율은 처음 0 인 입력칸이고 「본사 고정」 글자가 없다", () => {
       renderAt(HEADQUARTERS);
       const operation = section("운영 정보");
-      const labels = Array.from(operation.querySelectorAll("dl dt")).map(
-        (dt) => dt.textContent,
-      );
 
-      expect(labels[0]).toBe("수수료율");
-      expect(within(operation).getByText("본사 고정")).toBeVisible();
+      expect(within(operation).getByRole("textbox")).toHaveValue("0");
+      expect(within(operation).queryByText("본사 고정")).toBeNull();
+      expect(
+        Array.from(operation.querySelectorAll("dl dt")).map(
+          (dt) => dt.textContent,
+        ),
+      ).not.toContain("수수료율");
+    });
+
+    /** 판정 Q20-5 — 본사 행만 0% 이상. 칸 아래 안내·6~16% 경고는 띄우지 않는다(기획 확인 요청 3번) */
+    it("0% 그대로 저장되고, 칸 아래 안내·경고가 없다", async () => {
+      const { user } = renderAt(HEADQUARTERS);
+      const operation = section("운영 정보");
+
+      await user.type(field("대표자"), "님");
+      await user.click(saveButton());
+
+      expect(await screen.findByText("변경 내용을 저장했습니다")).toBeVisible();
+      expect(screen.queryByText(/셀러 수수료율은 0보다 크고/)).toBeNull();
+      expect(
+        within(operation).queryByText(
+          "셀러 정산(플랫폼 수수료) 계산의 기준 요율입니다.",
+        ),
+      ).toBeNull();
+      expect(within(operation).queryByText(/일반적인 범위/)).toBeNull();
+    });
+
+    it("본사 행도 100 을 넘으면 저장하지 않는다", async () => {
+      const { user } = renderAt(HEADQUARTERS);
+      const input = within(section("운영 정보")).getByRole("textbox");
+
+      await user.clear(input);
+      await user.type(input, "140");
+      await user.click(saveButton());
+
+      expect(
+        screen.getByText(
+          "셀러 수수료율은 0보다 크고 100 이하, 소수 둘째 자리까지 입력해 주세요.",
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText("변경 내용을 저장했습니다")).toBeNull();
     });
 
     it("나머지(셀러 정보·위생인증·취급 유형)는 고치고 저장할 수 있다", async () => {

@@ -42,10 +42,9 @@ import { COUPONS, couponStatus } from "./CouponListPage.data";
  * | `bankAccountError`   | [계좌 저장] 검사 (개발 `validateBankAccount`)      |
  *
  * ## 뼈대가 이 파일에 기대하는 계약
- * - **본사 계정은 상태(입점)와 수수료율(0%)만 잠근다** — 나머지는 일반 셀러처럼 고친다
- *   (2026-10-15 사용자 결정. 원본은 상태만 고정하고 수수료율 입력칸을 열어 두지만, 같은 자리의
- *   안내 문구가 "수수료율 0% 확정"이라 화면이 스스로 모순된다)
- * - 수수료율은 **0 초과 100 이하 · 소수 둘째 자리까지**(판정 Q20-5 · `SellerListPage.data.ts` 의 공용 규칙).
+ * - **본사 계정은 상태(입점)만 잠근다** — 나머지는 일반 셀러처럼 고친다. 수수료율은 본사 행도 입력칸(처음 0%)
+ *   (판정 Q20-1 · 디자인 §3 #15 — 2026-10-15 「수수료율 0% 잠금」을 풀었다)
+ * - 수수료율은 **0 초과 100 이하 · 소수 둘째 자리까지**, **본사 행만 0 이상**(판정 Q20-5 · `SellerListPage.data.ts` 의 공용 규칙).
  *   벗어난 값은 저장할 수 없다. 6~16% 밖은 막지 않고 칸 아래 경고만(디자인 §3 #12)
  * - 퇴점 확인 창은 다섯 줄이다(디자인 §3 #11 · 개발 `ExitGate`) — 진행 중 렌트 · 미정산 회차 · 미해결 클레임 ·
  *   **판매 가능한 상품 = 판매중 + 품절** · 유효 쿠폰(이 셀러 쿠폰 중 지금 「사용」). 정산은 금액이 아니라 **회차**다.
@@ -176,16 +175,18 @@ export const PRODUCT_PAGE_SIZES = [10, 20, 50, 100];
 export const HEADQUARTERS_NOTICE =
   "본사 행 — 퇴점·심사 관리 대상이 아닙니다 (수수료율 0% 확정)";
 
-/** 본사 계정 수수료율 줄의 보조 글자 — 0% 는 입력값이 아니라 정해진 값이다 */
-export const HQ_COMMISSION_NOTE = "본사 고정";
-
 /** 수수료율 입력 아래 안내 — 원본 문구 그대로 */
 export const COMMISSION_HINT =
   "셀러 정산(플랫폼 수수료) 계산의 기준 요율입니다.";
 
-/** 수수료율 검사 — 허용 꼴(0 초과 100 이하 · 소수 둘째 자리)이 아니면 개발 문구 한 줄(빈 칸·글자·범위 모두) */
-export const commissionError = (value: string) =>
-  parseCommissionRate(value) === null ? COMMISSION_RATE_MESSAGE : null;
+/**
+ * 수수료율 검사 — 허용 꼴(0 초과 100 이하 · 소수 둘째 자리 · 본사 행만 0 이상)이 아니면 개발 문구 한 줄
+ * (빈 칸·글자·범위 모두). 본사 행 오류 문구는 기획 확인 요청 3번 답 전까지 같은 문구다
+ */
+export const commissionError = (value: string, headquarters = false) =>
+  parseCommissionRate(value, headquarters) === null
+    ? COMMISSION_RATE_MESSAGE
+    : null;
 
 /** 저장 성공 알림 — 원본 하단 액션 바의 [저장하기] 결과 */
 export const SAVED_TEXT = "변경 내용을 저장했습니다";
