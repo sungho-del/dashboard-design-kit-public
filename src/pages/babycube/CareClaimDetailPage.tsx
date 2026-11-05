@@ -61,7 +61,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *
  * ```
  * 청구 근거   ← 주문번호 · 셀러 · 상품 · 이용 기간 · 검수 판정 · 보증금 · 보증금 차감
- * 청구 심사   ← 청구 상태 · 청구 복원비 · 청구일 · 발송 전 이미지 · 파손 이미지(각 도움말) ·
+ * 청구 심사   ← 청구 상태 · 청구 복원비 · 청구일 · 발송 전 이미지 · 파손 이미지 ·
  *               [승인] 승인일 · 정산 반영 / [반려] 반려 사유 (반려일) ·
  *               안내 상자(대조 안내 한 줄)
  * [목록]                                         [승인] [반려]   ← 하단 바 (청구 접수 건만 오른쪽)
@@ -154,11 +154,6 @@ const Item = ({ label, children }: { label: string; children: ReactNode }) => (
   </InfoItem>
 );
 
-/** 줄 옆에 붙는 도움말(원본 `nv-help` inline) */
-const Help = ({ children }: { children: ReactNode }) => (
-  <span className="body-small text-text-sub">{children}</span>
-);
-
 /**
  * 증빙 이미지 한 줄 — 썸네일(자리 표시) + [확대]. 0장이면 미등록 문장.
  * 실제 파일이 없어 이름만 그린다(상품 상세의 상품이미지와 같은 대체물).
@@ -168,14 +163,12 @@ export function EvidenceRow({
   prefix,
   count,
   empty,
-  help,
   onZoom,
 }: {
   label: string;
   prefix: string;
   count: number;
   empty: string;
-  help: string;
   onZoom: (name: string) => void;
 }) {
   return (
@@ -205,7 +198,6 @@ export function EvidenceRow({
       ) : (
         <p className="body-medium text-text">{empty}</p>
       )}
-      <Help>{help}</Help>
     </div>
   );
 }
@@ -365,7 +357,6 @@ function CareClaimDetailBody({
               prefix="발송 전"
               count={evidence.ship}
               empty={COPY.shipEmpty}
-              help={COPY.shipHelp}
               onZoom={setZoomed}
             />
             <EvidenceRow
@@ -373,7 +364,6 @@ function CareClaimDetailBody({
               prefix="파손"
               count={evidence.return}
               empty={COPY.returnEmpty}
-              help={COPY.returnHelp}
               onZoom={setZoomed}
             />
             {claim.status === "approved" ? (

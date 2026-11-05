@@ -43,9 +43,6 @@ export const REASON_MAX = 60;
 export const COPY = {
   notFoundTitle: "찾을 수 없는 리뷰입니다",
   notFoundDescription: "해당 항목이 존재하지 않거나 삭제되었습니다.",
-  replyHelpLead: "판매자 답글은 ",
-  replyHelpStrong: "입점사 어드민",
-  replyHelpTail: "에서 작성합니다. 본사는 내용만 확인합니다.",
   /** 답글이 없을 때 — 빈 회색 상자에 `-` 하나 대신 흐린 문구(쿠폰 「조건 없음」과 같은 꼴) */
   replyEmpty: "답글 없음",
   reasonPlaceholder: "숨김 사유 1줄 (필수)",

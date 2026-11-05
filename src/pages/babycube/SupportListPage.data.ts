@@ -131,7 +131,7 @@ export const STATUS_META: Record<
   done: {
     label: "답변완료",
     tone: "default",
-    tip: "답변이 등록되어 종결된 문의입니다. 더 진행할 단계가 없습니다.",
+    tip: "답변이 등록되어 종결된 문의입니다.",
   },
 };
 

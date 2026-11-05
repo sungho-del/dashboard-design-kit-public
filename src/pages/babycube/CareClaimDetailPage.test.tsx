@@ -252,8 +252,8 @@ describe("CareClaimDetailPage (S14-D 안심케어 청구 상세)", () => {
           "listitem",
         ),
       ).toHaveLength(1);
-      expect(screen.getByText(COPY.shipHelp)).toBeVisible();
-      expect(screen.getByText(COPY.returnHelp)).toBeVisible();
+      /* 부록 A C80 · C81 — 이미지 도움말 「… 입점사가 등록합니다 · 최대 10장」 삭제 */
+      expect(screen.queryByText(/최대 10장/)).toBeNull();
       expect(screen.getByText(COPY.evidenceNote)).toBeVisible();
       /* 본사는 조회만 — 등록·교체·삭제가 없다 */
       expect(
@@ -277,7 +277,6 @@ describe("CareClaimDetailPage (S14-D 안심케어 청구 상세)", () => {
             prefix="발송 전"
             count={0}
             empty={COPY.shipEmpty}
-            help={COPY.shipHelp}
             onZoom={vi.fn()}
           />
           <EvidenceRow
@@ -285,13 +284,15 @@ describe("CareClaimDetailPage (S14-D 안심케어 청구 상세)", () => {
             prefix="파손"
             count={0}
             empty={COPY.returnEmpty}
-            help={COPY.returnHelp}
             onZoom={vi.fn()}
           />
         </>,
       );
-      expect(screen.getByText(COPY.shipEmpty)).toBeVisible();
-      expect(screen.getByText(COPY.returnEmpty)).toBeVisible();
+      /* 부록 A C82 · C83 */
+      expect(
+        screen.getByText("등록된 발송 전 이미지가 없습니다 — 대조 근거 없음"),
+      ).toBeVisible();
+      expect(screen.getByText("등록된 파손 이미지가 없습니다.")).toBeVisible();
       expect(screen.queryByRole("list")).toBeNull();
     });
 

@@ -100,9 +100,8 @@ describe("리뷰 정보 (노출 중 RV-30)", () => {
       "text-text-minimal",
     );
     expect(screen.queryByText("-")).toBeNull();
-    expect(
-      screen.getByText(/에서 작성합니다\. 본사는 내용만 확인합니다\./),
-    ).toBeVisible();
+    /* 부록 A C78 — 판매자 답글 도움말 삭제 */
+    expect(screen.queryByText(/본사는 내용만 확인합니다/)).toBeNull();
   });
 
   it("구역을 접으면 값이 사라진다", async () => {

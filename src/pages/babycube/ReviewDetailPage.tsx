@@ -52,7 +52,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *
  * ## 구성
  * ```
- * 리뷰 정보   작성자 · 상태 · 별점 · 작성일 · 셀러 · 상품 · 주문번호(주문 상세 링크) / 리뷰 내용(회색 상자) / 판매자 답글(회색 상자 — 없으면 흐린 「답글 없음」 + 도움말)
+ * 리뷰 정보   작성자 · 상태 · 별점 · 작성일 · 셀러 · 상품 · 주문번호(주문 상세 링크) / 리뷰 내용(회색 상자) / 판매자 답글(회색 상자 — 없으면 흐린 「답글 없음」 · 도움말은 부록 A C78 로 뺐다)
  * 노출 관리   노출 중: 숨김 사유 입력(필수 · 60자) + 도움말 / 숨김 중: 숨김 사유(회색 상자) + 도움말
  * [목록]                                  [숨김 처리 | 복원]   ← 하단 고정 바 (원본 그대로)
  * ```
@@ -318,13 +318,7 @@ function ReviewDetailBody({
               label="판매자 답글"
               text={review.reply}
               emptyText={COPY.replyEmpty}
-              help={
-                <Help>
-                  {COPY.replyHelpLead}
-                  <b className="body-small-bold">{COPY.replyHelpStrong}</b>
-                  {COPY.replyHelpTail}
-                </Help>
-              }
+              help={null}
             />
           </>
         )}

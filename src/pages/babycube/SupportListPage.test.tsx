@@ -239,6 +239,15 @@ describe("SupportListPage (S22 문의 관리)", () => {
         ),
       ).toBeInTheDocument();
     });
+
+    it("답변완료 카드 툴팁은 한 문장 (부록 A C79)", async () => {
+      const { user } = renderPage();
+      await user.hover(statusBox("답변완료 2건"));
+      expect(
+        await screen.findByText("답변이 등록되어 종결된 문의입니다."),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/더 진행할 단계가 없습니다/)).toBeNull();
+    });
   });
 
   describe("고객 문의 — 표", () => {
