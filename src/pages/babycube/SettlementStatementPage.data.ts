@@ -50,20 +50,13 @@ export const STATUS_META = SETTLEMENT_STATUS_META;
 
 /**
  * 정산 대상 구분 — 대등한 분류라 무채색 배지(원본 자체 = 파랑).
- * 화면 글자는 「본사 / 셀러」(판정 Q10 — 「자체·입점사」는 내부 값 `hq`·`seller` 로만)
+ * 화면 글자는 「본사 / 셀러」(판정 Q10 — 「자체·입점사」는 내부 값 `hq`·`seller` 로만).
+ * 표 「정산 대상」 칸 배지도 이 글자다 — 본사 행은 배지 「본사」 + 이름 「본사」로 두 번 나온다
+ * (하나로 줄일지는 기획 확인 요청 2번)
  */
 export const TARGET_KIND_LABEL: Record<SettlementRow["kind"], string> = {
   hq: "본사",
   seller: "셀러",
-};
-
-/**
- * 표 「정산 대상」 칸 배지 — 본사 행 배지만 「자체」 그대로다. 「본사」로 바꾸면 이름 「본사」와 겹쳐
- * 「본사 본사」가 되어 기획 확인 요청 2번 답을 기다린다(셀러 행은 「셀러」).
- */
-export const TARGET_BADGE_LABEL: Record<SettlementRow["kind"], string> = {
-  ...TARGET_KIND_LABEL,
-  hq: "자체",
 };
 
 export const TARGET_OPTIONS: SelectOption[] = [

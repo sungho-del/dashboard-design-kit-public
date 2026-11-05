@@ -35,7 +35,7 @@ import {
   STATEMENTS,
   STATUS_META,
   STATUS_OPTIONS,
-  TARGET_BADGE_LABEL,
+  TARGET_KIND_LABEL,
   TARGET_OPTIONS,
   additionText,
   deductionText,
@@ -265,7 +265,7 @@ export function SettlementStatementPage({
                       <TableTd>
                         <span className="flex items-center justify-start gap-2">
                           <Tag tone="default" size="small">
-                            {TARGET_BADGE_LABEL[row.kind]}
+                            {TARGET_KIND_LABEL[row.kind]}
                           </Tag>
                           {row.name}
                         </span>
