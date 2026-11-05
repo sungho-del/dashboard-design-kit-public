@@ -123,6 +123,8 @@ export interface Claim {
   fault: ClaimFault;
   /** 실제로 거친 단계만, 시간순 — 처리 이력이 이것을 그대로 쌓는다 */
   events: ClaimEvent[];
+  /** 렌트 취소 위약금(원) — 0 은 무료 취소. 화면은 계산하지 않고 이 예시 값을 읽는다(`CLAIM_SEEDS`) */
+  penalty: number;
 }
 
 /**
@@ -614,20 +616,29 @@ const INSPECTION_SEEDS: Record<string, [Inspection, number]> = {
 };
 
 /**
- * 클레임 — `처리단위 → [지금 단계, 신청 일시, 신청 사유]`.
+ * 클레임 — `처리단위 → [지금 단계, 신청 일시, 신청 사유, 위약금?]`.
  * 거친 단계는 `claimPathOf` 가 지금 단계에서 정하고, 시각은 신청부터 **25시간 간격**의 예시다.
  *
  * - 취소: 모두 **출고 전**이다(송장 없음) — 원본 정책 「발송 후 취소 불가, 반품으로 전환」.
- *   렌트 취소는 **무료 취소 사례만** 둔다(사용자 결정 2026-11-02 — 위약금 20/30%·출고 후 배송비
- *   차감은 원본 FAQ 에만 있고 화면이 계산하지 않는다. 기획 확인 사항)
+ *   렌트 취소 위약금 규칙(디자인 §1): 결제 후 24시간 이내(출고 전) 무료 · 시작 D-4 이상 무료 · D-3 20% ·
+ *   D-2~D-1 30% · 시작 후 환불 불가 · 100원 단위 반올림. 이용 시작 = 결제일 + 4일.
+ *   U-R20·U-R23 은 결제 후 24시간 안 신청이라 무료, **U-R24 가 위약금 건**이다(디자인 §3 #18 —
+ *   신청을 결제 다음 날로 옮겨 건수는 그대로): 결제 10-13 15:05 → 신청 10-14 19:10(24시간 지남) →
+ *   시작 10-17 의 D-3 → 20%. 방문 수령·할인 없음이라 결제금액 = 렌트료 8,400원(1,200원/일 × 7일) →
+ *   1,680원 → **1,700원**. 화면은 위약금을 계산하지 않고 이 값을 읽는다.
+ *   위약금의 모수(렌트료만인지)·보증금 처리는 기획 확인 요청 18번 — 보증금은 지금처럼 전액 반환
+ *   (출고 후 배송비 차감 사례는 없다)
  * - 반품·교환: 수령 뒤에만 생긴다(원래 단계 = 배송 완료 · 대여중). 교환은 **판매 전용**
  * - 상태마다 최소 한 건 — 클레임 목록의 상태 선택지가 0건으로 끝나지 않게(원본 결함: 환불 처리중 0건)
  */
-const CLAIM_SEEDS: Record<string, [ClaimStatus, string, string]> = {
+const CLAIM_SEEDS: Record<
+  string,
+  [ClaimStatus, string, string] | [ClaimStatus, string, string, number]
+> = {
   /* 취소 6 — 렌트·판매 × 3단계 */
   "U-R20": ["cancelRequested", "2026-10-18 09:20", "배송 전 단순변심"],
   "U-R23": ["cancelRefunding", "2026-10-16 18:40", "이용 일정 변경"],
-  "U-R24": ["canceled", "2026-10-13 19:10", "주문 실수"],
+  "U-R24": ["canceled", "2026-10-14 19:10", "주문 실수", 1700],
   "U-S11": ["cancelRequested", "2026-10-17 21:30", "옵션 잘못 선택"],
   "U-S13": ["cancelRefunding", "2026-10-16 16:05", "배송 전 단순변심"],
   "U-S14": ["canceled", "2026-10-10 08:15", "중복 주문"],
@@ -716,7 +727,7 @@ const plusHoursText = (at: string, hours: number) => {
 const claimOf = (id: string): Claim | null => {
   const seed = CLAIM_SEEDS[id];
   if (!seed) return null;
-  const [status, requestedAt, reason] = seed;
+  const [status, requestedAt, reason, penalty = 0] = seed;
   return {
     type: claimTypeOf(status),
     status,
@@ -726,6 +737,7 @@ const claimOf = (id: string): Claim | null => {
       status: step,
       at: plusHoursText(requestedAt, index * 25),
     })),
+    penalty,
   };
 };
 

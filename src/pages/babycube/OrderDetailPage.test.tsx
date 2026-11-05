@@ -573,13 +573,23 @@ describe("클레임 모드", () => {
       expect(valueOf("보증금 반환 예정액")).toBe("90,000원");
     });
 
-    it("취소 완료면 「예정」이 아니라 「완료」다", async () => {
+    /**
+     * 디자인 §1 · §3 #18 — 위약금 건. 결제 10-13 → 신청 10-14(24시간 지남) → 시작 10-17 의 D-3 = 20%.
+     * 결제금액 8,400원(1,200원/일 × 7일 · 방문 수령) × 20% = 1,680 → 100원 단위 반올림 1,700원
+     */
+    it("위약금 건 — 결제금액 − 위약금이 환불이고, 취소 완료라 「완료」다 · 보증금은 전액", async () => {
       const { user } = renderAt("/orders-cancel/U-R24");
-      const { lines } = await openStatement(user);
+      const { lines, hints, labelsOf } = await openStatement(user);
 
-      expect(lines["환불 완료"]).toBe("8,400원");
+      expect(labelsOf("refund")).toEqual(["결제금액", "위약금", "환불 완료"]);
+      expect(lines["결제금액"]).toBe("8,400원");
+      expect(lines["위약금"]).toBe("−1,700원");
+      expect(lines["환불 완료"]).toBe("6,700원");
+      expect(hints["환불 완료"]).toBeNull();
       expect(lines["보증금 반환 완료"]).toBe("90,000원");
       expect(lines["환불 예정액"]).toBeUndefined();
+      /* 본문 결과 줄 = 팝업과 같은 값 */
+      expect(valueOf("환불 완료")).toBe("6,700원");
     });
 
     it("판매 반품 고객 귀책 — 결제금액에서 편도 배송비를 **한 번만** 뺀다 (별도 청구 줄 없음)", async () => {

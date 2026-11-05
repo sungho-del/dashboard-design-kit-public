@@ -557,8 +557,9 @@ export const claimTypeTextOf = (order: Order) =>
  * | 반려·거부·재반송 | 「결제」 결제금액 · 「결과」 처리 문장 (+ 렌트면 「별도」 보증금)                          |
  *
  * 처리 문장(「환불 없음 — 원거래 유지」 류)은 금액이 아니라 `message` 줄이다.
- * - 렌트 취소는 **무료 취소**(출고 전·위약금 없음)만 다룬다 — 결제금액 전액 + 보증금 반환을 따로
- *   (사용자 결정 2026-11-02). 원본은 렌트 취소에 보증금 반환만 있어 렌트료 환불이 빠졌다
+ * - 렌트 취소 = 결제금액 − 위약금(있을 때만 「위약금」 줄 — 개발 `RentRmaCancelDetail` 「0원 줄은 두지 않는다」) +
+ *   보증금 반환을 따로. 위약금은 예시 값(`claim.penalty` — 디자인 §1 · §3 #18)이고 화면은 계산하지 않는다.
+ *   원본은 렌트 취소에 보증금 반환만 있어 렌트료 환불이 빠졌다
  * - 환불은 **그 처리단위의 결제금액** 기준이다 — 같은 주문번호의 다른 처리단위를 끌어오지 않는다
  * - 렌트 반품은 원본처럼 보증금만 돌려준다. 반환액은 보증금 함수(`depositOf`) 하나가 정한다 —
  *   배송비를 여기서 다시 빼지 않는다(차감 줄은 보이기만 한다)
@@ -592,16 +593,22 @@ const claimBlocksOf = (order: Order): CalcBlock[] => {
   });
 
   if (claim.type === "cancel") {
+    const penalty = claim.penalty;
     const refund: CalcBlock = {
       key: "refund",
       label: "환불",
       emphasis: true,
       lines: [
         payLineOf(order, "subtotal"),
-        calcLine("refund", done ? "환불 완료" : "환불 예정액", won(pay), {
-          kind: "total",
-          hint: "결제금액 전액",
-        }),
+        ...(penalty > 0 ? [calcLine("penalty", "위약금", less(penalty))] : []),
+        calcLine(
+          "refund",
+          done ? "환불 완료" : "환불 예정액",
+          won(Math.max(0, pay - penalty)),
+          penalty > 0
+            ? { kind: "total" }
+            : { kind: "total", hint: "결제금액 전액" },
+        ),
       ],
     };
     if (!rent) return [refund];
