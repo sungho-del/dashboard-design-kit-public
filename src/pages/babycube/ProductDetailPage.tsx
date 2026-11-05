@@ -130,7 +130,7 @@ import { ProductRejectModal } from "./shared/ProductRejectModal";
  * - 머리: 신규는 「상품 등록」 + 「본사 직영 상품입니다. …」(개발 신규 안내 줄) · 수정은 상품명 · 상품코드 줄 아래
  *   「본사 직영 상품 · {셀러명} ({셀러코드})」(개발 수정 안내 줄 — 입점 상품의 금액 잠금 안내 자리)
  * - 섹션·순서는 입점 상품과 같다. 금액·유형 칸이 열린다(`priceLocked` false) · 신규 처음 값은 `newDraft`
- * - 판매 상태는 세그먼트 [판매중][판매중지] — 판매 상품 재고 0 이면 「품절」 배지(개발 `Exposure`).
+ * - 판매 상태는 세그먼트 [판매중][판매중지] — 판매 상품 재고 0 이면 「품절」 배지 + 안내 한 줄(개발 `Exposure` · 부록 A C12).
  *   전시 상태는 늘 세그먼트(처분 대상이 아니라 잠그지 않는다)
  * - 하단 바: `[목록]  …  [취소] [등록 | 수정 저장]` — 처분 버튼 없음(개발 「직영은 처분 대상이 아니다(E8)」)
  * - 저장: 검사를 통과하면 알림만 띄우고 그 자리에 남는다(신규 「상품이 등록되었습니다.」 · 수정 「수정 저장했습니다.」)
@@ -1113,7 +1113,6 @@ function ProductDetailBody({
               label="기본 렌트일"
               required
               htmlFor={fieldId("baseRentDays")}
-              description={COPY.baseRentDaysHelp}
               error={errors.baseRentDays}
               suffix="일"
             >
@@ -1518,7 +1517,6 @@ function ProductDetailBody({
               label="성장단계"
               required
               htmlFor={fieldId("stage")}
-              description={COPY.stageHelp}
               error={errors.stage}
             >
               <Select
@@ -1790,7 +1788,6 @@ function ProductDetailBody({
               <Checkbox
                 className={HELP_WIDTH}
                 label="방문 수령 추가 제공"
-                description={COPY.pickupHelp}
                 checked={draft.pickupOn}
                 onChange={(event) => set("pickupOn", event.target.checked)}
               />
@@ -2314,11 +2311,16 @@ function ProductDetailBody({
               </>
             ) : directStatus === "soldout" ? (
               /* 직영 판매 상품 재고 0 — 품절은 고르는 값이 아니라 재고에서 정해진다(개발 `Exposure`) */
-              <ReadField label="판매 상태">
-                <Tag tone={STATUS_META.soldout.tone} dot>
-                  {STATUS_META.soldout.label}
-                </Tag>
-              </ReadField>
+              <>
+                <ReadField label="판매 상태">
+                  <Tag tone={STATUS_META.soldout.tone} dot>
+                    {STATUS_META.soldout.label}
+                  </Tag>
+                </ReadField>
+                <p className={cn("body-small -mt-3 text-text-sub", HELP_WIDTH)}>
+                  {COPY.soldOutHelp}
+                </p>
+              </>
             ) : (
               /* 직영 — 판매 상태를 직접 고른다(개발 `Exposure` 세그먼트) */
               <FormField label="판매 상태" group>
@@ -2341,9 +2343,7 @@ function ProductDetailBody({
                   <Tag tone={displayMeta.tone}>{displayMeta.label}</Tag>
                 </ReadField>
                 <p className="body-small -mt-3 text-text-sub">
-                  {disposable.status === "rereview"
-                    ? COPY.displayLocked.rereview
-                    : COPY.displayLocked.rejected}
+                  {COPY.displayLocked}
                 </p>
               </>
             ) : (

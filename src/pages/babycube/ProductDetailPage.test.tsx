@@ -334,14 +334,56 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
       expect(
         within(display).queryByRole("radiogroup", { name: "전시 상태" }),
       ).toBeNull();
+      /* 부록 A C13 — 반려·재심사요청 두 갈래 한 문장 */
       expect(
-        within(display).getByText(/\[승인 처리\]로 처분을 풀면/),
+        within(display).getByText(
+          "반려된 상품이라 전시 상태를 바꿀 수 없습니다.",
+        ),
       ).toBeVisible();
       /* 안내는 이 상태에 실제로 있는 버튼을 가리킨다 */
       expect(
         within(display).getByText(/처분을 풀려면 아래 하단 바의 \[승인 처리\]/),
       ).toBeVisible();
     });
+  });
+
+  /** 부록 A C13 — 재심사요청 건도 전시 상태를 잠그고 반려 건과 같은 문장 */
+  it("재심사요청 건도 전시 상태를 잠그고 같은 안내를 낸다", () => {
+    renderAt("LS240809");
+    const display = section(/노출 관리/);
+
+    expect(
+      within(display).queryByRole("radiogroup", { name: "전시 상태" }),
+    ).toBeNull();
+    expect(
+      within(display).getByText(
+        "반려된 상품이라 전시 상태를 바꿀 수 없습니다.",
+      ),
+    ).toBeVisible();
+  });
+
+  /** 부록 A B3 · C2 · C3 · C5 ~ C10 — 칸 안내는 바뀐 문구, 삭제된 칸은 안내 없이 */
+  it("칸 안내 — 바뀐 문구 · 기본 렌트일·성장단계·방문 수령은 안내가 없다", () => {
+    renderAt("BL240814");
+
+    for (const text of [
+      "같은 상품의 동시 대여 가능 건수입니다.",
+      "1개월은 30일로 계산합니다.",
+      "인증 대상이 아닌 상품은 '해당없음'을 선택합니다.",
+      "기본 항목은 삭제하거나 이름을 바꿀 수 없습니다.",
+      "공항 픽업 상품은 반납도 같은 공항에서 합니다.",
+      "옵션명과 옵션값을 입력하고 [옵션목록으로 적용]을 누르면 조합이 만들어집니다(최대 3개). 옵션가는 주문당 한 번만 더해집니다.",
+    ])
+      expect(screen.getByText(text)).toBeVisible();
+
+    /* 기본 렌트일은 단위만 남는다 · 성장단계 셀렉트·방문 수령 체크는 설명이 없다 */
+    expect(textbox("기본 렌트일")).toHaveAccessibleDescription("일");
+    expect(
+      screen.getByRole("combobox", { name: "성장단계" }),
+    ).not.toHaveAccessibleDescription();
+    expect(
+      screen.getByRole("checkbox", { name: "방문 수령 추가 제공" }),
+    ).not.toHaveAccessibleDescription();
   });
 
   describe("하단 바 — 상태가 처분 버튼을 정한다", () => {
@@ -1056,6 +1098,10 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
       expect(
         within(display()).queryByRole("radiogroup", { name: "판매 상태" }),
       ).toBeNull();
+      /* 부록 A C12 — 품절 배지 아래 안내(판매중지 문장 없음) */
+      const SOLD_OUT_HELP =
+        "재고가 0개라 품절입니다. [재고 수량]을 채우면 판매중으로 바뀝니다.";
+      expect(within(display()).getByText(SOLD_OUT_HELP)).toBeVisible();
 
       await user.clear(textbox("재고 수량"));
       await user.type(textbox("재고 수량"), "5");
@@ -1065,6 +1111,7 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
       expect(
         within(status).getByRole("radio", { name: "판매중" }),
       ).toBeChecked();
+      expect(within(display()).queryByText(SOLD_OUT_HELP)).toBeNull();
       await user.click(within(status).getByRole("radio", { name: "판매중지" }));
       expect(
         within(status).getByRole("radio", { name: "판매중지" }),
