@@ -198,7 +198,10 @@ describe("처리 열 — 비활성 + 「연동 준비 중」", () => {
 
       expect(button).toBeDisabled();
       expect(button).toHaveAttribute("title", "세금계산서 연동 준비 중");
-      expect(button.nextElementSibling?.textContent).toBe("연동 준비 중");
+      /* 버튼은 폭 72 고정 자리 안에 있다 — 글자는 그 자리 바로 옆 */
+      expect(button.parentElement?.nextElementSibling?.textContent).toBe(
+        "연동 준비 중",
+      );
 
       /* 눌러도 아무 일이 없다 — 알림 없음 · 상태 그대로 */
       await user.click(button);

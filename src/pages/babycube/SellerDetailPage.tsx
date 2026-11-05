@@ -970,15 +970,19 @@ function SellerDetailBody({
               </div>
             ))}
           </dl>
-          <p className="body-small text-text-sub">
+          <p className="body-small break-keep text-text-sub">
             {EXIT_COPY.note(
               saleableCount(seller.catalog),
               activeCouponCount(seller),
             )}
           </p>
-          <p className="body-small text-text-sub">{EXIT_COPY.notice}</p>
+          <p className="body-small break-keep text-text-sub">
+            {EXIT_COPY.notice}
+          </p>
           {hasOpenWork ? (
-            <p className="body-small text-text-warning">{EXIT_COPY.warning}</p>
+            <p className="body-small break-keep text-text-warning">
+              {EXIT_COPY.warning}
+            </p>
           ) : null}
         </ModalBody>
         <ModalFooter>

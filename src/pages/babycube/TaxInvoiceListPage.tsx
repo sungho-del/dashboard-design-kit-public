@@ -294,15 +294,18 @@ export function TaxInvoiceListPage({
                       </TableTd>
                       <TableTd className={ACTION_TD}>
                         <span className="flex items-center gap-2 whitespace-nowrap">
-                          <Button
-                            variant="secondary"
-                            size="small"
-                            disabled
-                            title={ACTION_PENDING.title}
-                            aria-label={`${row.no} ${action}`}
-                          >
-                            {action}
-                          </Button>
+                          {/* 버튼 폭이 [발행] 48 · [다운로드] 72 로 달라 「연동 준비 중」 시작이 행마다 어긋난다 — 버튼 자리를 72 로 고정 */}
+                          <span className="flex w-18 shrink-0">
+                            <Button
+                              variant="secondary"
+                              size="small"
+                              disabled
+                              title={ACTION_PENDING.title}
+                              aria-label={`${row.no} ${action}`}
+                            >
+                              {action}
+                            </Button>
+                          </span>
                           <span className="body-small text-text-sub">
                             {ACTION_PENDING.note}
                           </span>
