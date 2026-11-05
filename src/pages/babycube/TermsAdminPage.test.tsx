@@ -293,6 +293,54 @@ describe("TermsAdminPage", () => {
     });
   });
 
+  /* 판정 Q15 · 디자인 §1 — 시행일 칸 필수 · 기본 오늘(10-19)+7 · 「중요 변경」 +30 · 지난 날짜 선택 불가 */
+  describe("시행일", () => {
+    const trigger = () => screen.getByRole("button", { name: /시행일/ });
+    const important = () =>
+      screen.getByRole("checkbox", { name: "중요 변경 (30일 전 공지)" });
+
+    it("필수 · 기본 오늘+7일, 「중요 변경」을 켜면 +30일 · 끄면 다시 +7일", async () => {
+      const { user } = renderPage();
+
+      expect(trigger()).toHaveTextContent("2026.10.26");
+      expect(trigger()).toHaveAttribute("aria-required", "true");
+
+      await user.click(important());
+      expect(trigger()).toHaveTextContent("2026.11.18");
+
+      await user.click(important());
+      expect(trigger()).toHaveTextContent("2026.10.26");
+    });
+
+    it("지난 날짜는 고를 수 없고, 고른 날을 다시 눌러도 비지 않는다", async () => {
+      const { user } = renderPage();
+
+      await user.click(trigger());
+      await screen.findByRole("dialog");
+      expect(
+        screen.getByRole("button", { name: "2026년 10월 18일" }),
+      ).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "2026년 10월 19일" }),
+      ).not.toBeDisabled();
+
+      await user.click(
+        screen.getByRole("button", { name: /2026년 10월 26일/ }),
+      );
+      expect(trigger()).toHaveTextContent("2026.10.26");
+    });
+
+    it("문서를 바꾸면 시행일·중요 변경이 기본값으로 돌아온다", async () => {
+      const { user } = renderPage();
+
+      await user.click(important());
+      await user.click(docItem("마케팅 정보 수신 동의"));
+
+      expect(important()).not.toBeChecked();
+      expect(trigger()).toHaveTextContent("2026.10.26");
+    });
+  });
+
   describe("빈 상태", () => {
     it("문서가 하나도 없으면 편집 카드가 두 줄로 사유를 밝힌다", () => {
       state.override = [];

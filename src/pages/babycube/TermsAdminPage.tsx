@@ -7,6 +7,8 @@ import {
   CardBody,
   CardFooter,
   CardHeader,
+  Checkbox,
+  DatePicker,
   EmptyState,
   FormField,
   Gnb,
@@ -15,7 +17,14 @@ import {
   Textarea,
   useToast,
 } from "../../components/ui";
-import { MESSAGES, TERMS, updatedText } from "./TermsAdminPage.data";
+import {
+  EFFECTIVE_COPY,
+  effectiveDefault,
+  MESSAGES,
+  TERMS,
+  TODAY,
+  updatedText,
+} from "./TermsAdminPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 import { cn } from "../../lib/cn";
 
@@ -78,10 +87,13 @@ import { cn } from "../../lib/cn";
  * 3. **본문 필드의 인라인 에러** — 원본은 토스트로만 알린다
  * 4. **PageHeader 도움말 툴팁** · 좌측 카드의 빈 상태
  *
- * 5. **시행일·버전 이력·개정 공지** — 원본엔 최종 수정일 하나뿐이다(기획 확인 필요는 data 주석)
+ * 5. **버전 이력·개정 공지** — 원본엔 최종 수정일 하나뿐이다(기획 확인 필요는 data 주석)
  *
  * ## 원본과 다르게 둔 것
  * - 본문에 보이는 라벨 `약관 내용`(원본은 라벨 없음) — 편집기의 접근성 이름이다
+ * - **시행일 칸 + 「중요 변경 (30일 전 공지)」 체크**(판정 Q15) — 본문 아래. 기본 오늘+7 · 체크하면 +30 ·
+ *   지난 날짜는 고를 수 없고, 칸을 비울 수 없다(필수 — 고른 날을 다시 눌러도 지워지지 않는다).
+ *   문서를 바꾸면 본문처럼 기본값으로 돌아온다. 현행본/개정 예정본 전환·[예약 취소]는 data 주석
  *
  * ## 알려진 한계
  * 문서를 바꾸면 **저장하지 않은 본문은 사라진다.** 원본도 같다(경고 없음).
@@ -106,6 +118,9 @@ export function TermsAdminPage({
   const terms = TERMS;
   const [selectedId, setSelectedId] = useState(TERMS[0]?.id ?? "");
   const [draft, setDraft] = useState(TERMS[0]?.body ?? "");
+  /* 시행일 — 판정 Q15. 기본 오늘+7, 「중요 변경」이면 +30 */
+  const [important, setImportant] = useState(false);
+  const [effectiveAt, setEffectiveAt] = useState(() => effectiveDefault(false));
 
   const current = terms.find((doc) => doc.id === selectedId);
 
@@ -113,6 +128,13 @@ export function TermsAdminPage({
   const selectDoc = (id: string) => {
     setSelectedId(id);
     setDraft(terms.find((doc) => doc.id === id)?.body ?? "");
+    setImportant(false);
+    setEffectiveAt(effectiveDefault(false));
+  };
+
+  const toggleImportant = (next: boolean) => {
+    setImportant(next);
+    setEffectiveAt(effectiveDefault(next));
   };
 
   const save = () => {
@@ -254,6 +276,22 @@ export function TermsAdminPage({
                     placeholder={`${current.name} 내용을 입력하세요.`}
                   />
                 </FormField>
+                <FormField label={EFFECTIVE_COPY.label} required>
+                  <DatePicker
+                    className="w-60"
+                    value={effectiveAt}
+                    /* 필수 — 고른 날을 다시 눌러 지우는 것은 받지 않는다 */
+                    onChange={(next) => next && setEffectiveAt(next)}
+                    disabledDates={{ before: TODAY }}
+                    defaultMonth={effectiveAt}
+                  />
+                </FormField>
+                {/* Checkbox 는 루트가 이미 `<label>` 이라 FormField 로 감싸지 않는다 */}
+                <Checkbox
+                  label={EFFECTIVE_COPY.important}
+                  checked={important}
+                  onChange={(event) => toggleImportant(event.target.checked)}
+                />
               </CardBody>
               <CardFooter>
                 {/* 원본은 본문이 비어 있으면 `등록`, 있으면 `수정 저장` 이다 */}
