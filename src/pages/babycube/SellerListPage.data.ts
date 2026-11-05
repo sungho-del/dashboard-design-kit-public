@@ -31,6 +31,7 @@ import type { TagCustomStyle, TagTone } from "../../components/ui";
  * - `DATE_FIELDS[].pick` 이 기간 필터가 훑을 값을 고른다 — `null` 이면 그 행은 기간에서 빠진다
  * - **본사 직영(`isHeadquarters`)은 수수료율 처음 0%, 수정 가능**이다 — 목록·상세 모두 입력칸, 본사 행만 0% 이상
  *   (판정 Q20-1 · Q20-5 · 디자인 §3 #15. 2026-10-15 「상태·수수료 잠금」 중 수수료 잠금을 풀었다 — 상태는 잠근다)
+ * - **퇴점 처리중·퇴점 셀러는 수수료율 읽기 전용**(`isCommissionLocked` — 판정 Q8). 목록은 값만, 상세는 값 + 안내
  * - `STATUS_META` 의 키는 `Seller["status"]` 유니온과 정확히 일치한다
  * - `FILTERS[0].value` 는 `"all"`(뼈대가 필터 해제로 취급)이고,
  *   나머지 `value` 는 **`SellerStatus` 와 같은 값**이다 — 뼈대가 상태별 건수를 셀 때 쓴다
@@ -233,6 +234,16 @@ export const COMMISSION_CELL_COPY = {
   unchanged: (name: string, rate: number) =>
     `${name} 수수료율은 이미 ${rate}%로 적용되어 있습니다.`,
 };
+
+/**
+ * 퇴점 처리중·퇴점 셀러는 수수료율 **읽기 전용** — 재입점하면(입점 상태) 다시 열린다(판정 Q8 · 디자인 §1).
+ * 목록 셀은 값만 낸다(셀에 안내 줄 자리가 없다 — 기획 확인 요청 32번) · 셀러 상세는 값 + 칸 아래 안내 한 줄.
+ */
+export const isCommissionLocked = (status: SellerStatus) => status !== "active";
+
+/** 판정 Q8 문구 그대로 */
+export const COMMISSION_LOCKED_NOTE =
+  "퇴점 처리중·퇴점 셀러는 수수료율을 바꿀 수 없습니다";
 
 /**
  * 상태값 → 표시 라벨 · Tag tone · 설명.

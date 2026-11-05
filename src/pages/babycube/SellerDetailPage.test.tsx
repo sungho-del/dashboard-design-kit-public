@@ -187,6 +187,35 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       ).toBeVisible();
     });
 
+    /* 판정 Q8 · 디자인 §1 — 저장된 상태가 퇴점 처리중·퇴점이면 읽기 전용 + 안내 한 줄 */
+    it.each([
+      ["S-1155", "8%"],
+      ["S-1204", "16%"],
+    ])(
+      "퇴점 처리중·퇴점 셀러(%s) 수수료율은 읽는 값과 안내 — 입력칸이 없다",
+      (id, value) => {
+        renderAt(id);
+        const operation = section("운영 정보");
+
+        expect(within(operation).queryByRole("textbox")).toBeNull();
+        expect(within(operation).getByText(value)).toBeVisible();
+        expect(
+          within(operation).getByText(
+            "퇴점 처리중·퇴점 셀러는 수수료율을 바꿀 수 없습니다",
+          ),
+        ).toBeVisible();
+      },
+    );
+
+    it("입점 셀러에는 잠금 안내가 없다", () => {
+      renderAt(NORMAL);
+      expect(
+        screen.queryByText(
+          "퇴점 처리중·퇴점 셀러는 수수료율을 바꿀 수 없습니다",
+        ),
+      ).toBeNull();
+    });
+
     it("입점일·등록 상품수·평점을 원본 표기로 함께 낸다", () => {
       renderAt(NORMAL);
       const operation = section("운영 정보");

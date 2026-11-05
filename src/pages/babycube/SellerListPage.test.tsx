@@ -821,6 +821,31 @@ describe("수수료율 인라인 수정", () => {
   });
 
   /** 저장하지 않으므로(퍼블 범위) 초기화하면 고친 값이 모두 처음 값으로 돌아간다 */
+  /* 판정 Q8 — 퇴점 처리중·퇴점은 읽기 전용(값만). 셀 안내 줄은 기획 확인 요청 32번이라 넣지 않는다 */
+  it.each([
+    [EXITING, "튼튼주니어", "8%"],
+    [CLOSED, "하늘담요", "16%"],
+  ])(
+    "%s 행 수수료율은 값만 — 입력칸·[수정] 이 없다",
+    async (box, name, value) => {
+      const { user } = renderPage();
+
+      await user.click(statusBox(box));
+
+      const row = rowOf(name);
+      expect(within(row).queryByLabelText(`${name} 수수료율`)).toBeNull();
+      expect(within(row).queryByRole("button", { name: "수정" })).toBeNull();
+      expect(within(row).getByText(value)).toBeVisible();
+    },
+  );
+
+  it("입점 행은 그대로 입력칸 — 잠금은 상태로만 갈린다", () => {
+    renderPage();
+    for (const row of bodyRows()) {
+      expect(within(row).getByRole("button", { name: "수정" })).toBeVisible();
+    }
+  });
+
   it("초기화하면 고친 수수료율이 처음 값으로 돌아간다", async () => {
     const { user } = renderPage();
 

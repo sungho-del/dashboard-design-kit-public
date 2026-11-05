@@ -37,6 +37,7 @@ import {
   COMMISSION_CELL_COPY,
   COMMISSION_RATE_MESSAGE,
   commissionInput,
+  isCommissionLocked,
   DATE_FIELDS,
   DEFAULT_FILTER,
   EMPTY_CELL,
@@ -50,6 +51,7 @@ import {
   PAGE_SIZE,
   PAGE_SIZES,
   productCount,
+  rate,
   score,
   SEARCH_FIELDS,
   SELLERS,
@@ -295,6 +297,10 @@ const loadingTable = (
  * 본사 행 수수료율은 처음 0%, **수정 가능**하고 본사 행만 0% 이상을 받는다(판정 Q20-1 · Q20-5 ·
  * 디자인 §3 #15 — 2026-10-15 「0% 확정이라 입력 자리를 만들지 않는다」를 풀었다).
  *
+ * ## 퇴점 처리중·퇴점 행은 값만 — 입력칸·[수정] 없음
+ * 수수료율 읽기 전용(판정 Q8 · `isCommissionLocked`). 재입점하면 다시 입력칸이다.
+ * 셀에 안내 줄 자리가 없어 안내 「…바꿀 수 없습니다」는 셀러 상세에만 둔다(기획 확인 요청 32번 답 대기).
+ *
  * ## 입력 중인 값은 문자열로 둔다
  * 숫자로 바로 바꾸면 `9.` 처럼 **입력 도중의 상태**를 표현할 수 없다(소수점을 찍는 순간
  * 사라진다). [수정] 할 때 한 번만 숫자로 해석한다.
@@ -310,6 +316,8 @@ function CommissionCell({
   onDraftChange: (next: string) => void;
   onCommit: () => void;
 }) {
+  if (isCommissionLocked(seller.status)) return <>{rate(seller.commission)}</>;
+
   return (
     <span className="flex items-center gap-2">
       <Input

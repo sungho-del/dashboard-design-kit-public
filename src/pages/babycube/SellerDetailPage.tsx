@@ -79,11 +79,14 @@ import {
   type TextFieldKey,
 } from "./SellerDetailPage.data";
 import {
+  COMMISSION_LOCKED_NOTE,
   COMMISSION_RATE_WARNING,
   commissionInput,
   HQ_BADGE,
   isAtypicalCommission,
+  isCommissionLocked,
   parseCommissionRate,
+  rate,
   STATUS_META,
   type BizType,
   type DealScope,
@@ -128,6 +131,8 @@ import {
  * - 셀러명·대표자·연락처는 **필수**, 글자 수 한도 40·20·20(원본 `gInput`)
  * - 수수료율은 **0 초과 100 이하 · 소수 둘째 자리까지**다(판정 Q20-5). 벗어나면 저장을 막고 이유를 낸다.
  *   6~16% 밖은 막지 않고 칸 아래 경고 한 줄(디자인 §3 #12 · 개발 「6~16 밖은 경고만」). 입력칸은 숫자·점만 받는다
+ * - **저장된 상태가 퇴점 처리중·퇴점이면 수수료율은 읽는 값** + 칸 아래 안내 「퇴점 처리중·퇴점 셀러는 수수료율을
+ *   바꿀 수 없습니다」(판정 Q8 · 디자인 §1 — 재입점하면 다시 입력칸)
  * - **[퇴점] 으로 바꿔 저장하면 확인 창**(원본 `gateQuit` · 개발 `ExitGate` — 디자인 §3 #11) — 진행 중 렌트·
  *   미정산 회차·미해결 클레임·판매 가능한 상품·유효 쿠폰을 세어 보여 주고, 남은 건이 있어도
  *   **막지 않고 경고만** 한다(경고 판정에서 쿠폰은 뺀다). 안내 둘: 판매중지·전시중지·쿠폰 사용중지 / 알림톡·세션 종료
@@ -696,36 +701,48 @@ function SellerDetailBody({
               수수료율 — 이 화면에서 가장 중요한 입력이다. 본사 행도 입력칸(처음 0% · 0% 이상 — 디자인 §3 #15).
               본사 행 칸 아래 안내·경고는 기획 확인 요청 3번 답 전까지 띄우지 않는다
             */}
-            <FormField
-              label="수수료율"
-              description={
-                hq ? undefined : (
-                  <>
-                    {COMMISSION_HINT}
-                    {isAtypicalCommission(
-                      parseCommissionRate(draft.commission),
-                    ) ? (
-                      <span className="block text-text-warning">
-                        {COMMISSION_RATE_WARNING}
-                      </span>
-                    ) : null}
-                  </>
-                )
-              }
-              error={errorOf(errors.commission)}
-              suffix="%"
-            >
-              <Input
-                noMinWidth
-                className="w-24"
-                inputMode="decimal"
-                placeholder="0"
-                value={draft.commission}
-                onChange={(event) =>
-                  set("commission")(commissionInput(event.target.value))
+            {isCommissionLocked(seller.status) ? (
+              /* 퇴점 처리중·퇴점 — 읽기 전용(판정 Q8). 저장된 상태 기준 · 재입점하면 다시 입력칸 */
+              <ReadField label="수수료율">
+                <span className="body-medium text-text">
+                  {rate(seller.commission)}
+                </span>
+                <span className="body-small text-text-sub">
+                  {COMMISSION_LOCKED_NOTE}
+                </span>
+              </ReadField>
+            ) : (
+              <FormField
+                label="수수료율"
+                description={
+                  hq ? undefined : (
+                    <>
+                      {COMMISSION_HINT}
+                      {isAtypicalCommission(
+                        parseCommissionRate(draft.commission),
+                      ) ? (
+                        <span className="block text-text-warning">
+                          {COMMISSION_RATE_WARNING}
+                        </span>
+                      ) : null}
+                    </>
+                  )
                 }
-              />
-            </FormField>
+                error={errorOf(errors.commission)}
+                suffix="%"
+              >
+                <Input
+                  noMinWidth
+                  className="w-24"
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={draft.commission}
+                  onChange={(event) =>
+                    set("commission")(commissionInput(event.target.value))
+                  }
+                />
+              </FormField>
+            )}
 
             {/* 본사 행 위생인증은 「인증」 고정 — 읽는 값 「인증 (본사 직영)」(판정 Q20-2 · 디자인 §3 #16) */}
             {hq ? (
