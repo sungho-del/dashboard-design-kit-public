@@ -100,6 +100,8 @@ describe("SettingsPage", () => {
       expect(guideText()).toContain(
         "사용자 앱 푸터의 사업자 정보로 노출됩니다.",
       );
+      /* 부록 A B9 — 우편번호·프로토타입 문장은 지웠다 */
+      expect(guideText()).not.toMatch(/우편번호|프로토타입/);
     });
 
     it("필드 순서도 원본을 따른다", () => {
