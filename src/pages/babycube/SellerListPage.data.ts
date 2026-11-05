@@ -163,6 +163,26 @@ export interface Seller {
    * 실 API 에서는 렌트·정산·클레임 조회 결과다. 샘플은 정적 값이고, 없으면 모두 0 이다.
    */
   openWork?: { rents: number; settlements: number; claims: number };
+  /**
+   * 정산 계좌 — 셀러 상세 「정산 정보」 카드(디자인 §3 #6 · 개발 `BankAccountCard`). 없으면 **미등록**.
+   * 계좌번호는 마스킹 값만 든다(평문은 본사 화면에도 다시 보이지 않는다 · D-261)
+   */
+  bankAccount?: SellerBankAccount;
+}
+
+/** 정산 계좌 — 본사만 입력한다(셀러 화면은 읽기 전용·마스킹) */
+export interface SellerBankAccount {
+  /** 등록됨 · 보존 기간이 지나 계좌번호 파기 · 구 형식이라 계좌번호를 못 읽음 */
+  state: "registered" | "purged" | "unreadable";
+  bankName: string;
+  holder: string;
+  /** 마스킹된 계좌번호 — 개발 `accountNoMasked` 꼴(`***-***-**6789`) */
+  masked: string;
+  /** 등록일 `YYYY-MM-DD HH:mm` */
+  registeredAt: string;
+  registeredBy: string;
+  /** 통장사본 — 없으면 「등록된 통장사본이 없습니다.」 */
+  bankbook?: { fileName: string; uploadedAt: string };
 }
 
 /**
@@ -941,6 +961,18 @@ export const SELLERS: Seller[] = [
     hygiene: true,
     status: "active",
     openWork: { rents: 3, settlements: 0, claims: 1 },
+    bankAccount: {
+      state: "registered",
+      bankName: "국민은행",
+      holder: "(주)아기별상사",
+      masked: "***-***-**4417",
+      registeredAt: "2025-11-04 14:20",
+      registeredBy: "본사 관리자",
+      bankbook: {
+        fileName: "통장사본_아기별상사.pdf",
+        uploadedAt: "2025-11-04 14:18",
+      },
+    },
     bizType: "corporate",
     dealScope: "all",
     bizLicense: { fileName: "사업자등록증.pdf", number: "214-81-30912" },
@@ -1165,6 +1197,15 @@ export const SELLERS: Seller[] = [
     hygiene: false,
     status: "exiting",
     openWork: { rents: 2, settlements: 1, claims: 1 },
+    /* 통장사본 없이 계좌만 등록한 예시 */
+    bankAccount: {
+      state: "registered",
+      bankName: "신한은행",
+      holder: "튼튼주니어(주)",
+      masked: "***-***-**8150",
+      registeredAt: "2026-04-22 09:30",
+      registeredBy: "본사 관리자",
+    },
     bizType: "corporate",
     dealScope: "all",
     bizLicense: { fileName: "사업자등록증.pdf", number: "402-86-11930" },
@@ -1233,6 +1274,19 @@ export const SELLERS: Seller[] = [
     rating: 3.9,
     hygiene: false,
     status: "closed",
+    /* 퇴점 셀러 — 카드는 상태 한 줄과 통장사본만 읽는다(입력칸·[계좌 저장] 없음) */
+    bankAccount: {
+      state: "registered",
+      bankName: "광주은행",
+      holder: "한지호",
+      masked: "***-***-**2093",
+      registeredAt: "2026-06-19 10:05",
+      registeredBy: "본사 관리자",
+      bankbook: {
+        fileName: "통장사본_하늘담요.jpg",
+        uploadedAt: "2026-06-19 10:03",
+      },
+    },
     bizType: "individual",
     dealScope: "sale",
     bizLicense: { fileName: "사업자등록증.pdf", number: "890-33-41250" },

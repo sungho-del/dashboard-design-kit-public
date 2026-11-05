@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from "react";
-import { ChevronDown, ChevronUp, Plus, Store } from "lucide-react";
+import { useRef, useState, type ReactNode } from "react";
+import { ChevronDown, ChevronUp, FileText, Plus, Store } from "lucide-react";
 import {
   AppShell,
   Button,
@@ -40,6 +40,10 @@ import {
   useSearchParams,
 } from "../../lib/router";
 import {
+  BANK_COPY,
+  BANK_MAX,
+  bankAccountError,
+  bankStatusText,
   BIZ_TYPES,
   COMMISSION_HINT,
   commissionError,
@@ -101,6 +105,8 @@ import {
  * 셀러 정보   ← 셀러명* · 대표자* · 연락처* · 사업자 유형* · 상품 취급 유형* ·
  *               사업자등록증 · 통신판매업신고증 · 상태* · 소개
  * 운영 정보   ← 수수료율(%) · 위생인증 · 입점일 · 등록 상품수 · 평점
+ * 정산 정보   ← 상태 한 줄 · 은행명 · 예금주 · 계좌번호 · 통장사본 · 안내 · [계좌 저장]
+ *               (디자인 §3 #6 · 개발 `BankAccountCard`. 본사 행은 안내 한 줄만 · 퇴점 셀러는 읽기만)
  * 등록 상품 (N) ← (본사 행) [+ 상품 등록] · 표(No · 유형 · 판매 상태 · 상품코드 · 상품명 · 카테고리 ·
  *                     상품등록일 · 최종수정일 · 전시상태) + 페이지
  *                 본사 행의 상품코드 → 직영 상품 상세(`/products/{코드}`) · [+ 상품 등록] → `/products/new`
@@ -223,6 +229,155 @@ function ReadField({
       <span className="label-medium-bold text-text">{label}</span>
       {children}
     </div>
+  );
+}
+
+/**
+ * 정산 정보 카드 — 개발 `BankAccountCard`. 하단 [저장하기] 와 다른 저장이라 카드 전용 [계좌 저장] 을 둔다.
+ * 퍼블은 저장하지 않는다 — 검사를 통과하면 결과 줄 「정산 계좌를 저장했습니다.」 + 입력칸 비우기(평문 재표시 없음).
+ * 통장사본은 고른 파일 이름만 보인다(업로드는 개발 영역).
+ */
+function BankAccountBody({ seller }: { seller: Seller }) {
+  const { toast } = useToast();
+  const [form, setForm] = useState({ bankName: "", holder: "", accountNo: "" });
+  const [picked, setPicked] = useState<string | null>(null);
+  const [message, setMessage] = useState<{
+    text: string;
+    error: boolean;
+  } | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
+
+  if (seller.isHeadquarters)
+    return <p className="body-small text-text-sub">{BANK_COPY.hq}</p>;
+
+  /* 퇴점 셀러는 읽기만 — 입력칸·파일 선택·[계좌 저장] 이 없다(개발 `readOnly`) */
+  const readOnly = seller.status === "closed";
+  const account = seller.bankAccount;
+  const bankbook = account?.bankbook;
+
+  const save = () => {
+    const invalid = bankAccountError(form);
+    if (invalid) {
+      setMessage({ text: invalid, error: true });
+      return;
+    }
+    setForm({ bankName: "", holder: "", accountNo: "" });
+    setPicked(null);
+    setMessage({ text: BANK_COPY.saved, error: false });
+  };
+
+  return (
+    <>
+      <p className="body-small text-text-sub">{bankStatusText(account)}</p>
+      {readOnly ? null : (
+        <>
+          <FormField label="은행명">
+            <Input
+              className="max-w-120"
+              maxLength={BANK_MAX.bankName}
+              value={form.bankName}
+              onChange={(event) =>
+                setForm({ ...form, bankName: event.target.value })
+              }
+            />
+          </FormField>
+          <FormField label="예금주">
+            <Input
+              className="max-w-120"
+              maxLength={BANK_MAX.holder}
+              value={form.holder}
+              onChange={(event) =>
+                setForm({ ...form, holder: event.target.value })
+              }
+            />
+          </FormField>
+          <FormField label="계좌번호">
+            <Input
+              className="max-w-120"
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder={BANK_COPY.accountNoPlaceholder}
+              maxLength={BANK_MAX.accountNo}
+              value={form.accountNo}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  accountNo: event.target.value.replace(/[^0-9-]/g, ""),
+                })
+              }
+            />
+          </FormField>
+        </>
+      )}
+      <ReadField label="통장사본">
+        {bankbook ? (
+          <span className="body-medium flex flex-wrap items-center gap-2 text-text">
+            <FileText size={16} strokeWidth={1.2} aria-hidden />
+            <span>{bankbook.fileName}</span>
+            <span className="text-text-sub tabular-nums">
+              {ymd(bankbook.uploadedAt)}
+            </span>
+            <TextButton onClick={() => toast(BANK_COPY.viewPending)}>
+              {BANK_COPY.bankbookView}
+            </TextButton>
+          </span>
+        ) : (
+          <span className="body-small text-text-sub">
+            {BANK_COPY.noBankbook}
+          </span>
+        )}
+        {readOnly ? null : (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="secondary"
+                size="small"
+                onClick={() => picker.current?.click()}
+              >
+                {bankbook ? "교체" : "파일 선택"}
+              </Button>
+              <input
+                ref={picker}
+                type="file"
+                accept="application/pdf,image/jpeg,image/png"
+                hidden
+                aria-label="통장사본 파일 선택"
+                onChange={(event) => {
+                  setPicked(event.target.files?.[0]?.name ?? null);
+                  event.target.value = "";
+                }}
+              />
+              {picked ? (
+                <span className="body-small text-text-sub">{picked}</span>
+              ) : null}
+            </div>
+            <span className="body-small text-text-sub">
+              {BANK_COPY.bankbookHelp}
+            </span>
+          </div>
+        )}
+      </ReadField>
+      <p className="body-small text-text-sub">{BANK_COPY.notice}</p>
+      {message ? (
+        <p
+          role={message.error ? "alert" : "status"}
+          className={
+            message.error
+              ? "body-small text-text-critical"
+              : "body-small text-text-sub"
+          }
+        >
+          {message.text}
+        </p>
+      ) : null}
+      {readOnly ? null : (
+        <div className="flex justify-end">
+          <Button variant="secondary" onClick={save}>
+            {BANK_COPY.save}
+          </Button>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -577,6 +732,14 @@ function SellerDetailBody({
               <InfoItem label="평점">{ratingText(seller.rating)}</InfoItem>
             </InfoList>
           </>
+        )}
+      </Section>
+
+      <Section title={SECTIONS.bank} busy={busy} dim={dim}>
+        {loading ? (
+          <LoadingLines rows={4} />
+        ) : (
+          <BankAccountBody seller={seller} />
         )}
       </Section>
 

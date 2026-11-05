@@ -362,6 +362,109 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
     });
   });
 
+  /** 디자인 §3 #6 · 개발 `BankAccountCard` — 운영 정보와 등록 상품 사이, 카드 전용 [계좌 저장] */
+  describe("정산 정보 — 정산 계좌 카드", () => {
+    const bank = () => section("정산 정보");
+
+    it("운영 정보와 등록 상품 사이에 있다", () => {
+      renderAt(NORMAL);
+      const titles = screen
+        .getAllByRole("heading", { level: 3 })
+        .map((heading) => heading.textContent);
+      const at = titles.indexOf("정산 정보");
+
+      expect(titles[at - 1]).toBe("운영 정보");
+      expect(titles[at + 1]).toMatch(/^등록 상품/);
+    });
+
+    it("본사 행은 안내 한 줄만 — 입력칸이 없다", () => {
+      renderAt(HEADQUARTERS);
+
+      expect(
+        within(bank()).getByText("본사 행은 정산 계좌를 등록하지 않습니다."),
+      ).toBeVisible();
+      expect(within(bank()).queryByRole("textbox")).toBeNull();
+      expect(
+        within(bank()).queryByRole("button", { name: "계좌 저장" }),
+      ).toBeNull();
+    });
+
+    it("등록된 셀러는 마스킹 계좌 한 줄과 통장사본을 보이고 [교체] 로 고른다", () => {
+      renderAt(NORMAL);
+
+      expect(
+        within(bank()).getByText(
+          "등록됨 국민은행 ***-***-**4417 ((주)아기별상사) · 2025.11.04 · 본사 관리자",
+        ),
+      ).toBeVisible();
+      expect(within(bank()).getByText("통장사본_아기별상사.pdf")).toBeVisible();
+      expect(
+        within(bank()).getByRole("button", { name: "교체" }),
+      ).toBeVisible();
+      expect(within(bank()).getByText("PDF·JPG·PNG · 최대 10MB")).toBeVisible();
+    });
+
+    it("미등록 셀러는 지급이 막힌다는 상태와 [파일 선택] 을 보인다", () => {
+      renderAt(QUIET);
+
+      expect(
+        within(bank()).getByText(
+          "정산 계좌가 등록되지 않았습니다. 등록 전에는 [지급 처리]가 막힙니다.",
+        ),
+      ).toBeVisible();
+      expect(
+        within(bank()).getByText("등록된 통장사본이 없습니다."),
+      ).toBeVisible();
+      expect(
+        within(bank()).getByRole("button", { name: "파일 선택" }),
+      ).toBeVisible();
+    });
+
+    it("[계좌 저장] 은 은행명·예금주·계좌번호 규칙을 검사하고, 통과하면 칸을 비운다", async () => {
+      const { user } = renderAt(QUIET);
+      const save = () =>
+        user.click(within(bank()).getByRole("button", { name: "계좌 저장" }));
+
+      await save();
+      expect(within(bank()).getByRole("alert")).toHaveTextContent(
+        "은행명·예금주를 입력해 주세요.",
+      );
+
+      await user.type(field("은행명"), "하나은행");
+      await user.type(field("예금주"), "정다인");
+      /* 숫자·하이픈 밖의 글자는 지운다 — 숫자 5개면 막는다 */
+      await user.type(field("계좌번호"), "12a-345");
+      expect(field("계좌번호")).toHaveValue("12-345");
+      await save();
+      expect(within(bank()).getByRole("alert")).toHaveTextContent(
+        "계좌번호는 숫자와 하이픈만 6~30자로 입력해 주세요.",
+      );
+
+      await user.type(field("계좌번호"), "678901");
+      await save();
+      expect(within(bank()).getByRole("status")).toHaveTextContent(
+        "정산 계좌를 저장했습니다.",
+      );
+      expect(field("은행명")).toHaveValue("");
+      expect(field("계좌번호")).toHaveValue("");
+      /* 하단 [저장하기] 와는 별개다 */
+      expect(saveButton()).toBeDisabled();
+    });
+
+    it("퇴점 셀러는 읽기만 — 입력칸·[계좌 저장] 이 없다", () => {
+      renderAt("S-1204");
+
+      expect(
+        within(bank()).getByText(/^등록됨 광주은행 \*\*\*-\*\*\*-\*\*2093/),
+      ).toBeVisible();
+      expect(within(bank()).queryByRole("textbox")).toBeNull();
+      expect(within(bank()).queryByRole("button", { name: "교체" })).toBeNull();
+      expect(
+        within(bank()).queryByRole("button", { name: "계좌 저장" }),
+      ).toBeNull();
+    });
+  });
+
   describe("저장", () => {
     it("[목록] 은 목록 화면으로 돌아간다", async () => {
       const { user, onNavSelect } = renderAt(NORMAL);

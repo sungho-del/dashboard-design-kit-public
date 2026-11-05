@@ -6,6 +6,7 @@ import {
   type DealKind,
   type DealScope,
   type Seller,
+  type SellerBankAccount,
   type SellerProduct,
   type SellerStatus,
 } from "./SellerListPage.data";
@@ -33,6 +34,9 @@ import {
  * | `HYGIENE_OPTIONS`    | 위생인증 택1                                      |
  * | `SALE_STATUS_META`   | 등록 상품 표의 판매 상태 배지                     |
  * | `EXIT_COPY`          | 퇴점 확인 창 문구                                 |
+ * | `BANK_COPY`          | 정산 정보 카드 문구 (개발 `BankAccountCard` 그대로) |
+ * | `bankStatusText`     | 정산 계좌 상태 한 줄 (미등록·파기·못 읽음·등록됨)  |
+ * | `bankAccountError`   | [계좌 저장] 검사 (개발 `validateBankAccount`)      |
  *
  * ## 뼈대가 이 파일에 기대하는 계약
  * - **본사 계정은 상태(입점)와 수수료율(0%)만 잠근다** — 나머지는 일반 셀러처럼 고친다
@@ -52,10 +56,11 @@ import {
 export const findSeller = (id: string): Seller | undefined =>
   SELLERS.find((seller) => seller.id === id);
 
-/** 원본 `sellers.form` 의 섹션 구성 순서 */
+/** 원본 `sellers.form` 의 섹션 구성 순서 — 정산 정보는 운영 정보와 등록 상품 사이(디자인 §3 #6 · 개발 S-7) */
 export const SECTIONS = {
   basic: "셀러 정보",
   operation: "운영 정보",
+  bank: "정산 정보",
   products: "등록 상품",
 } as const;
 
@@ -231,6 +236,60 @@ export const EXIT_COPY = {
     products > 0
       ? `퇴점 처리되었습니다 — 등록 상품 ${products}개가 판매중지로 전환되었습니다.`
       : "퇴점 처리되었습니다.",
+};
+
+/* -------------------------------------------------------------------------
+ * 정산 정보 카드 — 개발 `BankAccountCard`(S-7 · D-261·265) 문구·검사 그대로
+ *
+ * 본사만 입력한다. 저장 뒤 입력칸을 비우고 마스킹 값만 보인다(평문 재표시 없음).
+ * 퇴점 셀러는 상태 한 줄·통장사본만 읽는다. 퍼블은 저장·업로드·문서 보기를 하지 않는다(알림만).
+ * ---------------------------------------------------------------------- */
+
+export const BANK_COPY = {
+  hq: "본사 행은 정산 계좌를 등록하지 않습니다.",
+  unregistered:
+    "정산 계좌가 등록되지 않았습니다. 등록 전에는 [지급 처리]가 막힙니다.",
+  purged: "보존 기간이 지나 계좌번호를 파기했습니다.",
+  unreadable: "계좌번호를 읽을 수 없습니다(구 형식). 다시 등록해 주세요.",
+  accountNoPlaceholder: "숫자와 하이픈만",
+  noBankbook: "등록된 통장사본이 없습니다.",
+  bankbookView: "문서 보기",
+  bankbookHelp: "PDF·JPG·PNG · 최대 10MB",
+  notice:
+    "계좌번호는 암호화해 보관하며 본사 정산 담당자만 열람합니다. 정산 완료 후 관계 법령에 따라 5년 보관 뒤 파기하고, 통장 사본은 입점 종료 시 파기합니다.",
+  saved: "정산 계좌를 저장했습니다.",
+  needNames: "은행명·예금주를 입력해 주세요.",
+  badAccountNo: "계좌번호는 숫자와 하이픈만 6~30자로 입력해 주세요.",
+  /** 문서 열기는 파일 연동이라 퍼블은 알림만(상품 이미지·주소록과 같은 꼴) */
+  viewPending: "통장사본 보기는 개발 연동 시 제공됩니다.",
+  save: "계좌 저장",
+} as const;
+
+/** 입력 글자 수 한도 — 개발 `maxLength` */
+export const BANK_MAX = { bankName: 50, holder: 100, accountNo: 30 } as const;
+
+/** 정산 계좌 상태 한 줄 — 개발 `bankAccountStatus` */
+export const bankStatusText = (account: SellerBankAccount | undefined) => {
+  if (!account) return BANK_COPY.unregistered;
+  if (account.state === "purged") return BANK_COPY.purged;
+  if (account.state === "unreadable") return BANK_COPY.unreadable;
+  return `등록됨 ${account.bankName} ${account.masked} (${account.holder}) · ${ymd(account.registeredAt)} · ${account.registeredBy}`;
+};
+
+/** 계좌번호 — 숫자·하이픈 6~30자 · 숫자 6개 이상(개발 `ACCOUNT_NO`) */
+const ACCOUNT_NO = /^[0-9-]{6,30}$/;
+
+/** [계좌 저장] 검사 — 개발 `validateBankAccount`. 통과하면 `null` */
+export const bankAccountError = (form: {
+  bankName: string;
+  holder: string;
+  accountNo: string;
+}) => {
+  if (!form.bankName.trim() || !form.holder.trim()) return BANK_COPY.needNames;
+  const no = form.accountNo.trim();
+  if (!ACCOUNT_NO.test(no) || (no.match(/[0-9]/g) ?? []).length < 6)
+    return BANK_COPY.badAccountNo;
+  return null;
 };
 
 /** 날짜만 점 표기로 — 원본 `ymd` */
