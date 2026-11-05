@@ -94,6 +94,18 @@ export interface DepositState {
   done: boolean;
 }
 
+/** 결제사 환불 가능 기간 경과 코드 — develop d46e752 `data/rma-cancel.ts` `PG_REFUND_DUE_CODE` */
+export const PG_REFUND_DUE_CODE = "EXCEED_MAX_REFUND_DUE";
+
+/**
+ * 마지막 보증금 환급 시도가 결제사 기간 경과로 실패한 건의 본사 안내 한 줄 · 아니면 `null`
+ * (개발 §3-2-8 — 주문 상세 「보증금 상태」 아래 · 보증금 상세 반환 예정액 아래. develop `refundDueNote` 와 같은 조건)
+ */
+export const refundDueNoteOf = (order: Order): string | null =>
+  order.depositRefundFailureCode === PG_REFUND_DUE_CODE
+    ? "결제 취소 기간이 지났어요. 고객에게 연락해 계좌로 환불해 주세요."
+    : null;
+
 /** 종결 3종 — 금액으로만 가른다(원본 `depTerminal`). 귀책 이름으로 정하지 않는다 */
 const terminalOf = (deposit: number, deduction: number): DepositStatus =>
   deduction <= 0

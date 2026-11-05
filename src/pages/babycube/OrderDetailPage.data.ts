@@ -20,6 +20,7 @@ import { PRODUCTS } from "./ProductListPage.data";
 import {
   DEPOSIT_STATUS_META,
   depositOf,
+  refundDueNoteOf,
   type DepositStatus,
 } from "./deposit.data";
 
@@ -281,7 +282,7 @@ export const stageTextOf = (order: Order) => {
 export const depositStatusOf = (order: Order): DepositStatus =>
   depositOf(order)?.status ?? "holding";
 
-export { DEPOSIT_STATUS_META };
+export { DEPOSIT_STATUS_META, refundDueNoteOf };
 
 /* =========================================================================
  * 배송정보

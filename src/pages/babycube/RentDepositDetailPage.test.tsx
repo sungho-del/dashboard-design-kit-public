@@ -119,6 +119,43 @@ describe("RentDepositDetailPage (보증금 상세)", () => {
     });
   });
 
+  /** 개발 §3-2-8 — develop d46e752 와 같은 조건(마지막 환급 시도 실패 · 코드 `EXCEED_MAX_REFUND_DUE`)일 때만 */
+  describe("환급 실패 안내 — 반환 예정액 아래·안내 상자 위", () => {
+    const NOTE =
+      "결제 취소 기간이 지났어요. 고객에게 연락해 계좌로 환불해 주세요.";
+    const withFailure = (code: string | null, run: () => void) => {
+      const order = ORDERS.find((o) => o.id === "U-R30")!;
+      order.depositRefundFailureCode = code;
+      try {
+        run();
+      } finally {
+        order.depositRefundFailureCode = null;
+      }
+    };
+
+    it("결제사 기간 경과 실패 건은 계산 상자와 안내 상자 사이에 한 줄", () => {
+      withFailure("EXCEED_MAX_REFUND_DUE", () => {
+        renderAt("/rent-deposit/U-R30");
+        const note = screen.getByText(NOTE);
+        const calc = document.querySelector("[data-calc]")!;
+        const [box, , notes] = [...calc.children];
+        expect(note.previousElementSibling).toBe(box);
+        expect(note.nextElementSibling).toBe(notes);
+        expect(note.className).toMatch(/text-text-warning/);
+      });
+    });
+
+    it("다른 실패 코드 · 실패 없음(예시 전부)에는 없다", () => {
+      withFailure("CARD_EXPIRED", () => {
+        renderAt("/rent-deposit/U-R30");
+        expect(screen.queryByText(NOTE)).toBeNull();
+      });
+      expect(ORDERS.every((o) => o.depositRefundFailureCode === null)).toBe(
+        true,
+      );
+    });
+  });
+
   describe("보증금 정보", () => {
     it("안심케어 가입 + 복원가능 파손 U-R28 — 가입 안내 · 셀러 담당", () => {
       renderAt("/rent-deposit/U-R28");

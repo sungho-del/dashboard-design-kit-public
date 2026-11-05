@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Info } from "lucide-react";
 import {
   IconButton,
@@ -21,6 +22,7 @@ import { cn } from "../../lib/cn";
  *        미회수  별도 청구 ⓘ                    77,400원   ← warning(경고색은 이것만)
  * 참고   포인트 사용분  정산 영향 없음          3,000원   ← note(보조 글자색)
  *        환불 없음 — 원거래 유지                           ← message(값 없이 한 줄 문장)
+ * (children — 계산 상자와 안내 상자 사이 · 보증금 상세의 환급 실패 안내)
  * ⓘ 안내 상자(notes)
  * ```
  * 최대 폭 `max-w-3xl` — 이름과 금액이 양 끝으로 벌어지지 않게(좁은 곳에서는 줄어든다).
@@ -166,6 +168,8 @@ export interface CalcBreakdownProps {
   blocks: CalcBlock[];
   /** 아래 안내 상자 줄 — 없으면 상자 없음 */
   notes?: readonly string[];
+  /** 계산 상자와 안내 상자 **사이**에 놓을 것(보증금 상세의 환급 실패 안내 — 개발 §3-2-8) */
+  children?: ReactNode;
   className?: string;
   /** 테스트·스타일 훅 — 정산은 `data-settlement-calc` 를 쓴다 */
   dataAttr?: string;
@@ -174,6 +178,7 @@ export interface CalcBreakdownProps {
 export function CalcBreakdown({
   blocks,
   notes,
+  children,
   className,
   dataAttr = "data-calc",
 }: CalcBreakdownProps) {
@@ -189,6 +194,7 @@ export function CalcBreakdown({
           <Block key={block.key} block={block} labelColumn={labelColumn} />
         ))}
       </div>
+      {children}
       {notes && notes.length > 0 ? (
         <div className="flex gap-2 rounded-medium bg-surface-sub px-4 py-3">
           <Info

@@ -56,6 +56,7 @@ import {
   payTotalOf,
   placeOf,
   reachedAt,
+  refundDueNoteOf,
   requestedAtText,
   shippedTextOf,
   stageTextOf,
@@ -79,6 +80,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * 명세 팝업은 `CalcBreakdown`(묶음·소계·결과) — 묶음은 `.data.ts` `statementBlocksOf` 가 준다.
  * 주문 목록의 주문번호가 이 화면으로 온다(`/orders-all/{처리단위}`). 렌트·판매는 한 화면에서 갈린다 —
  * 렌트만 렌트일·보증금·회수 배송비·대여 시작일이, 판매만 수량·구매확정일이 있다.
+ * 「보증금 상태」 배지 아래 환급 실패 안내 한 줄은 결제사 기간 경과로 환급이 실패한 건만(개발 §3-2-8 · `refundDueNoteOf`).
  *
  * ## 클레임 모드 — 취소·반품·교환 상세도 이 화면이다 (원본 `hqOrderDetailPage(u, {rma})`)
  * `/orders-cancel|return|exchange/{처리단위}` 로 들어오면 경로가 모드를 정한다(`.data.ts` `MODES`).
@@ -265,6 +267,7 @@ function OrderDetailBody({
   const parcel = isParcel(order);
   const meta = STATUS_META[order.status];
   const deposit = DEPOSIT_STATUS_META[depositStatusOf(order)];
+  const refundDue = refundDueNoteOf(order);
   /* 클레임 모드 — 경로가 클레임이고 그 클레임이 있다(`findOrder` 가 이미 맞춰 봤다) */
   const claimMode = mode !== "order" && order.claim !== null;
   const { listPath, noun } = MODES[mode];
@@ -391,9 +394,17 @@ function OrderDetailBody({
                 <Item label="렌트일">{order.rentDays}일</Item>
                 <Item label="보증금 (고정액)">{won(order.deposit ?? 0)}</Item>
                 <Item label="보증금 상태">
-                  <Tag tone={deposit.tone} size="small">
-                    {deposit.label}
-                  </Tag>
+                  {/* 환급이 결제사 기간 경과로 실패한 건만 배지 아래 안내 한 줄(개발 §3-2-8 · develop 과 같은 조건) */}
+                  <span className="flex flex-col items-start gap-1">
+                    <Tag tone={deposit.tone} size="small">
+                      {deposit.label}
+                    </Tag>
+                    {refundDue ? (
+                      <span className="body-small text-text-warning">
+                        {refundDue}
+                      </span>
+                    ) : null}
+                  </span>
                 </Item>
               </>
             ) : (

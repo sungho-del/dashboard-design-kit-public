@@ -256,6 +256,11 @@ export interface Order {
    * (원본 `confirmDate`). 미확정·진행 중 클레임은 `null`
    */
   confirmedAt: string | null;
+  /**
+   * 마지막 보증금 환급 시도가 **실패**면 그 실패 코드 · 아니면 `null`(개발 §3-2-8 · develop d46e752 D-438).
+   * 퍼블은 환급을 실행하지 않아 예시 건이 없다 — 모두 `null`(실패 예시를 둘지는 기획 확인 요청 21번)
+   */
+  depositRefundFailureCode: string | null;
 }
 
 /** 클레임이 **거래를 되돌리지 않고** 끝났는가 — 반려·거부·재반송(원본 불성립 어휘) */
@@ -886,6 +891,7 @@ const toOrder = (row: string, index: number): Order => {
     deduction,
     inspectedAt,
     confirmedAt,
+    depositRefundFailureCode: null,
   };
 };
 

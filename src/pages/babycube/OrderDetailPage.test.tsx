@@ -201,6 +201,28 @@ describe("OrderDetailPage", () => {
       },
     );
 
+    /** 개발 §3-2-8 — develop d46e752 렌트 주문 상세와 같은 조건(마지막 보증금 환급 시도 실패 · `EXCEED_MAX_REFUND_DUE`) */
+    it("보증금 환급이 결제사 기간 경과로 실패한 건만 「보증금 상태」 배지 아래 안내", () => {
+      const NOTE =
+        "결제 취소 기간이 지났어요. 고객에게 연락해 계좌로 환불해 주세요.";
+      const order = ORDERS.find((o) => o.id === "U-R01")!;
+      try {
+        order.depositRefundFailureCode = "EXCEED_MAX_REFUND_DUE";
+        renderAt("/orders-all/U-R01");
+        const note = screen.getByText(NOTE);
+        expect(note.previousElementSibling?.textContent).toBe(
+          valueOf("보증금 상태").replace(NOTE, ""),
+        );
+        cleanup();
+
+        order.depositRefundFailureCode = "CARD_EXPIRED";
+        renderAt("/orders-all/U-R01");
+        expect(screen.queryByText(NOTE)).toBeNull();
+      } finally {
+        order.depositRefundFailureCode = null;
+      }
+    });
+
     it("구역은 접을 수 있다", async () => {
       const { user } = renderAt("/orders-all/U-R01");
 

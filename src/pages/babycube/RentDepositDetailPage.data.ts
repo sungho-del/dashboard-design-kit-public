@@ -1,5 +1,5 @@
 import type { CalcBlock } from "./CalcBreakdown";
-import { INSPECTION_META } from "./deposit.data";
+import { INSPECTION_META, refundDueNoteOf } from "./deposit.data";
 import { DEMO_TODAY, ORDERS } from "./OrderListPage.data";
 import { SELLERS } from "./SellerListPage.data";
 import {
@@ -8,6 +8,8 @@ import {
   ymd,
   type DepositRow,
 } from "./RentDepositListPage.data";
+
+export { refundDueNoteOf };
 
 /* -------------------------------------------------------------------------
  * 보증금 상세 — **도메인 층** (BabyCube 본사 운영 어드민)
@@ -21,6 +23,8 @@ import {
  * - 금액·상태는 목록과 같은 행(`depositRowOf` → `depositOf`)에서 읽는다 — 화면이 다시 계산하지 않는다
  * - 구역 3개 제목은 `SECTIONS` — 원본 `보증금 정보` · `정산 계산` · `처리 상태 (조회 전용)`
  * - 정산 계산은 `calcBlocksOf(row)` 블록 + `POLICY_NOTES` 안내 줄 — 그리는 것은 공용 `CalcBreakdown`
+ * - 반환 예정액 아래 환급 실패 안내는 `refundDueNoteOf(row.order)` — 결제사 기간 경과 실패 건만 한 줄 · 아니면 `null`
+ *   (개발 §3-2-8 · develop d46e752 와 같은 조건. 예시 건 없음 — 기획 확인 요청 21번)
  *
  * ## 원본과 다르게 둔 것
  * - 머리: 원본은 crumb·제목·배지·부제를 넘기지만 `nvEditPage` 가 그리지 않는다(결함) — 형제처럼 그린다
