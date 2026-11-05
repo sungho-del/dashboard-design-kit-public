@@ -362,6 +362,18 @@ describe("BabycubeDashboardPage (S01 대시보드)", () => {
         }),
       ).toBeInTheDocument();
     });
+
+    it("사이드바 배지는 본사가 직접 처리할 일만 — 주문 목록 배지 없음(판정 Q7)", () => {
+      renderPage();
+      const nav = screen.getByRole("navigation");
+      const badged = within(nav)
+        .getAllByRole("button", { name: /처리 대기/ })
+        .map((b) => b.textContent?.replace(/ 처리 대기 \d+건$/, "").trim());
+      expect(badged).toEqual(["입점 심사", "셀러 정산", "안심케어 승인"]);
+      expect(
+        within(nav).getByRole("button", { name: "주문 목록" }),
+      ).toBeInTheDocument();
+    });
   });
 
   describe("총 매출 현황 차트", () => {
