@@ -230,15 +230,15 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
    * (판정 Q20-1 · Q20-5 · 디자인 §3 #15 — 2026-10-15 「수수료율 0% 잠금」을 풀었다).
    */
   describe("본사 계정", () => {
-    it("상태 대신 「본사」·「입점」 배지와 안내 문구를 낸다", () => {
+    /** 부록 A C69 · 개발 §3-2-5 — 「퇴점·심사 관리 대상이 아닙니다 (수수료율 0% 확정)」 안내는 지웠다 */
+    it("상태 대신 「본사」·「입점」 배지만 낸다(안내 문구 없음)", () => {
       renderAt(HEADQUARTERS);
       const basic = section("셀러 정보");
+      /* 읽는 칸(`ReadField`) — 라벨 바로 뒤가 값이다 */
+      const state = within(basic).getByText("상태").nextElementSibling;
 
-      expect(
-        within(basic).getByText(
-          "본사 행 — 퇴점·심사 관리 대상이 아닙니다 (수수료율 0% 확정)",
-        ),
-      ).toBeVisible();
+      expect(state?.textContent).toBe("본사입점");
+      expect(within(basic).queryByText(/관리 대상이 아닙니다/)).toBeNull();
       expect(screen.queryByRole("radio", { name: "퇴점" })).toBeNull();
     });
 

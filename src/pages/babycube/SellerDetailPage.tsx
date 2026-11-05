@@ -55,7 +55,6 @@ import {
   exitRows,
   FIELD_COPY,
   findSeller,
-  HEADQUARTERS_NOTICE,
   HQ_HYGIENE_TEXT,
   HYGIENE_OPTIONS,
   hygieneValue,
@@ -654,7 +653,7 @@ function SellerDetailBody({
               </ReadField>
             ))}
             {hq ? (
-              /* 본사 — 상태는 입점으로 고정이다. 원본 그대로 배지 + 안내 문구 */
+              /* 본사 — 상태는 입점으로 고정이다. 배지만(안내 문구는 부록 A C69 로 삭제) */
               <ReadField label="상태">
                 <span className="flex flex-wrap items-center gap-2">
                   <Tag tone={HQ_BADGE.tone} style={HQ_BADGE.style}>
@@ -663,9 +662,6 @@ function SellerDetailBody({
                   <Tag tone={meta.tone} dot>
                     {meta.label}
                   </Tag>
-                  <span className="body-small text-text-sub">
-                    {HEADQUARTERS_NOTICE}
-                  </span>
                 </span>
               </ReadField>
             ) : (

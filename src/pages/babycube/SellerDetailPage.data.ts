@@ -173,13 +173,6 @@ export const PRODUCT_PATH = (code: string) => `/products/${code}`;
 export const PRODUCT_PAGE_SIZE = 10;
 export const PRODUCT_PAGE_SIZES = [10, 20, 50, 100];
 
-/**
- * 본사 계정 안내 — 원본 문구 그대로.
- * 본사는 자기 자신에게 수수료를 매기지 않고 퇴점·심사 대상도 아니다.
- */
-export const HEADQUARTERS_NOTICE =
-  "본사 행 — 퇴점·심사 관리 대상이 아닙니다 (수수료율 0% 확정)";
-
 /** 수수료율 입력 아래 안내 — 원본 문구 그대로 */
 export const COMMISSION_HINT =
   "셀러 정산(플랫폼 수수료) 계산의 기준 요율입니다.";
