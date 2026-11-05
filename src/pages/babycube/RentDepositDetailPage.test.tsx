@@ -101,7 +101,7 @@ describe("RentDepositDetailPage (보증금 상세)", () => {
       expect(calcLine("refund").value).toBe("80,000원");
     });
 
-    it("묶음 순서 (보증금 · 차감) → 결과 · 차감은 경고색이 아니다 · 정책은 안내 상자 4줄", () => {
+    it("묶음 순서 (보증금 · 차감) → 결과 · 차감은 경고색이 아니다 · 정책 안내 상자 없음", () => {
       renderAt("/rent-deposit/U-R30");
 
       const blocks = [...document.querySelectorAll("[data-calc] [data-block]")];
@@ -111,16 +111,14 @@ describe("RentDepositDetailPage (보증금 상세)", () => {
       ]);
       expect(calcLine("deduction").dd.className).not.toMatch(/critical/);
       expect(calcLine("deduction").dt).toBe("차감");
-      const notes = document.querySelectorAll("[data-calc] li");
-      expect(notes).toHaveLength(4);
-      expect(notes[3].textContent).toBe(
-        "보증금은 매출 정산과 분리 처리됩니다.",
-      );
+      /* 부록 A C17 — 정책 문단(배상액·연체료·안심케어·매출 정산 분리)은 지웠다 */
+      expect(document.querySelectorAll("[data-calc] li")).toHaveLength(0);
+      expect(document.querySelector("[data-calc]")!.children).toHaveLength(1);
     });
   });
 
   /** 개발 §3-2-8 — develop d46e752 와 같은 조건(마지막 환급 시도 실패 · 코드 `EXCEED_MAX_REFUND_DUE`)일 때만 */
-  describe("환급 실패 안내 — 반환 예정액 아래·안내 상자 위", () => {
+  describe("환급 실패 안내 — 반환 예정액 아래", () => {
     const NOTE =
       "결제 취소 기간이 지났어요. 고객에게 연락해 계좌로 환불해 주세요.";
     const withFailure = (code: string | null, run: () => void) => {
@@ -133,14 +131,12 @@ describe("RentDepositDetailPage (보증금 상세)", () => {
       }
     };
 
-    it("결제사 기간 경과 실패 건은 계산 상자와 안내 상자 사이에 한 줄", () => {
+    it("결제사 기간 경과 실패 건은 계산 상자 바로 아래 한 줄", () => {
       withFailure("EXCEED_MAX_REFUND_DUE", () => {
         renderAt("/rent-deposit/U-R30");
         const note = screen.getByText(NOTE);
         const calc = document.querySelector("[data-calc]")!;
-        const [box, , notes] = [...calc.children];
-        expect(note.previousElementSibling).toBe(box);
-        expect(note.nextElementSibling).toBe(notes);
+        expect([...calc.children]).toEqual([calc.firstElementChild, note]);
         expect(note.className).toMatch(/text-text-warning/);
       });
     });
@@ -160,7 +156,8 @@ describe("RentDepositDetailPage (보증금 상세)", () => {
     it("안심케어 가입 + 복원가능 파손 U-R28 — 가입 안내 · 셀러 담당", () => {
       renderAt("/rent-deposit/U-R28");
 
-      expect(valueOf("안심케어")).toBe("가입복원가능 손상 본사 부담");
+      /* 부록 A C16 — 가입 칩만(보조 문장 없음) */
+      expect(valueOf("안심케어")).toBe("가입");
       expect(valueOf("검수 판정")).toBe("파손(복원가능)");
       expect(valueOf("담당")).toBe("셀러베베하우스");
       expect(valueOf("주문 상태")).toBe("반납완료");
@@ -187,9 +184,11 @@ describe("RentDepositDetailPage (보증금 상세)", () => {
       renderAt("/rent-deposit/U-R14");
 
       expect(valueOf("연체 경과")).toBe("D+6 (반납 예정일 2026.10.13)");
+      /* 부록 A B14 — 연체중에 덧붙던 「연체료는 자동 산정하지 않으며 …」 문장은 지웠다 */
       expect(
-        screen.getByText(/연체료는 자동 산정하지 않으며 셀러가/),
+        screen.getByText("대여 중 — 반납·검수 후 셀러가 환급을 처리합니다."),
       ).toBeVisible();
+      expect(screen.queryByText(/연체료는/)).toBeNull();
     });
 
     it("머리 — 제목 · 주문번호·처리단위 부제 · 보증금 상태 배지", () => {
@@ -206,23 +205,33 @@ describe("RentDepositDetailPage (보증금 상세)", () => {
     });
   });
 
+  /** 부록 A C18 ~ C21 — 구역 제목 「처리 상태」 · 상태별 바꿈 문구(✓ 기호는 기획 확인 요청 28번) */
   describe("처리 상태 — 상태별 문장(원본 3갈래)", () => {
+    const procText = () =>
+      screen
+        .getByRole("heading", { name: "처리 상태" })
+        .closest("[data-variant]")
+        ?.querySelector("p")?.textContent;
+
     it("점유중", () => {
       renderAt("/rent-deposit/U-R16");
-      expect(screen.getByText(/^대여 진행중\(점유\)/)).toBeVisible();
+      expect(procText()).toBe(
+        "대여 중 — 반납·검수 후 셀러가 환급을 처리합니다.",
+      );
     });
 
     it("환급대기 U-R17", () => {
       renderAt("/rent-deposit/U-R17");
-      expect(
-        screen.getByText(/^검수 판정 완료 · 환급 실행 대기/),
-      ).toBeVisible();
+      expect(procText()).toBe(
+        "검수 완료 — 셀러의 환급 처리를 기다리는 중입니다.",
+      );
     });
 
     it("종결 U-R30 — 완료 날짜가 붙는다", () => {
       renderAt("/rent-deposit/U-R30");
+      expect(procText()).toBe("환급 완료 · 2026.09.19");
       expect(
-        screen.getByText(/^환급 처리 완료 · 2026\.09\.19 — /),
+        screen.getByRole("button", { name: "처리 상태 접기" }),
       ).toBeVisible();
     });
   });

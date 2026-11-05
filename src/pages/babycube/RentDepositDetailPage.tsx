@@ -29,11 +29,9 @@ import {
   type DepositRow,
 } from "./RentDepositListPage.data";
 import {
-  CARE_JOINED_NOTE,
   LIST_LABEL,
   LIST_PATH,
   OWNER_LABEL,
-  POLICY_NOTES,
   SECTIONS,
   calcBlocksOf,
   findDeposit,
@@ -55,9 +53,9 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *
  * ## 구성
  * ```
- * 보증금 정보 · 정산 계산 · 처리 상태 (조회 전용)     (3구역, 각각 접기)
- * 정산 계산 = 공용 `CalcBreakdown`(보증금 / 차감 / 반환 예정액 · 최대 폭 768 · 정책 안내 상자)
- *            반환 예정액 아래·안내 상자 위에 환급 실패 안내 한 줄(결제사 기간 경과 건만 · 개발 §3-2-8)
+ * 보증금 정보 · 정산 계산 · 처리 상태     (3구역, 각각 접기)
+ * 정산 계산 = 공용 `CalcBreakdown`(보증금 / 차감 / 반환 예정액 · 최대 폭 768 — 정책 안내 상자는 부록 A C17 로 지웠다)
+ *            반환 예정액 아래에 환급 실패 안내 한 줄(결제사 기간 경과 건만 · 개발 §3-2-8)
  * [목록]                               [취소] [확인]  ← 하단 고정 바
  * ```
  * 보증금 내역 행이 이 화면으로 온다(`/rent-deposit/{처리단위}`). 고치는 값이 없다 —
@@ -273,11 +271,9 @@ function RentDepositDetailBody({
             <Item label="상품">{row.product}</Item>
             <Item label="이용 기간">{periodText(row.period)}</Item>
             <Item label="안심케어">
+              {/* 가입 칩만(부록 A C16 — 「복원가능 손상 본사 부담」은 지웠다 · 🛡 기호는 기획 확인 요청 28번) */}
               {row.care ? (
-                <span className="flex items-center gap-2">
-                  <Tag size="small">가입</Tag>
-                  {CARE_JOINED_NOTE}
-                </span>
+                <Tag size="small">가입</Tag>
               ) : (
                 <span className="text-text-minimal">미가입</span>
               )}
@@ -318,9 +314,9 @@ function RentDepositDetailBody({
         {loading ? (
           <LoadingLines rows={3} />
         ) : (
-          /* 정산 명세와 같은 계산 내역 부품 — 보증금 / 차감 / 반환 예정액 + 정책 안내 상자 */
-          <CalcBreakdown blocks={calcBlocksOf(row)} notes={POLICY_NOTES}>
-            {/* 환급이 결제사 기간 경과로 실패한 건만 — 반환 예정액 아래·안내 상자 위(개발 §3-2-8) */}
+          /* 정산 명세와 같은 계산 내역 부품 — 보증금 / 차감 / 반환 예정액 */
+          <CalcBreakdown blocks={calcBlocksOf(row)}>
+            {/* 환급이 결제사 기간 경과로 실패한 건만 — 반환 예정액 아래(개발 §3-2-8) */}
             {refundDue ? (
               <p className="body-small text-text-warning">{refundDue}</p>
             ) : null}
