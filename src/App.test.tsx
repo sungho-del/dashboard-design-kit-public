@@ -117,7 +117,10 @@ describe("App (전달본)", () => {
     expect(window.location.pathname).toBe("/products/HQ240806");
     expect(pageTitle()).toBe("상품 상세 (수정)");
     expect(
-      screen.getByText("폴딩 놀이매트 220 그레이 · HQ240806 · 본사"),
+      screen.getByText("폴딩 놀이매트 220 그레이 · HQ240806"),
+    ).toBeVisible();
+    expect(
+      screen.getByText("본사 직영 상품 · 베이비큐브 (S-0001)"),
     ).toBeVisible();
   });
 
