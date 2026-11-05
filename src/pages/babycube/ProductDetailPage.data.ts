@@ -819,6 +819,7 @@ export const validate = (
       errors.saleDisc = COPY.errors.saleDisc;
     if (draft.stock === "") errors.stock = COPY.errors.stock;
   }
+  /* 퍼블은 업로드가 없어(개발 영역) 직영 신규 등록은 이 오류까지만 시연된다 — 배너·팝업과 같다 */
   if (!draft.mainImage) errors.mainImage = COPY.errors.mainImage;
   if (draft.stage === "") errors.stage = COPY.errors.stage;
   if (!draft.certs.some((row) => row.type !== "")) {
