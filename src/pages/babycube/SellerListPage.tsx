@@ -44,6 +44,7 @@ import {
   FILTERS,
   filterSummary,
   HQ_BADGE,
+  HQ_HYGIENE_TEXT,
   HYGIENE_BADGE,
   HYGIENE_FILTERS,
   num,
@@ -822,15 +823,17 @@ export function SellerListPage({
                   </TableTd>
                   <TableTd align="center">
                     {/*
-                      플래그 배지 — "있음"만 붙는다(§3-1). 문구는 원본 그대로 `위생인증셀러`.
-                      색은 상태색을 피해 highlight 계열 토큰을 주입받는다.
+                      플래그 배지 — "있음"만 붙는다(§3-1). 문구는 원본 그대로 `위생인증셀러`,
+                      본사 행만 「인증 (본사 직영)」(판정 Q20-2). 색은 상태색을 피해 highlight 계열 토큰을 주입받는다.
                     */}
                     {seller.hygiene ? (
                       <Tag
                         tone={HYGIENE_BADGE.tone}
                         style={HYGIENE_BADGE.style}
                       >
-                        {HYGIENE_BADGE.label}
+                        {seller.isHeadquarters
+                          ? HQ_HYGIENE_TEXT
+                          : HYGIENE_BADGE.label}
                       </Tag>
                     ) : (
                       EMPTY_CELL

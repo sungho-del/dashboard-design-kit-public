@@ -601,6 +601,20 @@ describe("SellerListPage (S03 셀러 관리)", () => {
         within(rowOf("포근하루")).queryByText("위생인증셀러"),
       ).not.toBeInTheDocument();
     });
+
+    /* 판정 Q20-2 — 본사 행 위생인증은 「인증」 고정 · 표시 「인증 (본사 직영)」(셀러 상세 읽는 값과 같은 글자) */
+    it("본사 행 위생인증 배지는 「인증 (본사 직영)」 — 다른 셀러는 「위생인증셀러」", () => {
+      renderPage();
+      const hq = within(rowOf("베이비큐브"));
+
+      expect(hq.getByText("인증 (본사 직영)")).toBeVisible();
+      expect(hq.queryByText("위생인증셀러")).toBeNull();
+      expect(
+        (
+          hq.getByText("인증 (본사 직영)") as HTMLElement
+        ).style.getPropertyValue("--tag-color"),
+      ).toBe("var(--color-text-highlight)");
+    });
   });
 
   describe("상세 진입", () => {

@@ -133,8 +133,8 @@ export const HYGIENE_OPTIONS = [
 export const hygieneValue = (certified: boolean) =>
   certified ? "certified" : "none";
 
-/** 본사 행 위생인증 — 「인증」 고정, 읽는 값(판정 Q20-2 「표시 「인증 (본사 직영)」」 · 디자인 §3 #16) */
-export const HQ_HYGIENE_TEXT = "인증 (본사 직영)";
+/** 본사 행 위생인증 — 「인증」 고정, 읽는 값(판정 Q20-2 · 디자인 §3 #16). 셀러 목록 본사 행 배지와 같은 글자 */
+export { HQ_HYGIENE_TEXT } from "./SellerListPage.data";
 
 /** 등록 상품 표의 `유형` 열 — 둘 다 취급하는 상품은 배지 둘(원본 `modeTags`) */
 export const DEAL_KIND_LABEL: Record<DealKind, string> = {
