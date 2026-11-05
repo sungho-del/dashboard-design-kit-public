@@ -143,6 +143,7 @@ export const MODE_META: Record<ProductMode, { label: string; tone: TagTone }> =
  * - `soldout` 재고 소진으로 멈춘 정상 종료 → `default`
  *
  * `description` 은 상태 카드 툴팁이다 — 원본 `STAT_TIP` 의 **뜻 + 다음 단계** 두 문장 그대로.
+ * 반려·재심사요청·판매중지는 부록 A C62~C64 바꿈 문구(다음 단계 한 문장 · 판정 Q10 「셀러」)다.
  * 다섯 상태가 서로 어떻게 옮겨 가는지 알아야 "지금 무엇을 눌러야 하는지" 판단할 수 있다.
  */
 export const STATUS_META: Record<
@@ -158,20 +159,17 @@ export const STATUS_META: Record<
   rejected: {
     label: "반려",
     tone: "critical",
-    description:
-      "본사가 사유를 적어 판매를 내린 상태입니다. 정상 흐름에서 벗어나 있습니다. 입점사가 [재심사 요청]을 넣으면 [재심사 요청]으로 넘어갑니다. 사유 보기를 누르면 사유를 볼 수 있습니다.",
+    description: "셀러가 재심사를 요청하면 재심사요청으로 바뀝니다.",
   },
   rereview: {
     label: "재심사요청",
     tone: "warning",
-    description:
-      "반려된 상품에 입점사가 이의를 제기해 본사 판단을 기다리는 상태입니다. [승인 처리]하면 [판매중]으로 돌아가고, 다시 [반려 처리]하면 [반려]로 남습니다.",
+    description: "[승인 처리]하면 판매중, [반려 처리]하면 반려가 됩니다.",
   },
   stopped: {
     label: "판매중지",
     tone: "default",
-    description:
-      "입점사 본인이 판매를 멈춘 상품입니다(본사 처분은 [반려]가 따로 있습니다). 중지를 풀면 [판매중]으로 돌아갑니다.",
+    description: "셀러가 판매를 다시 시작하면 판매중이 됩니다.",
   },
   soldout: {
     label: "품절",
@@ -795,17 +793,12 @@ export const perDay = (value: number) => won(value) + "/일";
 export const rentPriceText = (product: Product) => perDay(rentPriceOf(product));
 
 /**
- * 화면 상단 **상시 안내 배너**(원본 `data-area="products.note"`).
- *
- * ⚠️ 이 문구를 도움말 툴팁으로 접지 말 것. 원본이 배너로 둔 이유는 마지막 줄
- * (연대책임) 때문이다 — 호버해야 보이는 자리에 두면 **읽지 않은 채로 미인증
- * 상품을 노출시킬 수 있다.** 원본은 한 문단이고, 우리는 무게를 다르게 주려고 세 줄로 나눴다.
+ * 화면 상단 **상시 안내 배너**(원본 `data-area="products.note"`) — 부록 A C60 바꿈 문구 두 문장.
+ * 원본은 한 문단이고, 우리는 무게를 다르게 주려고 문장마다 줄을 나눴다(제목 · 본문).
+ * 옛 셋째 줄(연대책임 경고)은 C60 바꿈 문구에 없어 지웠다.
  */
-export const NOTICE_TITLE =
-  "입점사가 등록한 상품은 승인 절차 없이 즉시 판매됩니다";
-export const NOTICE_BODY =
-  "그냥 두면 그것이 곧 승인입니다. 문제가 있으면 상품을 골라 [반려 처리]로 사유를 남겨 주세요(사유는 입점사에 그대로 표시되고, 입점사는 보완 후 재심사를 요청합니다).";
-export const NOTICE_WARNING = "미인증 상품이 노출되면 연대책임이 발생합니다.";
+export const NOTICE_TITLE = "셀러 상품은 등록 즉시 판매됩니다.";
+export const NOTICE_BODY = "문제가 있으면 상품을 골라 [반려 처리]하세요.";
 
 /**
  * 처분 결과 문구 — 원본 `prodApprove` · `confirmProdReject` 그대로(단위 "건").
@@ -826,7 +819,7 @@ export const rejectTitle = (count: number) =>
 
 /** 반려 사유 입력 모달의 안내 문구 — 원본 `_MODAL_CFG.prodreject.note` */
 export const REJECT_NOTICE =
-  "입력한 사유는 입점사 상품 관리에 그대로 표시되며, 입점사는 이 사유를 보고 보완한 뒤 상품 상세에서 [재심사 요청]을 넣습니다. 반려하면 해당 상품은 상태가 반려가 되고 전시도 함께 내려갑니다.";
+  "입력한 사유는 셀러에게 그대로 보입니다. 반려하면 판매와 전시가 함께 내려갑니다.";
 
 /** 반려 사유 입력 placeholder — 실제로 자주 쓰이는 사유를 예시로 든다 */
 export const REJECT_PLACEHOLDER =

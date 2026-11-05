@@ -120,20 +120,20 @@ describe("RentDepositDetailPage (보증금 상세)", () => {
   });
 
   describe("보증금 정보", () => {
-    it("안심케어 가입 + 복원가능 파손 U-R28 — 가입 안내 · 입점사 셀러", () => {
+    it("안심케어 가입 + 복원가능 파손 U-R28 — 가입 안내 · 셀러 담당", () => {
       renderAt("/rent-deposit/U-R28");
 
       expect(valueOf("안심케어")).toBe("가입복원가능 손상 본사 부담");
       expect(valueOf("검수 판정")).toBe("파손(복원가능)");
-      expect(valueOf("담당")).toBe("입점사베베하우스");
+      expect(valueOf("담당")).toBe("셀러베베하우스");
       expect(valueOf("주문 상태")).toBe("반납완료");
       expect(valueOf("이용 기간")).toBe("2026.08.24 ~ 2026.09.13");
     });
 
-    it("본사 렌트 U-R32 — 담당 자체(셀러 링크 없음) · 미가입", () => {
+    it("본사 렌트 U-R32 — 담당 본사(셀러 링크 없음) · 미가입", () => {
       renderAt("/rent-deposit/U-R32");
 
-      expect(valueOf("담당")).toBe("자체");
+      expect(valueOf("담당")).toBe("본사");
       expect(valueOf("안심케어")).toBe("미가입");
     });
 

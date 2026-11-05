@@ -233,12 +233,12 @@ export const STATUS_OPTIONS: SelectOption[] = [
 /**
  * 출처 — 원본 「출처: 전체 / 자체 / 입점사」(다중 체크) 를 셀렉트로(공통 규칙 「판매자/출처 라디오는
  * 셀렉트 하나」). 둘을 다 고르면 전체와 같아 단일 선택으로 잃는 것이 없다.
- * ⚠️ 같은 값이 표의 「구분」 칸에서는 `본사/셀러`, 여기서는 `자체/입점사` 다 — 원본 그대로.
+ * 글자는 표의 「구분」 칸과 같은 `본사/셀러`(판정 Q10 — 원본 `자체/입점사` 는 내부 값 `hq`·`seller` 로만).
  */
 export const SOURCE_OPTIONS: SelectOption[] = [
   { value: "all", label: "출처 전체" },
-  { value: "hq", label: "자체" },
-  { value: "seller", label: "입점사" },
+  { value: "hq", label: "본사" },
+  { value: "seller", label: "셀러" },
 ];
 
 export type DepositSearchField = "orderNo" | "member";

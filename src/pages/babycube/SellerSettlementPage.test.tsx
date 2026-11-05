@@ -102,10 +102,10 @@ describe("셀러 정산 — 요약 · 산출 내역 (한 카드)", () => {
     }
   });
 
-  it("전 입점사 합산 — 줄 금액·부호, 미회수는 지급과 상계하지 않는다", () => {
+  it("전 셀러 합산 — 줄 금액·부호, 미회수는 지급과 상계하지 않는다", () => {
     renderPage();
     expect(screen.getByText("산출 내역")).toBeVisible();
-    expect(screen.getByText("전 입점사 합산")).toBeVisible();
+    expect(screen.getByText("전 셀러 합산")).toBeVisible();
     expect(lineValue("셀러 확정 거래액")).toBe("489,700원");
     expect(lineValue("셀러 쿠폰")).toBe("−15,000원");
     expect(lineValue("정산 매출")).toBe("474,700원");
@@ -223,7 +223,7 @@ describe("셀러 정산 — 요약 · 산출 내역 (한 카드)", () => {
     const { user } = renderPage();
     await user.type(screen.getByPlaceholderText("셀러명 검색"), "없는셀러");
     expect(lineValue("이번 회차 지급 총액")).toBe("436,138원");
-    expect(screen.getByText("정산 대상 입점사 (총 0개사)")).toBeVisible();
+    expect(screen.getByText("정산 대상 셀러 (총 0개사)")).toBeVisible();
   });
 });
 
@@ -282,7 +282,7 @@ describe("셀러 정산 — 표", () => {
       bodyRows().map((row) => within(row).getAllByRole("cell")[0].textContent),
     ).toEqual(Array(8).fill("2026년 9월"));
     /* 목록 머리 하나 — 카드 밖 소제목과 「목록 (총 N건)」 중복을 합쳤다 */
-    expect(screen.getByText("정산 대상 입점사 (총 8개사)")).toBeVisible();
+    expect(screen.getByText("정산 대상 셀러 (총 8개사)")).toBeVisible();
     expect(screen.queryByText(/^목록 \(총/)).toBeNull();
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(screen.queryByRole("button", { name: /엑셀/ })).toBeNull();
@@ -503,7 +503,7 @@ describe("셀러 정산 — 검색조건 · 빈 상태 · 페이지 · preview",
       bodyRows().map((row) => within(row).getAllByRole("cell")[1].textContent),
     ).toEqual(expect.arrayContaining(["아이랑", "베베하우스"]));
     expect(bodyRows()).toHaveLength(2);
-    expect(screen.getByText("정산 대상 입점사 (총 2개사)")).toBeVisible();
+    expect(screen.getByText("정산 대상 셀러 (총 2개사)")).toBeVisible();
     expect(screen.getByText("상태 확인완료")).toBeVisible();
   });
 

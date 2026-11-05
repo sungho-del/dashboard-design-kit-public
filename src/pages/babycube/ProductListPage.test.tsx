@@ -231,36 +231,20 @@ const checkboxOf = (productName: string) =>
 
 describe("ProductListPage", () => {
   /**
-   * 원본 어드민의 `note` 는 화면에 **상시 노출**되는 배너다. 도움말 툴팁으로 접으면
-   * 마지막 줄(연대책임)을 읽지 않은 채 미인증 상품이 노출될 수 있다.
+   * 원본 어드민의 `note` 는 화면에 **상시 노출**되는 배너다 — 문구는 부록 A C60 바꿈(판정 Q10 「셀러」).
    */
   describe("상시 안내 배너", () => {
-    it("운영 원칙·절차·연대책임 세 줄이 화면에 그대로 떠 있다", () => {
+    it("두 문장이 화면에 그대로 떠 있고, 경고색 줄은 없다", () => {
       renderPage();
 
       expect(
-        screen.getByText(
-          "입점사가 등록한 상품은 승인 절차 없이 즉시 판매됩니다",
-        ),
+        screen.getByText("셀러 상품은 등록 즉시 판매됩니다."),
       ).toBeVisible();
-      expect(screen.getByText(/사유는 입점사에 그대로 표시되고/)).toBeVisible();
       expect(
-        screen.getByText("미인증 상품이 노출되면 연대책임이 발생합니다."),
+        screen.getByText("문제가 있으면 상품을 골라 [반려 처리]하세요."),
       ).toBeVisible();
-    });
-
-    it("연대책임 줄만 warning 색을 쓴다 (세 줄을 다 칠하면 초점이 사라진다)", () => {
-      renderPage();
-
-      const warning = screen.getByText(
-        "미인증 상품이 노출되면 연대책임이 발생합니다.",
-      );
-      const title = screen.getByText(
-        "입점사가 등록한 상품은 승인 절차 없이 즉시 판매됩니다",
-      );
-
-      expect(classList(warning)).toContain("text-text-warning");
-      expect(classList(title)).not.toContain("text-text-warning");
+      expect(screen.queryByText(/연대책임/)).toBeNull();
+      expect(screen.queryByText(/입점사/)).toBeNull();
     });
   });
 
@@ -828,7 +812,9 @@ describe("ProductListPage", () => {
 
       expect(dialog).toHaveAccessibleName("상품 반려 사유 입력");
       expect(
-        within(dialog).getByText(/상품 상세에서 \[재심사 요청\]을 넣습니다/),
+        within(dialog).getByText(
+          "입력한 사유는 셀러에게 그대로 보입니다. 반려하면 판매와 전시가 함께 내려갑니다.",
+        ),
       ).toBeVisible();
       expect(within(dialog).queryByText("회전형 카시트 스핀 360")).toBeNull();
       expect(

@@ -120,11 +120,11 @@ export { SETTLEMENT_SUMMARY as SUMMARY };
 
 /** 카드 안 산출 내역 소제목 — 원본 `2026.06 정산 명세` · `전 입점사 합산` */
 export const TOTAL_STATEMENT_TITLE = "산출 내역";
-export const TOTAL_STATEMENT_SUB = "전 입점사 합산";
+export const TOTAL_STATEMENT_SUB = "전 셀러 합산";
 
-/** 목록 카드 머리 — 원본 소제목 `정산 대상 입점사 · N개사` 와 `목록 (총 N건)` 을 하나로 */
+/** 목록 카드 머리 — 원본 소제목 `정산 대상 입점사 · N개사` 와 `목록 (총 N건)` 을 하나로 · 「셀러」(부록 A A22 · 판정 Q10) */
 export const listTitleOf = (count: number) =>
-  `정산 대상 입점사 (총 ${count}개사)`;
+  `정산 대상 셀러 (총 ${count}개사)`;
 
 /* =========================================================================
  * 정산 설정 — 안심케어 금액 (원본 `setCarePrice` — 화면 안 값 + 알림만)

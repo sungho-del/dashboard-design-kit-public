@@ -316,9 +316,7 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
       const display = section(/노출 관리/);
 
       expect(
-        within(display).getByText(
-          /아래 하단 바의 \[반려 처리\]로 사유를 남겨 주세요/,
-        ),
+        within(display).getByText("판매를 멈추려면 [반려 처리]를 사용하세요."),
       ).toBeVisible();
       expect(
         within(display).getByRole("radiogroup", { name: "전시 상태" }),

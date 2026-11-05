@@ -160,7 +160,7 @@ describe("표 (원본 8열 + 가산 열 · 본사 1 + 셀러 정산 행)", () =>
     ],
     [
       "STM-2609-0226",
-      "입점사베이비루",
+      "셀러베이비루",
       "109,000원",
       "−16,350원",
       "-",
@@ -169,7 +169,7 @@ describe("표 (원본 8열 + 가산 열 · 본사 1 + 셀러 정산 행)", () =>
     ],
     [
       "STM-2609-0227",
-      "입점사리틀스텝",
+      "셀러리틀스텝",
       "0원",
       "−77,400원",
       "-",
@@ -178,7 +178,7 @@ describe("표 (원본 8열 + 가산 열 · 본사 1 + 셀러 정산 행)", () =>
     ],
     [
       "STM-2609-0201",
-      "입점사리틀베이비",
+      "셀러리틀베이비",
       "84,000원",
       "−10,920원",
       "-",
@@ -187,7 +187,7 @@ describe("표 (원본 8열 + 가산 열 · 본사 1 + 셀러 정산 행)", () =>
     ],
     [
       "STM-2609-0231",
-      "입점사코지베이비",
+      "셀러코지베이비",
       "37,800원",
       "−6,237원",
       "+18,000원",
@@ -196,7 +196,7 @@ describe("표 (원본 8열 + 가산 열 · 본사 1 + 셀러 정산 행)", () =>
     ],
     [
       "STM-2609-0229",
-      "입점사베베하우스",
+      "셀러베베하우스",
       "23,100원",
       "−2,957원",
       "+12,000원",
@@ -205,7 +205,7 @@ describe("표 (원본 8열 + 가산 열 · 본사 1 + 셀러 정산 행)", () =>
     ],
     [
       "STM-2609-0228",
-      "입점사맘스케어",
+      "셀러맘스케어",
       "14,000원",
       "−1,750원",
       "-",
@@ -255,14 +255,18 @@ describe("검색조건 (FilterBar 기본 펼침 · 셀렉트)", () => {
     expect(screen.getByText("조건 없음 (전체)")).toBeVisible();
   });
 
-  it("정산 대상 — 자체는 본사 1건, 입점사는 8건", async () => {
+  /* 화면 글자는 「본사 / 셀러」(판정 Q10) — 값 hq·seller 는 그대로 */
+  it("정산 대상 — 본사는 본사 1건, 셀러는 8건 · 요약도 「본사 / 셀러」", async () => {
     const { user } = renderPage();
 
-    await chooseOption(user, "정산 대상", "자체");
+    await chooseOption(user, "정산 대상", "본사");
     expect(visibleNos()).toEqual(["STM-2609-0001"]);
 
-    await chooseOption(user, "정산 대상", "입점사");
+    await chooseOption(user, "정산 대상", "셀러");
     expect(visibleNos()).toEqual(ALL_NOS.slice(1));
+
+    await user.click(screen.getByRole("button", { name: /검색 닫기/ }));
+    expect(screen.getByText("정산 대상 셀러")).toBeVisible();
   });
 
   it("상태 — 지급완료는 본사·베이비루·아기별상사, 요약에 걸린다", async () => {
@@ -302,7 +306,7 @@ describe("검색조건 (FilterBar 기본 펼침 · 셀렉트)", () => {
   it("빈 상태 — 원본 문구, [필터 초기화]로 전체가 돌아온다", async () => {
     const { user } = renderPage();
 
-    await chooseOption(user, "정산 대상", "자체");
+    await chooseOption(user, "정산 대상", "본사");
     await chooseOption(user, "상태", "보류");
     expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
     expect(

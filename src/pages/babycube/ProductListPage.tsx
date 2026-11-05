@@ -55,7 +55,6 @@ import {
   MODE_META,
   NOTICE_BODY,
   NOTICE_TITLE,
-  NOTICE_WARNING,
   DEFAULT_FILTER,
   filterSummary,
   PAGE_SIZE,
@@ -533,16 +532,14 @@ export function ProductListPage({
       header={<PageHeader title="상품 관리" />}
     >
       {/*
-        상시 안내 배너 (원본 `data-area="products.note"`).
-        ⚠️ 도움말 툴팁으로 접지 말 것 — 마지막 줄(연대책임) 때문에 배너다.
-        칠하는 것은 **마지막 줄 하나**다. 셋 다 칠하면 초점이 사라진다.
+        상시 안내 배너 (원본 `data-area="products.note"` · 부록 A C60 바꿈 문구 두 문장).
+        옛 셋째 줄(연대책임 경고색)은 바꿈 문구에 없어 지웠다.
       */}
       <Card>
         <CardBody>
           <div className="flex flex-col gap-2">
             <p className="label-medium-bold text-text">{NOTICE_TITLE}</p>
             <p className="body-medium text-text-sub">{NOTICE_BODY}</p>
-            <p className="body-medium text-text-warning">{NOTICE_WARNING}</p>
           </div>
         </CardBody>
       </Card>

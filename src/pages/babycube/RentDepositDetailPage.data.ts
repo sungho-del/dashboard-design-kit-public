@@ -60,8 +60,8 @@ export const headlineOf = (row: DepositRow) =>
     ...(row.care ? ["안심케어"] : []),
   ].join(" · ");
 
-/** 담당 배지 — 원본 `ownerBadge`(자체/입점사) */
-export const OWNER_LABEL = { hq: "자체", seller: "입점사" } as const;
+/** 담당 배지 — 원본 `ownerBadge`(자체/입점사) · 화면 글자는 「본사 / 셀러」(판정 Q10) */
+export const OWNER_LABEL = { hq: "본사", seller: "셀러" } as const;
 
 /** 셀러 상세 경로 — 셀러 마스터에 있는 입점사만(본사·미등록이면 `null` → 글자만) */
 export const sellerPathOf = (row: DepositRow) => {

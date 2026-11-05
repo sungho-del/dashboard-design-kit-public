@@ -273,14 +273,15 @@ describe("RentDepositListPage (BabyCube S13 보증금 내역)", () => {
       expect(screen.getByText("보증금 상태 전액환급")).toBeVisible();
     });
 
-    it("출처 자체 → 본사 렌트 1건, 입점사 → 8건", async () => {
+    /* 화면 글자는 「본사 / 셀러」(판정 Q10) — 값 hq·seller 는 그대로 */
+    it("출처 본사 → 본사 렌트 1건, 셀러 → 8건", async () => {
       const { user } = renderPage();
 
-      await chooseOption(user, "출처", "자체");
+      await chooseOption(user, "출처", "본사");
       expect(screen.getByText("목록 (총 1건)")).toBeVisible();
       expect(column(CELL.orderNo)).toEqual([orderNoOf("U-R32")]);
 
-      await chooseOption(user, "출처", "입점사");
+      await chooseOption(user, "출처", "셀러");
       expect(screen.getByText("목록 (총 8건)")).toBeVisible();
     });
 
@@ -349,7 +350,7 @@ describe("RentDepositListPage (BabyCube S13 보증금 내역)", () => {
       await user.click(
         screen.getByRole("checkbox", { name: "이 페이지 전체 선택" }),
       );
-      await chooseOption(user, "출처", "자체");
+      await chooseOption(user, "출처", "본사");
       await user.click(excel());
 
       expect(
