@@ -51,7 +51,6 @@ import {
   PAGE_SIZE,
   PAGE_SIZES,
   REVIEW_COPY,
-  REVIEW_NOTICE,
   REVIEW_UNIT,
   REVIEWABLE_STATUS,
   SEARCH_FIELDS,
@@ -71,7 +70,6 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *
  * ```
  * 상태 대시 (청구 접수 · 승인 · 반려 건수 — **전체 카드 없음**, 기본 청구 접수)  ← 원본 chipStatDash
- * 안내 한 줄 (승인한 복원비만 익월 정산에 보전됩니다 …)                         ← 원본 midNote
  * 검색조건 (기본 펼침 · 기간 기준+빠른 선택+기간 · 검색조건+검색어)               ← 원본 filterBar
  * [ 목록 (총 N건) | 표(접수 건만 선택 · No · 복원비↕ 청구일↕) | 페이지 ]           ← 원본 listHead + table
  * 선택 일괄 심사 (승인 처리 / 반려 처리)                                         ← 원본 목록 머리의 심사 버튼
@@ -535,9 +533,6 @@ export function CareClaimListPage({
           />
         </CardBody>
       </Card>
-
-      {/* 원본 `midNote` — 상태 카드와 검색조건 사이 */}
-      <p className="body-medium text-text-sub">{REVIEW_NOTICE}</p>
 
       <FilterBar
         open={filterOpen}

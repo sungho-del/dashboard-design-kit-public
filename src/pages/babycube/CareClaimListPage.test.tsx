@@ -160,29 +160,30 @@ describe("CareClaimListPage (S14 안심케어 승인)", () => {
       expect(column(8)).toEqual(["2026.10.16"]);
     });
 
-    it("반려 카드 툴팁은 상품 문장이 아니라 안심케어 반려 안내다", async () => {
+    it("반려 카드 툴팁은 상품 문장이 아니라 안심케어 반려 안내다 (부록 A C48)", async () => {
       const { user } = renderPage();
       await user.hover(statusBox("반려 1건"));
       expect(
-        await screen.findByText(/반려 건은 본사 보전 대상이 아니며/),
+        await screen.findByText("셀러가 보증금 차감 여부를 다시 판단합니다."),
       ).toBeVisible();
       expect(screen.queryByText(/판매를 내린 상태/)).toBeNull();
     });
 
-    it("안내 한 줄은 상태 카드와 검색조건 사이에 있다 (원본 midNote)", () => {
+    it("승인 카드 툴팁은 「복원비가 다음 달 정산에 더해집니다.」 (부록 A C47)", async () => {
+      const { user } = renderPage();
+      await user.hover(statusBox("승인 2건"));
+      expect(
+        await screen.findByText("복원비가 다음 달 정산에 더해집니다."),
+      ).toBeVisible();
+      expect(screen.queryByText(/더 진행할 단계가 없습니다/)).toBeNull();
+    });
+
+    it("상태 카드와 검색조건 사이 안내 한 줄은 없다 (부록 A C45 삭제)", () => {
       renderPage();
-      const note = screen.getByText(
-        "승인한 복원비만 익월 정산에 보전됩니다 — 접수·반려 건은 보전 대상이 아닙니다.",
-      );
-      const cards = screen.getByRole("button", { name: "청구 접수 1건" });
-      const filters = screen.getByRole("combobox", { name: "기간 기준" });
       expect(
-        cards.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING,
-      ).toBeTruthy();
-      expect(
-        note.compareDocumentPosition(filters) &
-          Node.DOCUMENT_POSITION_FOLLOWING,
-      ).toBeTruthy();
+        screen.queryByText(/승인한 복원비만 익월 정산에 보전됩니다/),
+      ).toBeNull();
+      expect(screen.queryByText(/보전 대상이 아닙니다/)).toBeNull();
     });
   });
 
@@ -371,11 +372,11 @@ describe("CareClaimListPage (S14 안심케어 승인)", () => {
       const dialog = screen.getByRole("dialog", { name: "안심케어 승인" });
       expect(
         within(dialog).getByText(
-          "승인하면 복원비 9,000원이 익월 정산에 보전되고, 해당 건의 보증금은 차감 없이 종결됩니다.",
+          "복원비 9,000원이 다음 달 정산에 더해지고, 보증금은 차감 없이 종결됩니다.",
         ),
       ).toBeVisible();
       expect(
-        within(dialog).getByText("승인 후에는 이 화면에서 되돌릴 수 없습니다."),
+        within(dialog).getByText("승인 후에는 되돌릴 수 없습니다."),
       ).toBeVisible();
 
       await user.click(
@@ -430,10 +431,12 @@ describe("CareClaimListPage (S14 안심케어 승인)", () => {
       const dialog = await openReject(user);
 
       expect(
-        within(dialog).getByPlaceholderText(/복원 견적서 미첨부/),
+        within(dialog).getByPlaceholderText("예: 복원 견적서 미첨부"),
       ).toBeVisible();
       expect(
-        within(dialog).getByText(/보증금 차감 판단으로 되돌아갑니다/),
+        within(dialog).getByText(
+          "반려하면 셀러가 보증금 차감 여부를 다시 판단합니다. 반려 사유는 셀러에게 보입니다.",
+        ),
       ).toBeVisible();
 
       await user.type(within(dialog).getByRole("textbox"), "   ");

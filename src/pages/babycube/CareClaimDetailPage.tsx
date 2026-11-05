@@ -48,7 +48,6 @@ import {
   depositOfClaim,
   evidenceOf,
   findClaim,
-  judgeNotesOf,
   periodOf,
   SECTIONS,
 } from "./CareClaimDetailPage.data";
@@ -61,10 +60,10 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * ## 화면 유형: 상세형 (읽기 + 심사 판정)
  *
  * ```
- * 청구 근거   ← 주문번호 · 셀러 · 상품 · 이용 기간 · 검수 판정 · 보증금 · 보증금 차감(+도움말)
- * 청구 심사   ← 청구 상태 · 청구 복원비(+도움말) · 청구일 · 발송 전 이미지 · 파손 이미지(각 도움말) ·
+ * 청구 근거   ← 주문번호 · 셀러 · 상품 · 이용 기간 · 검수 판정 · 보증금 · 보증금 차감
+ * 청구 심사   ← 청구 상태 · 청구 복원비 · 청구일 · 발송 전 이미지 · 파손 이미지(각 도움말) ·
  *               [승인] 승인일 · 정산 반영 / [반려] 반려 사유 (반려일) ·
- *               안내 상자(대조 안내 + [반려] 반려 안내 / [접수] 처리 안내)
+ *               안내 상자(대조 안내 한 줄)
  * [목록]                                         [승인] [반려]   ← 하단 바 (청구 접수 건만 오른쪽)
  * ```
  * 원본은 조회 전용(`noSave`)이라 [저장하기]·[취소]가 없다 — 하단 바는 원본 그대로 [목록] + 접수 건의 [승인][반려].
@@ -331,11 +330,8 @@ function CareClaimDetailBody({
               </span>
             </Item>
             <Item label="보증금 차감">
-              <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span className="tabular-nums">
-                  {deposit ? won(deposit.deduction) : "-"}
-                </span>
-                <Help>{COPY.deductionHelp}</Help>
+              <span className="tabular-nums">
+                {deposit ? won(deposit.deduction) : "-"}
               </span>
             </Item>
           </InfoList>
@@ -354,11 +350,8 @@ function CareClaimDetailBody({
                 </Tag>
               </Item>
               <Item label="청구 복원비">
-                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="label-medium-bold tabular-nums">
-                    {won(claim.amount)}
-                  </span>
-                  <Help>{COPY.amountHelp}</Help>
+                <span className="label-medium-bold tabular-nums">
+                  {won(claim.amount)}
                 </span>
               </Item>
               <Item label="청구일">
@@ -405,7 +398,7 @@ function CareClaimDetailBody({
                 </InfoList>
               </>
             ) : null}
-            {/* 공통 대조 안내 + 상태별 안내 — 한 상자(노출 조건은 `judgeNotesOf` 가 원본대로) */}
+            {/* 대조 안내 — 상태와 관계없이 한 줄(부록 A C51 · 상태별 안내 C52·C53 은 지웠다) */}
             <div className="flex gap-2 rounded-medium bg-surface-sub px-4 py-3">
               <Info
                 size={16}
@@ -413,11 +406,7 @@ function CareClaimDetailBody({
                 aria-hidden
                 className="mt-0.5 shrink-0 text-icon-sub"
               />
-              <ul className="body-small flex flex-col gap-1 text-text-sub">
-                {judgeNotesOf(claim).map((note) => (
-                  <li key={note}>{note}</li>
-                ))}
-              </ul>
+              <p className="body-small text-text-sub">{COPY.evidenceNote}</p>
             </div>
           </>
         )}

@@ -93,19 +93,22 @@ describe("CareClaimDetailPage (S14-D 안심케어 청구 상세)", () => {
       expect(valueOf("이용 기간")).toBe("2026.08.24 ~ 2026.09.13");
       expect(valueOf("검수 판정")).toBe("파손(복원가능)");
       expect(valueOf("보증금")).toBe("80,000원");
-      expect(valueOf("보증금 차감")).toBe(`0원${COPY.deductionHelp}`);
+      /* 부록 A B19/C49 — 곁 설명 「복원가능 파손 + 케어 가입 건은 본사 부담이라 …」 삭제 */
+      expect(valueOf("보증금 차감")).toBe("0원");
+      expect(screen.queryByText(/본사 부담이라 차감하지 않습니다/)).toBeNull();
     });
 
     it("청구 심사 — 복원비 · 청구일 · 승인일 · 정산 반영(+12,000원), 하단은 [목록]만", () => {
       renderAt("/care-claims/U-R28");
 
       expect(valueOf("청구 상태")).toBe("승인");
-      expect(valueOf("청구 복원비")).toBe(`12,000원${COPY.amountHelp}`);
+      /* 부록 A C50 — 곁 설명 「입점사 입력값 — …」 삭제 */
+      expect(valueOf("청구 복원비")).toBe("12,000원");
+      expect(screen.queryByText(/본사는 승인·반려만 합니다/)).toBeNull();
       expect(valueOf("청구일")).toBe("2026.09.18");
       expect(valueOf("승인일")).toBe("2026.09.21");
       expect(valueOf("정산 반영")).toBe("익월 정산 보전(+12,000원)");
       expect(hasRow("반려 사유")).toBe(false);
-      expect(screen.queryByText(COPY.pendingNote)).toBeNull();
 
       expect(bottomButtons()).toEqual(["목록"]);
     });
@@ -118,14 +121,15 @@ describe("CareClaimDetailPage (S14-D 안심케어 청구 상세)", () => {
   });
 
   describe("반려 건 — U-R19 (리틀베이비 15,000원)", () => {
-    it("반려 사유 (반려일) + 안내 · 승인일·정산 반영 없음 · [목록]만", () => {
+    it("반려 사유 (반려일) · 반려 안내 없음 · 승인일·정산 반영 없음 · [목록]만", () => {
       renderAt("/care-claims/U-R19");
 
-      expect(valueOf("청구 복원비")).toBe(`15,000원${COPY.amountHelp}`);
+      expect(valueOf("청구 복원비")).toBe("15,000원");
       expect(valueOf("반려 사유")).toBe(
         "복원 견적서 미첨부 — 수리 업체 견적서를 첨부해 다시 청구해 주세요. (2026.10.16)",
       );
-      expect(screen.getByText(COPY.rejectedNote)).toBeVisible();
+      /* 부록 A C52 — 반려 뒤 안내 삭제 */
+      expect(screen.queryByText(/본사 보전 대상이 아니며/)).toBeNull();
       expect(hasRow("승인일")).toBe(false);
       expect(hasRow("정산 반영")).toBe(false);
       /* 원본대로 보증금은 이미 전액환급 — 기획 확인 필요 */
@@ -135,24 +139,33 @@ describe("CareClaimDetailPage (S14-D 안심케어 청구 상세)", () => {
   });
 
   describe("접수 건 — U-R18 (베이비루 9,000원)", () => {
-    it("접수 안내 한 줄 · 하단 [목록] [승인] [반려]", () => {
+    it("접수 안내 없음 · 하단 [목록] [승인] [반려]", () => {
       renderAt("/care-claims/U-R18");
 
       expect(valueOf("청구 상태")).toBe("청구 접수");
       expect(valueOf("보증금")).toBe("70,000원");
-      expect(screen.getByText(COPY.pendingNote)).toBeVisible();
+      /* 부록 A C53 — 청구 접수일 때 안내 삭제 */
+      expect(screen.queryByText(/반려하면 보증금 차감 판단으로/)).toBeNull();
       expect(hasRow("승인일")).toBe(false);
       expect(hasRow("반려 사유")).toBe(false);
       expect(bottomButtons()).toEqual(["목록", "승인", "반려"]);
     });
 
-    it("안내 상자 하나 — 대조 안내 + 상태별 안내 · 결과보다 아래(증빙 → 결과 → 안내) · 화면 문구에 (#13) 없음 · 청구 상태 배지 small", () => {
+    it.each(["U-R18", "U-R19", "U-R28"])(
+      "%s 안내 상자는 상태와 관계없이 대조 안내 한 줄(부록 A C51)",
+      (id) => {
+        renderAt(`/care-claims/${id}`);
+        const note = screen.getByText(COPY.evidenceNote);
+        expect(note.parentElement!.textContent).toBe(
+          "발송 전 이미지와 파손 이미지를 비교해 복원 가능한 파손인지 확인하세요.",
+        );
+      },
+    );
+
+    it("안내 상자는 증빙보다 아래 · 화면 문구에 (#13) 없음 · 청구 상태 배지 small", () => {
       renderAt("/care-claims/U-R18");
 
-      const note = screen.getByText(COPY.pendingNote).closest("ul")!;
-      expect(
-        [...note.querySelectorAll("li")].map((li) => li.textContent),
-      ).toEqual([COPY.evidenceNote, COPY.pendingNote]);
+      const note = screen.getByText(COPY.evidenceNote);
       expect(document.body.textContent).not.toContain("#13");
       /* 증빙(파손 이미지)이 안내 상자보다 앞 */
       const evidence = screen.getByRole("list", { name: COPY.returnLabel });
@@ -166,12 +179,9 @@ describe("CareClaimDetailPage (S14-D 안심케어 청구 상세)", () => {
       expect(statusTag.closest("[class*='label-xsmall']")).not.toBeNull();
     });
 
-    it("반려 건 — 안내 상자에 반려 안내, 반려 사유 줄은 증빙 아래 그대로", () => {
+    it("반려 건 — 반려 사유 줄은 증빙 아래 그대로", () => {
       renderAt("/care-claims/U-R19");
 
-      const note = screen.getByText(COPY.rejectedNote).closest("ul")!;
-      expect(note.querySelectorAll("li")).toHaveLength(2);
-      expect(screen.queryByText(COPY.pendingNote)).toBeNull();
       const evidence = screen.getByRole("list", { name: COPY.returnLabel });
       const reason = screen.getByText("반려 사유");
       expect(
@@ -186,7 +196,9 @@ describe("CareClaimDetailPage (S14-D 안심케어 청구 상세)", () => {
       await user.click(screen.getByRole("button", { name: "승인" }));
       const dialog = screen.getByRole("dialog", { name: "안심케어 승인" });
       expect(
-        within(dialog).getByText(/승인하면 복원비 9,000원이 익월 정산에 보전/),
+        within(dialog).getByText(
+          "복원비 9,000원이 다음 달 정산에 더해지고, 보증금은 차감 없이 종결됩니다.",
+        ),
       ).toBeVisible();
       await user.click(
         within(dialog).getByRole("button", { name: "승인 처리" }),
@@ -326,7 +338,7 @@ describe("CareClaimDetailPage (S14-D 안심케어 청구 상세)", () => {
 
       act(() => navigate("/care-claims/U-R28"));
       expect(screen.queryByRole("dialog")).toBeNull();
-      expect(valueOf("청구 복원비")).toBe(`12,000원${COPY.amountHelp}`);
+      expect(valueOf("청구 복원비")).toBe("12,000원");
     });
   });
 
