@@ -658,12 +658,14 @@ describe("클레임 모드", () => {
       expect(valueOf("처리 결과")).toBe("환불 없음 — 원거래 유지");
     });
 
-    it("교환 — 고객 귀책 왕복 배송비 · 환불 없이 재배송 (환불액 줄을 만들지 않는다)", async () => {
+    /** 디자인 §3 #9 · 부록 A B11 — 교환 배송비 1차 미징수: 청구 줄 없음 · 고객 귀책도 「판매자 부담」 */
+    it("교환 — 교환 배송비 청구 줄 없이 환불 없이 재배송 · 배송비는 판매자 부담", async () => {
       const { user } = renderAt("/orders-exchange/U-S12");
-      const { lines, hints, messages } = await openStatement(user);
+      expect(valueOf("귀책 판정")).toBe("고객 귀책");
+      expect(valueOf("배송비 부담")).toBe("판매자 부담");
+      const { lines, messages } = await openStatement(user);
 
-      expect(lines["교환 배송비"]).toBe("12,000원");
-      expect(hints["교환 배송비"]).toBe("왕복 · 고객 부담");
+      expect(lines["교환 배송비"]).toBeUndefined();
       expect(messages).toEqual(["환불 없음 — 검수 후 재배송"]);
       expect(valueOf("처리 결과")).toBe("환불 없음 — 검수 후 재배송");
       expect(hasRow("환불 예정액")).toBe(false);

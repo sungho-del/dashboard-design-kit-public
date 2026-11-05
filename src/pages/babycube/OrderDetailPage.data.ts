@@ -491,12 +491,14 @@ const isClaimDone = (order: Order) =>
     order.claim?.status ?? "",
   );
 
-/** 고객 귀책일 때 고객이 지는 배송비 — 반품은 편도, 교환은 왕복. **0 은 무료**(값 없음이 아니다) */
+/**
+ * 고객 귀책일 때 고객이 지는 배송비 — 반품 편도. **0 은 무료**(값 없음이 아니다).
+ * 교환 배송비는 1차에 받지 않아 고객 몫이 없다(디자인 §3 #9 · 3차 회신 Q-11)
+ */
 export const claimFeeOf = (order: Order) => {
   const claim = order.claim;
   if (!claim || claim.fault !== "customer") return 0;
   if (claim.type === "return") return order.returnFee;
-  if (claim.type === "exchange") return order.exchangeFee;
   return 0;
 };
 
@@ -522,19 +524,16 @@ export const faultTextOf = (order: Order) =>
  * 배송비 부담 — 판매자 귀책이면 판매자가 진다.
  * 고객 귀책: 반품 = 편도 배송비를 렌트는 **보증금에서**, 판매는 **환불액에서** 차감한다
  * (사용자 결정 2026-11-02 — 원본은 「별도 청구」라 쓰고 환불액에서도 빼 이중 부담으로 읽혔다).
- * 교환 = 왕복 배송비를 고객이 낸다. 취소는 출고 전이라 배송비가 생기지 않는다.
+ * 교환 = 1차에는 교환 배송비를 받지 않아 고객 귀책도 「판매자 부담」(디자인 §3 #9 · 부록 A B11).
+ * 취소는 출고 전이라 배송비가 생기지 않는다.
  */
 export const feeBurdenOf = (order: Order) => {
   const claim = order.claim;
   if (!claim) return NONE;
   if (claim.type === "cancel") return "해당 없음 (발송 전 취소)";
   if (claim.fault === "seller") return "판매자 부담";
+  if (claim.type === "exchange") return "판매자 부담";
   const fee = claimFeeOf(order);
-  if (claim.type === "exchange") {
-    return fee > 0
-      ? `교환 배송비(왕복) ${won(fee)} · 고객 부담`
-      : "교환 배송비 무료";
-  }
   if (fee === 0) return "반품 배송비 무료";
   const from = order.type === "rent" ? "보증금에서" : "환불액에서";
   return `반품 배송비(편도) ${won(fee)} · ${from} 차감`;
@@ -554,7 +553,7 @@ export const claimTypeTextOf = (order: Order) =>
  * | 취소             | 「환불」 결제금액 → 환불 예정액/완료 · (렌트) 「보증금」 보증금 → 반환 예정액/완료        |
  * | 판매 반품        | 「환불」 결제금액 → (고객 귀책) 반품 배송비 − → 환불 예정액/완료                          |
  * | 렌트 반품        | 「결제」 결제금액 · 「보증금」 보증금 → (고객 귀책) 반품 배송비 − → 반환 예정액/완료       |
- * | 교환             | 「결제」 결제금액 · 「교환」 (고객 귀책) 왕복 배송비 · 처리 문장                            |
+ * | 교환             | 「결제」 결제금액 · 「교환」 처리 문장(교환 배송비는 1차 미징수 — 청구 줄 없음)             |
  * | 반려·거부·재반송 | 「결제」 결제금액 · 「결과」 처리 문장 (+ 렌트면 「별도」 보증금)                          |
  *
  * 처리 문장(「환불 없음 — 원거래 유지」 류)은 금액이 아니라 `message` 줄이다.
@@ -636,15 +635,8 @@ const claimBlocksOf = (order: Order): CalcBlock[] => {
     ];
   }
 
+  /* 교환 배송비는 1차에 받지 않아 청구 줄을 붙이지 않는다(디자인 §3 #9 · 개발 c9f21b9 · 3차 회신 Q-11) */
   if (claim.type === "exchange") {
-    const feeLines =
-      fee > 0
-        ? [
-            calcLine("exchangeFee", "교환 배송비", won(fee), {
-              hint: "왕복 · 고객 부담",
-            }),
-          ]
-        : [];
     return [
       payBlock,
       {
@@ -652,7 +644,6 @@ const claimBlocksOf = (order: Order): CalcBlock[] => {
         label: "교환",
         emphasis: true,
         lines: [
-          ...feeLines,
           message(
             done ? "환불 없음 — 재배송 완료" : "환불 없음 — 검수 후 재배송",
           ),
