@@ -238,7 +238,10 @@ export function TxTable({
                 {/* 유형은 분류라 상태색을 쓰지 않는다 — 중립색 */}
                 <Tag size="small">{u.type}</Tag>
               </TableTd>
-              <TableTd ellipsis>{u.prod}</TableTd>
+              {/* 낱말 단위로 두 줄까지 — 음절 중간에서 꺾이지 않게(「…침낭 세 / 트」 · 2026-11-05 화면 점검) */}
+              <TableTd ellipsis className="break-keep">
+                {u.prod}
+              </TableTd>
               <TableTd className="whitespace-nowrap tabular-nums">
                 {won(u.amt)}
               </TableTd>

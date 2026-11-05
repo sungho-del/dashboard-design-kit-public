@@ -87,12 +87,12 @@ import {
  * - **승인요청 상태만 심사할 수 있다.** 처리된 건은 읽기 전용이고 하단 바에 [목록]만 남는다
  * - **[승인] 은 확인 창을 거친다**(원본 `gateApprove` — 되돌릴 수 없는 처리라서)
  * - **반려에는 사유가 필수다** — 목록 일괄과 **같은 창**(`ReviewRejectModal`)을 쓴다
- * - 반려 건은 「반려 사유」 줄에 사유와 반려일만(수수료율·위생인증 없음), 승인 건은 승인일·요율·위생(판정 Q11 ·
+ * - 반려 건은 「반려 사유」·「반려일」 두 줄만(수수료율·위생인증 없음), 승인 건은 승인일·요율·위생(판정 Q11 ·
  *   제목 「심사 결과」 — 부록 A A18). 「심사 상태」 줄은 세 상태 모두 그대로(기획 확인 요청 34번)
  *
  * ## 표기 (2026-11-03 UX 검수)
  * - **반려 사유는 심사 상태 바로 아래** — 반려 건에서 가장 먼저 읽을 값이다(원본은 수수료율 다음).
- *   반려일은 괄호 대신 보조 글자 「· 2026.06.11」(회원 상세의 정지 사유 일시와 같은 형식)
+ *   반려일은 그 아래 「반려일」 줄 — 승인 건의 「승인일」 줄과 같은 꼴(2026-11-05 화면 점검 · 판정 Q11 「반려 사유·반려일」)
  * - **심사 상태는 두 경우 모두 `InfoList` 한 줄**이다 — 승인요청 건은 그 아래에 입력칸이 이어진다.
  *   상태에 따라 같은 항목이 「라벨 위 배지」와 「회색 상자 줄」로 갈리지 않게
  * - 라벨 폭은 **화면 상수 하나**(`LABEL_WIDTH`) — 두 카드의 값 시작선이 맞는다
@@ -427,10 +427,11 @@ function SellerReviewDetailBody({
                 <span className="text-text-warning">
                   {application.rejectReason ?? "-"}
                 </span>
-                <span className="body-small text-text-sub tabular-nums">
-                  {" "}
-                  · {ymd(application.rejectedAt)}
-                </span>
+              </InfoItem>
+            ) : null}
+            {application.status === "rejected" ? (
+              <InfoItem label="반려일" labelWidth={LABEL_WIDTH}>
+                {ymd(application.rejectedAt)}
               </InfoItem>
             ) : null}
             {application.status === "rejected" ? null : (

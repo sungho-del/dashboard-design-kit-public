@@ -379,9 +379,9 @@ describe("TermsAdminPage", () => {
       await user.click(radio("개정 예정본"));
       expect(editorValue()).toBe(SCHEDULED_BODY);
       expect(editor()).toHaveAttribute("readonly");
-      expect(screen.getByRole("button", { name: /시행일/ })).toHaveTextContent(
-        "2026.11.18",
-      );
+      /* 시행일은 읽는 값(입력칸 아님) — 흐린 비활성 칸으로 두지 않는다 */
+      expect(screen.queryByRole("button", { name: /시행일/ })).toBeNull();
+      expect(screen.getByText("2026.11.18")).toBeVisible();
       expect(screen.queryByRole("button", { name: "수정 저장" })).toBeNull();
 
       await user.click(screen.getByRole("button", { name: "예약 취소" }));

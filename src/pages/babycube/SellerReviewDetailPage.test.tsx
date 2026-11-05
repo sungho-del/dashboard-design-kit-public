@@ -202,21 +202,21 @@ describe("SellerReviewDetailPage (S04-D 입점 심사 상세)", () => {
       expect(within(result).getByText("인증")).toBeVisible();
     });
 
-    /** 원본: 반려 건은 「반려 사유」 줄에 경고색 사유 + 반려일 — 심사 상태 바로 아래 줄 */
+    /** 반려 건은 심사 상태 바로 아래 「반려 사유」(경고색) · 「반려일」 두 줄 — 승인 건의 「승인일」 줄과 같은 꼴 */
     it("반려된 건은 반려 사유와 반려일을 심사 상태 바로 아래에 낸다", () => {
       renderAt(REJECTED);
       const result = section(RESULT);
 
       const reason = within(result).getByText("KC 미인증 품목 포함");
       expect(reason.className.split(/\s+/)).toContain("text-text-warning");
-      expect(within(result).getByText("· 2026.06.11")).toBeVisible();
+      expect(within(result).getByText("2026.06.11")).toBeVisible();
       expect(within(result).queryByText("승인일")).toBeNull();
 
       const labels = Array.from(result.querySelectorAll("dt")).map(
         (dt) => dt.textContent,
       );
       /* 판정 Q11 — 반려 = 반려 사유·반려일. 수수료율·위생인증 줄이 없다(「심사 상태」는 기획 확인 요청 34번) */
-      expect(labels).toEqual(["심사 상태", "반려 사유"]);
+      expect(labels).toEqual(["심사 상태", "반려 사유", "반려일"]);
     });
 
     it("두 카드의 라벨 폭이 같다 — 값 시작선이 맞는다", () => {

@@ -41,8 +41,9 @@ export interface TooltipDelay {
  * DESIGN.md §12 컨테이너: max-width 256 · bg surface · radius medium · shadow-layer.
  * z-index 는 `--z-toast`(11000) — 툴팁은 모달 위에서도 떠야 하므로 항상 최상위다.
  */
+/* break-keep — 한국어 도움말이 음절 중간에서 꺾이지 않게(「되돌려 / 받습니다」 · 2026-11-05 화면 점검) */
 const tooltipBaseClasses = cn(
-  "max-w-64 rounded-medium bg-surface shadow-layer",
+  "max-w-64 rounded-medium bg-surface shadow-layer break-keep",
   "z-(--z-toast)",
 );
 

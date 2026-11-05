@@ -12,6 +12,8 @@ import {
   EmptyState,
   FormField,
   Gnb,
+  InfoItem,
+  InfoList,
   PageHeader,
   SegmentedControl,
   Tag,
@@ -19,7 +21,7 @@ import {
   useToast,
 } from "../../components/ui";
 import {
-  dateOf,
+  dotDate,
   EFFECTIVE_COPY,
   effectiveDefault,
   MESSAGES,
@@ -307,13 +309,14 @@ export function TermsAdminPage({
                     <FormField label="약관 내용">
                       <Textarea minRows={12} value={schedule.body} readOnly />
                     </FormField>
-                    <FormField label={EFFECTIVE_COPY.label}>
-                      <DatePicker
-                        className="w-60"
-                        value={dateOf(schedule.effectiveAt)}
-                        disabled
-                      />
-                    </FormField>
+                    {/* 시행일은 예약에서 가장 중요한 값 — 흐린 비활성 칸 대신 읽는 값(기본 글자색)으로 */}
+                    <InfoList>
+                      <InfoItem label={EFFECTIVE_COPY.label}>
+                        <span className="tabular-nums">
+                          {dotDate(schedule.effectiveAt)}
+                        </span>
+                      </InfoItem>
+                    </InfoList>
                   </>
                 ) : (
                   <>

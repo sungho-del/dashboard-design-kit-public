@@ -313,17 +313,19 @@ function FeeField({
           }
         />
       </FormField>
-      {/* 입력칸과 같은 높이에 세운다 — 라벨 줄이 아니라 입력 줄에 붙은 선택이다 */}
-      <Checkbox
-        className="h-(--size-control-medium)"
-        label="무료"
-        /* `Checkbox` 는 보이는 글자로 이름을 잇는다(aria-labelledby). 칸마다 같은 「무료」 라 그 연결을 풀고 칸 이름을 붙인다 */
-        aria-labelledby={undefined}
-        aria-label={`${label} 무료`}
-        disabled={disabled}
-        checked={fee.free}
-        onChange={(event) => onChange({ free: event.target.checked })}
-      />
+      {/* 입력칸과 같은 높이 상자의 세로 가운데에 세운다 — 라벨 줄이 아니라 입력 줄에 붙은 선택이다.
+          Checkbox 루트에 높이를 주면 글자가 있을 때 위로 붙는다(items-start) */}
+      <span className="flex h-(--size-control-medium) items-center">
+        <Checkbox
+          label="무료"
+          /* `Checkbox` 는 보이는 글자로 이름을 잇는다(aria-labelledby). 칸마다 같은 「무료」 라 그 연결을 풀고 칸 이름을 붙인다 */
+          aria-labelledby={undefined}
+          aria-label={`${label} 무료`}
+          disabled={disabled}
+          checked={fee.free}
+          onChange={(event) => onChange({ free: event.target.checked })}
+        />
+      </span>
     </div>
   );
 }

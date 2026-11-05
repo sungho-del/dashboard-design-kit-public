@@ -187,6 +187,9 @@ export const updatedText = (doc: Pick<TermsDoc, "updatedAt">) =>
     ? "미작성"
     : `최종 수정 ${doc.updatedAt.replace(/-/g, ".")}`;
 
+/** `YYYY-MM-DD` → `YYYY.MM.DD`(화면 날짜 표기) */
+export const dotDate = (ymd: string) => ymd.replace(/-/g, ".");
+
 /** `YYYY-MM-DD` → 그날 0시(로컬) */
 export const dateOf = (ymd: string) => {
   const [y, m, d] = ymd.split("-").map(Number);

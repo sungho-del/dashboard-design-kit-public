@@ -431,8 +431,13 @@ function TrendChartCard({
   } else {
     body = (
       <>
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+        {/*
+          합계 ↔ 칩: 카드 폭이 448 이상이면 한 줄, 좁으면 칩을 아랫줄로. 두 차트 카드는 폭이 같아
+          **함께** 바뀌므로 차트 그림 시작 높이가 맞는다(1280 에서 금액 카드만 넘쳐 40 어긋났다 —
+          금액 카드 한 줄 실측 최대 442 · 3개월). `flex-wrap` 은 더 긴 값이 들어올 때의 안전망
+        */}
+        <div className="@container flex flex-col gap-2">
+          <div className="flex flex-col items-start gap-2 @min-[448px]:flex-row @min-[448px]:flex-wrap @min-[448px]:items-end @min-[448px]:justify-between @min-[448px]:gap-x-4">
             <div className="flex flex-col gap-1">
               <span className="body-small text-text-sub">선택한 기간 합계</span>
               <span className="flex items-baseline gap-1">
