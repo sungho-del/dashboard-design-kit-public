@@ -26,6 +26,7 @@ import {
   EMPTY_DESCRIPTION,
   EMPTY_TITLE,
   NOTICES,
+  noticeOrder,
   PIN_LABEL,
   STATUS_META,
   audienceOf,
@@ -64,7 +65,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *    (원본은 전역 변수 `NOTICE_AUD` 로 같은 일을 한다).
  * 2. **행 어디를 눌러도 공지 상세(등록/수정)로** 간다(2026-11-02 결정 · 원본은 제목 링크).
  *    `+ 공지 작성` 은 지금 탭의 대상으로 새 폼을 연다(원본 `NOTICE_AUD`).
- * 3. **정렬하지 않는다** — 데이터 순서 그대로(원본). 「상단 고정」도 정렬에 쓰지 않는다.
+ * 3. **고정 먼저(최신순) → 일반(최신순)** 으로 정렬한다(판정 Q13 · `noticeOrder`). 정렬 머리는 없다.
  *
  * ## ⚠️ 원본에 없어서 걷어낸 것 — 되살리지 말 것
  * 페이지네이션(원본 `pager()` 호출 없음) · 상태 필터 · 고정 토글 · 미리보기 모달 ·
@@ -104,7 +105,9 @@ export function NoticeListPage({
     );
   };
 
-  const list = NOTICES.filter((notice) => notice.audience === audience);
+  const list = NOTICES.filter((notice) => notice.audience === audience).sort(
+    noticeOrder,
+  );
 
   return (
     <AppShell

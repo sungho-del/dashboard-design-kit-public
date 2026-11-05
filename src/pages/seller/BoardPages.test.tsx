@@ -9,6 +9,8 @@ import {
   SellerReviewsPage,
   SupportPage,
 } from "./BoardPages";
+import { noticeOrder } from "./BoardPages.data";
+import { SELLER_NOTICES } from "./seed/board.data";
 import type { SellerNavProps } from "./SettleParts";
 
 /* -------------------------------------------------------------------------
@@ -59,6 +61,30 @@ describe("공지사항", () => {
     expect(within(rows[0]).getByText("고정")).toBeInTheDocument();
     expect(within(rows[1]).getByText("-")).toBeInTheDocument();
     expect(within(rows[3]).getByText("2026.06.15")).toBeInTheDocument();
+  });
+
+  /* 판정 Q13 · 디자인 §1 「세 앱 공통」 — 고정 먼저(최신순) → 일반(최신순) */
+  it("정렬은 고정 먼저 → 묶음 안은 게시일 최신순(배열 순서와 상관없이)", () => {
+    const base = SELLER_NOTICES[0];
+    const row = (id: string, pin: boolean, date: string) => ({
+      ...base,
+      id,
+      pin,
+      date,
+    });
+    const sorted = [
+      row("일반-07.05", false, "2026.07.05"),
+      row("고정-06.01", true, "2026.06.01"),
+      row("일반-07.10", false, "2026.07.10"),
+      row("고정-06.20", true, "2026.06.20"),
+    ].sort(noticeOrder);
+
+    expect(sorted.map((notice) => notice.id)).toEqual([
+      "고정-06.20",
+      "고정-06.01",
+      "일반-07.10",
+      "일반-07.05",
+    ]);
   });
 
   it("행을 누르면 공지 상세", async () => {

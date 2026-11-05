@@ -34,16 +34,12 @@ import {
   boardToneOf,
   detailPathOf,
   inqTypeOf,
+  NOTICE_ROWS,
   ratingLabel,
   replyStatOf,
 } from "./BoardPages.data";
 import { LIST_COPY, PAGE_SIZE, PAGE_SIZES } from "./processList.data";
-import {
-  SELLER_ASKS,
-  SELLER_NOTICES,
-  SL_INQUIRIES,
-  SL_REVIEWS,
-} from "./seed/board.data";
+import { SELLER_ASKS, SL_INQUIRIES, SL_REVIEWS } from "./seed/board.data";
 import { SellerShell, type SellerNavProps } from "./SettleParts";
 
 /* =========================================================================
@@ -309,7 +305,7 @@ export function SellerNoticePage(props: SellerNavProps) {
   return (
     <SellerShell {...props} header={<PageHeader title="공지사항" />}>
       <BoardTable
-        rows={SELLER_NOTICES}
+        rows={NOTICE_ROWS}
         rowLabel={(n) => n.title}
         onOpen={(n) => props.onNavSelect(detailPathOf(NOTICE_PATH, n.id))}
         columns={[

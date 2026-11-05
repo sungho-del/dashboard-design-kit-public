@@ -1,11 +1,7 @@
+import { NOTICE_ROWS } from "./BoardPages.data";
 import { MY_PRODUCTS, saleStatOf } from "./ProductsPage.data";
 import { DEMO_TODAY } from "./processList.data";
-import {
-  SELLER_ASKS,
-  SELLER_NOTICES,
-  SL_INQUIRIES,
-  SL_REVIEWS,
-} from "./seed/board.data";
+import { SELLER_ASKS, SL_INQUIRIES, SL_REVIEWS } from "./seed/board.data";
 import { UNITS } from "./seed/orders.data";
 import { SUMMARY } from "./settle.data";
 
@@ -35,11 +31,9 @@ export const won = (v: string | number) =>
 export const count = (v: string | number) =>
   `${Number(v).toLocaleString("ko-KR")}건`;
 
-/* ---------- 공지 — 고정 먼저 + 최근순, 3건(원본 `noticeTop`) ---------- */
+/* ---------- 공지 — 고정 먼저(최신순) → 일반(최신순), 3건(원본 `noticeTop` · 판정 Q13 — 공지 목록과 같은 순서) ---------- */
 
-export const NOTICE_TOP = [...SELLER_NOTICES]
-  .sort((a, b) => (b.pin ? 1 : 0) - (a.pin ? 1 : 0))
-  .slice(0, 3);
+export const NOTICE_TOP = NOTICE_ROWS.slice(0, 3);
 
 /* ---------- 지표 3그룹 ---------- */
 

@@ -1,5 +1,9 @@
 import type { TagTone } from "../../components/ui";
-import type { SellerInquiry } from "./seed/board.data";
+import {
+  SELLER_NOTICES,
+  type SellerInquiry,
+  type SellerNotice,
+} from "./seed/board.data";
 
 /* =========================================================================
  * 게시판 관리 4목록 — 도메인 층 (공지사항 · 문의 관리 · 리뷰 관리 · 1:1 문의)
@@ -21,6 +25,7 @@ import type { SellerInquiry } from "./seed/board.data";
  * - 행은 `id` 를 가진다(체크박스 · 상세 경로)
  * - `BOARD_TONE` 에 없는 상태는 `default`(중립)
  * - 문의 `type` 이 비면 「상품」으로 본다(원본 폴백)
+ * - 공지 목록·대시보드 공지 카드는 `NOTICE_ROWS`(고정 먼저(최신순) → 일반(최신순) — 판정 Q13 「세 앱 공통」)
  *
  * ## 원본에 없어서 두지 않은 것
  * 검색조건(FilterBar) · 상태 카드 — 원본 `FILTERS` 에 네 화면이 없다. 문의 관리의 유형 칩만 있다.
@@ -43,6 +48,15 @@ export const ASK_NEW_KEY = "new";
 
 export const detailPathOf = (listPath: string, id: string) =>
   `${listPath}/${encodeURIComponent(id)}`;
+
+/**
+ * 본사 공지 순서 — 고정 먼저 → 같은 묶음 안은 등록일 최신순(판정 Q13 · 디자인 §1 「세 앱 공통」 —
+ * 본사 `NoticeListPage.data` `noticeOrder` 와 같은 규칙). 시드는 손대지 않고 여기서 정렬한다.
+ */
+export const noticeOrder = (a: SellerNotice, b: SellerNotice) =>
+  Number(b.pin) - Number(a.pin) || b.date.localeCompare(a.date);
+
+export const NOTICE_ROWS = [...SELLER_NOTICES].sort(noticeOrder);
 
 /**
  * 게시판 상태 → 톤. 본사 `SupportListPage.data`(미답변 warning · 답변완료 default)와 같은 규칙 —

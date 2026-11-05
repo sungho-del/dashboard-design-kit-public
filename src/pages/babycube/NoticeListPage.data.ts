@@ -22,7 +22,7 @@ import type { TagTone } from "../../components/ui";
  * - `STATUS_META` 의 키는 `Notice.status` 값과 정확히 일치한다
  * - `AUDIENCES` 에는 **「전체」가 없다** — 첫 항목이 기본값이다
  * - `periodParts` 는 `{ lead, tail, tailMuted }` 를 돌려준다
- * - `NOTICES` 는 **보일 순서 그대로** 놓는다(뼈대는 정렬하지 않는다)
+ * - 목록 순서는 `noticeOrder` — 고정 먼저(최신순) → 일반(최신순). 뼈대는 대상으로 거른 뒤 이것으로 정렬한다
  *
  * ## 원본 = 기획 v0.4 `plan-members/proto.html`
  * - 목록 `SCREENS.notices` 3415-3432 · 샘플 `NOTICES` 3386-3394 · 저장 `noticeSave` 3397-3406
@@ -43,10 +43,9 @@ import type { TagTone } from "../../components/ui";
  * 노출 중/숨김을 색으로 가르게 **게시 = success · 숨김 = default** 로 둔다(형제 「노출 = b-prog」 대응).
  * ⚠️ 기획 확인 필요.
  *
- * ## 정렬하지 않는다 — 「상단 고정」이 있어도 (사용자 결정 2026-11-03)
- * 원본은 배열 순서 그대로 그린다(시드가 등록일 최신순, 새 글은 맨 앞에 붙는다).
- * 폼의 「목록 상단에 고정(핀)」은 정렬에 쓰이지 않는다 — 시드에서는 고정 글이 대상별 최신 글이라
- * 결과가 같다. ⚠️ 기획 확인 필요.
+ * ## 정렬 — 고정 먼저(최신순) → 일반(최신순) (판정 Q13 · 디자인 §1 「세 앱 공통」)
+ * 폼의 「목록 상단에 고정(핀)」이 정렬에 쓰인다(`noticeOrder`). 2026-11-03 「정렬하지 않는다(원본 배열 순서)」를 풀었다 —
+ * 시드는 고정 글이 대상별 최신 글이라 보이는 순서는 그대로다. 같은 등록일은 배열 순서(안정 정렬).
  * ---------------------------------------------------------------------- */
 
 export type NoticeAudience = "customer" | "seller";
@@ -70,6 +69,10 @@ export interface Notice {
   /** 등록일 `YYYY-MM-DD` */
   date: string;
 }
+
+/** 목록 순서 — 고정 먼저 → 같은 묶음 안은 등록일 최신순(판정 Q13). `Array.sort` 비교 함수 */
+export const noticeOrder = (a: Notice, b: Notice) =>
+  Number(b.pinned) - Number(a.pinned) || b.date.localeCompare(a.date);
 
 /** 대상 전환 — 원본 `[['고객','고객 공지'],['셀러','셀러 공지']]`, 기본 고객 */
 export const AUDIENCES: { value: NoticeAudience; label: string }[] = [

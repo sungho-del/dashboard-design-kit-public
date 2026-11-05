@@ -2,7 +2,12 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { NoticeListPage } from "./NoticeListPage";
-import { EXCERPT_LENGTH, excerpt } from "./NoticeListPage.data";
+import {
+  EXCERPT_LENGTH,
+  excerpt,
+  noticeOrder,
+  NOTICES,
+} from "./NoticeListPage.data";
 
 /**
  * S19 공지사항 관리 — **동작** 테스트 (기획 v0.4 `SCREENS.notices` 대조 후).
@@ -63,7 +68,7 @@ describe("NoticeListPage", () => {
   });
 
   describe("대상 전환 — 고객 3 · 셀러 5", () => {
-    it("기본은 고객 공지 — 원본 순서 그대로(정렬 없음)", () => {
+    it("기본은 고객 공지 — 고정 먼저 → 최신순(시드 순서와 같다)", () => {
       renderPage();
       expect(
         screen.getByRole("heading", { name: "목록 (총 3건)" }),
@@ -97,6 +102,32 @@ describe("NoticeListPage", () => {
       renderPage("?aud=seller");
       expect(screen.getByRole("radio", { name: "셀러 공지" })).toBeChecked();
       expect(bodyRows()).toHaveLength(5);
+    });
+  });
+
+  /* 판정 Q13 · 디자인 §1 — 고정 먼저(최신순) → 일반(최신순), 세 앱 공통 */
+  describe("정렬 — 고정 먼저(최신순) → 일반(최신순)", () => {
+    it("배열 순서와 상관없이 고정 글을 위로, 묶음 안은 등록일 최신순", () => {
+      const base = NOTICES[0];
+      const row = (id: string, pinned: boolean, date: string) => ({
+        ...base,
+        id,
+        pinned,
+        date,
+      });
+      const sorted = [
+        row("일반-07-05", false, "2026-07-05"),
+        row("고정-06-01", true, "2026-06-01"),
+        row("일반-07-10", false, "2026-07-10"),
+        row("고정-06-20", true, "2026-06-20"),
+      ].sort(noticeOrder);
+
+      expect(sorted.map((notice) => notice.id)).toEqual([
+        "고정-06-20",
+        "고정-06-01",
+        "일반-07-10",
+        "일반-07-05",
+      ]);
     });
   });
 
