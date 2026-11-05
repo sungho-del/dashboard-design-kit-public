@@ -175,16 +175,17 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
   });
 
   describe("운영 정보 — 원본 sec.sellers_oper", () => {
-    it("수수료율을 입력칸으로 내고 안내 문구를 붙인다", () => {
+    it("수수료율을 입력칸으로 내고 안내 문구를 붙인다 (부록 A A16)", () => {
       renderAt(NORMAL);
       const operation = section("운영 정보");
 
       expect(within(operation).getByRole("textbox")).toHaveValue("12");
       expect(
         within(operation).getByText(
-          "셀러 정산(플랫폼 수수료) 계산의 기준 요율입니다.",
+          "입점사 정산의 기준 요율이며 0보다 크고 100 이하(소수 둘째 자리까지)로 입력합니다.",
         ),
       ).toBeVisible();
+      expect(within(operation).queryByText(/플랫폼 수수료\) 계산/)).toBeNull();
     });
 
     /* 판정 Q8 · 디자인 §1 — 저장된 상태가 퇴점 처리중·퇴점이면 읽기 전용 + 안내 한 줄 */
@@ -267,7 +268,7 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       expect(screen.queryByText(/셀러 수수료율은 0보다 크고/)).toBeNull();
       expect(
         within(operation).queryByText(
-          "셀러 정산(플랫폼 수수료) 계산의 기준 요율입니다.",
+          "입점사 정산의 기준 요율이며 0보다 크고 100 이하(소수 둘째 자리까지)로 입력합니다.",
         ),
       ).toBeNull();
       expect(within(operation).queryByText(/일반적인 범위/)).toBeNull();
@@ -702,8 +703,12 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
         ),
       ).toBeVisible();
       expect(
-        within(dialog).getByText(/남아 있는 건은 퇴점 후에도/),
+        within(dialog).getByText(
+          "끝나지 않은 주문·정산이 있습니다. 확인한 뒤 퇴점 처리하세요.",
+        ),
       ).toBeVisible();
+      /* 부록 A C71 — 「임시저장·반려·재심사요청 이력은 덮지 않습니다.」 없음 */
+      expect(within(dialog).queryByText(/덮지 않습니다/)).toBeNull();
 
       await user.click(
         within(dialog).getByRole("button", { name: "퇴점 처리" }),
@@ -728,7 +733,7 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
           "퇴점하면 로그인할 수 없고 판매 가능한 상품 1개는 판매중지·전시중지로 전환됩니다.",
         ),
       ).toBeVisible();
-      expect(within(dialog).getByText(/남아 있는 건은/)).toBeVisible();
+      expect(within(dialog).getByText(/끝나지 않은 주문·정산/)).toBeVisible();
     });
 
     it("남은 일이 없으면 「없음」만 있고 경고는 없다", async () => {
@@ -738,7 +743,7 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
 
       const dialog = screen.getByRole("dialog");
       expect(within(dialog).getAllByText("없음")).toHaveLength(5);
-      expect(within(dialog).queryByText(/남아 있는 건은/)).toBeNull();
+      expect(within(dialog).queryByText(/끝나지 않은 주문·정산/)).toBeNull();
       await user.click(
         within(dialog).getByRole("button", { name: "퇴점 처리" }),
       );

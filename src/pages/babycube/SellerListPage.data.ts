@@ -253,7 +253,7 @@ export const COMMISSION_LOCKED_NOTE =
 /**
  * 상태값 → 표시 라벨 · Tag tone · 설명.
  *
- * `description` 은 원본 v0.4 `STAT_TIP` 의 두 줄(설명 + 다음 단계)을 한 문단으로 이은 것이다.
+ * `description` 은 원본 v0.4 `STAT_TIP` 의 두 줄(설명 + 다음 단계)을 한 문단으로 이은 것이다 — 퇴점은 부록 A C68 한 문장.
  * 원본은 이 문구를 **상태 대시 카드의 툴팁**으로 띄우므로 우리도 같은 자리에 붙이고,
  * 미리보기 모달에서도 한 번 더 낸다 — **되돌릴 수 있는 상태인지**가 판단의 근거라서다.
  */
@@ -276,8 +276,7 @@ export const STATUS_META: Record<
   closed: {
     label: "퇴점",
     tone: "default",
-    description:
-      "퇴점이 끝나 거래가 종결된 셀러입니다. 더 진행할 단계가 없습니다.",
+    description: "퇴점이 완료된 셀러입니다.",
   },
 };
 

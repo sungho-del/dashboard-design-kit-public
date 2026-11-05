@@ -201,10 +201,10 @@ describe("SellerListPage (S03 셀러 관리)", () => {
       await user.hover(statusBox(CLOSED));
 
       expect(
-        await screen.findByText(
-          "퇴점이 끝나 거래가 종결된 셀러입니다. 더 진행할 단계가 없습니다.",
-        ),
+        await screen.findByText("퇴점이 완료된 셀러입니다."),
       ).toBeVisible();
+      /* 부록 A C68 — 둘째 문장 삭제 */
+      expect(screen.queryByText(/더 진행할 단계가 없습니다/)).toBeNull();
     });
 
     /**
