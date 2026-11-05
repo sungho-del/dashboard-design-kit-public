@@ -29,6 +29,7 @@ import {
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
 import {
   lastPathSegment,
+  navigate,
   usePathname,
   useSearchParams,
 } from "../../lib/router";
@@ -186,11 +187,12 @@ export function OrderDetailPage(props: OrderDetailPageProps) {
   const { listPath, listLabel, noun } = MODES[mode];
   /* 경로는 `{목록}/{처리단위}` **한 조각**이어야 한다 */
   const rest = pathname.slice(listPath.length + 1);
-  /* 번호 없이 들어온 상세(`/orders-all/`)는 그 목록으로 — 예시 건을 그리지 않는다(개발 §2-4) */
+  /* 번호 없이 들어온 상세(`/orders-all/`)는 그 목록으로 — 예시 건을 그리지 않는다(개발 §2-4).
+     주소를 바꿔 단다(replace) — 쌓으면 목록에서 「뒤로」가 빈 주소로 돌아가 다시 목록으로 튕긴다 */
   const blank = rest === "";
   useEffect(() => {
-    if (blank) onNavSelect(listPath);
-  }, [blank, listPath, onNavSelect]);
+    if (blank) navigate(listPath, { replace: true });
+  }, [blank, listPath]);
   const order = rest.includes("/")
     ? undefined
     : findOrder(lastPathSegment(pathname), mode);

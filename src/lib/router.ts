@@ -10,7 +10,7 @@ import { useCallback, useSyncExternalStore } from "react";
  * 라이브러리를 들이는 대신, **지우고 갈아끼우기 쉬운 최소 구현**을 둔다 —
  * 실제 앱에 이식할 때 이 파일을 지우고 `useLocation`/`useNavigate` 로 바꾸면 끝이다.
  *
- * 지원하는 것: pathname 구독 · pushState 이동 · 뒤로/앞으로(popstate) · 쿼리스트링 읽기.
+ * 지원하는 것: pathname 구독 · pushState 이동(replace 선택) · 뒤로/앞으로(popstate) · 쿼리스트링 읽기.
  * 지원하지 않는 것: 중첩 라우트 · 경로 파라미터(`/members/:id`) · 로더 · 전환 애니메이션.
  * 필요해지는 순간이 라우터를 들일 때다.
  */
@@ -76,9 +76,10 @@ export function useSearchParams(): URLSearchParams {
  * ⚠️ `pushState` 는 `popstate` 를 발생시키지 않는다 — 그래서 직접 이벤트를 쏜다.
  * 이걸 빠뜨리면 URL 만 바뀌고 화면이 그대로다.
  */
-export function navigate(to: string) {
+export function navigate(to: string, { replace = false } = {}) {
   if (to === window.location.pathname + window.location.search) return;
-  window.history.pushState(null, "", to);
+  /* replace — 들어온 주소를 지우고 바꿔 단다. 「뒤로」가 그 주소로 돌아가 다시 튕기지 않게(빈 번호 상세 → 목록) */
+  window.history[replace ? "replaceState" : "pushState"](null, "", to);
   window.dispatchEvent(new Event(NAVIGATE_EVENT));
 }
 

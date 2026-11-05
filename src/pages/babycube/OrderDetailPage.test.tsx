@@ -184,22 +184,7 @@ describe("OrderDetailPage", () => {
       expect(screen.getByText("찾을 수 없는 주문입니다")).toBeVisible();
     });
 
-    it.each([
-      ["/orders-all/", "/orders-all"],
-      ["/orders-cancel/", "/orders-cancel"],
-      ["/orders-return/", "/orders-return"],
-      ["/orders-exchange/", "/orders-exchange"],
-    ])(
-      "번호 없이 들어오면(%s) 예시 건도 「찾을 수 없음」도 없이 그 목록으로 간다",
-      (path, list) => {
-        const { onNavSelect } = renderAt(path);
-
-        expect(onNavSelect).toHaveBeenCalledTimes(1);
-        expect(onNavSelect).toHaveBeenCalledWith(list);
-        expect(screen.queryByText(/찾을 수 없는/)).not.toBeInTheDocument();
-        expect(screen.queryByRole("heading")).not.toBeInTheDocument();
-      },
-    );
+    /* 번호 없이 들어온 상세(`/orders-cancel/`) → 목록 이동은 목록 화면이 대신 그려져야 하므로 App.test.tsx 가 본다 */
 
     /** 개발 §3-2-8 — develop d46e752 렌트 주문 상세와 같은 조건(마지막 보증금 환급 시도 실패 · `EXCEED_MAX_REFUND_DUE`) */
     it("보증금 환급이 결제사 기간 경과로 실패한 건만 「보증금 상태」 배지 아래 안내", () => {

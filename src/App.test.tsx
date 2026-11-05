@@ -139,6 +139,26 @@ describe("App (전달본)", () => {
     expect(window.location.pathname).toBe("/orders-all");
   });
 
+  /** 번호 없이 들어온 상세는 그 목록으로(개발 §2-4) — 주소를 바꿔 달아 「뒤로」가 빈 주소로 돌아가 다시 튕기지 않는다 */
+  it.each([
+    ["/orders-all/", "/orders-all"],
+    ["/orders-cancel/", "/orders-cancel"],
+    ["/orders-return/", "/orders-return"],
+    ["/orders-exchange/", "/orders-exchange"],
+  ])(
+    "번호 없이 %s 로 들어오면 %s 목록이 열리고 기록은 쌓이지 않는다",
+    (path, list) => {
+      window.history.pushState(null, "", path);
+      const depth = window.history.length;
+      render(<App />);
+
+      expect(window.location.pathname).toBe(list);
+      expect(window.history.length).toBe(depth);
+      expect(screen.queryByText(/찾을 수 없는/)).not.toBeInTheDocument();
+      expect(screen.getByRole("table")).toBeVisible();
+    },
+  );
+
   /** 클레임 상세도 주문 상세 화면 하나가 맡는다 — 경로가 모드를 정하고 [목록]은 그 클레임 목록으로 */
   it.each([
     ["/orders-cancel", "20261017221014", "U-R20", "취소 상세(렌트)"],
