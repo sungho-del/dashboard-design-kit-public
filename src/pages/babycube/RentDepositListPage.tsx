@@ -244,14 +244,13 @@ export function RentDepositListPage({
         ⚠️ 목록 범위(반납 이후)보다 넓다 — 원본 그대로, 기획 확인 사항(.data.ts 머리 주석)
       */}
       <section className="grid grid-cols-4 gap-6" aria-label="보증금 요약">
-        {SUMMARY_STATS.map(({ label, value, unit, caption }) => (
+        {SUMMARY_STATS.map(({ label, value, unit }) => (
           <StatTile
             key={label}
             variant="card"
             label={label}
             value={value}
             unit={unit}
-            caption={caption}
           />
         ))}
       </section>

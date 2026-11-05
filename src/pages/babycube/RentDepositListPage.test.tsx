@@ -164,16 +164,13 @@ describe("RentDepositListPage (BabyCube S13 보증금 내역)", () => {
       expect(hold).toContain("점유중 보증금 총액");
       expect(hold).toContain("1,870,000");
       /* 환급대기 U-R17 70,000 + 취소 환불 처리중 U-R23 90,000 */
-      expect(pending).toContain("환급 대기액");
-      expect(pending).toContain("판정됨·실행 전");
-      expect(pending).toContain("160,000");
+      /* 부록 A C14 · C15 — 라벨 괄호 설명(caption) 없이 라벨·값만 */
+      expect(pending).toBe("환급 대기액160,000원");
       /* 종결: R18 70,000 · R19 150,000 · R28 80,000 · R29 160,000 · R30 55,000 · R31 0 · R32 50,000
          + 목록 밖 R24 90,000 · R27 130,000 */
       expect(returned).toContain("785,000");
       /* 차감: R30 25,000 + R31 40,000 */
-      expect(deducted).toContain("차감 수익");
-      expect(deducted).toContain("연체료+손상 · 상한=보증금");
-      expect(deducted).toContain("65,000");
+      expect(deducted).toBe("차감 수익65,000원");
     });
 
     it("검색으로 목록을 좁혀도 요약은 그대로다", async () => {

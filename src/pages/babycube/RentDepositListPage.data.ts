@@ -164,33 +164,15 @@ export const deductedTotal = sum(
 export const num = (value: number) => value.toLocaleString("ko-KR");
 
 /**
- * 라벨 괄호 설명까지 원본 문구다. 원본 색: 환급 대기액 = warn → `warning` ·
- * 차감 수익 = brand(우리 타일에 해당 색조 없음 — 무채색).
- */
-/**
- * 요약 4값 — 라벨 괄호 안 설명(원본 문구 그대로)은 라벨이 아니라 값 아래 `caption` 으로.
+ * 요약 4값 — 라벨·값만. 원본 라벨 괄호 설명(「판정됨·실행 전」 · 「연체료+손상 · 상한=보증금」)은 지웠다(부록 A C14 · C15).
  * 환급 대기는 정상 진행 상태라 경고색을 쓰지 않는다(경고색은 실제 이상에만 — 정산 화면 공통).
+ * 원본 색: 차감 수익 = brand(우리 타일에 해당 색조 없음 — 무채색).
  */
-export const SUMMARY_STATS: {
-  label: string;
-  value: string;
-  unit: string;
-  caption?: string;
-}[] = [
+export const SUMMARY_STATS: { label: string; value: string; unit: string }[] = [
   { label: "점유중 보증금 총액", value: num(holdingTotal), unit: "원" },
-  {
-    label: "환급 대기액",
-    value: num(pendingRefundTotal),
-    unit: "원",
-    caption: "판정됨·실행 전",
-  },
+  { label: "환급 대기액", value: num(pendingRefundTotal), unit: "원" },
   { label: "반환 완료액", value: num(returnedTotal), unit: "원" },
-  {
-    label: "차감 수익",
-    value: num(deductedTotal),
-    unit: "원",
-    caption: "연체료+손상 · 상한=보증금",
-  },
+  { label: "차감 수익", value: num(deductedTotal), unit: "원" },
 ];
 
 /* =========================================================================
