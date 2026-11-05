@@ -37,6 +37,7 @@ import { useSearchParams } from "../../lib/router";
 import {
   CANCEL_ORDERS,
   DASH_UNIT,
+  autoCancelLabelOf,
   EMPTY_DESCRIPTION,
   EMPTY_FILTERS,
   EMPTY_TITLE,
@@ -82,6 +83,8 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * 그래서 이 뼈대는 `OrderListPage.tsx` 와 **같다** — 다른 것은 셋뿐이다:
  *   ① 모집단(`CANCEL_ORDERS`) ② 상태 선택지(`STATUS_OPTIONS` = `FLOW_STEPS['취소']`)
  *   ③ 주문번호 링크의 목적지(`detailPathOf` — 원본 `rentRmaCancel`/`rmaCancel`)
+ * 그리고 원본 뒤에 생긴 것 하나: ④ 상태 칸 아래 보조 배지 「셀러 미준비 자동취소」(`autoCancelLabelOf` ·
+ *   디자인 §3 #8 · 개발 1657c2d — 열을 늘리지 않는다. 그래서 상태 열만 주문 목록보다 넓다 128)
  *
  * ## 이 파일은 도메인을 모른다 — 도메인은 `./OrderCancelListPage.data.ts` 에 있다
  *
@@ -114,7 +117,8 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 /**
  * 좌측 고정 7열(원본 `frozenTable(…, 7)`: 선택·No·상태·주문번호·유형·판매자·이용 기간)의
  * `left` 오프셋 — **`<colgroup>` 폭의 누적합**이다.
- *   52 / 56 / 116 / 144 / 72 / 112 / 208 → 0 · 52 · 108 · 224 · 368 · 440 · 552 (합 760)
+ *   52 / 56 / 128 / 144 / 72 / 112 / 208 → 0 · 52 · 108 · 236 · 380 · 452 · 564 (합 772)
+ * 상태 128 — 보조 배지 「셀러 미준비 자동취소」(실측 103 + 셀 여백 24)가 칸 안에 든다(주문 목록은 116)
  * ⚠️ 첫 열은 52 다 — 체크박스 16 + 셀 여백(왼쪽 24 · 오른쪽 12). 40 을 줘도 브라우저가 늘린다.
  * ⚠️ 파생값이라 `<colgroup>` 을 고치면 **반드시 함께** 고친다. 어긋나면 열이 겹친다.
  */
@@ -122,15 +126,15 @@ const FROZEN_LEFT = [
   "left-0",
   "left-13",
   "left-27",
-  "left-56",
-  "left-92",
-  "left-110",
-  "left-138",
+  "left-59",
+  "left-95",
+  "left-113",
+  "left-141",
 ];
 const LAST_FROZEN = FROZEN_LEFT.length - 1;
 
 /** 고정 구간의 폭 — `DataTableShell` 이 가로 스크롤바를 이만큼 비켜서 그린다 */
-const FROZEN_LEAD_WIDTH = 760;
+const FROZEN_LEAD_WIDTH = 772;
 
 /** 고정 구간의 오른쪽 끝 1px. `border` 는 collapse 표에서 함께 스크롤돼 사라진다 */
 const FROZEN_EDGE =
@@ -482,12 +486,12 @@ export function OrderCancelListPage({
         <Table>
           {/*
             table-fixed 라 폭 지정 필수. 26열이라 px(4px 그리드 유틸)로 준다.
-            ⚠️ 앞 7개는 `FROZEN_LEFT` 의 오프셋과 **짝**이다(합 760). 함께 고칠 것.
+            ⚠️ 앞 7개는 `FROZEN_LEFT` 의 오프셋과 **짝**이다(합 772). 함께 고칠 것.
           */}
           <colgroup>
             <col className="w-13" />
             <col className="w-14" />
-            <col className="w-29" />
+            <col className="w-32" />
             <col className="w-36" />
             <col className="w-18" />
             <col className="w-28" />
@@ -607,9 +611,17 @@ export function OrderCancelListPage({
                         {filtered.length - (start + index)}
                       </TableTd>
                       <TableTd align="center" className={frozenTd(2)}>
-                        <Tag tone={statusMeta.tone} dot size="small">
-                          {statusMeta.label}
-                        </Tag>
+                        {/* 셀러 미준비 자동취소 — 열을 늘리지 않고 상태 아래 보조 배지(디자인 §3 #8) */}
+                        <span className="inline-flex flex-col items-center gap-1">
+                          <Tag tone={statusMeta.tone} dot size="small">
+                            {statusMeta.label}
+                          </Tag>
+                          {autoCancelLabelOf(order) ? (
+                            <Tag tone="warning" size="small">
+                              {autoCancelLabelOf(order)}
+                            </Tag>
+                          ) : null}
+                        </span>
                       </TableTd>
                       {/* 원본 `orderRowDetail`: 주문번호를 누르면 그 처리단위의 취소 상세로 간다 */}
                       <TableTd className={frozenTd(3)}>

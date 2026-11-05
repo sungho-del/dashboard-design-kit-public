@@ -193,6 +193,23 @@ describe("OrderCancelListPage (BabyCube S09 취소 목록)", () => {
       expect(screen.getByText("목록 (총 3건)")).toBeVisible();
     });
 
+    /** 디자인 §3 #8 · 개발 1657c2d — 열을 늘리지 않고 상태 칸에 보조 배지 */
+    it("셀러 미준비 자동취소 건만 상태 아래에 「셀러 미준비 자동취소」 배지가 붙는다", async () => {
+      const { user } = renderPage();
+
+      expect(screen.queryByText("셀러 미준비 자동취소")).toBeNull();
+      await user.click(typeCard("판매"));
+
+      const tagged = bodyRows().filter((row) =>
+        within(cellsOf(row)[CELL.status]).queryByText("셀러 미준비 자동취소"),
+      );
+      expect(tagged).toHaveLength(1);
+      expect(
+        within(cellsOf(tagged[0])[CELL.status]).getByText("취소 완료"),
+      ).toBeVisible();
+      expect(screen.getAllByText("셀러 미준비 자동취소")).toHaveLength(1);
+    });
+
     it("첫 페이지는 결제 최신순이고 No 는 조회 결과의 역순 순번이다", () => {
       renderPage();
 
@@ -595,7 +612,7 @@ describe("OrderCancelListPage (BabyCube S09 취소 목록)", () => {
       }
     });
 
-    it("표 컬럼은 26개이고 앞 7열이 sticky, 오프셋이 폭의 누적합(760)이다", () => {
+    it("표 컬럼은 26개이고 앞 7열이 sticky, 오프셋이 폭의 누적합(772)이다", () => {
       renderPage();
 
       const toPx = (cls: string, prefix: string) =>
@@ -618,7 +635,7 @@ describe("OrderCancelListPage (BabyCube S09 취소 목록)", () => {
         expect(toPx(head.className, "left-")).toBe(offset);
         offset += cols[index];
       });
-      expect(offset).toBe(760);
+      expect(offset).toBe(772);
       expect(classList(heads[7])).not.toContain("sticky");
     });
   });

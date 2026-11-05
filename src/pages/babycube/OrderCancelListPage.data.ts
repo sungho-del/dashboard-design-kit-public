@@ -39,6 +39,7 @@ import {
  *
  * ## 샘플 — 주문 샘플에서 **거른다** (자체 샘플 없음)
  * 모집단 = `ORDERS` 중 `claim.type === "cancel"` (렌트 3 · 판매 3, 상태마다 한 건 이상).
+ * 판매 취소 완료 U-S14 는 셀러 미준비 자동취소 예시다(`autoCancelLabelOf` — 상태 칸 보조 배지만 붙는다).
  * 같은 처리단위가 주문 목록에도 「취소 요청」 등으로 보인다(원본 그대로).
  * ---------------------------------------------------------------------- */
 
@@ -76,6 +77,16 @@ export type CancelFilters = OrderFilters;
 export const CANCEL_ORDERS: Order[] = ORDERS.filter(
   (order) => order.claim?.type === "cancel",
 );
+
+/**
+ * 상태 보조 배지 — 셀러 미준비 자동취소 건에만 「셀러 미준비 자동취소」(디자인 §3 #8 · 회신3 Q-12 · D-78).
+ * 개발은 서버가 행마다 라벨을 내려 준다(`autoCancelLabel` · 아니면 null). 퍼블은 예시 한 건(U-S14)에 단다 —
+ * 열을 늘리지 않고 상태 칸에 붙인다(개발 `orders-cancel/columns.tsx`)
+ */
+export const AUTO_CANCEL_LABEL = "셀러 미준비 자동취소";
+const AUTO_CANCELED = new Set(["U-S14"]);
+export const autoCancelLabelOf = (order: Pick<Order, "id">) =>
+  AUTO_CANCELED.has(order.id) ? AUTO_CANCEL_LABEL : null;
 
 /** 주문번호 링크 → 그 처리단위의 취소 상세(상세 화면은 다음 단계) */
 export const detailPathOf = (order: Order) => `/orders-cancel/${order.id}`;
