@@ -235,9 +235,12 @@ const SKELETON_WIDTHS = [
  * 상품수·평점이 가려졌다. 지금 퇴점 탭 합 = **1136**(1440 표 폭) — 1440 은 두 탭 모두 스크롤 없음,
  * 1280 은 표 안에서 가로 스크롤(페이지는 밀리지 않는다).
  *
- * 체크 52(실제 폭) · No 44 · 셀러명 128(긴 이름은 말줄임) · 위생인증 104(배지) · 대표명 72 ·
+ * 체크 52(실제 폭) · No 44 · 셀러명 128(긴 이름은 말줄임) · 위생인증 104(배지) · 대표명 88 ·
  * 연락처 132(모든 화면 같음) · 상태 92 · 수수료율 156(실제 내용) · 입점일 100 · [퇴점일 100] ·
- * 상품수 76 · 평점 80(정렬 머리글 아이콘까지). 퇴점일만 끼어들고 나머지는 1px 도 안 움직인다.
+ * 상품수 76 · 평점 80(정렬 머리글 아이콘까지). 퇴점일은 끼어들기만 한다.
+ * - 대표명 72 → 88(2026-11-05): 본사 행 대표명 「베이비큐브」(판정 Q17 · 실측 61 + 여백 24)가 72 에서 두 줄로 꺾였다
+ * - 퇴점 탭만 수수료율 140: 퇴점 행은 수수료율이 값만이라(판정 Q8 · 실측 「16%」 57) 입력칸 자리가 필요 없다 —
+ *   대표명이 넓어진 16 을 여기서 되돌려 퇴점 탭 합 1136 을 지킨다
  */
 const colgroup = (withExitDate: boolean) => (
   <colgroup>
@@ -245,10 +248,10 @@ const colgroup = (withExitDate: boolean) => (
     <col className="w-11" />
     <col className="w-32" />
     <col className="w-26" />
-    <col className="w-18" />
+    <col className="w-22" />
     <col className="w-33" />
     <col className="w-23" />
-    <col className="w-39" />
+    <col className={withExitDate ? "w-35" : "w-39"} />
     <col className="w-25" />
     {withExitDate ? <col className="w-25" /> : null}
     <col className="w-19" />
