@@ -126,7 +126,9 @@ describe("셀러 정산 — 요약 · 산출 내역 (한 카드)", () => {
       within(calc()).getByText(/보증금·연체료·배상액은 매출 정산과/),
     ).toBeVisible();
     expect(
-      within(calc()).getByText("세금계산서는 매월 10일에 발행됩니다(연동 준비 중)."),
+      within(calc()).getByText(
+        "세금계산서는 매월 10일에 발행됩니다(연동 준비 중).",
+      ),
     ).toBeVisible();
   });
 
