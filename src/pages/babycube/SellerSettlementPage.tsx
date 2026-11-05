@@ -73,15 +73,22 @@ import { SettlementCalc } from "./SettlementCalc";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
 /*
-  처리 열은 표 **오른쪽에 붙박는다** — 10열이라 좁은 화면(1280)에서는 표가 가로로 밀리는데,
-  업무 버튼([지급완료]·[수정 명세 재발송])이 스크롤 밖으로 사라지면 안 된다.
-  왼쪽 1px 선은 `border` 대신 가상 요소로(collapse 표에서 border 는 함께 스크롤돼 사라진다 — 주문 목록 고정 열과 같다)
+  **오른쪽 고정 묶음 — 지급액 · 상태 · 처리** (2026-11-05 사용자 결정).
+  11열이라 좁은 화면(1280)에서는 표가 가로로 밀린다. 처리 열만 붙박았더니 바로 앞 지급액·상태를 덮어
+  금액이 앞자리만 남았다(92,650원 → 「9」). 세 열을 함께 붙박아 「얼마 · 무슨 상태 · 무엇을 할지」가 같이 보이게 한다.
+  right = 그 열 오른쪽 고정 열 폭의 합 — 처리 152 → 0 · 상태 88 → 152 · 지급액 96 → 240
+  ⚠️ 파생값이라 `<colgroup>` 끝 세 열을 고치면 **반드시 함께** 고친다.
+  왼쪽 1px 선은 묶음 맨 왼쪽(지급액)에만, `border` 대신 가상 요소로(collapse 표에서 border 는 함께 스크롤돼 사라진다 — 주문 목록 고정 열과 같다)
 */
-const ACTION_EDGE =
+const FROZEN_RIGHT = ["right-60", "right-38", "right-0"]; // 지급액 · 상태 · 처리
+const RIGHT_EDGE =
   "before:absolute before:inset-y-0 before:left-0 before:w-px before:bg-divide before:content-['']";
-const ACTION_TH = `sticky right-0 z-2 ${ACTION_EDGE}`;
+/* 헤더 셀 배경은 TableTh 가 이미 `bg-surface` */
+const frozenRightTh = (i: number) =>
+  `sticky z-2 ${FROZEN_RIGHT[i]}${i === 0 ? ` ${RIGHT_EDGE}` : ""}`;
 /* 본문 셀 배경은 행에서 물려받는다(줄무늬·hover 를 따라가려면 상속뿐) */
-const ACTION_TD = `sticky right-0 z-1 bg-inherit ${ACTION_EDGE}`;
+const frozenRightTd = (i: number) =>
+  `sticky z-1 bg-inherit ${FROZEN_RIGHT[i]}${i === 0 ? ` ${RIGHT_EDGE}` : ""}`;
 
 /* =========================================================================
  * 셀러 정산 (BO-STL-002 · `/settle-seller`) — 목록형 · 뼈대
@@ -428,10 +435,14 @@ export function SellerSettlementPage({
               <TableTh align="right">PG수수료</TableTh>
               <TableTh align="right">취소·반품 차감</TableTh>
               <TableTh align="right">안심케어</TableTh>
-              <TableTh align="right">지급액</TableTh>
+              <TableTh align="right" className={frozenRightTh(0)}>
+                지급액
+              </TableTh>
               {/* 배지만 들어가는 열은 가운데 (§7-2) */}
-              <TableTh align="center">상태</TableTh>
-              <TableTh className={ACTION_TH}>처리</TableTh>
+              <TableTh align="center" className={frozenRightTh(1)}>
+                상태
+              </TableTh>
+              <TableTh className={frozenRightTh(2)}>처리</TableTh>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -502,18 +513,18 @@ export function SellerSettlementPage({
                       </TableTd>
                       <TableTd
                         align="right"
-                        className="whitespace-nowrap tabular-nums"
+                        className={`whitespace-nowrap tabular-nums ${frozenRightTd(0)}`}
                       >
                         <span className="body-medium-bold">
                           {cellMoney.payout(row)}
                         </span>
                       </TableTd>
-                      <TableTd align="center">
+                      <TableTd align="center" className={frozenRightTd(1)}>
                         <Tag tone={meta.tone} dot size="small">
                           {meta.label}
                         </Tag>
                       </TableTd>
-                      <TableTd className={ACTION_TD}>
+                      <TableTd className={frozenRightTd(2)}>
                         {/* [상세]는 두지 않는다 — 행 클릭·셀러명이 이미 상세로 간다 */}
                         {kind ? (
                           <Button size="small" onClick={() => setGate(row)}>

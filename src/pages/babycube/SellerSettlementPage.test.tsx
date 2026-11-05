@@ -544,3 +544,37 @@ describe("셀러 정산 — 검색조건 · 빈 상태 · 페이지 · preview",
     expect(screen.getByText("해당 조건의 항목이 없습니다")).toBeVisible();
   });
 });
+
+/* 오른쪽 고정 묶음(2026-11-05 사용자 결정) — 1280 에서 [처리] 열이 금액·상태를 덮지 않게 끝 세 열을 함께 붙박는다 */
+describe("오른쪽 고정 묶음 — 끝 세 열", () => {
+  it("끝 세 열만 sticky 이고 right 값이 오른쪽 열 폭의 누적합이다", () => {
+    renderPage();
+    const px = (cls: string, prefix: string) =>
+      Number(
+        cls
+          .split(/\s+/)
+          .find((n) => n.startsWith(prefix))
+          ?.slice(prefix.length),
+      ) * 4;
+    const table = screen
+      .getByRole("columnheader", { name: "처리" })
+      .closest("table")!;
+    const heads = [...table.querySelectorAll("thead th")];
+    const cells = [...table.querySelectorAll("tbody tr:first-child td")];
+    const cols = [...table.querySelectorAll("colgroup > col")].map((c) =>
+      px(c.className, "w-"),
+    );
+    expect(cells).toHaveLength(cols.length);
+
+    let right = 0;
+    for (let i = cols.length - 1; i >= cols.length - 3; i--) {
+      expect(px(heads[i].className, "right-")).toBe(right);
+      expect(px(cells[i].className, "right-")).toBe(right);
+      expect(cells[i].className.split(/\s+/)).toContain("sticky");
+      right += cols[i];
+    }
+    expect(cells[cols.length - 4].className.split(/\s+/)).not.toContain(
+      "sticky",
+    );
+  });
+});

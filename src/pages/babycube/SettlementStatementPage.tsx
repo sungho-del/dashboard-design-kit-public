@@ -57,7 +57,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * 목록 (총 N건) / 표 9열 / 페이지네이션 10·20·50·100      ← 엑셀·체크박스·No·정렬 없음(원본)
  * ```
  * 명세서번호 · [명세서] · 행 클릭 → 정산 명세서 상세(`/settle-statement/{명세서번호}`).
- * [명세서] 열은 오른쪽 고정(1280 에서도 보인다) · 금액 4열(매출·차감·가산·지급액)은 오른쪽 정렬.
+ * 지급액·상태·[명세서] 세 열은 오른쪽 고정(1280 에서도 함께 보인다) · 금액 4열(매출·차감·가산·지급액)은 오른쪽 정렬.
  * 가산(보전·셀러 귀속) 열은 차감 다음(판정 Q3).
  *
  * ## 이 파일은 도메인을 모른다 — 도메인은 `./SettlementStatementPage.data.ts` 에 있다
@@ -74,14 +74,19 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * ====================================================================== */
 
 /*
-  [명세서] 열은 표 오른쪽에 붙박는다 — 1280 에서 표가 가로로 밀려도 버튼이 화면 밖으로 사라지지 않게.
-  셀러 정산 목록(`SellerSettlementPage.tsx` 의 `ACTION_*`)과 같은 값: 왼쪽 1px 선은 가상 요소,
-  본문 셀 배경은 행에서 물려받는다(줄무늬·hover 를 따라가려면 상속뿐)
+  **오른쪽 고정 묶음 — 지급액 · 상태 · [명세서]** (2026-11-05 사용자 결정 · 셀러 정산 목록과 같은 꼴).
+  1280 에서 표가 가로로 밀리면 [명세서] 열만 붙박혀 지급액·상태를 덮었다(「171,6」). 세 열을 함께 붙박는다.
+  right = 그 열 오른쪽 고정 열 폭의 합 — 명세서 112 → 0 · 상태 112 → 112 · 지급액 112 → 224
+  ⚠️ 파생값이라 `<colgroup>` 끝 세 열을 고치면 **반드시 함께** 고친다.
+  왼쪽 1px 선은 묶음 맨 왼쪽(지급액)에만 가상 요소로, 본문 셀 배경은 행에서 물려받는다(줄무늬·hover 를 따라가려면 상속뿐)
 */
-const ACTION_EDGE =
+const FROZEN_RIGHT = ["right-56", "right-28", "right-0"]; // 지급액 · 상태 · 명세서
+const RIGHT_EDGE =
   "before:absolute before:inset-y-0 before:left-0 before:w-px before:bg-divide before:content-['']";
-const ACTION_TH = `sticky right-0 z-2 ${ACTION_EDGE}`;
-const ACTION_TD = `sticky right-0 z-1 bg-inherit ${ACTION_EDGE}`;
+const frozenRightTh = (i: number) =>
+  `sticky z-2 ${FROZEN_RIGHT[i]}${i === 0 ? ` ${RIGHT_EDGE}` : ""}`;
+const frozenRightTd = (i: number) =>
+  `sticky z-1 bg-inherit ${FROZEN_RIGHT[i]}${i === 0 ? ` ${RIGHT_EDGE}` : ""}`;
 
 export interface SettlementStatementPageProps {
   navOpen: boolean;
@@ -234,9 +239,13 @@ export function SettlementStatementPage({
               <TableTh align="right">매출</TableTh>
               <TableTh align="right">차감(수수료·PG·취소)</TableTh>
               <TableTh align="right">가산(보전·셀러 귀속)</TableTh>
-              <TableTh align="right">지급액</TableTh>
-              <TableTh align="center">상태</TableTh>
-              <TableTh className={ACTION_TH}>명세서</TableTh>
+              <TableTh align="right" className={frozenRightTh(0)}>
+                지급액
+              </TableTh>
+              <TableTh align="center" className={frozenRightTh(1)}>
+                상태
+              </TableTh>
+              <TableTh className={frozenRightTh(2)}>명세서</TableTh>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -281,17 +290,20 @@ export function SettlementStatementPage({
                         {additionText(row)}
                       </TableTd>
                       {/* 지급액은 굵게(원본 `<b>`) — TableTd 의 body-medium 과 겹치지 않게 span 에 */}
-                      <TableTd align="right" className="tabular-nums">
+                      <TableTd
+                        align="right"
+                        className={`tabular-nums ${frozenRightTd(0)}`}
+                      >
                         <span className="body-medium-bold">
                           {won(row.payout)}
                         </span>
                       </TableTd>
-                      <TableTd align="center">
+                      <TableTd align="center" className={frozenRightTd(1)}>
                         <Tag tone={status.tone} dot size="small">
                           {status.label}
                         </Tag>
                       </TableTd>
-                      <TableTd className={ACTION_TD}>
+                      <TableTd className={frozenRightTd(2)}>
                         <Button
                           size="small"
                           variant="secondary"
