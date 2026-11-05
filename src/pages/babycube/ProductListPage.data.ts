@@ -27,7 +27,7 @@ import { CATEGORIES, type Category } from "./CategoryListPage.data";
  *
  * ## 원본 어드민에서 가져온 것 / 버린 것
  * 가져온 것은 **도메인뿐**이다 — 컬럼명·컬럼 순서·고정열 범위, 상태 어휘(판매중/반려/
- * 재심사요청/판매중지/품절), 상태 설명(`STATUS_META.description` = v0.4 `STAT_TIP`),
+ * 재심사요청/판매중지/품절), 상태 설명(`STATUS_META.description` — 자리 = v0.4 `STAT_TIP` · 문구 = 부록 A C61~C65),
  * 처분 자격 규칙(`DISPOSITION_ACTIONS`), 안내·모달·알림 문구, KC·이미지의 `O`/`△`/`X`,
  * 상품코드 형식(영문 2 + 숫자 6), 검색 대상 3종. 색 체계(b-green/b-blue/b-prog/b-done/b-exc)는
  * 쓰지 않는다. Tag tone 은 우리 규칙(`docs/screen-templates.md` §3-1)으로 다시 판정했다.
@@ -142,8 +142,7 @@ export const MODE_META: Record<ProductMode, { label: string; tone: TagTone }> =
  * - `stopped` 셀러 스스로 멈춘 정상 종료 → `default`
  * - `soldout` 재고 소진으로 멈춘 정상 종료 → `default`
  *
- * `description` 은 상태 카드 툴팁이다 — 원본 `STAT_TIP` 의 **뜻 + 다음 단계** 두 문장 그대로.
- * 반려·재심사요청·판매중지는 부록 A C62~C64 바꿈 문구(다음 단계 한 문장 · 판정 Q10 「셀러」)다.
+ * `description` 은 상태 카드 툴팁이다 — 다섯 상태 모두 부록 A C61~C65 바꿈 문구(다음 단계 한 문장 · 판정 Q10 「셀러」)다.
  * 다섯 상태가 서로 어떻게 옮겨 가는지 알아야 "지금 무엇을 눌러야 하는지" 판단할 수 있다.
  */
 export const STATUS_META: Record<
@@ -153,8 +152,7 @@ export const STATUS_META: Record<
   onSale: {
     label: "판매중",
     tone: "success",
-    description:
-      "등록 즉시 판매되는 상태입니다 — 그냥 두면 그것이 곧 승인입니다. 재고가 떨어지면 [품절], 본사가 반려 처리하면 [반려]가 됩니다.",
+    description: "재고가 0이 되면 품절, [반려 처리]하면 반려가 됩니다.",
   },
   rejected: {
     label: "반려",
@@ -174,8 +172,7 @@ export const STATUS_META: Record<
   soldout: {
     label: "품절",
     tone: "default",
-    description:
-      "재고가 없어 판매가 멈춘 상태입니다(판매 상품에만 적용). 재고를 채우면 [판매중]으로 돌아갑니다.",
+    description: "재고를 채우면 판매중으로 돌아갑니다.",
   },
 };
 

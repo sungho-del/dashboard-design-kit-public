@@ -434,6 +434,17 @@ describe("ProductListPage", () => {
       ).toHaveAttribute("aria-sort", "none");
       expect(visibleCodes()).toEqual(ON_SALE_PAGE_1);
     });
+
+    it.each([
+      ["판매중 17개", "재고가 0이 되면 품절, [반려 처리]하면 반려가 됩니다."],
+      ["품절 2개", "재고를 채우면 판매중으로 돌아갑니다."],
+    ])("%s 카드 툴팁은 부록 A 문장 (C61 · C65)", async (name, tip) => {
+      const { user } = renderPage();
+      await user.hover(statusCard(name));
+      expect(await screen.findByText(tip)).toBeVisible();
+      expect(screen.queryByText(/그것이 곧 승인입니다/)).toBeNull();
+      expect(screen.queryByText(/판매 상품에만 적용/)).toBeNull();
+    });
   });
 
   describe("판매 상태 색 (의미 검증)", () => {
