@@ -33,7 +33,7 @@ import {
  * **본사는 조회 전용.**
  *
  * ## 주문 명세 — `CalcBreakdown` 어댑터(`statementBlocksOf`)
- * 묶음: 상품(원가 → 상품 할인 → 단가 → 일수/수량 → 소계) · 할인(쿠폰·포인트) · 추가(안심케어·배송비) ·
+ * 묶음: 상품(원가 → 상품 할인 → 단가 → 일수/수량 → 소계) · 할인(쿠폰·포인트) · 추가(안심케어·배송비 — 방문·공항은 「픽업 요금」) ·
  * 결제금액(결과) · 별도(보증금 — 결제금액에 들지 않는다). 클레임 모드는 결제금액을 원거래 금액으로 낮추고
  * 클레임 묶음(`claimBlocksOf`)이 기준 → 차감 → 결과를 보인다. 부호는 읽기용 `−`/`+`(0 은 부호 없음).
  * 본문 주문정보의 결제금액·클레임 결과 줄은 **팝업과 같은 함수**(`payTotalOf`·`claimResultsOf`)를 읽는다.
@@ -411,22 +411,13 @@ const orderBlocksOf = (order: Order): CalcBlock[] => {
       ? [calcLine("coupon", "쿠폰 할인", less(order.coupon))]
       : []),
     ...(order.point
-      ? [
-          calcLine("point", "포인트 할인", less(order.point), {
-            hint: "플랫폼 부담",
-          }),
-        ]
+      ? [calcLine("point", "포인트 할인", less(order.point))]
       : []),
   ];
   const extras: CalcLine[] = [
-    ...(order.care
-      ? [
-          calcLine("care", "안심케어", more(order.care.fee), {
-            hint: "정산 미포함",
-          }),
-        ]
-      : []),
-    calcLine("ship", "배송비", shipLine(ship)),
+    ...(order.care ? [calcLine("care", "안심케어", more(order.care.fee))] : []),
+    /* 방문 수령·공항 픽업은 「픽업 요금」(부록 A B16 — develop 자체 수령 분기) · 택배는 「배송비」 */
+    calcLine("ship", isParcel(order) ? "배송비" : "픽업 요금", shipLine(ship)),
     ...(rent ? [calcLine("returnShip", "회수 배송비", shipLine(ship))] : []),
   ];
   return [

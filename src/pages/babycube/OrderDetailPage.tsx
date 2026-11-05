@@ -115,7 +115,7 @@ export interface OrderDetailPageProps {
 }
 
 /**
- * 라벨 폭 — 가장 긴 라벨(「보증금 반환 예정액」·「보증금 (고정액)」)이 기본 80 에서 두 줄로 쪼개진다.
+ * 라벨 폭 — 가장 긴 라벨(「보증금 반환 예정액」)이 기본 80 에서 두 줄로 쪼개진다.
  * §30-3 대로 **모든 블록이 같은 폭**을 쓴다 — 구역마다 다르면 값 시작선이 어긋난다.
  * 120 = 「보증금 반환 예정액」 실측 104 + 여유(104 에서는 값에 붙어 읽혔다).
  */
@@ -394,7 +394,7 @@ function OrderDetailBody({
             {rent ? (
               <>
                 <Item label="렌트일">{order.rentDays}일</Item>
-                <Item label="보증금 (고정액)">{won(order.deposit ?? 0)}</Item>
+                <Item label="보증금">{won(order.deposit ?? 0)}</Item>
                 <Item label="보증금 상태">
                   {/* 환급이 결제사 기간 경과로 실패한 건만 배지 아래 안내 한 줄(개발 §3-2-8 · develop 과 같은 조건) */}
                   <span className="flex flex-col items-start gap-1">

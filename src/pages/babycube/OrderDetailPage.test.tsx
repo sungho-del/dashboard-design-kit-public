@@ -166,7 +166,7 @@ describe("OrderDetailPage", () => {
       ).toBeVisible();
       expect(valueOf("수량")).toBe("2개");
       expect(hasRow("렌트일")).toBe(false);
-      expect(hasRow("보증금 (고정액)")).toBe(false);
+      expect(hasRow("보증금")).toBe(false);
       expect(hasRow("회수 배송비")).toBe(false);
       expect(hasRow("구매확정일")).toBe(true);
     });
@@ -259,7 +259,7 @@ describe("OrderDetailPage", () => {
 
     it("보증금 상태 — 대여 전후 점유중 · 검수완료 환급대기 · 반납완료 전액환급", () => {
       renderAt("/orders-all/U-R01");
-      expect(valueOf("보증금 (고정액)")).toBe("120,000원");
+      expect(valueOf("보증금")).toBe("120,000원");
       expect(valueOf("보증금 상태")).toBe("점유중");
     });
 
@@ -382,16 +382,26 @@ describe("OrderDetailPage", () => {
       expect(labelsOf("discount")).toEqual(["쿠폰 할인"]);
       expect(lines["쿠폰 할인"]).toBe("\u22123,000원");
       expect(lines["안심케어"]).toBe("+5,000원");
-      expect(hints["안심케어"]).toBe("정산 미포함");
+      /* 부록 A C30 — 「(정산 미포함)」 보조 글자 삭제 */
+      expect(hints["안심케어"]).toBeNull();
       expect(lines["결제금액"]).toBe("35,000원");
     });
 
-    it("포인트 할인은 「할인」 묶음 · 보조 글자 「플랫폼 부담」", async () => {
+    it("포인트 할인은 「할인」 묶음 · 보조 글자 없음 (부록 A C29)", async () => {
       const { user } = renderAt("/orders-all/U-R11");
       const { lines, hints } = await openStatement(user);
       expect(lines["포인트 할인"]).toBe("\u22122,000원");
-      expect(hints["포인트 할인"]).toBe("플랫폼 부담");
+      expect(hints["포인트 할인"]).toBeNull();
       expect(lines["결제금액"]).toBe("37,000원");
+    });
+
+    it("방문 수령 건의 명세 배송 줄은 「픽업 요금」이다 (부록 A B16 · 택배는 「배송비」)", async () => {
+      const { user } = renderAt("/orders-all/U-R10");
+      const { lines, labelsOf } = await openStatement(user);
+      expect(lines["픽업 요금"]).toBe("무료");
+      expect(lines["배송비"]).toBeUndefined();
+      /* 「회수 배송비」 줄은 그대로 — 질문 14 */
+      expect(labelsOf("extra")).toContain("회수 배송비");
     });
 
     it("판매 — 판매가 × 수량 − 쿠폰 + 배송비 (원본은 0원으로 나왔다)", async () => {
