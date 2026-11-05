@@ -117,7 +117,7 @@ describe("셀러 정산 상세 — 베베하우스(확인완료 · 안심케어 
     const { user, onNavSelect } = renderAt("/settle-seller/S-229");
     expect(valueOf("정산 반영 거래 건수")).toBe("1건");
     expect(valueOf("정산월")).toBe("2026년 9월");
-    expect(valueOf("지급일")).toBe("2026.10.10");
+    expect(valueOf("지급일")).toBe("2026.10.12");
     expect(valueOf("지급 계좌")).toBe("국민은행 45**-**-****** (베베하우스)");
     expect(valueOf("정산 상태")).toBe("확인완료");
     expect(hasRow("셀러 이의 사유")).toBe(false);

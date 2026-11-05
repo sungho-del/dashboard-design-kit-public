@@ -88,7 +88,7 @@ describe("셀러별 정산 (2026.09)", () => {
     );
     expect(row("리틀스텝").objection?.at).toBe("2026-10-02 16:40");
     expect(row("코지베이비").resend?.at).toBe("2026-10-17 15:00");
-    expect(row("아기별상사").paidAt).toBe("2026-10-10");
+    expect(row("아기별상사").paidAt).toBe("2026-10-12");
     expect(row("리틀베이비").paidAt).toBeNull();
   });
 
@@ -238,7 +238,7 @@ describe("세금계산서", () => {
       vat: 226,
       total: 2_490,
       status: "pending",
-      date: "2026-10-10",
+      date: "2026-10-12",
       supplier: "BabyCube(본사)",
     });
     expect(of("코지베이비").vat).toBe(510); // 510.3

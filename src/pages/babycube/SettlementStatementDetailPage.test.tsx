@@ -149,7 +149,7 @@ describe("셀러 명세 — 코지베이비 (확인요청 · 안심케어 보전
 
     expect(valueOf("정산 대상")).toBe("코지베이비");
     expect(valueOf("정산월")).toBe("2026년 9월");
-    expect(valueOf("지급일")).toBe("2026.10.10");
+    expect(valueOf("지급일")).toBe("2026.10.12");
     expect(valueOf("지급 계좌")).toBe("국민은행 45**-**-****** (코지베이비)");
     expect(valueOf("정산 반영 거래 건수")).toBe("1건");
     expect(valueOf("상태")).toBe("확인요청");

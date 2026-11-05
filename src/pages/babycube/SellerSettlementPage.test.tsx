@@ -82,7 +82,7 @@ describe("셀러 정산 — 요약 · 산출 내역 (한 카드)", () => {
   it("요약 제목·부제와 4값 — 전체 셀러 합(사례표)", () => {
     renderPage();
     expect(screen.getByText("2026년 9월 정산")).toBeVisible();
-    expect(screen.getByText("지급일 2026.10.10")).toBeVisible();
+    expect(screen.getByText("지급일 2026.10.12")).toBeVisible();
     /* 타일 묶음 — 같은 라벨(「지급 예정 총액」)이 합산 명세에도 있다 */
     const summaryCard = screen
       .getByText("입점사 거래액(할인 후)")
