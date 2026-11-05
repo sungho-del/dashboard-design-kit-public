@@ -100,7 +100,7 @@ export type ClaimStatus = CancelStatus | ReturnStatus | ExchangeStatus;
 /**
  * 처리단위의 진행 상태 = 정상 흐름 + 클레임.
  * 클레임 건은 주문 목록에도 **클레임 상태로** 보인다(원본 `flowStat`) — 상태 선택지에는 없어
- * 주문 목록에서 골라 볼 수는 없다(원본 그대로 · 기획 확인 사항). 고르는 곳은 각 클레임 목록이다.
+ * 주문 목록에서 골라 볼 수는 없다(원본 그대로 · 기획 회신 디자인 §1 「현행 유지」). 고르는 곳은 각 클레임 목록이다.
  */
 export type OrderStatus = FlowStatus | ClaimStatus;
 
@@ -950,7 +950,7 @@ export const matchesSeller = (order: Order, value: string) =>
 
 /**
  * 상태 셀렉트 — **유형별로 갈린다**(원본 `FLOW_STEPS` 판매 5 · 렌트 11).
- * 클레임 진행·배송 지연은 원본처럼 선택지에 없다(목록에는 보인다 — 기획 확인 사항).
+ * 클레임 진행·배송 지연은 원본처럼 선택지에 없다(목록에는 보인다 — 기획 회신 디자인 §1 「현행 유지」 · 배송 지연은 상태가 아니라 덧붙는 표시).
  */
 const statusOptions = (values: OrderStatus[]): SelectOption[] => [
   { value: "all", label: "상태 전체" },
