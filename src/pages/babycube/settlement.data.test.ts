@@ -238,7 +238,7 @@ describe("세금계산서", () => {
       supply: 2_264,
       vat: 226,
       total: 2_490,
-      status: "pending",
+      status: "issued",
       date: "2026-10-12",
       supplier: "베이비큐브(본사)",
     });
@@ -247,7 +247,7 @@ describe("세금계산서", () => {
     expect(of("베이비루").status).toBe("issued");
   });
 
-  /** 판정 Q4 — 매월 10일 자동 발행, 지급·보류와 분리. 미발행 = 자동 발행 실패 건(예시 수는 질문 19) */
+  /** 판정 Q4 — 매월 10일 자동 발행, 지급·보류와 분리. 미발행 = 자동 발행 실패 건(예시 1건 — 리틀베이비) */
   it("발행 상태는 정산 지급 상태를 따라가지 않는다", () => {
     const flipped = taxInvoicesOf(
       SELLER_SETTLEMENTS.map((row) =>

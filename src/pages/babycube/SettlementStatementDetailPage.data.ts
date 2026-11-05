@@ -82,7 +82,7 @@ export interface PayLine {
 export const payLinesOf = (row: SettlementRow): PayLine[] => {
   const hq = row.kind === "hq";
   return [
-    { label: "정산 대상", value: hq ? "본사 (본사)" : row.name },
+    { label: "정산 대상", value: hq ? "본사" : row.name },
     { label: "정산월", value: roundLabel(row.round) },
     { label: "지급일", value: PAYOUT_DATE_TEXT },
     {

@@ -341,14 +341,33 @@ describe("TermsAdminPage", () => {
     });
   });
 
-  /* 판정 Q15 — 예약이 있을 때만 현행본/개정 예정본 전환과 [예약 취소]. 예시 0건이라 데이터를 갈아끼워 본다 */
+  /* 판정 Q15 — 예약이 있을 때만 현행본/개정 예정본 전환과 [예약 취소]. 예시(서비스 이용약관 1건)와 데이터를 갈아끼운 경우 둘 다 본다 */
   describe("개정 예정본(예약)", () => {
     const SCHEDULED_BODY = "제1조 (목적) 개정 예정 본문";
     const switcher = () =>
       screen.queryByRole("radiogroup", { name: "현행본/개정 예정본 전환" });
 
-    it("예약이 없으면 전환·[예약 취소] 가 없다", () => {
-      renderPage();
+    it("예약 예시는 서비스 이용약관 1건 — 개정 예정본은 현행본 + 시행일 부칙 한 줄", async () => {
+      const actual = await vi.importActual<
+        typeof import("./TermsAdminPage.data")
+      >("./TermsAdminPage.data");
+      const TERMS = actual.TERMS;
+      expect(TERMS.filter((doc) => doc.scheduled)).toHaveLength(1);
+      const { user } = renderPage();
+      const radio = (name: string) =>
+        within(switcher() as HTMLElement).getByRole("radio", { name });
+
+      expect(radio("현행본")).toBeChecked();
+      await user.click(radio("개정 예정본"));
+      expect(editorValue()).toBe(
+        `${TERMS[0].body}\n부칙 (시행일) 이 약관은 2026년 10월 26일부터 시행합니다.`,
+      );
+      expect(screen.getByText("2026.10.26")).toBeVisible();
+    });
+
+    it("예약이 없으면 전환·[예약 취소] 가 없다", async () => {
+      const { user } = renderPage();
+      await user.click(docItem("개인정보 처리방침"));
 
       expect(switcher()).toBeNull();
       expect(screen.queryByRole("button", { name: "예약 취소" })).toBeNull();

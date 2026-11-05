@@ -56,7 +56,7 @@ export const ROWS: SettlementRow[] = SELLER_SETTLEMENTS;
 
 /**
  * 「정산 회차」 열 — 표 첫 열(디자인 §3 #10 · 개발 `settle-seller/columns.tsx`). 표기는 이 화면의
- * `2026년 9월` 꼴(개발은 `2026년 09월` · 고정 열·정렬과 함께 기획 확인 중 — 질문 13)
+ * `2026년 9월` 꼴(개발은 `2026년 09월` — 이 화면은 요약 제목과 같은 꼴 · 퍼블이 정함)
  */
 export const roundOf = (row: SettlementRow) => roundLabel(row.round);
 

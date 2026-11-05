@@ -17,16 +17,17 @@ import {
  * 검색조건(펼침·요약·대소문자 무시·기간 빠른 선택) · 정렬 3단 · 페이지 · 빈 상태·초기화 ·
  * 행/회원명 → 상세 · 원본에 없는 엑셀·체크박스·미리보기가 없다 · `?preview=`.
  *
- * 사례표 (원장 25행 → 11명, 기본 순서 = 최근 업데이트 순 · 리뷰 지급은 확정 뒤 — 판정 Q12)
+ * 사례표 (원장 19행 → 10명, 기본 순서 = 최근 업데이트 순 · 리뷰 지급은 확정 뒤 — 판정 Q12)
+ * 확정 전 처리단위에 붙어 있던 리뷰 지급 6행을 빼서 장시우는 원장이 없고, 임채원·황보라는 500 이다.
  * | 회원   | 보유  | 누적 지급 | 누적 차감 | 업데이트          |
- * | 임채원 | 1,200 | 1,200     | 0         | 2026.10.16 20:15  |
  * | 안지성 | 500   | 2,500     | 2,000     | 2026.10.15 17:30  | ← U-R11 사용 2,000
- * | 황보라 | 1,100 | 1,100     | 0         | 2026.10.15 09:40  |
  * | 노하린 | 600   | 3,600     | 3,000     | 2026.10.14 10:05  | ← U-S35 사용 3,000
  * | 홍다인 | 1,600 | 1,600     | 0         | 2026.10.06 14:00  |
  * | 오세린 | 0     | 500       | 500       | 2026.10.02 10:05  | ← 리뷰 회수
- * | 최유나 · 장시우 · 유가은 500 | (백도윤은 리뷰 지급 없음 — 문의 Q-8835) |
+ * | 최유나 · 유가은 500 | (백도윤은 리뷰 지급 없음 — 문의 Q-8835) |
  * | 서하준 | 100   | 500       | 400       | 2026.09.23 10:30  | ← 관리자 회수 400
+ * | 황보라 | 500   | 500       | 0         | 2026.09.22 13:20  |
+ * | 임채원 | 500   | 500       | 0         | 2026.09.18 19:30  |
  * | 송예린 | 500   | 500       | 0         | 2026.09.18 16:00  |
  * ---------------------------------------------------------------------- */
 type User = ReturnType<typeof userEvent.setup>;
@@ -102,16 +103,16 @@ const searchBox = () =>
   screen.getByPlaceholderText("회원명·아이디(이메일) 검색");
 
 const PAGE_ONE = [
-  "임채원",
   "안지성",
-  "황보라",
   "노하린",
   "홍다인",
   "오세린",
   "최유나",
-  "장시우",
   "유가은",
   "서하준",
+  "황보라",
+  "임채원",
+  "송예린",
 ];
 
 describe("표 (원본 7열 · 조회 전용)", () => {
@@ -135,13 +136,12 @@ describe("표 (원본 7열 · 조회 전용)", () => {
     expect(screen.queryByRole("button", { name: /엑셀/ })).toBeNull();
   });
 
-  it("기본 순서는 최근 업데이트 순 · No 는 역순 순번 · 11명", () => {
+  it("기본 순서는 최근 업데이트 순 · No 는 역순 순번 · 10명", () => {
     renderPage();
 
-    expect(screen.getByText("목록 (총 11건)")).toBeVisible();
+    expect(screen.getByText("목록 (총 10건)")).toBeVisible();
     expect(visibleNames()).toEqual(PAGE_ONE);
     expect(column(CELL.no)).toEqual([
-      "11",
       "10",
       "9",
       "8",
@@ -151,12 +151,13 @@ describe("표 (원본 7열 · 조회 전용)", () => {
       "4",
       "3",
       "2",
+      "1",
     ]);
   });
 
   it.each([
     // 회원, 보유, 누적 지급, 누적 차감, 업데이트
-    ["임채원", "1,200P", "1,200P", "0P", "2026.10.16 20:15"],
+    ["임채원", "500P", "500P", "0P", "2026.09.18 19:30"],
     ["안지성", "500P", "2,500P", "2,000P", "2026.10.15 17:30"],
     ["오세린", "0P", "500P", "500P", "2026.10.02 10:05"],
     ["노하린", "600P", "3,600P", "3,000P", "2026.10.14 10:05"],
@@ -168,9 +169,9 @@ describe("표 (원본 7열 · 조회 전용)", () => {
 
   it("보유만 굵다 (원본 `<b>`)", () => {
     renderPage();
-    const cells = within(rowOf("임채원")).getAllByRole("cell");
+    const cells = within(rowOf("노하린")).getAllByRole("cell");
 
-    expect(within(cells[CELL.balance]).getByText("1,200P").className).toContain(
+    expect(within(cells[CELL.balance]).getByText("600P").className).toContain(
       "body-medium-bold",
     );
     expect(cells[CELL.granted].querySelector(".body-medium-bold")).toBeNull();
@@ -346,14 +347,14 @@ describe("검색조건 (펼친 채로 · 즉시 적용)", () => {
       vi.useRealTimers();
     });
 
-    it("1주일(10.13~10.19) — 그 사이 업데이트된 네 명만", async () => {
+    it("1주일(10.13~10.19) — 그 사이 업데이트된 두 명만", async () => {
       const { user } = renderPage();
 
       await user.click(screen.getByRole("button", { name: "업데이트 기간" }));
       const panel = await screen.findByRole("dialog");
       await user.click(within(panel).getByRole("button", { name: "1주일" }));
 
-      expect(visibleNames()).toEqual(["임채원", "안지성", "황보라", "노하린"]);
+      expect(visibleNames()).toEqual(["안지성", "노하린"]);
       expect(
         screen.getByText("업데이트 기간 2026.10.13~2026.10.19"),
       ).toBeVisible();
@@ -368,10 +369,10 @@ describe("정렬 (보유 · 누적 지급 · 누적 차감 · 업데이트 일�
     await user.click(sortButton("보유 포인트"));
     expect(column(CELL.balance).slice(0, 3)).toEqual(["0P", "100P", "500P"]);
     expect(visibleNames()[0]).toBe("오세린");
-    expect(column(CELL.no)[0]).toBe("11");
+    expect(column(CELL.no)[0]).toBe("10");
 
     await user.click(sortButton("보유 포인트"));
-    expect(visibleNames().slice(0, 3)).toEqual(["홍다인", "임채원", "황보라"]);
+    expect(visibleNames().slice(0, 2)).toEqual(["홍다인", "노하린"]);
 
     await user.click(sortButton("보유 포인트"));
     expect(
@@ -394,10 +395,9 @@ describe("정렬 (보유 · 누적 지급 · 누적 차감 · 업데이트 일�
     ]);
   });
 
-  it("업데이트 일시 오름차순 — 가장 오래된 송예린이 맨 위, 정렬하면 1페이지로", async () => {
+  it("업데이트 일시 오름차순 — 가장 오래된 송예린이 맨 위", async () => {
     const { user } = renderPage();
 
-    await user.click(screen.getByRole("button", { name: "2" }));
     await user.click(sortButton("업데이트 일시"));
 
     expect(visibleNames()[0]).toBe("송예린");
@@ -408,16 +408,16 @@ describe("정렬 (보유 · 누적 지급 · 누적 차감 · 업데이트 일�
 });
 
 describe("페이지 (10 · 20 · 50 · 100)", () => {
-  it("2페이지가 이어서 세고, 20개씩이면 한 페이지에 다 들어간다", async () => {
+  /* 원장 회원이 10명이라 10개씩이면 딱 한 쪽이다(쪽 넘김 동작은 Pagination 부품 테스트가 본다) */
+  it("10명이라 한 쪽 — 2쪽이 없고, 20개씩이어도 같다", async () => {
     const { user } = renderPage();
 
-    await user.click(screen.getByRole("button", { name: "2" }));
-    expect(visibleNames()).toEqual(["송예린"]);
-    expect(column(CELL.no)).toEqual(["1"]);
+    expect(screen.queryByRole("button", { name: "2" })).toBeNull();
+    expect(bodyRows()).toHaveLength(10);
 
     await chooseOption(user, "페이지당 개수", "20개씩 보기");
-    expect(bodyRows()).toHaveLength(11);
-    expect(column(CELL.no)[0]).toBe("11");
+    expect(bodyRows()).toHaveLength(10);
+    expect(column(CELL.no)[0]).toBe("10");
   });
 });
 

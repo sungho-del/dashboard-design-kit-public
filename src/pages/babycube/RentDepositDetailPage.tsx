@@ -271,7 +271,7 @@ function RentDepositDetailBody({
             <Item label="상품">{row.product}</Item>
             <Item label="이용 기간">{periodText(row.period)}</Item>
             <Item label="안심케어">
-              {/* 가입 칩만(부록 A C16 — 「복원가능 손상 본사 부담」은 지웠다 · 🛡 기호는 기획 확인 요청 28번) */}
+              {/* 가입 칩만(부록 A C16 — 「복원가능 손상 본사 부담」은 지웠다 · 🛡 기호 대신 칩 — 퍼블이 정함) */}
               {row.care ? (
                 <Tag size="small">가입</Tag>
               ) : (

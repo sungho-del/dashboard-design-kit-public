@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { navigate } from "../../lib/router";
 import { MemberDetailPage } from "./MemberDetailPage";
+import { MEMBERS } from "./MemberListPage.data";
 
 /* -------------------------------------------------------------------------
  * S02-D 회원 상세 — 폼형
@@ -340,26 +341,31 @@ describe("MemberDetailPage (S02-D 회원 상세)", () => {
     });
 
     /**
-     * 원본 `modeOf`·`prodOf` — 한 주문에 렌트와 판매가 섞이면 구분이 **둘**이고
-     * [렌트]·[판매] 탭 양쪽에 나온다. 상품이 여럿이면 `첫 상품 외 N건` 이다.
+     * 렌트와 판매는 한 번에 결제되지 않는다(디자인 §3 #19) — 원본의 섞인 주문(최유나 07-31)은 두 결제로 나눴다.
+     * 상품이 여럿이면 `첫 상품 외 N건` 이다.
      */
-    it("렌트·판매가 섞인 주문은 구분 태그가 둘이고 양쪽 탭에 나온다", async () => {
-      const { user } = renderAt("yuna.choi@example.com");
-      const mixedRow = () =>
-        within(paymentSection())
-          .getByText("20260731662240")
-          .closest("tr") as HTMLElement;
+    it("예시 결제는 모두 구분이 하나 — 최유나 07-31 은 렌트·판매 두 결제로 나뉘어 각 탭에만 나온다", async () => {
+      for (const member of MEMBERS)
+        for (const payment of member.payments)
+          expect(new Set(payment.items.map((item) => item.kind)).size).toBe(1);
 
-      expect(within(mixedRow()).getByText("렌트")).toBeVisible();
-      expect(within(mixedRow()).getByText("판매")).toBeVisible();
+      const { user } = renderAt("yuna.choi@example.com");
+      const rowOfNo = (no: string) =>
+        within(paymentSection()).queryByText(no)?.closest("tr") ?? null;
+
       expect(
-        within(mixedRow()).getByText("잘레토 전동 바운서 4세대 외 1건"),
+        within(rowOfNo("20260731662240")!).getByText("렌트"),
+      ).toBeVisible();
+      expect(
+        within(rowOfNo("20260731715028")!).getByText("판매"),
       ).toBeVisible();
 
       await user.click(screen.getByRole("radio", { name: "렌트" }));
-      expect(mixedRow()).toBeVisible();
+      expect(rowOfNo("20260731662240")).not.toBeNull();
+      expect(rowOfNo("20260731715028")).toBeNull();
       await user.click(screen.getByRole("radio", { name: "판매" }));
-      expect(mixedRow()).toBeVisible();
+      expect(rowOfNo("20260731662240")).toBeNull();
+      expect(rowOfNo("20260731715028")).not.toBeNull();
     });
 
     it("결제한 적이 없으면 표 대신 빈 상태를 낸다", () => {

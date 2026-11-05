@@ -143,7 +143,7 @@ export interface Seller {
   date: string;
   /** 퇴점일 — 퇴점 셀러는 퇴점한 날, 퇴점 처리중 셀러는 **예정일**. 입점 셀러는 `null` */
   exitDate: string | null;
-  /** 등록 상품수 — 입점 셀러는 `catalog` 길이(판정 Q9 · `withListedProducts`). 본사 행만 샘플 값(질문 24) */
+  /** 등록 상품수 — 입점 셀러는 `catalog` 길이(판정 Q9 · `withListedProducts`). 본사 행만 샘플 값(실제 수는 개발이 센다) */
   products: number;
   /** 평점 (5점 만점, 소수 한 자리) */
   rating: number;
@@ -242,7 +242,7 @@ export const COMMISSION_CELL_COPY = {
 
 /**
  * 퇴점 처리중·퇴점 셀러는 수수료율 **읽기 전용** — 재입점하면(입점 상태) 다시 열린다(판정 Q8 · 디자인 §1).
- * 목록 셀은 값만 낸다(셀에 안내 줄 자리가 없다 — 기획 확인 요청 32번) · 셀러 상세는 값 + 칸 아래 안내 한 줄.
+ * 목록 셀은 값만 낸다(셀에 안내 줄 자리가 없다 — 퍼블이 정함) · 셀러 상세는 값 + 칸 아래 안내 한 줄.
  */
 export const isCommissionLocked = (status: SellerStatus) => status !== "active";
 
@@ -932,7 +932,7 @@ type SellerSeed = Omit<Seller, "products" | "catalog"> &
  * 판정 Q9 — **등록 상품수 = 임시저장을 뺀 전체(상품 목록과 같은 수)**. 셀러 목록 「상품수」 · 셀러 상세
  * 「등록 상품수」 · 「등록 상품 (N)」 표가 모두 상품 목록(`LISTED_PRODUCTS`)의 그 셀러 행 하나를 읽는다
  * (상품 목록에는 임시저장 초안이 들어오지 않는다). 상품 목록과 셀러는 셀러명으로 잇는다(상품 행에 셀러 코드가 없다).
- * **본사 행은 샘플 값 그대로** — 직영 상품은 상품 목록에 나오지 않아 기획 확인 요청 24번 답을 기다린다.
+ * **본사 행은 샘플 값 그대로** — 직영 상품은 상품 목록에 나오지 않는다 — 실제 수는 개발이 센다(퍼블은 예시 값만).
  */
 const withListedProducts = (seed: SellerSeed): Seller => {
   if (seed.isHeadquarters) return { products: 0, catalog: [], ...seed };

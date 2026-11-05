@@ -276,7 +276,8 @@ export function SettlementStatementPage({
                           <Tag tone="default" size="small">
                             {TARGET_KIND_LABEL[row.kind]}
                           </Tag>
-                          {row.name}
+                          {/* 본사 행은 이름도 「본사」 — 배지만 둔다 */}
+                          {row.kind === "seller" && row.name}
                         </span>
                       </TableTd>
                       <TableTd>{row.round}</TableTd>

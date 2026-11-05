@@ -709,7 +709,7 @@ describe("정렬", () => {
 
     for (const row of bodyRows()) {
       const name = within(cellsOf(row)[2]).getByRole("button").textContent!;
-      if (SELLERS.find((s) => s.name === name)!.isHeadquarters) continue; // 기획 확인 요청 24번
+      if (SELLERS.find((s) => s.name === name)!.isHeadquarters) continue; // 본사 행은 샘플 값(직영 상품은 상품 목록에 없다)
       expect(cellsOf(row)[9].textContent).toBe(`${listedOf(name)}개`);
     }
     /* 화면에 안 보이는 탭·페이지까지 — 셀러 상세의 등록 상품 표도 같은 행이다 */
@@ -860,7 +860,7 @@ describe("수수료율 인라인 수정", () => {
   });
 
   /** 저장하지 않으므로(퍼블 범위) 초기화하면 고친 값이 모두 처음 값으로 돌아간다 */
-  /* 판정 Q8 — 퇴점 처리중·퇴점은 읽기 전용(값만). 셀 안내 줄은 기획 확인 요청 32번이라 넣지 않는다 */
+  /* 판정 Q8 — 퇴점 처리중·퇴점은 읽기 전용(값만). 셀 안내 줄은 넣지 않는다(셀러 상세에만 — 퍼블이 정함) */
   it.each([
     [EXITING, "튼튼주니어", "8%"],
     [CLOSED, "하늘담요", "16%"],

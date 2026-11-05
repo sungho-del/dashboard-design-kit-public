@@ -172,24 +172,15 @@ describe("PointDetailPage (포인트 현황 상세)", () => {
       ]);
     });
 
-    it("같은 분(分)의 두 행은 원장 위치로 — 임채원 U-R22(일반) 먼저, U-R09(포토) 나중", () => {
+    /* 확정 전 처리단위의 리뷰 지급(U-R09·U-R22)을 뺀 뒤 — 반납완료 U-R28 포토 후기 한 행만 남는다(판정 Q12) */
+    it("임채원: 확정된 처리단위의 리뷰 지급 한 행 · 보유 500", () => {
       renderAt(pathOf("chaewon.lim@example.com"));
       const rows = historyRows();
 
-      expect(rows[0][H.at]).toBe(rows[1][H.at]);
-      expect(
-        rows.slice(0, 2).map((row) => [row[H.content], row[H.remaining]]),
-      ).toEqual([
-        ["포토 후기 작성", "1,200P"],
-        ["일반 후기 작성", "700P"],
+      expect(rows.map((row) => [row[H.content], row[H.remaining]])).toEqual([
+        ["포토 후기 작성", "500P"],
       ]);
-      expect(rows.map((row) => row[H.remaining])).toEqual([
-        "1,200P",
-        "700P",
-        "600P",
-        "500P",
-      ]);
-      expect(valueOf("지급 기간")).toBe("2026.09.18 ~ 2026.10.16");
+      expect(rows[0][H.order]).toBe(orderNoOf("U-R28"));
     });
 
     it("노하린: 사용 3,000 은 주문 U-S35 · 보유 600", () => {

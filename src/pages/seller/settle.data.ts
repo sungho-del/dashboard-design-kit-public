@@ -116,7 +116,7 @@ export interface SettleSummary {
   pg: number;
   cancel: number;
   care: number;
-  /** 셀러 귀속 — 위약금 · 픽업 요금 · 배송비(가산 · 수수료 비대상). 예시 값 없음(0 — 본사 기획 확인 요청 18번) */
+  /** 셀러 귀속 — 위약금 · 픽업 요금 · 배송비(가산 · 수수료 비대상). 예시 값 없음(0 — 퍼블이 정함) */
   penalty: number;
   pickup: number;
   shipping: number;
@@ -456,7 +456,7 @@ export const STATEMENTS: Statement[] = [
     gmv: 2312000,
     ded: 324000,
     payout: 1988000,
-    payday: "2026.05.10",
+    payday: "2026.05.11", // 05.10 이 일요일 — 휴일이면 다음 영업일(디자인 §1 정산)
     stat: "지급완료",
     live: false,
     unpaid: 0,

@@ -78,7 +78,8 @@ export interface MemberPayment {
   paidAt: string;
   /**
    * 주문에 담긴 상품. 원본은 처리단위(`unitsOf`)에서 `구분`·`상품명` 을 도출한다 —
-   * **한 주문에 렌트와 판매가 섞일 수 있고**(구분 태그 둘), 상품이 여럿이면 `첫 상품 외 N건` 이다.
+   * 원본은 한 주문에 렌트와 판매가 섞일 수 있었지만(구분 태그 둘) 렌트와 판매는 한 번에 결제되지 않는다(디자인 §3 #19) —
+   * 예시에는 섞인 주문이 없다. 상품이 여럿이면 `첫 상품 외 N건` 이다.
    */
   items: { kind: PaymentKind; product: string }[];
   /** 결제금액(원) */
@@ -262,7 +263,7 @@ const BRIEF_ROWS: BriefRow[] = [
     uses: ["rent", "sale"],
     kids: 2,
     lastVisit: "2026-09-17",
-    points: 1200,
+    points: 500,
   },
   {
     name: "구민재",
@@ -283,7 +284,7 @@ const BRIEF_ROWS: BriefRow[] = [
     uses: ["rent", "rent"],
     kids: 1,
     lastVisit: "2026-09-08",
-    points: 1100,
+    points: 500,
   },
   {
     name: "안지성",
@@ -390,7 +391,7 @@ const BRIEF_ROWS: BriefRow[] = [
     uses: ["rent", "rent", "sale"],
     kids: 2,
     lastVisit: "2026-09-18",
-    points: 500,
+    points: 0,
   },
   {
     name: "윤서아",
@@ -699,15 +700,20 @@ export const MEMBERS: Member[] = [
         amount: 102000,
         status: "paid",
       },
+      /* 렌트와 판매는 한 번에 결제되지 않는다(디자인 §3 #19) — 원본의 섞인 주문 하나(167,000원)를 두 결제로 나눴다
+         (퍼블이 정함 · 2026-11-05 · 금액은 합이 같게) */
+      {
+        orderNo: "20260731715028",
+        paidAt: "2026-07-31 17:31",
+        items: [{ kind: "sale", product: "비접촉 체온계" }],
+        amount: 39000,
+        status: "paid",
+      },
       {
         orderNo: "20260731662240",
         paidAt: "2026-07-31 17:26",
-        /* 렌트와 판매가 **한 주문에** 섞였다 — 구분 태그가 둘이고 [렌트]·[판매] 탭 양쪽에 나온다 */
-        items: [
-          { kind: "rent", product: "잘레토 전동 바운서 4세대" },
-          { kind: "sale", product: "비접촉 체온계" },
-        ],
-        amount: 167000,
+        items: [{ kind: "rent", product: "잘레토 전동 바운서 4세대" }],
+        amount: 128000,
         status: "paid",
       },
       {

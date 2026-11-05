@@ -572,7 +572,7 @@ export function MemberDetailPage({
                       </TableTd>
                       {/*
                         구분은 다른 목록(주문·상품)과 같은 **중립 태그**다 — 분류지 상태가 아니다.
-                        렌트와 판매가 섞인 주문은 둘 다 낸다(원본 `modeTags(both)`).
+                        렌트와 판매가 섞인 주문은 둘 다 낸다(원본 `modeTags(both)` — 예시에는 섞인 주문이 없다 · 디자인 §3 #19).
                       */}
                       <TableTd align="center">
                         <span className="inline-flex gap-1">

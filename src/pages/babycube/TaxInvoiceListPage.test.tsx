@@ -82,12 +82,12 @@ async function chooseOption(user: User, selectLabel: string, option: string) {
 /** 사례표 「세금계산서」 — 셀러 정산 행 순서 그대로 */
 const CASES = [
   ["TX-2609-0226", "베이비루", "13,080원", "1,308원", "14,388원", "발행완료"],
-  ["TX-2609-0230", "아이랑", "1,344원", "134원", "1,478원", "미발행"],
-  ["TX-2609-0228", "맘스케어", "1,330원", "133원", "1,463원", "미발행"],
+  ["TX-2609-0230", "아이랑", "1,344원", "134원", "1,478원", "발행완료"],
+  ["TX-2609-0228", "맘스케어", "1,330원", "133원", "1,463원", "발행완료"],
   ["TX-2609-0201", "리틀베이비", "8,400원", "840원", "9,240원", "미발행"],
-  ["TX-2609-0231", "코지베이비", "5,103원", "510원", "5,613원", "미발행"],
+  ["TX-2609-0231", "코지베이비", "5,103원", "510원", "5,613원", "발행완료"],
   ["TX-2609-1042", "아기별상사", "22,800원", "2,280원", "25,080원", "발행완료"],
-  ["TX-2609-0229", "베베하우스", "2,264원", "226원", "2,490원", "미발행"],
+  ["TX-2609-0229", "베베하우스", "2,264원", "226원", "2,490원", "발행완료"],
 ];
 
 describe("표 — 사례표 숫자", () => {
@@ -102,7 +102,7 @@ describe("표 — 사례표 숫자", () => {
     expect(screen.queryByRole("cell", { name: "본사" })).toBeNull();
   });
 
-  it("공급가액 = 판매 수수료 · 세액 = round(×10%) · 합계 · 상태 = 지급완료면 발행완료", () => {
+  it("공급가액 = 판매 수수료 · 세액 = round(×10%) · 합계 · 상태 = 자동 발행 실패 건만 미발행", () => {
     renderPage();
 
     bodyRows().forEach((row, index) => {
@@ -145,13 +145,20 @@ describe("검색조건", () => {
     const { user } = renderPage();
 
     await chooseOption(user, "발행상태", "발행완료");
-    expect(nos()).toEqual(["TX-2609-0226", "TX-2609-1042"]);
+    expect(nos()).toEqual([
+      "TX-2609-0226",
+      "TX-2609-0230",
+      "TX-2609-0228",
+      "TX-2609-0231",
+      "TX-2609-1042",
+      "TX-2609-0229",
+    ]);
     expect(screen.getByText("발행상태 발행완료")).toBeInTheDocument();
 
     await chooseOption(user, "발행상태", "미발행");
-    expect(nos()).toHaveLength(5);
+    expect(nos()).toEqual(["TX-2609-0201"]);
     expect(
-      screen.getByRole("heading", { name: "목록 (총 5건)" }),
+      screen.getByRole("heading", { name: "목록 (총 1건)" }),
     ).toBeVisible();
   });
 
@@ -218,7 +225,7 @@ describe("처리 열 — 비활성 + 「연동 준비 중」", () => {
       within(rowOf("TX-2609-0226")).queryByRole("button", { name: /발행$/ }),
     ).toBeNull();
     expect(
-      within(rowOf("TX-2609-0230")).queryByRole("button", {
+      within(rowOf("TX-2609-0201")).queryByRole("button", {
         name: /다운로드/,
       }),
     ).toBeNull();
@@ -232,10 +239,10 @@ describe("처리 열 — 비활성 + 「연동 준비 중」", () => {
     );
     expect(heads[8]).toHaveTextContent("처리");
     expect(heads[8].className.split(" ")).toContain("sticky");
-    const action = rowOf("TX-2609-0230").querySelectorAll("td")[8];
+    const action = rowOf("TX-2609-0201").querySelectorAll("td")[8];
     expect(action.className.split(" ")).toContain("sticky");
     expect(
-      within(action).getByRole("button", { name: "TX-2609-0230 발행" }),
+      within(action).getByRole("button", { name: "TX-2609-0201 발행" }),
     ).toBeVisible();
   });
 });

@@ -147,7 +147,7 @@ export const calcBlocksOf = (row: DepositRow): CalcBlock[] => [
 
 /**
  * 처리 상태 문장 — 원본 3갈래(점유중 · 환급대기 · 종결) · 부록 A C19 · C20 · C21 바꿈 문구.
- * 연체중 덧붙임 문장은 B14 로 지웠다. 종결 줄의 「✓」 기호는 기획 확인 요청 28번이라 넣지 않았다
+ * 연체중 덧붙임 문장은 B14 로 지웠다. 종결 줄의 「✓」 기호는 넣지 않는다(기호 대신 글자 · 퍼블이 정함)
  */
 export const procTextOf = (row: DepositRow) => {
   if (row.status === "holding") {
