@@ -240,7 +240,7 @@ describe("세금계산서", () => {
       total: 2_490,
       status: "pending",
       date: "2026-10-12",
-      supplier: "BabyCube(본사)",
+      supplier: "베이비큐브(본사)",
     });
     expect(of("코지베이비").vat).toBe(510); // 510.3
     expect(of("아기별상사")).toMatchObject({ vat: 2_280, status: "issued" });

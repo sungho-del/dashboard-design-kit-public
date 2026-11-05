@@ -93,7 +93,7 @@ describe("ScreenIndexPage (화면 목록)", () => {
       const target = SCREENS.find((entry) => entry.origin === "babycube")!;
       await user.click(
         screen.getByRole("button", {
-          name: `BabyCube 본사 어드민 · ${target.name} 열기`,
+          name: `베이비큐브 본사 어드민 · ${target.name} 열기`,
         }),
       );
 
@@ -132,7 +132,7 @@ describe("ScreenIndexPage (화면 목록)", () => {
 
       // 이름으로 집힌다는 것 자체가 `aria-label` 이 살아 있다는 뜻이다
       const babycube = SCREENS.filter((entry) => entry.origin === "babycube");
-      const section = group("BabyCube 본사 어드민");
+      const section = group("베이비큐브 본사 어드민");
       expect(
         within(section).getAllByRole("button", { name: /열기$/ }),
       ).toHaveLength(babycube.length);

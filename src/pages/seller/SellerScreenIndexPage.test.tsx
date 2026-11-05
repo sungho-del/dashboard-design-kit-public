@@ -43,7 +43,7 @@ function renderPage() {
 }
 
 const section = () =>
-  screen.getByRole("region", { name: "BabyCube 입점사 어드민" });
+  screen.getByRole("region", { name: "베이비큐브 입점사 어드민" });
 
 describe("SellerScreenIndexPage", () => {
   it("원본 메뉴 27항목(화면 26 + 상품 등록) + 만든 상세가 카드로 선다", () => {
@@ -79,7 +79,7 @@ describe("SellerScreenIndexPage", () => {
     const { user, onNavSelect } = renderPage();
     await user.click(
       screen.getByRole("button", {
-        name: "BabyCube 입점사 어드민 · 검수·반납 관리 열기",
+        name: "베이비큐브 입점사 어드민 · 검수·반납 관리 열기",
       }),
     );
     expect(onNavSelect).toHaveBeenCalledWith("/rent-insp-return");

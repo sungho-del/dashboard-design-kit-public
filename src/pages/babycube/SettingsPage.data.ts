@@ -44,12 +44,13 @@ export type SectionId = "seller" | "customer";
  * - 업무·점심 시간의 `운영시간.`·`점심시간.` 접두어는 **값의 일부**다 — 사용자 앱에 그대로 찍힌다
  * - 대표자·전화는 셀러 목록의 본사 행(`SellerListPage.data.ts` S-0001)과 같은 값이다
  *   (원본도 `SET` 과 본사 셀러 `S-000` 이 같다 — proto.html:954). 두 화면이 서로를 읽지는 않는다
- * - 대표자명에 상호(BabyCube)가 들어간 것도 원본 샘플 그대로다
+ * - 대표자명에 상호가 들어간 것도 원본 샘플 그대로다(글자만 판정 Q17 대로 「베이비큐브」 — 상호 자체는 기존 미답 항목)
+ * - 회사명은 「주식회사 렌티크」(판정 Q17 — 원본 「BabyCube」)
  */
 export const SAVED_SETTINGS: Record<SettingKey, string> = {
-  company: "BabyCube",
+  company: "주식회사 렌티크",
   bizNumber: "000-81-00001",
-  ceo: "BabyCube",
+  ceo: "베이비큐브",
   phone: "02-1588-0000",
   roadAddress: "서울특별시 강남구 테헤란로 501",
   detailAddress: "12층 (06168)",
@@ -107,7 +108,7 @@ export const FIELD_COPY: Record<
   SettingKey,
   { label: string; placeholder: string; max: number }
 > = {
-  company: { label: "회사명", placeholder: "예) BabyCube", max: 40 },
+  company: { label: "회사명", placeholder: "예) 주식회사 렌티크", max: 40 },
   bizNumber: {
     label: "사업자 등록 번호",
     placeholder: "예) 000-81-00001",

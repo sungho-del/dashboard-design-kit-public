@@ -42,7 +42,7 @@ const ORIGIN_META: Record<
   { title: string; description: string }
 > = {
   babycube: {
-    title: "BabyCube 본사 어드민",
+    title: "베이비큐브 본사 어드민",
     description:
       "유아용품 렌트·판매 멀티셀러 마켓플레이스의 본사 운영 어드민. 화면 간 숫자와 상태 어휘가 서로 맞물린다. 원본 기획에서 가져온 것은 도메인 내용뿐이고 색·레이아웃·간격은 전부 이 저장소의 토큰이다.",
   },

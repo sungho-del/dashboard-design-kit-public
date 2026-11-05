@@ -8,6 +8,8 @@
  * 화면은 이 값을 **읽기만** 한다 — 업무 버튼은 확인 창 + 알림만이라 목록·저장본이 바뀌지 않는다.
  * 화면에 보이는 파생값(상태 흐름·배지 수·정산 금액)은 각 화면의 `.data.ts` 가 이 시드에서 계산한다.
  * 원본이 바뀌면 덤프부터 다시 뽑는다(`docs/HANDOFF.md` 셀러 절).
+ * ⚠️ **예외 하나**: 상품명 「BabyCube …」 → 「베이비큐브 …」만 손으로 바꿨다(판정 Q17 — 영문은 로고만 · 2026-11-05).
+ *    덤프를 다시 뽑으면 이것도 다시 바꾼다.
  * ====================================================================== */
 
 export interface SellerProduct {
@@ -772,7 +774,7 @@ export const PRODUCTS: SellerProduct[] = [
   },
   {
     id: "P-100",
-    name: "BabyCube 시그니처 원목 아기침대",
+    name: "베이비큐브 시그니처 원목 아기침대",
     cat: "아기침대",
     seller: "본사",
     src: "본사",
@@ -806,7 +808,7 @@ export const PRODUCTS: SellerProduct[] = [
       "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22400%22%20height%3D%22400%22%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22%2388A89B%22%2F%3E%3Ctext%20x%3D%22200%22%20y%3D%22214%22%20font-family%3D%22sans-serif%22%20font-size%3D%2242%22%20font-weight%3D%22700%22%20fill%3D%22%23FFFFFF%22%20text-anchor%3D%22middle%22%3E%EC%B6%94%EA%B0%80%202%3C%2Ftext%3E%3C%2Fsvg%3E",
     ],
     detail:
-      "<b>BabyCube 시그니처 원목 아기침대</b><div><br></div><div>소재 : 친환경 ABS · 항균 패브릭</div><div>사이즈 : 66 × 88 × 79cm</div><div>구성 : 본품 · 사용 설명서</div><div>권장 사용 연령 : 신생아·0~3개월</div><div>세탁/관리 : 마른 천으로 닦아 관리해주세요.</div>",
+      "<b>베이비큐브 시그니처 원목 아기침대</b><div><br></div><div>소재 : 친환경 ABS · 항균 패브릭</div><div>사이즈 : 66 × 88 × 79cm</div><div>구성 : 본품 · 사용 설명서</div><div>권장 사용 연령 : 신생아·0~3개월</div><div>세탁/관리 : 마른 천으로 닦아 관리해주세요.</div>",
     options: [
       {
         name: "보관가방",
@@ -908,7 +910,7 @@ export const PRODUCTS: SellerProduct[] = [
   },
   {
     id: "P-102",
-    name: "BabyCube 프리미엄 모유저장팩 세트",
+    name: "베이비큐브 프리미엄 모유저장팩 세트",
     cat: "분유·이유식",
     seller: "본사",
     src: "본사",
@@ -942,7 +944,7 @@ export const PRODUCTS: SellerProduct[] = [
       "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22400%22%20height%3D%22400%22%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22%239AA7B0%22%2F%3E%3Ctext%20x%3D%22200%22%20y%3D%22214%22%20font-family%3D%22sans-serif%22%20font-size%3D%2242%22%20font-weight%3D%22700%22%20fill%3D%22%23FFFFFF%22%20text-anchor%3D%22middle%22%3E%EC%B6%94%EA%B0%80%202%3C%2Ftext%3E%3C%2Fsvg%3E",
     ],
     detail:
-      "<b>BabyCube 프리미엄 모유저장팩 세트</b><div><br></div><div>소재 : 친환경 ABS · 항균 패브릭</div><div>사이즈 : 66 × 88 × 79cm</div><div>구성 : 본품 · 사용 설명서</div><div>권장 사용 연령 : 신생아·0~3개월</div><div>세탁/관리 : 마른 천으로 닦아 관리해주세요.</div>",
+      "<b>베이비큐브 프리미엄 모유저장팩 세트</b><div><br></div><div>소재 : 친환경 ABS · 항균 패브릭</div><div>사이즈 : 66 × 88 × 79cm</div><div>구성 : 본품 · 사용 설명서</div><div>권장 사용 연령 : 신생아·0~3개월</div><div>세탁/관리 : 마른 천으로 닦아 관리해주세요.</div>",
     options: [
       {
         name: "범퍼가드",

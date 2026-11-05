@@ -59,7 +59,7 @@ export const PG_RATE = 0.03;
 /** 세금계산서 세액률 */
 export const VAT_RATE = 0.1;
 /** 세금계산서 공급자 — 원본 표기 */
-export const TAX_SUPPLIER = "BabyCube(본사)";
+export const TAX_SUPPLIER = "베이비큐브(본사)";
 
 /**
  * 세금계산서 발행일 — 매월 10일(휴일이면 다음 영업일) 자동 발행, **지급·보류와 분리**(판정 Q4).

@@ -945,7 +945,7 @@ const SELLER_SEEDS: SellerSeed[] = [
     isHeadquarters: true,
     /* 대표자·전화는 원본 본사 셀러 `S-000`(proto.html:954 · rep/tel)과 설정 화면 `SET` 그대로 —
        설정(`SettingsPage.data.ts`)과 같은 값이다. 서로 읽지는 않는다(2026-11-03) */
-    ceo: "BabyCube",
+    ceo: "베이비큐브",
     phone: "02-1588-0000",
     commission: 0,
     date: "2025-09-01 09:00",
@@ -970,7 +970,7 @@ const SELLER_SEEDS: SellerSeed[] = [
         kinds: ["sale"],
         saleStatus: "onSale",
         code: "NR270900",
-        name: "BabyCube 시그니처 원목 아기침대",
+        name: "베이비큐브 시그니처 원목 아기침대",
         category: "수면·침실",
         createdAt: "2026-05-10 09:14:22",
         updatedAt: "2026-06-18 16:02:41",
@@ -990,7 +990,7 @@ const SELLER_SEEDS: SellerSeed[] = [
         kinds: ["sale"],
         saleStatus: "soldout",
         code: "QR270902",
-        name: "BabyCube 프리미엄 모유저장팩 세트",
+        name: "베이비큐브 프리미엄 모유저장팩 세트",
         category: "분유·이유식",
         createdAt: "2026-06-05 14:50:13",
         updatedAt: "2026-06-20 10:25:59",

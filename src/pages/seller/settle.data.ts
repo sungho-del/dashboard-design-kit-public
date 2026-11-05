@@ -543,7 +543,7 @@ export const TAX_INVOICES: TaxInvoice[] = STATEMENTS.map((s) => {
   return {
     no: `TX-${s.month.slice(2).replace(".", "")}`,
     month: s.month,
-    supplier: "BabyCube(본사)",
+    supplier: "베이비큐브(본사)",
     receiver: STORE.name,
     date: s.payday,
     supply,

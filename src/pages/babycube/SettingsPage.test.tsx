@@ -187,7 +187,13 @@ describe("SettingsPage", () => {
     it("원본 저장값으로 열린다 — 대표자·주소·시간 접두어", () => {
       renderPage();
 
-      expect(field("대표자명")).toHaveValue("BabyCube");
+      /* 판정 Q17 — 회사명 「주식회사 렌티크」 · 문구 「베이비큐브」(영문은 로고만) */
+      expect(field("회사명")).toHaveValue("주식회사 렌티크");
+      expect(field("회사명")).toHaveAttribute(
+        "placeholder",
+        "예) 주식회사 렌티크",
+      );
+      expect(field("대표자명")).toHaveValue("베이비큐브");
       expect(field("주소")).toHaveValue("서울특별시 강남구 테헤란로 501");
       expect(field("상세 주소 · 우편번호")).toHaveValue("12층 (06168)");
       expect(field("업무 시간")).toHaveValue(
