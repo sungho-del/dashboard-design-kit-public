@@ -76,16 +76,21 @@ import {
   OPTION_AXIS_MAX,
   OPTION_SORTS,
   PERIOD_MAX,
+  HQ_SELLER_PATH,
+  NEW_PATH,
   SECTION_OF,
   SELLER_OPTIONS,
   STAGE_OPTIONS,
   TAGS_MAX,
   applyOptions,
+  directSaleStatus,
   discountOf,
   draftOf,
   findProduct,
+  isDirect,
   num,
   needsCertNumber,
+  newDraft,
   optionKey,
   periodSummary,
   slotName,
@@ -118,14 +123,25 @@ import { ProductRejectModal } from "./shared/ProductRejectModal";
  * 섹션은 **전부 펼친 채로** 시작하고 각각 접을 수 있다(원본 `nvSec`).
  * 렌트 수량과 재고 수량은 서로 대체된다 — 렌트면 렌트 수량, 판매면 재고 수량 하나만 나온다.
  *
- * 상품 목록의 상품명·[수정] 이 이 화면으로 온다.
+ * 상품 목록의 상품명·[수정] 이 이 화면으로 온다(입점 상품).
+ *
+ * ## 같은 폼 — 본사 직영 상품 등록·수정 (디자인 §3 #3 · 개발 `ProductFormScreen` 공용)
+ * - 경로: `/products/new` = 직영 등록 · `/products/{직영 상품코드}` = 직영 수정. 진입점은 **셀러 상세 본사 행**의
+ *   [+ 상품 등록]·상품코드다(사이드바 메뉴 없음). 직영 상품은 상품 관리 목록에 나오지 않는다(목록 규칙 그대로)
+ * - 머리: 신규는 「상품 등록」 + 「본사 직영 상품입니다. …」(개발 신규 안내 줄) · 수정은 입점 상품과 같은 머리
+ * - 섹션·순서는 입점 상품과 같다. 금액·유형 칸이 열린다(`priceLocked` false) · 신규 처음 값은 `newDraft`
+ * - 판매 상태는 세그먼트 [판매중][판매중지] — 판매 상품 재고 0 이면 「품절」 배지(개발 `Exposure`).
+ *   전시 상태는 늘 세그먼트(처분 대상이 아니라 잠그지 않는다)
+ * - 하단 바: `[목록]  …  [취소] [등록 | 수정 저장]` — 처분 버튼 없음(개발 「직영은 처분 대상이 아니다(E8)」)
+ * - 저장: 검사를 통과하면 알림만 띄우고 그 자리에 남는다(신규 「상품이 등록되었습니다.」 · 수정 「수정 저장했습니다.」)
+ * - [목록]·[취소]: 직영 수정 = 본사 행 셀러 상세 · 신규 = 뒤로(개발 `goList`)
  *
  * ## 원본 정책 — 화면이 강제하는 것
- * - **판매 상태는 고치지 않는다** — 처분(하단 바)으로만 바뀐다. 처분 건(반려·재심사요청)은 전시 상태도 잠근다
+ * - **입점 상품의 판매 상태는 고치지 않는다** — 처분(하단 바)으로만 바뀐다. 처분 건(반려·재심사요청)은 전시 상태도 잠근다
  * - 처분 버튼은 상태가 정한다(`canApprove`/`canReject` — 목록과 같은 규칙)
  * - 반려는 사유 필수 — 상품 목록과 **같은 창**(`shared/ProductRejectModal`). 승인은 확인 창 없이
- * - [수정 저장] 은 원본 `pfValidate` 를 통과해야 한다. 통과하면 알림 후 **목록으로 간다**(원본 흐름)
- * - [취소]·[목록] 은 확인 없이 목록으로 간다(원본 `pfCancel`)
+ * - [수정 저장] 은 `validate`(개발 `validateProductForm` 문구)를 통과해야 한다. 입점 상품은 알림 후 **목록으로 간다**(원본 흐름)
+ * - 입점 상품의 [취소]·[목록] 은 확인 없이 목록으로 간다(원본 `pfCancel`)
  * - 등록 주체도 고칠 수 있다(원본 — 2026-10-19 사용자 결정 「기획대로 열기」)
  * - **입점 상품은 금액 칸·유형을 잠근다**(디자인 §3 #1·#2 · 판정 Q20-3·4 — 개발 `priceLocked`).
  *   잠그는 칸: 렌트 원가·렌트 할인·기본 렌트일·보증금·기간 옵션 전부·판매 원가·판매 할인·
@@ -151,6 +167,7 @@ import { ProductRejectModal } from "./shared/ProductRejectModal";
  * - 공항 픽업 요금 이름을 「공항 픽업 요금/공항 반납 요금」 으로 갈랐다(원본은 방문 수령과 같은 이름이 두 번)
  * - 렌트 **보증금은 필수**(`*`) — 비었거나 1 미만이면 칸 아래 「보증금을 입력해 주세요.」(Q-63 · 개발 26c59cb.
  *   개발은 게시 검증만 걸고 임시저장은 통과시킨다 — 이 화면에는 임시저장이 없어 [수정 저장]마다 검사)
+ * - 기간 옵션 일수 중복 검사는 [설정함] 일 때만 — 숨은 칸의 오류로 저장이 막히지 않게(개발은 설정과 무관하게 검사)
  * - 옵션목록 머리는 한 줄(축 이름)이다 — 원본의 2단 머리(「옵션명」 묶음)를 접었다.
  *   일괄수정의 옵션가 +/− 부호는 뺐다(원본도 「표기용 — 정액만 적용」 미결)
  * ====================================================================== */
@@ -347,14 +364,18 @@ function ImageSlot({
 
 /** 빈 이미지 자리 — 누르면 등록(업로드는 개발 영역이라 알림) */
 function EmptyImageSlot({
+  id,
   label,
   onPending,
 }: {
+  /** 첫 오류로 옮겨 갈 때 찾는 id — 대표이미지 자리만 */
+  id?: string;
   label: string;
   onPending: () => void;
 }) {
   return (
     <button
+      id={id}
       type="button"
       aria-label={`${label} 등록`}
       onClick={onPending}
@@ -385,6 +406,9 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
     `/products/아무거나/BL240814` 도 열려 버린다.
   */
   const rest = pathname.slice(LIST_PATH.length + 1);
+  /* 직영 상품 등록 — 정적 조각 `new` 가 상품코드보다 먼저다(개발 `app/products/new`) */
+  if (pathname === NEW_PATH)
+    return <ProductDetailBody key="new" product={undefined} {...props} />;
   const product = rest.includes("/")
     ? undefined
     : findProduct(lastPathSegment(pathname));
@@ -437,14 +461,19 @@ function ProductDetailBody({
   onNavOpenChange,
   activeNav,
   onNavSelect,
-}: ProductDetailPageProps & { product: Product }) {
+}: ProductDetailPageProps & {
+  /** 없으면 직영 상품 등록(`/products/new`) */
+  product: Product | undefined;
+}) {
   const { toast } = useToast();
   const status = asStatus(useSearchParams().get("preview"));
   const busy = isBusy(status);
   const dim = dimWhile(status);
   const loading = status === "loading";
 
-  const [draft, setDraft] = useState<ProductDraft>(() => draftOf(product));
+  const [draft, setDraft] = useState<ProductDraft>(() =>
+    product ? draftOf(product) : newDraft(),
+  );
   const [closed, setClosed] = useState<SectionKey[]>([]);
   /** [수정 저장] 을 한 번 누른 뒤부터 오류를 보인다 — 입력 도중에 빨갛게 하지 않는다 */
   const [tried, setTried] = useState(false);
@@ -466,7 +495,10 @@ function ProductDetailBody({
     입점 상품의 금액·유형은 입점사 소관 — 값은 보이되 고칠 수 없다(디자인 §3 #1·#2 · 판정 Q20-3·4 ·
     개발 `priceLocked`). 렌트 수량·재고·옵션 재고·택배사·방문 수령/공항 픽업 체크·주소록·옵션명/값은 연다(D-296)
   */
-  const priceLocked = product.source === "seller";
+  const isNew = !product;
+  /* 직영 = 신규 등록 또는 본사 직영 상품. 금액·유형·판매 상태가 열리고 처분 대상이 아니다(개발 `direct`) */
+  const direct = !product || isDirect(product);
+  const priceLocked = !direct;
   /** 잠근 세그먼트 — 버튼마다 잠근다(`SegmentedControl` 은 항목 단위 `disabled`) */
   const lockable = <T extends { value: string; label: string }>(items: T[]) =>
     items.map((item) => ({ ...item, disabled: priceLocked }));
@@ -489,8 +521,22 @@ function ProductDetailBody({
       setFocusTarget(keys[0]);
       return;
     }
+    /* 퍼블은 저장하지 않는다 — 직영은 알림 뒤 그 자리(개발: 수정은 토스트 · 신규는 만든 상품 상세로) */
+    if (direct) {
+      toast(isNew ? COPY.created : COPY.directSaved);
+      return;
+    }
     toast(COPY.saved);
     onNavSelect(LIST_PATH);
+  };
+
+  /*
+    [목록]·[취소] — 입점 상품은 상품 관리 목록, 직영 수정은 본사 행 셀러 상세(진입점),
+    직영 신규는 들어온 곳으로 뒤로(개발 `goList`)
+  */
+  const goList = () => {
+    if (isNew) window.history.back();
+    else onNavSelect(direct ? HQ_SELLER_PATH : LIST_PATH);
   };
 
   /* 유형을 바꾸면 트리가 달라 카테고리를 비운다 */
@@ -701,11 +747,14 @@ function ProductDetailBody({
     ? draft.optionAxes
     : [COPY.sections.option];
 
-  const statusMeta = STATUS_META[product.status];
-  const displayMeta = DISPLAY_META[product.display];
-  const locked = hasRejectReason(product);
-  const approvable = canApprove(product);
-  const rejectable = canReject(product);
+  const statusMeta = product ? STATUS_META[product.status] : null;
+  const displayMeta = product ? DISPLAY_META[product.display] : null;
+  /* 처분(반려·승인)은 입점 상품만 — 직영은 처분 대상이 아니다(개발 E8) */
+  const disposable = product && !direct ? product : null;
+  const locked = disposable ? hasRejectReason(disposable) : false;
+  const approvable = disposable ? canApprove(disposable) : false;
+  const rejectable = disposable ? canReject(disposable) : false;
+  const directStatus = directSaleStatus(draft);
   const saleStatusHelp =
     approvable && rejectable
       ? COPY.saleStatusHelp.both
@@ -796,27 +845,32 @@ function ProductDetailBody({
           입점 상품은 상품 정보 줄 아래에 금액 잠금 안내 한 줄(부록 A B2 「상단 상품 정보 줄에 1번만」).
           줄마다 따로 말줄임한다 — 한 줄로 이으면 긴 상품명에서 안내가 잘린다
         */
-        <PageHeader
-          title={COPY.title}
-          description={
-            <>
-              <span className="block truncate">
-                {`${product.name} · ${product.id} · ${product.seller}`}
-              </span>
-              {priceLocked ? (
-                <span className="block truncate">{COPY.priceLock}</span>
-              ) : null}
-            </>
-          }
-          badges={
-            <>
-              <Tag tone={statusMeta.tone} dot>
-                {statusMeta.label}
-              </Tag>
-              <Tag tone={displayMeta.tone}>{displayMeta.label}</Tag>
-            </>
-          }
-        />
+        product && statusMeta && displayMeta ? (
+          <PageHeader
+            title={COPY.title}
+            description={
+              <>
+                <span className="block truncate">
+                  {`${product.name} · ${product.id} · ${product.seller}`}
+                </span>
+                {priceLocked ? (
+                  <span className="block truncate">{COPY.priceLock}</span>
+                ) : null}
+              </>
+            }
+            badges={
+              <>
+                <Tag tone={statusMeta.tone} dot>
+                  {statusMeta.label}
+                </Tag>
+                <Tag tone={displayMeta.tone}>{displayMeta.label}</Tag>
+              </>
+            }
+          />
+        ) : (
+          /* 직영 상품 등록 — 개발 신규 안내 줄 「상품 등록 — 본사 직영 상품입니다. …」 */
+          <PageHeader title={COPY.newTitle} description={COPY.newDescription} />
+        )
       }
     >
       {/* ① 상품명 */}
@@ -896,8 +950,14 @@ function ProductDetailBody({
             ) : null}
             {draft.mode === "sale" && draft.condition === "used" ? (
               <>
-                <FormField label="최초 구매일" required>
+                <FormField
+                  label="최초 구매일"
+                  required
+                  htmlFor={fieldId("firstBuyDate")}
+                  error={errors.firstBuyDate}
+                >
                   <DatePicker
+                    id={fieldId("firstBuyDate")}
                     className="w-60"
                     value={
                       draft.firstBuyDate
@@ -915,7 +975,12 @@ function ProductDetailBody({
                     placeholder="날짜 선택"
                   />
                 </FormField>
-                <FormField label="상품 등급" required group>
+                <FormField
+                  label="상품 등급"
+                  required
+                  group
+                  error={errors.grade}
+                >
                   <RadioGroup
                     value={draft.grade}
                     onValueChange={(next) => set("grade", next)}
@@ -1042,13 +1107,17 @@ function ProductDetailBody({
               className={HELP_WIDTH}
               label="기본 렌트일"
               required
+              htmlFor={fieldId("baseRentDays")}
               description={COPY.baseRentDaysHelp}
+              error={errors.baseRentDays}
               suffix="일"
             >
               <Input
+                id={fieldId("baseRentDays")}
                 inputMode="numeric"
                 placeholder="0"
                 disabled={priceLocked}
+                invalid={Boolean(errors.baseRentDays)}
                 value={draft.baseRentDays}
                 onChange={(event) =>
                   set("baseRentDays", onlyDigits(event.target.value))
@@ -1275,7 +1344,8 @@ function ProductDetailBody({
               <ul className="flex flex-col gap-2" aria-label="렌트 슬롯">
                 {Array.from({ length: num(draft.rentQty) }, (_, index) => {
                   const n = index + 1;
-                  const name = slotName(product.id, n);
+                  /* 새 상품은 상품코드가 없어 개발처럼 「P-신규」 로 이름 붙인다 */
+                  const name = slotName(product?.id ?? "P-신규", n);
                   const off = draft.slotOff.includes(n);
                   return (
                     <li key={n} className="flex items-center gap-3">
@@ -1303,17 +1373,21 @@ function ProductDetailBody({
             ) : null}
           </>
         ) : (
-          /* 원본도 재고 수량을 검사하지 않는다 — 0 은 품절이라는 정상 상태다 */
+          /* 빈 칸만 막는다 — 0 은 품절이라는 정상 상태다(개발 「0개는 품절로 등록됩니다」) */
           <FormField
             className={HELP_WIDTH}
             label="재고 수량"
             required
+            htmlFor={fieldId("stock")}
             description={COPY.stockHelp}
+            error={errors.stock}
             suffix="개"
           >
             <Input
+              id={fieldId("stock")}
               inputMode="numeric"
               placeholder="0"
+              invalid={Boolean(errors.stock)}
               value={draft.stock}
               onChange={(event) => set("stock", onlyDigits(event.target.value))}
             />
@@ -1349,8 +1423,17 @@ function ProductDetailBody({
                   onPending={imagePending}
                 />
               ) : (
-                <EmptyImageSlot label="대표이미지" onPending={imagePending} />
+                <EmptyImageSlot
+                  id={fieldId("mainImage")}
+                  label="대표이미지"
+                  onPending={imagePending}
+                />
               )}
+              {errors.mainImage ? (
+                <p role="alert" className="body-small text-text-critical">
+                  {errors.mainImage}
+                </p>
+              ) : null}
               <p className={cn("body-small text-text-sub", HELP_WIDTH)}>
                 {COPY.imageHelp}
               </p>
@@ -1900,7 +1983,12 @@ function ProductDetailBody({
                     />
                   </FormField>
                 </div>
-                <FormField label="옵션입력" required group>
+                <FormField
+                  label="옵션입력"
+                  required
+                  group
+                  error={errors.options}
+                >
                   <div role="group" className="flex flex-col gap-2">
                     {draft.optionInputs.map((row, index) => {
                       const label = `옵션 ${index + 1}`;
@@ -1911,6 +1999,7 @@ function ProductDetailBody({
                           className="flex flex-wrap items-center gap-2"
                         >
                           <Input
+                            id={index === 0 ? fieldId("options") : undefined}
                             className="w-60"
                             aria-label={`${label} 옵션명`}
                             placeholder="예시:컬러"
@@ -2206,34 +2295,61 @@ function ProductDetailBody({
           <LoadingLines rows={4} />
         ) : (
           <>
-            <ReadField label="판매 상태">
-              <Tag tone={statusMeta.tone} dot>
-                {statusMeta.label}
-              </Tag>
-            </ReadField>
-            <div className="-mt-3 flex flex-col gap-2">
-              <p className={cn("body-small text-text-sub", HELP_WIDTH)}>
-                {saleStatusHelp}
-              </p>
-              {locked ? (
-                <p className="body-medium text-text-warning">
-                  {product.reject?.reason ?? "등록된 반려 사유가 없습니다."}
-                  {product.reject ? (
-                    <span className="text-text-sub tabular-nums">
-                      {" "}
-                      ({ymdhms(product.reject.at)})
-                    </span>
+            {disposable && statusMeta ? (
+              <>
+                <ReadField label="판매 상태">
+                  <Tag tone={statusMeta.tone} dot>
+                    {statusMeta.label}
+                  </Tag>
+                </ReadField>
+                <div className="-mt-3 flex flex-col gap-2">
+                  <p className={cn("body-small text-text-sub", HELP_WIDTH)}>
+                    {saleStatusHelp}
+                  </p>
+                  {locked ? (
+                    <p className="body-medium text-text-warning">
+                      {disposable.reject?.reason ??
+                        "등록된 반려 사유가 없습니다."}
+                      {disposable.reject ? (
+                        <span className="text-text-sub tabular-nums">
+                          {" "}
+                          ({ymdhms(disposable.reject.at)})
+                        </span>
+                      ) : null}
+                    </p>
                   ) : null}
-                </p>
-              ) : null}
-            </div>
-            {locked ? (
+                </div>
+              </>
+            ) : directStatus === "soldout" ? (
+              /* 직영 판매 상품 재고 0 — 품절은 고르는 값이 아니라 재고에서 정해진다(개발 `Exposure`) */
+              <ReadField label="판매 상태">
+                <Tag tone={STATUS_META.soldout.tone} dot>
+                  {STATUS_META.soldout.label}
+                </Tag>
+              </ReadField>
+            ) : (
+              /* 직영 — 판매 상태를 직접 고른다(개발 `Exposure` 세그먼트) */
+              <FormField label="판매 상태" group>
+                <SegmentedControl
+                  className="self-start"
+                  items={[
+                    { value: "onSale", label: STATUS_META.onSale.label },
+                    { value: "stopped", label: STATUS_META.stopped.label },
+                  ]}
+                  value={draft.saleStatus}
+                  onValueChange={(next) =>
+                    set("saleStatus", next as ProductDraft["saleStatus"])
+                  }
+                />
+              </FormField>
+            )}
+            {locked && disposable && displayMeta ? (
               <>
                 <ReadField label="전시 상태">
                   <Tag tone={displayMeta.tone}>{displayMeta.label}</Tag>
                 </ReadField>
                 <p className="body-small -mt-3 text-text-sub">
-                  {product.status === "rereview"
+                  {disposable.status === "rereview"
                     ? COPY.displayLocked.rereview
                     : COPY.displayLocked.rejected}
                 </p>
@@ -2297,7 +2413,7 @@ function ProductDetailBody({
       */}
       <Card variant="soft" className="sticky bottom-6 z-10">
         <div className="flex items-center justify-between gap-2">
-          <Button variant="secondary" onClick={() => onNavSelect(LIST_PATH)}>
+          <Button variant="secondary" onClick={goList}>
             목록
           </Button>
           <div className="flex items-center gap-2">
@@ -2317,10 +2433,11 @@ function ProductDetailBody({
                 반려 처리
               </Button>
             ) : null}
-            <Button variant="secondary" onClick={() => onNavSelect(LIST_PATH)}>
+            <Button variant="secondary" onClick={goList}>
               취소
             </Button>
-            <Button onClick={save}>수정 저장</Button>
+            {/* 주 버튼 글자 — 신규 「등록」 · 수정 「수정 저장」(개발) */}
+            <Button onClick={save}>{isNew ? "등록" : "수정 저장"}</Button>
           </div>
         </div>
       </Card>

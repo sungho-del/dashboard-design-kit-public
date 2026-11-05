@@ -882,14 +882,15 @@ export const SELLERS: Seller[] = [
     },
     intro:
       "베이비큐브 본사 직영 계정입니다. 본사 기획 상품을 직접 등록·판매합니다.",
-    /* 원본 셀러 상세의 "등록 상품 (3)" 표를 그대로 옮겼다 */
+    /* 원본 셀러 상세의 "등록 상품 (3)" 표 + 상품 데이터의 본사 직영 HQ240806 — 상품코드가 직영 상품 상세로
+       이어지므로 상품 관리 데이터(`ProductListPage.data.ts` 의 `source: "hq"`)와 같은 상품·같은 카테고리로 맞춘다 */
     catalog: [
       {
         kinds: ["sale"],
         saleStatus: "onSale",
         code: "NR270900",
         name: "BabyCube 시그니처 원목 아기침대",
-        category: "아기침대",
+        category: "수면·침실",
         createdAt: "2026-05-10 09:14:22",
         updatedAt: "2026-06-18 16:02:41",
         shown: true,
@@ -913,6 +914,16 @@ export const SELLERS: Seller[] = [
         createdAt: "2026-06-05 14:50:13",
         updatedAt: "2026-06-20 10:25:59",
         shown: false,
+      },
+      {
+        kinds: ["sale"],
+        saleStatus: "soldout",
+        code: "HQ240806",
+        name: "폴딩 놀이매트 220 그레이",
+        category: "놀이·발달",
+        createdAt: "2026-08-06 15:12:36",
+        updatedAt: "2026-08-18 17:33:04",
+        shown: true,
       },
     ],
   },

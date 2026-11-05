@@ -166,6 +166,18 @@ export const SCREENS: ScreenEntry[] = [
     icon: Package,
   },
   {
+    navId: "/products/new",
+    name: "상품 등록",
+    type: "폼형",
+    origin: "babycube",
+    summary:
+      "본사 직영 상품 등록 — 상품 상세와 같은 폼 · 금액·유형·판매 상태가 열리고 처분 버튼이 없다",
+    file: "babycube/ProductDetailPage.tsx",
+    entryNote:
+      "GNB 에 없다 — 셀러 상세 본사 행(베이비큐브)에서 [+ 상품 등록]을 눌러 들어간다",
+    icon: Package,
+  },
+  {
     navId: "/categories",
     name: "카테고리 관리",
     type: "목록형",

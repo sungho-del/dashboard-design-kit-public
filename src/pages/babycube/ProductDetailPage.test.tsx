@@ -8,13 +8,14 @@ import { ProductDetailPage } from "./ProductDetailPage";
  * 상품 상세 (BO-PRD-002) — 폼형 · 1단계
  *
  * 렌더 여부가 아니라 **정책·계산**을 본다 —
- * 판매 상태는 처분으로만 · 처분 건은 전시 잠금 · 상태별 처분 버튼 · 반려 사유 강제 ·
- * 원/일 × 기본 렌트일 · 할인(정액·정률) · 기간 옵션 총액·상한 · 슬롯 정리 ·
- * 유형 전환 시 카테고리 비움 · 저장 검사(접힌 섹션 펼침·첫 오류 이동) · 상품 전환 시 초기화.
+ * 입점 상품 판매 상태는 처분으로만 · 처분 건은 전시 잠금 · 상태별 처분 버튼 · 반려 사유 강제 ·
+ * 입점 상품 금액·유형 잠금 · 원/일 × 기본 렌트일 · 할인(정액·정률) · 기간 옵션 총액·상한 · 슬롯 정리 ·
+ * 유형 전환 시 카테고리 비움 · 저장 검사(접힌 섹션 펼침·첫 오류 이동) · 상품 전환 시 초기화 ·
+ * 직영 상품 등록·수정(판매 상태 세그먼트 · 처분 없음 · 저장 뒤 그 자리 · 돌아가는 곳).
  *
  * 예시 상품: BL240814 렌트·판매중(1,500 − 200 원/일 · 기본 30일 · 수량 4 · 2번 슬롯 중지) ·
  * MC240812 렌트·반려 · LS240809 렌트·재심사요청 · AR271948 판매·중고 · KB781520 판매·품절 ·
- * HQ240806 본사 직영(이 화면에 없음)
+ * 본사 직영 PR270901 렌트·판매중(900원/일 · 할인 없음 · 기간 옵션 없음 · 배송비 무료) · HQ240806 판매·품절
  * ---------------------------------------------------------------------- */
 class ObserverStub {
   observe() {}
@@ -97,10 +98,6 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
 
     it.each([
       ["없는 상품코드", "ZZ000000"],
-      [
-        "본사 직영 상품 — 목록에서 빠진 상품은 상세로도 열지 않는다",
-        "HQ240806",
-      ],
       ["경로 조각이 하나가 아닐 때", "아무거나/BL240814"],
     ])("%s 이면 찾을 수 없다고 하고 목록으로 돌려보낸다", async (_, path) => {
       const { user, onNavSelect } = renderAt(path);
@@ -669,7 +666,7 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
       ).toBeVisible();
 
       await user.click(screen.getByRole("button", { name: "수정 저장" }));
-      expect(screen.getByText("공항 픽업 공항을 선택해주세요.")).toBeVisible();
+      expect(screen.getByText("공항 픽업 주소를 선택해주세요.")).toBeVisible();
     });
   });
 
@@ -757,6 +754,313 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
         screen.getByRole("radio", { name: "설정안함", checked: true }),
       ).toBeTruthy();
       expect(screen.queryByText(/옵션목록/)).toBeNull();
+    });
+  });
+
+  /** 디자인 §3 #3 — 개발 `ProductFormScreen` 공용 폼의 직영 갈래 */
+  describe("직영 상품 등록 (`/products/new`)", () => {
+    const renderNew = () => {
+      const result = renderAt("new");
+      return result;
+    };
+
+    it("머리는 「상품 등록」 + 직영 안내, 처음 값은 렌트·판매중·전시중이고 처분 버튼이 없다", () => {
+      renderNew();
+
+      const head = screen
+        .getByRole("heading", { name: "상품 등록" })
+        .closest("header") as HTMLElement;
+      expect(
+        within(head).getByText(
+          "본사 직영 상품입니다. 등록하면 심사 없이 바로 판매·전시 상태가 적용됩니다.",
+        ),
+      ).toBeVisible();
+      expect(textbox(/상품명/)).toHaveValue("");
+      expect(screen.getByRole("radio", { name: "렌트" })).toBeChecked();
+      expect(screen.getByRole("radio", { name: "렌트" })).toBeEnabled();
+      expect(textbox("렌트 원가")).toBeEnabled();
+      expect(
+        within(screen.getByRole("radiogroup", { name: "판매 상태" })).getByRole(
+          "radio",
+          { name: "판매중" },
+        ),
+      ).toBeChecked();
+      expect(
+        within(screen.getByRole("radiogroup", { name: "전시 상태" })).getByRole(
+          "radio",
+          { name: "전시중" },
+        ),
+      ).toBeChecked();
+      expect(barButtons()).toEqual(["목록", "취소", "등록"]);
+    });
+
+    it("빈 폼을 등록하면 개발 문구로 막고 첫 오류(상품명)로 간다", async () => {
+      const { user, onNavSelect } = renderNew();
+
+      await user.click(screen.getByRole("button", { name: "등록" }));
+
+      for (const message of [
+        "상품명을 입력해주세요.",
+        "카테고리(대분류)를 선택해주세요.",
+        "렌트 원가를 입력해주세요.",
+        "기본 렌트일을 입력해주세요.",
+        "보증금을 입력해 주세요.",
+        "렌트 수량을 입력해주세요.",
+        "대표이미지를 등록해주세요.",
+        "성장단계를 선택해주세요.",
+        "인증 정보를 1행 이상 선택해주세요(비대상 품목은 ‘해당없음’).",
+      ])
+        expect(screen.getByText(message)).toBeVisible();
+      await waitFor(() => expect(textbox(/상품명/)).toHaveFocus());
+      expect(onNavSelect).not.toHaveBeenCalled();
+    });
+
+    it("판매 중고로 바꾸면 재고·최초 구매일·등급을 막는다", async () => {
+      const { user } = renderNew();
+
+      await user.click(screen.getByRole("radio", { name: "판매" }));
+      await user.click(screen.getByRole("radio", { name: "중고 상품" }));
+      await user.click(screen.getByRole("button", { name: "등록" }));
+
+      expect(screen.getByText("판매 원가를 입력해주세요.")).toBeVisible();
+      expect(
+        screen.getByText("재고 수량을 입력해주세요(0개는 품절로 등록됩니다)."),
+      ).toBeVisible();
+      expect(screen.getByText("최초 구매일을 입력해주세요.")).toBeVisible();
+      expect(screen.getByText("중고 상품 등급을 선택해주세요.")).toBeVisible();
+    });
+
+    it("[취소] 는 들어온 곳으로 뒤로 간다", async () => {
+      const back = vi
+        .spyOn(window.history, "back")
+        .mockImplementation(() => {});
+      const { user, onNavSelect } = renderNew();
+
+      await user.click(screen.getByRole("button", { name: "취소" }));
+
+      expect(back).toHaveBeenCalled();
+      expect(onNavSelect).not.toHaveBeenCalled();
+      back.mockRestore();
+    });
+  });
+
+  describe("직영 상품 수정 — 금액·유형·판매 상태가 열리고 처분이 없다", () => {
+    it("셀러 행 머리, 금액 잠금 안내 없음 · 하단 바에 처분 버튼이 없다", () => {
+      renderAt("PR270901");
+
+      expect(
+        within(header()).getByText(
+          "본사 기획 사계절 아기 침낭 세트 · PR270901 · 본사",
+        ),
+      ).toBeVisible();
+      expect(
+        screen.queryByText(/입점 상품의 금액은 입점사가 정합니다/),
+      ).toBeNull();
+      expect(barButtons()).toEqual(["목록", "취소", "수정 저장"]);
+    });
+
+    it("기본 렌트일을 고치면 최종 렌트 금액이 다시 계산된다", async () => {
+      const { user } = renderAt("PR270901");
+      const price = section(/가격 · 렌트 기간/);
+      const finalRow = () =>
+        within(price).getByText("최종 렌트 금액").parentElement as HTMLElement;
+
+      await user.clear(textbox("기본 렌트일"));
+      await user.type(textbox("기본 렌트일"), "10");
+      expect(within(finalRow()).getByText("9,000원")).toBeVisible();
+
+      await user.clear(textbox("기본 렌트일"));
+      expect(
+        within(price).getByText("위 기본 렌트일을 입력하면 계산됩니다."),
+      ).toBeVisible();
+    });
+
+    it("정률 할인은 원가의 % 를 반올림한 원 단위다", async () => {
+      const { user } = renderAt("PR270901");
+
+      await user.click(
+        within(screen.getByRole("radiogroup", { name: "렌트 할인" })).getByRole(
+          "radio",
+          { name: "설정함" },
+        ),
+      );
+      await user.click(
+        screen.getByRole("combobox", { name: "렌트 할인 단위" }),
+      );
+      await user.click(
+        within(await screen.findByRole("listbox")).getByRole("option", {
+          name: "%",
+        }),
+      );
+      await user.type(textbox("렌트 할인 값"), "10");
+
+      /* 900 × 10% = 90 */
+      expect(
+        within(section(/가격 · 렌트 기간/)).getByText("810원/일"),
+      ).toBeVisible();
+    });
+
+    /** 원본은 6번째에 경고 창을 띄우려 하지만 그려지지 않는다 — 잠그고 이유를 곁에 적는다 */
+    it("기간 옵션은 5개가 차면 [추가] 가 잠기고 이유가 늘 보인다 · 지우면 다시 열린다", async () => {
+      const { user } = renderAt("PR270901");
+      const add = () => screen.getByRole("button", { name: "기간 옵션 추가" });
+
+      await user.click(
+        within(screen.getByRole("radiogroup", { name: "기간 옵션" })).getByRole(
+          "radio",
+          { name: "설정함" },
+        ),
+      );
+      for (let i = 0; i < 4; i++) await user.click(add());
+
+      expect(
+        screen.getAllByRole("group", { name: /^기간 옵션 \d$/ }),
+      ).toHaveLength(5);
+      expect(add()).toBeDisabled();
+      expect(
+        screen.getByText(/기간 옵션은 최대 5개까지 등록할 수 있습니다/),
+      ).toBeVisible();
+
+      await user.click(
+        screen.getByRole("button", { name: "기간 옵션 5 삭제" }),
+      );
+      expect(add()).toBeEnabled();
+    });
+
+    it("기간 옵션 반쪽 입력 · 같은 일수 두 줄은 막는다", async () => {
+      const { user } = renderAt("PR270901");
+
+      await user.click(
+        within(screen.getByRole("radiogroup", { name: "기간 옵션" })).getByRole(
+          "radio",
+          { name: "설정함" },
+        ),
+      );
+      await user.type(textbox("기간 옵션 1 일수"), "30");
+      await user.click(screen.getByRole("button", { name: "수정 저장" }));
+      expect(
+        screen.getByText(
+          "기간 옵션은 일수와 장기 렌트 할인가를 함께 입력해주세요.",
+        ),
+      ).toBeVisible();
+
+      await user.type(textbox("기간 옵션 1 장기 렌트 할인가"), "20000");
+      await user.click(screen.getByRole("button", { name: "기간 옵션 추가" }));
+      await user.type(textbox("기간 옵션 2 일수"), "30");
+      await user.type(textbox("기간 옵션 2 장기 렌트 할인가"), "18000");
+      expect(
+        screen.getByText("기간 옵션의 일수는 중복해서 등록할 수 없습니다."),
+      ).toBeVisible();
+    });
+
+    it("유형을 바꾸면 카테고리를 비우고, 가격·수량 섹션이 그 유형 것으로 바뀐다", async () => {
+      const { user } = renderAt("PR270901");
+
+      await user.click(screen.getByRole("radio", { name: "판매" }));
+
+      expect(
+        screen.getByRole("combobox", { name: "대분류" }),
+      ).toHaveTextContent("대분류 선택");
+      expect(screen.getByText("카테고리 (판매)")).toBeVisible();
+      expect(screen.getByRole("heading", { name: /^가격/ })).toBeVisible();
+      expect(screen.getByRole("heading", { name: /재고 수량/ })).toBeVisible();
+    });
+
+    it("배송비 「무료」 면 금액 칸이 잠기고, 풀면 다시 적을 수 있다", async () => {
+      const { user } = renderAt("PR270901");
+      const fee = () => screen.getByRole("textbox", { name: "배송비" });
+
+      expect(fee()).toBeDisabled();
+      await user.click(screen.getByRole("checkbox", { name: "배송비 무료" }));
+      expect(fee()).toBeEnabled();
+    });
+
+    /** Q-63 · 개발 26c59cb — 렌트 보증금이 비었거나 1 미만이면 막는다 */
+    it.each([[""], ["0"]])(
+      "렌트 보증금 「%s」 는 칸 아래 「보증금을 입력해 주세요.」 로 막는다",
+      async (value) => {
+        const { user, onNavSelect } = renderAt("PR270901");
+
+        await user.clear(textbox(/보증금/));
+        if (value) await user.type(textbox(/보증금/), value);
+        await user.click(screen.getByRole("button", { name: "수정 저장" }));
+
+        expect(screen.getByText("보증금을 입력해 주세요.")).toBeVisible();
+        await waitFor(() => expect(textbox(/보증금/)).toHaveFocus());
+        expect(onNavSelect).not.toHaveBeenCalled();
+      },
+    );
+
+    it("옵션을 켜면 축 입력과 [옵션목록으로 적용] 을 거쳐야 저장된다", async () => {
+      const { user } = renderAt("PR270901");
+      const save = () =>
+        user.click(screen.getByRole("button", { name: "수정 저장" }));
+
+      await user.click(
+        within(screen.getByRole("radiogroup", { name: "옵션 설정" })).getByRole(
+          "radio",
+          { name: "설정함" },
+        ),
+      );
+      await save();
+      expect(
+        screen.getByText("옵션명과 중복 없는 옵션값을 축마다 입력해주세요."),
+      ).toBeVisible();
+
+      await user.type(textbox("옵션 1 옵션명"), "색상");
+      await user.type(textbox("옵션 1 옵션값"), "그레이,베이지");
+      expect(
+        screen.getByText(
+          "옵션입력을 옵션목록으로 적용해 모든 조합을 만들어주세요.",
+        ),
+      ).toBeVisible();
+
+      await user.click(
+        screen.getByRole("button", { name: "옵션목록으로 적용" }),
+      );
+      expect(
+        screen.queryByText(
+          "옵션입력을 옵션목록으로 적용해 모든 조합을 만들어주세요.",
+        ),
+      ).toBeNull();
+    });
+
+    it("[수정 저장] 은 알림만 띄우고 그 자리에 남는다 · [목록] 은 본사 행 셀러 상세로", async () => {
+      const { user, onNavSelect } = renderAt("PR270901");
+
+      await user.click(screen.getByRole("button", { name: "수정 저장" }));
+      expect(await screen.findByText("수정 저장했습니다.")).toBeVisible();
+      expect(onNavSelect).not.toHaveBeenCalled();
+
+      await user.click(screen.getByRole("button", { name: "목록" }));
+      expect(onNavSelect).toHaveBeenCalledWith("/sellers/S-0001");
+    });
+
+    it("판매 재고 0 이면 판매 상태가 품절 배지 · 재고를 채우면 [판매중][판매중지] 를 고른다", async () => {
+      const { user } = renderAt("HQ240806");
+      const display = () => section(/노출 관리/);
+
+      expect(within(display()).getByText("품절")).toBeVisible();
+      expect(
+        within(display()).queryByRole("radiogroup", { name: "판매 상태" }),
+      ).toBeNull();
+
+      await user.clear(textbox("재고 수량"));
+      await user.type(textbox("재고 수량"), "5");
+      const status = within(display()).getByRole("radiogroup", {
+        name: "판매 상태",
+      });
+      expect(
+        within(status).getByRole("radio", { name: "판매중" }),
+      ).toBeChecked();
+      await user.click(within(status).getByRole("radio", { name: "판매중지" }));
+      expect(
+        within(status).getByRole("radio", { name: "판매중지" }),
+      ).toBeChecked();
+      /* 직영은 처분 대상이 아니라 전시 상태가 늘 열려 있다 */
+      expect(
+        within(display()).getByRole("radiogroup", { name: "전시 상태" }),
+      ).toBeVisible();
     });
   });
 
