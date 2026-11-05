@@ -352,9 +352,9 @@ export function RentDepositListPage({
         <Table>
           {/*
             table-fixed 라 폭 지정 필수. ⚠️ 앞 2개는 `FROZEN_LEFT` 와 짝이다(합 196).
-            합 1136 = 1440 카드 안쪽 폭(주문번호는 실제 글자 폭으로 147 — 그만큼 상품이 양보) — 스크롤 없이 보증금 상태·상태 변경일까지 보인다.
-            폭은 실제 글자 폭 + 좌우 여백 24 로 잡고(금액 `160,000원` 68 → 92), 남는 폭은 긴 글 열(상품 — 두 줄까지)에.
-            1280 에서는 표 안에서만 가로로 민다(주문번호까지 고정)
+            폭은 실제 글자 폭 + 좌우 여백 24 로 잡는다(금액 `160,000원` 68 → 92).
+            상품 200 = 가장 긴 예시 이름 + 안심케어 칩이 한 줄(176) — 셀러 보증금 내역과 같은 모양(사용자 결정 2026-11-05).
+            그래서 합 1220 이 1440 카드 안쪽 폭(1136)을 넘는다 — 1440·1280 에서는 표 안에서만 가로로 민다(주문번호까지 고정)
           */}
           <colgroup>
             <col className="w-13" />
@@ -362,7 +362,7 @@ export function RentDepositListPage({
             <col className="w-16" />
             <col className="w-14" />
             <col className="w-22" />
-            <col className="w-29" />
+            <col className="w-50" />
             <col className="w-23" />
             <col className="w-23" />
             <col className="w-23" />
@@ -442,11 +442,11 @@ export function RentDepositListPage({
                       <TableTd>{row.seller}</TableTd>
                       <TableTd>
                         {/*
-                          안심케어는 열이 아니라 상품 옆 표식이다. 상품 열은 남는 폭(116)이라 긴 이름은
-                          낱말 단위로 두 줄까지 접는다. ⚠️ 글자 폭을 열 안쪽 폭(116 − 여백 24 = 92, `w-23`)에
+                          안심케어는 열이 아니라 상품 옆 표식이다. 예시 이름은 칩까지 한 줄이고, 더 긴 이름은
+                          낱말 단위로 두 줄까지 접는다. ⚠️ 글자 폭을 열 안쪽 폭(200 − 여백 24 = 176, `w-44`)에
                           묶어야 한다 — `w-max` 표는 셀 내용의 한 줄 폭만큼 열을 늘린다. 열 폭과 함께 고친다
                         */}
-                        <span className="line-clamp-2 block w-23 break-keep">
+                        <span className="line-clamp-2 block w-44 break-keep">
                           {row.product}
                           {row.care && (
                             <>
