@@ -1,6 +1,5 @@
 import {
   categoryPathOf,
-  LISTED_PRODUCTS,
   PRODUCTS,
   type DisplayStatus,
   type Product,
@@ -55,10 +54,11 @@ export const isDirect = (product: Product) => product.source === "hq";
 /** 직영 상품 등록 경로 — 정적 조각 `new` 라 상품코드보다 먼저 잡는다(개발 `app/products/new`) */
 export const NEW_PATH = "/products/new";
 
+/** 본사 행 셀러 — 직영 상품 수정 머리의 셀러명·셀러코드(개발 `detail.seller`) */
+const HQ_SELLER = SELLERS.find((seller) => seller.isHeadquarters);
+
 /** 본사 행 셀러 상세 — 직영 상품 수정의 [목록]·[취소] 가 돌아가는 곳(개발 `goList`) */
-export const HQ_SELLER_PATH = `/sellers/${
-  SELLERS.find((seller) => seller.isHeadquarters)?.id ?? ""
-}`;
+export const HQ_SELLER_PATH = `/sellers/${HQ_SELLER?.id ?? ""}`;
 
 /** 할인 입력 방식 — 원본 `%` / `원` */
 export type DiscountType = "amt" | "rate";
@@ -114,8 +114,6 @@ export interface ProductDraft {
   extraImages: number;
   /** 상세설명 — 원본은 서식 편집기, 우리는 평문(2026-10-19 사용자 결정) */
   detail: string;
-  /** 등록 주체(셀러명) — 본사가 바꿀 수 있다(원본) */
-  seller: string;
   /** 성장단계 id — 성장단계 관리의 `STAGES` */
   stage: string;
   certs: CertRow[];
@@ -279,11 +277,6 @@ export const STAGE_OPTIONS = STAGES.map((stage) => ({
       ? `${stage.name} (${stage.monthFrom}개월~)`
       : `${stage.name} (${stage.monthFrom}~${stage.monthTo}개월)`,
 }));
-
-/** 등록 주체로 고를 수 있는 셀러 — 목록에 상품이 있는 입점 셀러 */
-export const SELLER_OPTIONS = [
-  ...new Set(LISTED_PRODUCTS.map((product) => product.seller)),
-].map((name) => ({ value: name, label: name }));
 
 /** 판매자 주소록 예시 — 원본 `ADDR_BOOK` 시드(본사 물류센터 주소) 그대로 */
 export interface Address {
@@ -467,7 +460,6 @@ export const draftOf = (product: Product): ProductDraft => {
     mainImage: product.image !== "missing",
     extraImages: product.image === "ok" ? 2 : 0,
     detail: `${product.name} — 안전하고 실용적인 육아 필수품입니다.\n· KC 안전인증 완료 · 유해물질 검사 통과\n· 친환경 소재로 아이 피부에 안심\n· 세척·관리가 간편한 분리형 구조`,
-    seller: product.seller,
     stage: stageOf(product),
     /* 목록 「KC 인증」 과 맞춘다 — X 는 빈 행, △ 는 번호 빈 행(보완 필요), O 는 번호까지 */
     certs: [
@@ -537,7 +529,7 @@ export const draftOf = (product: Product): ProductDraft => {
 /**
  * 직영 상품 등록의 처음 값 — 개발 `createDefaultProductForm`(domain/product-form.ts) 그대로:
  * 유형 렌트 · 새상품 · 빈 칸 · 인증 1행(빈) · 고시 기본 세트 11행 · 택배사 미선택 · 판매중 · 전시중 ·
- * 옵션 설정안함 · 옵션입력 1축(빈). 등록 주체는 본사 직영 상품과 같은 「본사」다
+ * 옵션 설정안함 · 옵션입력 1축(빈)
  */
 export const newDraft = (): ProductDraft => ({
   name: "",
@@ -570,7 +562,6 @@ export const newDraft = (): ProductDraft => ({
   mainImage: false,
   extraImages: 0,
   detail: "",
-  seller: "본사",
   stage: "",
   certs: [{ id: 1, type: "", no: "", note: "" }],
   info: INFO_KEYS.map((key, index) => ({
@@ -698,7 +689,6 @@ export type FieldKey =
   | "saleDisc"
   | "stock"
   | "mainImage"
-  | "seller"
   | "stage"
   | "certs"
   | "pickupAddress"
@@ -726,7 +716,6 @@ export const SECTION_OF: Record<FieldKey, SectionKey> = {
   saleDisc: "price",
   stock: "quantity",
   mainImage: "images",
-  seller: "mainInfo",
   stage: "mainInfo",
   certs: "mainInfo",
   pickupAddress: "shipping",
@@ -831,7 +820,6 @@ export const validate = (
     if (draft.stock === "") errors.stock = COPY.errors.stock;
   }
   if (!draft.mainImage) errors.mainImage = COPY.errors.mainImage;
-  if (draft.seller === "") errors.seller = COPY.errors.seller;
   if (draft.stage === "") errors.stage = COPY.errors.stage;
   if (!draft.certs.some((row) => row.type !== "")) {
     errors.certs = COPY.errors.certs;
@@ -863,6 +851,10 @@ export const COPY = {
   newTitle: "상품 등록",
   newDescription:
     "본사 직영 상품입니다. 등록하면 심사 없이 바로 판매·전시 상태가 적용됩니다.",
+  /** 직영 상품 수정 머리 안내 줄 — 개발 `productForm.context` 「본사 직영 상품 · {셀러명} ({셀러코드})」(B-04) */
+  directContext: `본사 직영 상품 · ${HQ_SELLER?.name ?? ""} (${HQ_SELLER?.id ?? ""})`,
+  /** 등록 주체 읽는 값 — 입점 = 셀러명 · 직영(신규 포함) = 「본사」(디자인 §3 #13 · 판정 ⑭) */
+  hqOwner: "본사",
   /**
    * 입점 상품 금액 칸 잠금 안내 — 회신 부록 A B2 「문구 그대로, 상단 상품 정보 줄에 1번만 표시」
    * (개발 `PriceLockHelp` 는 가격·배송·옵션 3섹션에 반복 · 디자인 §3 #1 · D-297)
@@ -979,7 +971,6 @@ export const COPY = {
     saleDisc: "판매 할인율은 100%를 초과할 수 없습니다.",
     stock: "재고 수량을 입력해주세요(0개는 품절로 등록됩니다).",
     mainImage: "대표이미지를 등록해주세요.",
-    seller: "셀러를 선택해주세요.",
     stage: "성장단계를 선택해주세요.",
     certs: "인증 정보를 1행 이상 선택해주세요(비대상 품목은 ‘해당없음’).",
     certNo: "선택한 인증의 인증번호를 입력해주세요.",

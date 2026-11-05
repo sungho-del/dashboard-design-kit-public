@@ -79,7 +79,6 @@ import {
   HQ_SELLER_PATH,
   NEW_PATH,
   SECTION_OF,
-  SELLER_OPTIONS,
   STAGE_OPTIONS,
   TAGS_MAX,
   applyOptions,
@@ -128,7 +127,8 @@ import { ProductRejectModal } from "./shared/ProductRejectModal";
  * ## 같은 폼 — 본사 직영 상품 등록·수정 (디자인 §3 #3 · 개발 `ProductFormScreen` 공용)
  * - 경로: `/products/new` = 직영 등록 · `/products/{직영 상품코드}` = 직영 수정. 진입점은 **셀러 상세 본사 행**의
  *   [+ 상품 등록]·상품코드다(사이드바 메뉴 없음). 직영 상품은 상품 관리 목록에 나오지 않는다(목록 규칙 그대로)
- * - 머리: 신규는 「상품 등록」 + 「본사 직영 상품입니다. …」(개발 신규 안내 줄) · 수정은 입점 상품과 같은 머리
+ * - 머리: 신규는 「상품 등록」 + 「본사 직영 상품입니다. …」(개발 신규 안내 줄) · 수정은 상품명 · 상품코드 줄 아래
+ *   「본사 직영 상품 · {셀러명} ({셀러코드})」(개발 수정 안내 줄 — 입점 상품의 금액 잠금 안내 자리)
  * - 섹션·순서는 입점 상품과 같다. 금액·유형 칸이 열린다(`priceLocked` false) · 신규 처음 값은 `newDraft`
  * - 판매 상태는 세그먼트 [판매중][판매중지] — 판매 상품 재고 0 이면 「품절」 배지(개발 `Exposure`).
  *   전시 상태는 늘 세그먼트(처분 대상이 아니라 잠그지 않는다)
@@ -142,7 +142,8 @@ import { ProductRejectModal } from "./shared/ProductRejectModal";
  * - 반려는 사유 필수 — 상품 목록과 **같은 창**(`shared/ProductRejectModal`). 승인은 확인 창 없이
  * - [수정 저장] 은 `validate`(개발 `validateProductForm` 문구)를 통과해야 한다. 입점 상품은 알림 후 **목록으로 간다**(원본 흐름)
  * - 입점 상품의 [취소]·[목록] 은 확인 없이 목록으로 간다(원본 `pfCancel`)
- * - 등록 주체도 고칠 수 있다(원본 — 2026-10-19 사용자 결정 「기획대로 열기」)
+ * - **등록 주체는 읽는 값이다** — 입점 = 셀러명 · 직영 = 「본사」(디자인 §3 #13 · 판정 ⑭ 「본사가 바꿀 수 없음」.
+ *   2026-10-19 「기획대로 열기」로 열었던 셀렉트를 닫았다)
  * - **입점 상품은 금액 칸·유형을 잠근다**(디자인 §3 #1·#2 · 판정 Q20-3·4 — 개발 `priceLocked`).
  *   잠그는 칸: 렌트 원가·렌트 할인·기본 렌트일·보증금·기간 옵션 전부·판매 원가·판매 할인·
  *   배송비·회수 배송비·픽업/반납 요금(금액·「무료」)·반품/교환 배송비·옵션가(행·일괄).
@@ -842,7 +843,9 @@ function ProductDetailBody({
       header={
         /*
           배지는 **저장된** 상태다(회원·셀러 상세와 같다) — 화면에서 고친 전시 선택과 섞지 않는다.
-          입점 상품은 상품 정보 줄 아래에 금액 잠금 안내 한 줄(부록 A B2 「상단 상품 정보 줄에 1번만」).
+          입점 상품은 상품 정보 줄 아래에 금액 잠금 안내 한 줄(부록 A B2 「상단 상품 정보 줄에 1번만」),
+          직영 상품은 같은 자리에 개발 수정 안내 줄 「본사 직영 상품 · {셀러명} ({셀러코드})」 — 셀러가 그 줄에 있어
+          윗줄은 상품명 · 상품코드만(B-04).
           줄마다 따로 말줄임한다 — 한 줄로 이으면 긴 상품명에서 안내가 잘린다
         */
         product && statusMeta && displayMeta ? (
@@ -851,11 +854,13 @@ function ProductDetailBody({
             description={
               <>
                 <span className="block truncate">
-                  {`${product.name} · ${product.id} · ${product.seller}`}
+                  {direct
+                    ? `${product.name} · ${product.id}`
+                    : `${product.name} · ${product.id} · ${product.seller}`}
                 </span>
-                {priceLocked ? (
-                  <span className="block truncate">{COPY.priceLock}</span>
-                ) : null}
+                <span className="block truncate">
+                  {priceLocked ? COPY.priceLock : COPY.directContext}
+                </span>
               </>
             }
             badges={
@@ -1504,23 +1509,10 @@ function ProductDetailBody({
           <LoadingLines rows={4} />
         ) : (
           <>
-            {/* 원본 — 본사가 셀러 상품의 등록 주체를 바꿀 수 있다(2026-10-19 사용자 결정 「기획대로 열기」) */}
-            <FormField
-              label="등록 주체"
-              required
-              htmlFor={fieldId("seller")}
-              error={errors.seller}
-            >
-              <Select
-                id={fieldId("seller")}
-                className="w-60"
-                placeholder="셀러 선택"
-                options={SELLER_OPTIONS}
-                value={draft.seller}
-                invalid={Boolean(errors.seller)}
-                onValueChange={(next) => set("seller", next)}
-              />
-            </FormField>
+            {/* 표시만 — 입점 = 셀러명 · 직영 = 「본사」(디자인 §3 #13 · 판정 ⑭) */}
+            <ReadField label="등록 주체">
+              {product && !direct ? product.seller : COPY.hqOwner}
+            </ReadField>
             <FormField
               className={HELP_WIDTH}
               label="성장단계"

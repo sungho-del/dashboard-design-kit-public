@@ -518,13 +518,24 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
   });
 
   describe("상품 주요정보", () => {
-    it("등록 주체·성장단계·인증이 열리고, 등록 주체도 고칠 수 있다(원본)", () => {
+    /** 디자인 §3 #13 · 판정 ⑭ — 등록 주체는 표시만(입점 = 셀러명 · 직영 = 「본사」) */
+    it.each([
+      ["입점 상품", "BL240814", "베이비루"],
+      ["직영 상품", "PR270901", "본사"],
+      ["직영 신규", "new", "본사"],
+    ])("%s 의 등록 주체는 고칠 수 없는 읽는 값 「%s」", (_, path, owner) => {
+      renderAt(path);
+
+      expect(screen.queryByRole("combobox", { name: /등록 주체/ })).toBeNull();
+      expect(
+        screen.getByText("등록 주체").nextElementSibling,
+      ).toHaveTextContent(owner);
+    });
+
+    it("성장단계·인증은 열려 있다", () => {
       renderAt("BL240814");
 
-      expect(
-        screen.getByRole("combobox", { name: /등록 주체/ }),
-      ).toHaveTextContent("베이비루");
-      expect(screen.getByRole("combobox", { name: /등록 주체/ })).toBeEnabled();
+      expect(screen.getByRole("combobox", { name: /성장단계/ })).toBeEnabled();
       expect(textbox("인증 1 인증번호")).toHaveValue("CB-B2026-0814");
     });
 
@@ -845,13 +856,16 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
   });
 
   describe("직영 상품 수정 — 금액·유형·판매 상태가 열리고 처분이 없다", () => {
-    it("셀러 행 머리, 금액 잠금 안내 없음 · 하단 바에 처분 버튼이 없다", () => {
+    it("머리는 상품명·코드 + 「본사 직영 상품 · 셀러명 (셀러코드)」, 금액 잠금 안내 없음 · 하단 바에 처분 버튼이 없다", () => {
       renderAt("PR270901");
 
       expect(
         within(header()).getByText(
-          "본사 기획 사계절 아기 침낭 세트 · PR270901 · 본사",
+          "본사 기획 사계절 아기 침낭 세트 · PR270901",
         ),
+      ).toBeVisible();
+      expect(
+        within(header()).getByText("본사 직영 상품 · 베이비큐브 (S-0001)"),
       ).toBeVisible();
       expect(
         screen.queryByText(/입점 상품의 금액은 입점사가 정합니다/),
