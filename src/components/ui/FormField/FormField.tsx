@@ -113,6 +113,8 @@ export function FormField({
    * 자식이 단일 요소면 id·설명 연결·에러 상태를 자동 주입한다.
    * 사용처가 매번 id 를 손으로 잇지 않게 하기 위한 것이고, **이미 지정한 값은 존중**한다.
    * `invalid` 는 Input·Textarea·Select 가 공통으로 갖는 prop 이라 시각 표현까지 함께 켜진다.
+   * 자식이 `<div>` 같은 DOM 요소면 `invalid` 는 넣지 않는다 — 알 수 없는 속성이라 React 가 경고한다
+   * (`aria-invalid` 만 준다).
    *
    * `group` 이면 `id` 대신 `aria-labelledby` 를 준다 — `<div role="radiogroup">` 은
    * labelable 요소가 아니라 `<label for>` 로는 이름이 붙지 않기 때문이다.
@@ -132,7 +134,9 @@ export function FormField({
             "aria-required": own["aria-required"] ?? (required || undefined),
             ...(error
               ? {
-                  invalid: own.invalid ?? true,
+                  ...(typeof children.type === "string"
+                    ? null
+                    : { invalid: own.invalid ?? true }),
                   "aria-invalid": own["aria-invalid"] ?? true,
                 }
               : null),

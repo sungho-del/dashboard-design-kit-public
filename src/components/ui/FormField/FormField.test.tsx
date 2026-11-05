@@ -219,6 +219,22 @@ describe("FormField", () => {
       expect(screen.getByRole("textbox")).not.toHaveAttribute("aria-invalid");
       expect(container.querySelector("[data-invalid]")).toBeNull();
     });
+
+    /* 칸 묶음(`<div role="group">`)을 감싸면 `invalid` 는 알 수 없는 DOM 속성 — React 경고가 콘솔에 남았다 */
+    it("자식이 DOM 요소면 invalid 없이 aria-invalid 만 준다(React 경고 없음)", () => {
+      const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+      render(
+        <FormField label="인증 정보" error="인증 정보를 입력해주세요." group>
+          <div role="group" />
+        </FormField>,
+      );
+
+      const box = screen.getByRole("group");
+      expect(box).toHaveAttribute("aria-invalid", "true");
+      expect(box).not.toHaveAttribute("invalid");
+      expect(errors).not.toHaveBeenCalled();
+      errors.mockRestore();
+    });
   });
 
   describe("required", () => {
