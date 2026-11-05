@@ -270,7 +270,15 @@ describe("BabycubeDashboardPage (S01 대시보드)", () => {
       const valueOf = (label: string) =>
         tileOfLabel(label).querySelector("strong")?.textContent;
 
-      expect(valueOf("오늘 방문자")).toBe("54"); // 원천 없음 — 원본 시드 상수
+      /* 판정 Q19 — 「오늘 방문자」(원본 시드 상수 54) → 가입일 기준 「이번 달 가입자」. 10월 가입 0명 */
+      expect(valueOf("이번 달 가입자")).toBe(
+        fmt(
+          MEMBERS.filter((m) => m.date.startsWith(DEMO_TODAY.slice(0, 7)))
+            .length,
+        ),
+      );
+      expect(valueOf("이번 달 가입자")).toBe("0");
+      expect(screen.queryByText("오늘 방문자")).toBeNull();
       expect(valueOf("오늘 가입자")).toBe(
         fmt(MEMBERS.filter((m) => m.date.startsWith(DEMO_TODAY)).length),
       );
@@ -342,7 +350,7 @@ describe("BabycubeDashboardPage (S01 대시보드)", () => {
         7,
       );
       expect(
-        screen.queryByRole("button", { name: /오늘 방문자/ }),
+        screen.queryByRole("button", { name: /이번 달 가입자/ }),
       ).not.toBeInTheDocument();
       expect(
         screen.queryByRole("button", { name: /오늘 가입자/ }),
@@ -602,11 +610,11 @@ describe("데이터 상태 미리보기 (?preview=)", () => {
   it("loading — 라벨은 실제 글자, 변하는 값만 스켈레톤이고 aria-busy 다", () => {
     renderAt("/?preview=loading");
 
-    expect(screen.getByText("오늘 방문자")).toBeVisible();
+    expect(screen.getByText("이번 달 가입자")).toBeVisible();
     expect(screen.getAllByText("선택한 기간 합계")).toHaveLength(2);
-    expect(tileOf("오늘 방문자")).toHaveAttribute("aria-busy", "true");
+    expect(tileOf("이번 달 가입자")).toHaveAttribute("aria-busy", "true");
 
-    expect(tileOfLabel("오늘 방문자").querySelector("strong")).toBeNull();
+    expect(tileOfLabel("이번 달 가입자").querySelector("strong")).toBeNull();
     expect(
       screen.queryByText("표시할 기간 데이터가 없습니다."),
     ).not.toBeInTheDocument();
@@ -628,19 +636,19 @@ describe("데이터 상태 미리보기 (?preview=)", () => {
     expect(
       screen.queryByRole("img", { name: /총 매출 현황/ }),
     ).not.toBeInTheDocument();
-    expect(tileOfLabel("오늘 방문자")).toHaveTextContent("54");
+    expect(tileOfLabel("이번 달 가입자")).toHaveTextContent("0명");
     expect(stepButton("렌트 관리", "대여중")).toBeInTheDocument();
   });
 
   it("refreshing — 스켈레톤으로 되돌리지 않고 값만 흐리게 둔다", () => {
     renderAt("/?preview=refreshing");
 
-    const value = tileOfLabel("오늘 방문자").querySelector(
+    const value = tileOfLabel("이번 달 가입자").querySelector(
       "strong",
     ) as HTMLElement;
-    expect(value).toHaveTextContent("54");
+    expect(value).toHaveTextContent("0");
     expect(document.body.querySelectorAll("[data-skeleton]")).toHaveLength(0);
-    expect(tileOf("오늘 방문자")).toHaveAttribute("aria-busy", "true");
+    expect(tileOf("이번 달 가입자")).toHaveAttribute("aria-busy", "true");
     // 라벨은 흐리지 않고 값 묶음만 흐린다
     expect(value.parentElement?.className.split(/\s+/)).toContain("opacity-50");
   });
@@ -648,7 +656,7 @@ describe("데이터 상태 미리보기 (?preview=)", () => {
   it("모르는 preview 값은 평소 화면이다 — 주소 오타로 화면이 비지 않는다", () => {
     renderAt("/?preview=lodaing");
 
-    expect(tileOfLabel("오늘 방문자")).toHaveTextContent("54");
-    expect(tileOf("오늘 방문자")).toHaveAttribute("aria-busy", "false");
+    expect(tileOfLabel("이번 달 가입자")).toHaveTextContent("0명");
+    expect(tileOf("이번 달 가입자")).toHaveAttribute("aria-busy", "false");
   });
 });

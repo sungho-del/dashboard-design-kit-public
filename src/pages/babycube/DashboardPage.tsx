@@ -261,7 +261,7 @@ function MetricGroupCard({
                 </li>
               );
             }
-            /* 원본의 `go` 가 있는 타일만 눌린다 — 오늘 방문자·오늘 가입자는
+            /* 원본의 `go` 가 있는 타일만 눌린다 — 이번 달 가입자·오늘 가입자는
                그날치 집계라 대응하는 목록 화면이 없다 */
             const navId = "navId" in metric ? metric.navId : undefined;
             return (
