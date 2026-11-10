@@ -126,7 +126,7 @@ describe("OrderPaymentDetailPage (결제 상세)", () => {
       renderAt(`/order-detail/${unitOf("U-R20").orderNo}`);
 
       expect(valueOf("부분 취소·반품")).toBe(
-        "유닛 1건 중 1건 취소·반품 진행/완료",
+        "상품 1건 중 1건 취소·반품 진행/완료",
       );
       expect(valueOf("결제상태")).toBe("결제완료");
     });

@@ -99,12 +99,16 @@ describe("FaqListPage", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("원본 문안 그대로 — 포인트·전화번호 FAQ 도 고치지 않았다(기획 확인 필요)", () => {
+    /** 반영 결과 답(2026-11-10) 2번 — F-07 은 기획 문안 · 「1P는 1원…」 문장은 남는다 */
+    it("포인트 FAQ 는 기획 문안이고 전화번호 FAQ 는 그대로다", () => {
       renderPage();
 
       expect(
-        screen.getByText(/렌트 결제에는 사용할 수 없습니다/),
+        screen.getByText(
+          "포인트는 렌트와 구매 결제 모두에 사용할 수 있으며, 한 주문에서 상품 금액(할인 적용 후)까지 100P 단위로 사용할 수 있습니다. 보증금 · 배송비와 렌트 연장 결제에는 사용할 수 없습니다. 1P는 1원이고 100원 단위로 사용합니다.",
+        ),
       ).toBeInTheDocument();
+      expect(screen.queryByText(/구매 소계만|렌트 결제에는/)).toBeNull();
       expect(screen.getByText(/\(02-6406-1110\)/)).toBeInTheDocument();
     });
 

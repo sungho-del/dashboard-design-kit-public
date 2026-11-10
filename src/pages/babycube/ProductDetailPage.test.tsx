@@ -1014,8 +1014,8 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
       expect(within(price).getByText("800원/일")).toBeVisible();
     });
 
-    /** 일수 중복은 설정 여부와 상관없이 검사한다 — 칸이 숨어 있으면 오류는 라디오 아래(확인 요청 답 49번) */
-    it("기간 옵션을 [설정안함] 으로 돌려도 같은 일수 두 줄은 막고, 오류는 라디오 아래에 보인다", async () => {
+    /** 일수 중복은 [설정함] 일 때만 검사한다 — 숨은 줄 때문에 저장이 막히지 않고, 줄은 지우지 않는다(반영 결과 답(2026-11-10) 49번) */
+    it("기간 옵션을 [설정안함] 으로 돌리면 같은 일수 두 줄이 있어도 저장되고, [설정함] 으로 돌리면 다시 막는다", async () => {
       const { user } = renderAt("PR270901");
       const radio = (name: string) =>
         within(screen.getByRole("radiogroup", { name: "기간 옵션" })).getByRole(
@@ -1036,11 +1036,19 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
         screen.queryByRole("textbox", { name: "기간 옵션 1 일수" }),
       ).toBeNull();
       expect(
+        screen.queryByText("기간 옵션의 일수는 중복해서 등록할 수 없습니다."),
+      ).toBeNull();
+      expect(await screen.findByText("수정 저장했습니다.")).toBeVisible();
+
+      /* 입력한 줄은 남아 있다 — [설정함] 으로 돌리면 그때 검사한다 */
+      await user.click(radio("설정함"));
+      expect(textbox("기간 옵션 2 일수")).toHaveValue("30");
+      await user.click(screen.getByRole("button", { name: "수정 저장" }));
+      expect(
         within(section(/가격 · 렌트 기간/)).getByText(
           "기간 옵션의 일수는 중복해서 등록할 수 없습니다.",
         ),
       ).toBeVisible();
-      expect(screen.queryByText("수정 저장했습니다.")).toBeNull();
     });
 
     /** 확인 요청 답(2026-11-06) 10번 — 예전에 정률로 저장된 값은 읽기 전용(개발 `productDiscountFieldPolicy`) */

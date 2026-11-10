@@ -199,8 +199,12 @@ describe("SettingsPage", () => {
       );
       /* 확인 요청 답(2026-11-06) §5 — 대표자 「이학용」(상호와 따로) */
       expect(field("대표자명")).toHaveValue("이학용");
-      expect(field("주소")).toHaveValue("서울특별시 강남구 테헤란로 501");
-      expect(field("상세 주소 · 우편번호")).toHaveValue("12층 (06168)");
+      /* 반영 결과 답(2026-11-10) §3 — 고객사 확정 값 */
+      expect(field("사업자 등록 번호")).toHaveValue("543-81-03181");
+      expect(field("주소")).toHaveValue("서울특별시 송파구 충민로 66");
+      expect(field("상세 주소 · 우편번호")).toHaveValue(
+        "리빙관동 7층 엘-7101호, 엘-7102호(문정동, 가든파이브라이프)",
+      );
       expect(field("업무 시간")).toHaveValue(
         "운영시간. 평일 10:00 ~ 17:00 (주말·공휴일 휴무)",
       );
@@ -213,15 +217,20 @@ describe("SettingsPage", () => {
       expect(hq?.phone).toBe(SAVED_SETTINGS.centerPhone);
     });
 
-    /* 판정 Q18 — 대표 번호는 고객센터 번호로 통합 · 통신판매업 신고번호·이메일·호스팅서비스 칸 추가(값은 고객사 확인 후) */
-    it("대표 번호는 「상담 전화 번호」 하나 · 새 세 칸은 비어 있고 필수가 아니다", () => {
+    /* 판정 Q18 — 대표 번호는 고객센터 번호로 통합 · 통신판매업 신고번호·이메일·호스팅서비스 칸 추가.
+       값·필수는 반영 결과 답(2026-11-10) §3 */
+    it("대표 번호는 「상담 전화 번호」 하나 · 새 세 칸은 확정 값이 들어 있고 필수다", () => {
       renderPage();
 
       expect(screen.queryByRole("textbox", { name: "전화 번호" })).toBeNull();
-      expect(field("상담 전화 번호")).toHaveValue("02-1588-0000");
-      for (const label of ["통신판매업 신고번호", "이메일", "호스팅서비스"]) {
-        expect(field(label)).toHaveValue("");
-        expect(field(label)).not.toHaveAttribute("aria-required");
+      expect(field("상담 전화 번호")).toHaveValue("02-6406-1110");
+      for (const [label, value] of [
+        ["통신판매업 신고번호", "제 2026-서울송파-3005 호 (송파구청)"],
+        ["이메일", "babycube.co.kr@gmail.com"],
+        ["호스팅서비스", "카페24"],
+      ]) {
+        expect(field(label)).toHaveValue(value);
+        expect(field(label)).toBeRequired();
       }
     });
 
@@ -240,7 +249,7 @@ describe("SettingsPage", () => {
       expect(widthOf("회사명")).toHaveClass("max-w-70"); // 280
       expect(widthOf("사업자 등록 번호")).toHaveClass("max-w-60"); // 240
       expect(widthOf("대표자명")).toHaveClass("max-w-60");
-      expect(widthOf("통신판매업 신고번호")).toHaveClass("max-w-60");
+      expect(widthOf("통신판매업 신고번호")).toHaveClass("max-w-80"); // 320 — 확정 값이 잘리지 않게
       expect(widthOf("이메일")).toHaveClass("max-w-70");
       expect(widthOf("호스팅서비스")).toHaveClass("max-w-70");
       expect(widthOf("주소")).toHaveClass("max-w-105"); // 420

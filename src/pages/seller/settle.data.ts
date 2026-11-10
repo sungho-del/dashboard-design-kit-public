@@ -563,7 +563,7 @@ export const taxInvoiceOf = (s: Statement, issue: HqTaxIssue): TaxInvoice => {
   return {
     no: `TX-${s.month.slice(2).replace(".", "")}`,
     month: s.month,
-    supplier: "베이비큐브(본사)",
+    supplier: "주식회사 렌티크", // 발행 사업자의 등록 상호(반영 결과 답(2026-11-10) 3번)
     receiver: STORE.name,
     date: s.payday,
     supply,

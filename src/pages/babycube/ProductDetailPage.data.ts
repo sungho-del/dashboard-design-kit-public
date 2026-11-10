@@ -849,9 +849,9 @@ export const validate = (
     /* Q-63 · 개발 26c59cb — 비었거나 1 미만이면 막는다(우리 폼에는 임시저장이 없어 저장마다 검사) */
     if (num(draft.deposit) < 1) errors.deposit = COPY.errors.deposit;
     /*
-      반쪽 입력은 [설정함] 일 때만, 일수 중복은 설정 여부와 상관없이 검사한다
-      (확인 요청 답(2026-11-06) 49번 · 개발 `product-form.ts`). [설정안함] 이면 칸이 숨어 있어
-      뼈대가 오류를 기간 옵션 라디오 아래에 보인다
+      반쪽 입력 · 일수 중복 모두 [설정함] 일 때만 검사한다(반영 결과 답(2026-11-10) 49번 — 답 49의
+      「설정 여부와 상관없이」를 좁혔다). [설정안함] 이면 저장되지 않는 값이라 숨은 줄 때문에 막지 않고,
+      입력한 줄은 지우지 않아 [설정함] 으로 돌리면 그때 검사한다
     */
     const filled = draft.periods
       .filter((row) => row.days !== "" && row.price !== "")
@@ -861,7 +861,7 @@ export const validate = (
       draft.periods.some((row) => num(row.days) > 0 !== num(row.price) > 0)
     )
       errors.periods = COPY.errors.periods;
-    else if (direct && new Set(filled).size !== filled.length)
+    else if (direct && draft.periodOn && new Set(filled).size !== filled.length)
       errors.periods = COPY.errors.periodsDuplicate;
     if (!(num(draft.rentQty) > 0)) errors.rentQty = COPY.errors.rentQty;
   } else {

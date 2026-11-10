@@ -35,7 +35,7 @@ import { PERIOD_PRESETS } from "../../lib/periodPresets";
 import { useSearchParams } from "../../lib/router";
 import {
   COMMISSION_CELL_COPY,
-  COMMISSION_RATE_MESSAGE,
+  commissionRateMessage,
   commissionInput,
   isCommissionLocked,
   DATE_FIELDS,
@@ -441,7 +441,7 @@ export function SellerListPage({
     /* 0 초과 100 이하 · 소수 둘째 자리까지 · 본사 행만 0 이상(판정 Q20-5 · 개발 `parseCommissionRate`) */
     const value = parseCommissionRate(raw, seller.isHeadquarters);
     if (value === null) {
-      toast(COMMISSION_RATE_MESSAGE);
+      toast(commissionRateMessage(seller.isHeadquarters));
       return;
     }
 

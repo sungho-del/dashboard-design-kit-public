@@ -38,7 +38,7 @@ export const COPY = {
   notFoundDescription: "주소가 잘못되었거나 없는 주문번호일 수 있습니다.",
   noClaim: "없음",
   claimed: (units: number, claimed: number) =>
-    `유닛 ${units}건 중 ${claimed}건 취소·반품 진행/완료`,
+    `상품 ${units}건 중 ${claimed}건 취소·반품 진행/완료`,
   /* 부록 A B15 — 뼈대가 이 조각 사이에 링크 둘을 끼운다 */
   extensionHead: (seq: number) => `렌트 연장 결제 ${seq}회 — 원 주문`,
   extensionUnit: "대여 건",

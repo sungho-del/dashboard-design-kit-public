@@ -1,6 +1,6 @@
 import type { TagTone } from "../../components/ui";
 import {
-  COMMISSION_RATE_MESSAGE,
+  commissionRateMessage,
   FILTERS,
   parseCommissionRate,
   SELLERS,
@@ -204,11 +204,11 @@ export const HQ_COMMISSION_HINT =
 
 /**
  * 수수료율 검사 — 허용 꼴(0 초과 100 이하 · 소수 둘째 자리 · 본사 행만 0 이상)이 아니면 개발 문구 한 줄
- * (빈 칸·글자·범위 모두). 본사 행 오류 문구는 답에 없어 기획에 다시 묻는 중 — 그때까지 같은 문구다
+ * (빈 칸·글자·범위 모두). 본사 행은 칸 아래 안내와 같은 말(반영 결과 답(2026-11-10) 1번)
  */
 export const commissionError = (value: string, headquarters = false) =>
   parseCommissionRate(value, headquarters) === null
-    ? COMMISSION_RATE_MESSAGE
+    ? commissionRateMessage(headquarters)
     : null;
 
 /** 저장 성공 알림 — 원본 하단 액션 바의 [저장하기] 결과 */

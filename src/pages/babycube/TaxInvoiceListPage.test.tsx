@@ -109,7 +109,7 @@ describe("표 — 사례표 숫자", () => {
       const [no, buyer, supply, vat, total, status] = CASES[index];
       expect(cells(row)).toEqual([
         no,
-        "베이비큐브(본사)",
+        "주식회사 렌티크",
         buyer,
         "2026.10.12", // 작성일 = 회차 지급일
         supply,

@@ -302,10 +302,10 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       expect(field("셀러명")).toHaveValue("베이비크루저");
       expect(field("대표자")).toHaveValue("이학용");
       /* 본사 행 주소는 설정 화면 주소와 같다 */
-      expect(field("도로명 주소")).toHaveValue(
-        "서울특별시 강남구 테헤란로 501",
+      expect(field("도로명 주소")).toHaveValue("서울특별시 송파구 충민로 66");
+      expect(field("상세 주소 · 우편번호")).toHaveValue(
+        "리빙관동 7층 엘-7101호, 엘-7102호(문정동, 가든파이브라이프)",
       );
-      expect(field("상세 주소 · 우편번호")).toHaveValue("12층 (06168)");
     });
 
     /** 부록 A C69 · 개발 §3-2-5 — 「퇴점·심사 관리 대상이 아닙니다 (수수료율 0% 확정)」 안내는 지웠다 */
@@ -364,11 +364,13 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       await user.type(input, "140");
       await user.click(saveButton());
 
+      /* 반영 결과 답(2026-11-10) 1번 — 본사 행 오류는 칸 아래 안내와 같은 말 */
       expect(
         screen.getByText(
-          "셀러 수수료율은 0보다 크고 100 이하, 소수 둘째 자리까지 입력해 주세요.",
+          "수수료율은 0 이상 100 이하, 소수 둘째 자리까지 입력해 주세요.",
         ),
       ).toBeVisible();
+      expect(screen.queryByText(/0보다 크고 100 이하, 소수/)).toBeNull();
       expect(screen.queryByText("변경 내용을 저장했습니다")).toBeNull();
     });
 

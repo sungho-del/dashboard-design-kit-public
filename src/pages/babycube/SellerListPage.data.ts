@@ -203,12 +203,21 @@ export interface SellerBankAccount {
  * 허용 = 0 < r ≤ 100 · 소수 둘째 자리까지. 6~16% 밖은 막지 않고 경고만 한다.
  * **본사 행만 0% 이상**(판정 Q20-1 · Q20-5 · 디자인 §3 #15 · 개발 §2-1 「0 초과 규칙에 예외 추가」) —
  * `parseCommissionRate(값, true)`. 본사 행도 상한 100 · 소수 둘째 자리는 같은 규칙이고, 6~16% 경고는 본사 행에
- * 띄우지 않는다(확인 요청 답(2026-11-06) 3번). 본사 행 오류 문구는 기획에 다시 묻는 중이라 셀러 행과 같은 문구다.
+ * 띄우지 않는다(확인 요청 답(2026-11-06) 3번). 본사 행 오류 문구는 칸 아래 안내와 같은 말이다(반영 결과 답(2026-11-10) 1번) —
+ * `commissionRateMessage(본사 행 여부)` 한 곳에서 고른다.
  * ---------------------------------------------------------------------- */
 
 /** 허용 꼴이 아닐 때 — 개발 문구에서 「입점사」만 판정 Q10 대로 「셀러」 */
 export const COMMISSION_RATE_MESSAGE =
   "셀러 수수료율은 0보다 크고 100 이하, 소수 둘째 자리까지 입력해 주세요.";
+
+/** 본사 행이 허용 꼴이 아닐 때 — 칸 아래 안내(0 이상)와 같은 말(반영 결과 답(2026-11-10) 1번). 셀러 행은 0 을 받지 않아 위 문구 그대로 */
+export const HQ_COMMISSION_RATE_MESSAGE =
+  "수수료율은 0 이상 100 이하, 소수 둘째 자리까지 입력해 주세요.";
+
+/** 행에 맞는 오류 문구 — 목록 인라인 칸 · 셀러 상세가 함께 쓴다 */
+export const commissionRateMessage = (headquarters = false) =>
+  headquarters ? HQ_COMMISSION_RATE_MESSAGE : COMMISSION_RATE_MESSAGE;
 
 /** 허용 범위 안이지만 일반 범위(6~16) 밖 — 경고 한 줄(저장은 막지 않는다) */
 export const COMMISSION_RATE_WARNING =
@@ -958,12 +967,14 @@ const SELLER_SEEDS: SellerSeed[] = [
     id: "S-000",
     name: "베이비크루저",
     isHeadquarters: true,
-    /* 대표자·전화·주소는 설정 화면(`SettingsPage.data.ts`)과 같은 값이다 — 대표자 「이학용」
-       (확인 요청 답(2026-11-06) §5). 서로 읽지는 않는다(2026-11-03) */
+    /* 대표자·전화·주소·사업자등록번호는 설정 화면(`SettingsPage.data.ts`)과 같은 값이다 — 대표자 「이학용」
+       (확인 요청 답(2026-11-06) §5) · 나머지는 고객사 확정 값(반영 결과 답(2026-11-10) §3 — 설정에 맞춘 것은 퍼블 결정).
+       서로 읽지는 않는다(2026-11-03) */
     ceo: "이학용",
-    phone: "02-1588-0000",
-    roadAddress: "서울특별시 강남구 테헤란로 501",
-    detailAddress: "12층 (06168)",
+    phone: "02-6406-1110",
+    roadAddress: "서울특별시 송파구 충민로 66",
+    detailAddress:
+      "리빙관동 7층 엘-7101호, 엘-7102호(문정동, 가든파이브라이프)",
     commission: 0,
     date: "2025-09-01 09:00",
     exitDate: null,
@@ -973,7 +984,7 @@ const SELLER_SEEDS: SellerSeed[] = [
     status: "active",
     bizType: "corporate",
     dealScope: "all",
-    bizLicense: { fileName: "사업자등록증.pdf", number: "000-81-00001" },
+    bizLicense: { fileName: "사업자등록증.pdf", number: "543-81-03181" },
     salesLicense: {
       fileName: "통신판매업 신고증.pdf",
       number: "2024-서울강남-00001",
