@@ -194,7 +194,8 @@ export const sumAmount = (rows: CareClaimRow[]) =>
   rows.reduce((sum, row) => sum + row.amount, 0);
 
 /**
- * 승인·반려 창 문구는 부록 A C54~C59, 알림은 원본 v0.4 그대로(질문 31). **목록 일괄과 상세가 같은 문구를 쓴다.**
+ * 승인·반려 창 문구는 부록 A C54~C59, 승인 알림은 승인 창과 같은 말 「다음 달 정산에 더해집니다.」
+ * (확인 요청 답(2026-11-06) 31번). **목록 일괄과 상세가 같은 문구를 쓴다.**
  * 제목의 (N건)은 2건 이상일 때만(원본).
  */
 export const REVIEW_COPY = {
@@ -206,8 +207,8 @@ export const REVIEW_COPY = {
   approveConfirm: "승인 처리",
   approved: (count: number) =>
     count > 1
-      ? `${count}건 승인 처리되었습니다. 익월 정산에 보전됩니다.`
-      : "승인 처리되었습니다. 익월 정산에 보전됩니다.",
+      ? `${count}건 승인 처리되었습니다. 다음 달 정산에 더해집니다.`
+      : "승인 처리되었습니다. 다음 달 정산에 더해집니다.",
   rejectTitle: (count: number) =>
     `안심케어 반려 사유 입력${count > 1 ? ` (${count}건)` : ""}`,
   rejectPlaceholder: "예: 복원 견적서 미첨부",

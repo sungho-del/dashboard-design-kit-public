@@ -71,7 +71,7 @@ describe("셀러 정산 상세 — 찾을 수 없음", () => {
   it.each([
     "/settle-seller/S-9999",
     /* 본사는 셀러 정산 대상이 아니다(본사 명세는 정산 명세서 화면) */
-    "/settle-seller/S-0001",
+    "/settle-seller/S-000",
     "/settle-seller/S-229/extra",
   ])("%s → 찾을 수 없음 + [셀러 정산으로]", async (path) => {
     const { user, onNavSelect } = renderAt(path);

@@ -81,6 +81,8 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * 명세 팝업은 `CalcBreakdown`(묶음·소계·결과) — 묶음은 `.data.ts` `statementBlocksOf` 가 준다.
  * 주문 목록의 주문번호가 이 화면으로 온다(`/orders-all/{처리단위}`). 렌트·판매는 한 화면에서 갈린다 —
  * 렌트만 렌트일·보증금·회수 배송비·대여 시작일이, 판매만 수량·구매확정일이 있다.
+ * 방문 수령·공항 픽업은 배송정보 라벨이 「픽업 요금」·「반납 요금」이고 「준비 완료 알림일」·「수령 확인일」 두 줄이 더 있다
+ * (확인 요청 답(2026-11-06) 14번·17번 — develop 자체 수령 분기).
  * 「보증금 상태」 배지 아래 환급 실패 안내 한 줄은 결제사 기간 경과로 환급이 실패한 건만(개발 §3-2-8 · `refundDueNoteOf`).
  *
  * ## 클레임 모드 — 취소·반품·교환 상세도 이 화면이다 (원본 `hqOrderDetailPage(u, {rma})`)
@@ -436,7 +438,10 @@ function OrderDetailBody({
                 </>
               )}
             </Item>
-            <Item label="배송비">{feeText(parcel ? order.shipFee : 0)}</Item>
+            {/* 방문 수령·공항 픽업은 「픽업 요금」(확인 요청 답(2026-11-06) 14번 — develop 자체 수령 분기) */}
+            <Item label={parcel ? "배송비" : "픽업 요금"}>
+              {feeText(parcel ? order.shipFee : 0)}
+            </Item>
             {rent && (
               <Item label={parcel ? "회수 배송비" : "반납 요금"}>
                 {feeText(parcel ? order.shipFee : 0)}
@@ -453,6 +458,18 @@ function OrderDetailBody({
               </>
             )}
             <Item label="지연 사유">{delayReasonOf(order)}</Item>
+            {/*
+              방문 수령·공항 픽업만 — 셀러 [준비 완료] 알림 시각 · 수령 확인 시각(확인 요청 답 17번 · develop 순서).
+              퍼블은 예시 값이라 출고·수령 단계 시각을 끌어온다. 아직 닿지 않았으면 다른 날짜 줄처럼 `-`
+            */}
+            {!parcel && (
+              <>
+                <Item label="준비 완료 알림일">
+                  {reachedAt(order, "shipping")}
+                </Item>
+                <Item label="수령 확인일">{reachedAt(order, "delivered")}</Item>
+              </>
+            )}
             <Item label="주문확인일">{reachedAt(order, "ready")}</Item>
             <Item label="배송처리일">{reachedAt(order, "shipping")}</Item>
             <Item label="배송완료일">{reachedAt(order, "delivered")}</Item>

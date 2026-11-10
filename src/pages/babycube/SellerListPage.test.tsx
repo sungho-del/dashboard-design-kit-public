@@ -346,13 +346,13 @@ describe("SellerListPage (S03 셀러 관리)", () => {
     it("본사 직영은 「본사」 배지를 달고 수수료율은 처음 0 인 입력칸이다", () => {
       renderPage();
 
-      const row = rowOf("베이비큐브");
+      const row = rowOf("베이비크루저");
       const badge = within(cellsOf(row)[2]).getByText("본사");
       expect(
         (badge as HTMLElement).style.getPropertyValue("--tag-bg-color"),
       ).toBe("var(--color-surface-highlight-secondary)");
       expect(
-        within(cellsOf(row)[7]).getByLabelText("베이비큐브 수수료율"),
+        within(cellsOf(row)[7]).getByLabelText("베이비크루저 수수료율"),
       ).toHaveValue("0");
       expect(
         within(cellsOf(row)[7]).getByRole("button", { name: "수정" }),
@@ -605,7 +605,7 @@ describe("SellerListPage (S03 셀러 관리)", () => {
     /* 판정 Q20-2 — 본사 행 위생인증은 「인증」 고정 · 표시 「인증 (본사 직영)」(셀러 상세 읽는 값과 같은 글자) */
     it("본사 행 위생인증 배지는 「인증 (본사 직영)」 — 다른 셀러는 「위생인증셀러」", () => {
       renderPage();
-      const hq = within(rowOf("베이비큐브"));
+      const hq = within(rowOf("베이비크루저"));
 
       expect(hq.getByText("인증 (본사 직영)")).toBeVisible();
       expect(hq.queryByText("위생인증셀러")).toBeNull();
@@ -790,18 +790,18 @@ describe("수수료율 인라인 수정", () => {
   });
 
   /*
-   * 허용 꼴(0 초과 100 이하 · 소수 둘째 자리 — 판정 Q20-5)이 아니면 **되돌리고 알린다.**
-   * 조용히 버리면 사용자는 고쳐졌다고 믿는다.
+   * 허용 꼴(0 초과 100 이하 · 소수 둘째 자리 — 판정 Q20-5)이 아니면 **친 값을 둔 채 오류만 알린다**
+   * (확인 요청 답(2026-11-06) 48번 — 되돌리지 않는다).
    */
   it.each([["150"], ["0"], ["9.555"]])(
-    "「%s」 는 되돌리고 알린다",
+    "「%s」 는 친 값을 둔 채 오류만 알린다",
     async (value) => {
       const { user } = renderPage();
 
       await user.clear(feeOf("아기별상사"));
       await user.type(feeOf("아기별상사"), `${value}{Enter}`);
 
-      expect(feeOf("아기별상사")).toHaveValue("12");
+      expect(feeOf("아기별상사")).toHaveValue(value);
       expect(
         await screen.findByText(
           "셀러 수수료율은 0보다 크고 100 이하, 소수 둘째 자리까지 입력해 주세요.",
@@ -839,22 +839,22 @@ describe("수수료율 인라인 수정", () => {
     ).toBeVisible();
   });
 
-  /** 판정 Q20-5 · 디자인 §3 #15 — 본사 행만 0% 이상. 경고는 본사 행에 붙이지 않는다(기획 확인 요청 3번 · 개발과 같다) */
+  /** 판정 Q20-5 · 디자인 §3 #15 — 본사 행만 0% 이상. 경고는 본사 행에 붙이지 않는다(확인 요청 답(2026-11-06) 3번 · 개발과 같다) */
   it("본사 행은 0% 를 받고, 6~16% 밖이어도 경고를 붙이지 않는다", async () => {
     const { user } = renderPage();
 
-    await user.clear(feeOf("베이비큐브"));
-    await user.type(feeOf("베이비큐브"), "0{Enter}");
+    await user.clear(feeOf("베이비크루저"));
+    await user.type(feeOf("베이비크루저"), "0{Enter}");
     expect(
       await screen.findByText(
-        "베이비큐브 수수료율은 이미 0%로 적용되어 있습니다.",
+        "베이비크루저 수수료율은 이미 0%로 적용되어 있습니다.",
       ),
     ).toBeVisible();
 
-    await user.clear(feeOf("베이비큐브"));
-    await user.type(feeOf("베이비큐브"), "2.5{Enter}");
+    await user.clear(feeOf("베이비크루저"));
+    await user.type(feeOf("베이비크루저"), "2.5{Enter}");
     expect(
-      await screen.findByText("베이비큐브 수수료율을 2.5%로 수정했습니다."),
+      await screen.findByText("베이비크루저 수수료율을 2.5%로 수정했습니다."),
     ).toBeVisible();
     expect(screen.queryByText(/일반적인 범위/)).toBeNull();
   });

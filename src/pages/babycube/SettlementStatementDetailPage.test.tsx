@@ -138,7 +138,11 @@ describe("셀러 명세 — 코지베이비 (확인요청 · 안심케어 보전
       (li) => li.textContent,
     );
     expect(calcNotes).toHaveLength(2);
-    expect(calcNotes[0]).toMatch(/^입점사 지급액 = 확정 매출/);
+    /* 확인 요청 답(2026-11-06) 1번 · 26번 — 「셀러 지급액」 · 「PG 수수료」 괄호 없음 */
+    expect(calcNotes[0]).toMatch(
+      /^셀러 지급액 = 확정 매출 − 판매 수수료\(셀러별 요율\) − PG 수수료 − 취소·반품 차감/,
+    );
+    expect(calcNotes[0]).not.toMatch(/요율 미정/);
     /* 판정 Q4 · 부록 A A7 — 세금계산서는 지급과 분리(정산 확정 시 동시 발행이 아니다) */
     expect(calcNotes[0]).toMatch(
       /귀속됩니다\. 세금계산서는 매월 10일에 발행됩니다\(연동 준비 중\)\.$/,
@@ -287,39 +291,39 @@ describe("셀러 명세 — 아기별상사 (쿠폰 · 포인트 참고)", () =>
 
 describe("본사 명세 — 지급 대상 아님", () => {
   it("지급 정보가 지급 대상이 아님을 말하고, [셀러 정산에서 처리]가 없다", () => {
-    at("STM-2609-0001");
+    at("STM-2609-0000");
 
     expect(valueOf("정산 대상")).toBe("본사");
     expect(valueOf("지급 계좌")).toBe("본사 · 내부 이전");
     expect(valueOf("정산 반영 거래 건수")).toBe("2건");
-    /* 「지급 대상 아님」은 지급액 줄에서 한 번 · 그 뜻(직영 안내)은 명세 아래 안내 상자 맨 앞 */
-    expect(screen.getAllByText(/지급 대상 아님/)).toHaveLength(1);
+    /* 확인 요청 답(2026-11-06) 25번 — 「지급 대상 아님」 보조 글자·직영 안내 문장 없음(「본사」 배지 · 내부 이전만) */
+    expect(screen.queryByText(/지급 대상 아님/)).toBeNull();
+    expect(screen.queryByText(/본사 직영 매출의 명세입니다/)).toBeNull();
     const calc = document.body.querySelector("[data-settlement-calc]")!;
-    expect(calc.querySelector("li")?.textContent).toMatch(
-      /^본사 직영 매출의 명세입니다\. 외부로 지급하는 금액이 아니며/,
-    );
+    expect(calc.querySelectorAll("li")).toHaveLength(2);
+    expect(calc.querySelector("li")?.textContent).toMatch(/^셀러 지급액 = /);
     expect(screen.queryByText(/조회 전용/)).toBeNull();
     expect(
       screen.queryByRole("button", { name: "셀러 정산에서 처리" }),
     ).toBeNull();
   });
 
-  it("정산 명세 — 「매출」 묶음(판매·렌트·합계) · 직영 차감 0원 · 지급액(지급 대상 아님)", () => {
-    at("STM-2609-0001");
+  it("정산 명세 — 「매출」 묶음(판매·렌트·합계) · 직영 차감 0원 · 지급액(보조 글자 없음)", () => {
+    at("STM-2609-0000");
 
     expect(calcLines()).toEqual([
       ["판매 매출", "", "159,000원"],
       ["렌트 매출", "", "12,600원"],
       ["매출 합계", "", "171,600원"],
       ["수수료", "", "0원"],
-      ["지급액", "지급 대상 아님", "171,600원"],
+      ["지급액", "", "171,600원"],
     ]);
     expect(groupOf("sum")).toBe("매출");
     expect(groupOf("fee")).toBe("차감");
   });
 
   it("거래 내역 — 반영 2건이 위, 다른 달 확정·취소·반품·교환은 제외", () => {
-    at("STM-2609-0001");
+    at("STM-2609-0000");
 
     expect(txRows().map((row) => row[6])).toEqual([
       "반영",

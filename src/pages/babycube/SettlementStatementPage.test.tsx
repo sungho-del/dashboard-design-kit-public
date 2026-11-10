@@ -73,7 +73,7 @@ async function chooseOption(user: User, selectLabel: string, option: string) {
 }
 
 const ALL_NOS = [
-  "STM-2609-0001",
+  "STM-2609-0000",
   "STM-2609-0226",
   "STM-2609-0227",
   "STM-2609-0230",
@@ -149,7 +149,7 @@ describe("표 (원본 8열 + 가산 열 · 본사 1 + 셀러 정산 행)", () =>
 
   it.each([
     // 번호, 정산 대상, 매출, 차감(수수료+PG+환수), 가산(보전+셀러 귀속), 지급액, 상태
-    ["STM-2609-0001", "본사", "171,600원", "-", "-", "171,600원", "지급완료"],
+    ["STM-2609-0000", "본사", "171,600원", "-", "-", "171,600원", "지급완료"],
     [
       "STM-2609-0226",
       "셀러베이비루",
@@ -252,7 +252,7 @@ describe("검색조건 (FilterBar 기본 펼침 · 셀렉트)", () => {
     const { user } = renderPage();
 
     await chooseOption(user, "정산 대상", "본사");
-    expect(visibleNos()).toEqual(["STM-2609-0001"]);
+    expect(visibleNos()).toEqual(["STM-2609-0000"]);
 
     await chooseOption(user, "정산 대상", "셀러");
     expect(visibleNos()).toEqual(ALL_NOS.slice(1));
@@ -266,7 +266,7 @@ describe("검색조건 (FilterBar 기본 펼침 · 셀렉트)", () => {
 
     await chooseOption(user, "상태", "지급완료");
     expect(visibleNos()).toEqual([
-      "STM-2609-0001",
+      "STM-2609-0000",
       "STM-2609-0226",
       "STM-2609-1042",
     ]);
@@ -339,10 +339,10 @@ describe("상세로 가는 길 (번호 · [명세서] · 행)", () => {
   it("명세서번호 링크·[명세서] 버튼도 같은 곳 — 행 클릭과 겹쳐 두 번 가지 않는다", async () => {
     const { user, onNavSelect } = renderPage();
 
-    await user.click(screen.getByRole("button", { name: "STM-2609-0001" }));
+    await user.click(screen.getByRole("button", { name: "STM-2609-0000" }));
     expect(onNavSelect).toHaveBeenCalledTimes(1);
     expect(onNavSelect).toHaveBeenLastCalledWith(
-      "/settle-statement/STM-2609-0001",
+      "/settle-statement/STM-2609-0000",
     );
 
     await user.click(screen.getByRole("button", { name: "리틀스텝 명세서" }));
@@ -362,7 +362,7 @@ describe("데이터 상태 미리보기 (?preview=)", () => {
     expect(
       screen.getByRole("columnheader", { name: "명세서번호" }),
     ).toBeVisible();
-    expect(screen.queryByText("STM-2609-0001")).toBeNull();
+    expect(screen.queryByText("STM-2609-0000")).toBeNull();
     expect(
       document.body.querySelectorAll("[data-skeleton]").length,
     ).toBeGreaterThan(0);
@@ -376,7 +376,7 @@ describe("데이터 상태 미리보기 (?preview=)", () => {
   it("refreshing — 값을 흐리게 둔다", async () => {
     renderPage("?preview=refreshing");
 
-    expect(screen.getByText("STM-2609-0001")).toBeVisible();
+    expect(screen.getByText("STM-2609-0000")).toBeVisible();
     await waitFor(() =>
       expect(
         document.body.querySelector("[data-table-shell-body]")?.className,

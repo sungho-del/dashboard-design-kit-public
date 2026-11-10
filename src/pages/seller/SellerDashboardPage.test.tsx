@@ -75,13 +75,23 @@ describe("셀러 대시보드 화면", () => {
       `미답변 문의 ${CS_GOLDEN[0]}건 목록 열기`,
       `답글 미작성 리뷰 ${CS_GOLDEN[1]}건 목록 열기`,
       `1:1 문의 답변 대기 ${CS_GOLDEN[2]}건 목록 열기`,
-      "확정 거래액 (정가) 1,979,000원 목록 열기",
+      "확정 거래액 (판매가) 1,979,000원 목록 열기",
       "차감 (수수료·PG) 244,205원 목록 열기",
       "지급 예정액 1,639,695원 목록 열기",
     ])
       expect(
         within(metrics).getByRole("button", { name: label }),
       ).toBeInTheDocument();
+  });
+
+  /* 기획 답 2026-11-06 §2 #9 — 본사와 같게 렌트 먼저 */
+  it("흐름 카드는 렌트 관리 → 판매 관리 순서다", () => {
+    renderPage();
+    const rent = screen.getByRole("heading", { name: "렌트 관리" });
+    const sale = screen.getByRole("heading", { name: "판매 관리" });
+    expect(
+      rent.compareDocumentPosition(sale) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("지표·흐름·공지를 누르면 그 목록·상세로 간다", async () => {

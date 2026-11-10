@@ -8,6 +8,8 @@ import {
   STATEMENTS,
   SUMMARY,
   TAX_INVOICES,
+  taxInvoiceOf,
+  taxStatOf,
   depBackOf,
   depStatOf,
   depositStats,
@@ -98,6 +100,29 @@ describe("정산 — 원본 정답 대조", () => {
       ["TX-2605", 286560, 28656, 315216, "수취완료"],
       ["TX-2604", 233280, 23328, 256608, "수취완료"],
     ]);
+  });
+
+  /* 기획 답 2026-11-06 §2 #39 — 정산 지급 상태가 아니라 본사 발행 상태를 따른다 */
+  it("세금계산서 상태는 본사 발행 상태에서 정한다 — 미발행 → 발행예정 · 발행완료 → 수취완료", () => {
+    expect(taxStatOf("미발행")).toBe("발행예정");
+    expect(taxStatOf("발행완료")).toBe("수취완료");
+    expect(TAX_INVOICES.map((t) => t.issue)).toEqual([
+      "미발행",
+      "발행완료",
+      "발행완료",
+    ]);
+    for (const t of TAX_INVOICES) expect(t.stat).toBe(taxStatOf(t.issue));
+    /* 지급 상태와 발행 상태가 어긋나도 발행 상태를 따른다 */
+    const paid = STATEMENTS.find((x) => x.stat === "지급완료")!;
+    const unpaid = STATEMENTS.find((x) => x.stat !== "지급완료")!;
+    expect(taxInvoiceOf(paid, "미발행").stat).toBe("발행예정");
+    expect(taxInvoiceOf(unpaid, "발행완료").stat).toBe("수취완료");
+  });
+
+  /* 기획 답 2026-11-06 §2 #7 — 가산 = 안심케어 보전 + 셀러 귀속 3종 · 지급액 = 매출 − 차감 + 가산 */
+  it("명세서 가산 — 이번 회차 5,400원 · 지난 회차 0 · 지급액과 맞는다", () => {
+    expect(STATEMENTS.map((s) => s.add)).toEqual([5400, 0, 0]);
+    for (const s of STATEMENTS) expect(s.gmv - s.ded + s.add).toBe(s.payout);
   });
 });
 

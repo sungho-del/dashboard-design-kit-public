@@ -24,7 +24,7 @@ export { refundDueNoteOf };
  * - 구역 3개 제목은 `SECTIONS` — `보증금 정보` · `정산 계산` · `처리 상태`(원본 「(조회 전용)」은 부록 A C18 로 뺐다)
  * - 정산 계산은 `calcBlocksOf(row)` 블록만 — 그리는 것은 공용 `CalcBreakdown`. 원본 정책 문단(안내 상자)은 부록 A C17 로 지웠다
  * - 반환 예정액 아래 환급 실패 안내는 `refundDueNoteOf(row.order)` — 결제사 기간 경과 실패 건만 한 줄 · 아니면 `null`
- *   (개발 §3-2-8 · develop d46e752 와 같은 조건. 예시 건 없음 — 기획 확인 요청 21번)
+ *   (개발 §3-2-8 · develop d46e752 와 같은 조건. 예시 건 없음 — 퍼블이 정함)
  *
  * ## 원본과 다르게 둔 것
  * - 머리: 원본은 crumb·제목·배지·부제를 넘기지만 `nvEditPage` 가 그리지 않는다(결함) — 형제처럼 그린다
@@ -82,9 +82,6 @@ export const orderPathOf = (row: DepositRow) => `/orders-all/${row.id}`;
 export const periodText = (period: string) =>
   period ? period.replace(/-/g, ".") : "-";
 
-/** 정산 계산 「차감」 보조 글자(안심케어 본사 부담 건) — 보증금 정보 「안심케어」 줄에서는 지웠다(부록 A C16 · 이 자리는 기획 확인 요청 29번) */
-export const CARE_JOINED_NOTE = "복원가능 손상 본사 부담";
-
 /** 검수 판정 — 판정 전이면 `null`(화면은 「검수 전」) */
 export const inspectionOf = (row: DepositRow) =>
   row.order.inspection ? INSPECTION_META[row.order.inspection] : null;
@@ -110,13 +107,9 @@ export const overdueOf = (row: DepositRow) => {
 /* =========================================================================
  * 정산 계산 — 원본 `amt([보증금, 차감, 반환 예정액])` + 정책 문단 → 공용 `CalcBreakdown` 블록
  * 한 묶음(보증금 · 차감) + 결과 묶음(반환 예정액). 줄 이름이 곧 묶음이라 묶음 이름 열은 비운다. 차감은 기본 글자색에 `−N원`(U+2212), 차감이 없으면 `0원`
- * (목록 칸의 `-` 와 다르다 — 원본). 보조 글자는 이미 있는 문구만 — 안심케어로 본사가 부담한 건의
- * `CARE_JOINED_NOTE`. 금액은 행 값 그대로(여기서 계산하지 않는다).
+ * (목록 칸의 `-` 와 다르다 — 원본). 「차감」 줄에 보조 글자는 없다 — 「복원가능 손상 본사 부담」은 뺐다
+ * (부록 A C16 과 같은 문장 · 확인 요청 답(2026-11-06) 29번). 금액은 행 값 그대로(여기서 계산하지 않는다).
  * ====================================================================== */
-
-/** 안심케어 가입 + 복원가능 파손 — 검수 차감을 본사가 부담한 건 */
-const careCovered = (row: DepositRow) =>
-  row.care && row.order.inspection === "repairable";
 
 export const calcBlocksOf = (row: DepositRow): CalcBlock[] => [
   {
@@ -126,7 +119,6 @@ export const calcBlocksOf = (row: DepositRow): CalcBlock[] => [
       {
         key: "deduction",
         label: "차감",
-        hint: careCovered(row) ? CARE_JOINED_NOTE : undefined,
         value: row.deduction > 0 ? `−${won(row.deduction)}` : won(0),
       },
     ],

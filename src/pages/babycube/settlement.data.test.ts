@@ -96,7 +96,7 @@ describe("셀러별 정산 (2026.09)", () => {
   it("명세서번호는 회차 + 셀러 id 로 정해진다", () => {
     expect(row("아기별상사").statementNo).toBe("STM-2609-1042");
     expect(row("리틀베이비").statementNo).toBe("STM-2609-0201");
-    expect(HQ_SETTLEMENT.statementNo).toBe("STM-2609-0001");
+    expect(HQ_SETTLEMENT.statementNo).toBe("STM-2609-0000");
     expect(findStatement("STM-2609-0227")?.name).toBe("리틀스텝");
     expect(STATEMENTS).toHaveLength(9);
   });
@@ -220,7 +220,7 @@ describe("본사 명세", () => {
 
   it("셀러 행·요약·세금계산서에 본사가 없다", () => {
     expect(SELLER_SETTLEMENTS.some((item) => item.kind === "hq")).toBe(false);
-    expect(TAX_INVOICES.some((item) => item.sellerId === "S-0001")).toBe(false);
+    expect(TAX_INVOICES.some((item) => item.sellerId === "S-000")).toBe(false);
   });
 });
 

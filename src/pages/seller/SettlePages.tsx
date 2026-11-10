@@ -53,6 +53,7 @@ import {
   TAX_INVOICES,
   findStatement,
   minus,
+  plus,
   pastStatementBlocks,
   settleBlocksOf,
   txPathOf,
@@ -288,12 +289,16 @@ export function SettleStatementPage(props: SellerNavProps) {
     <SellerShell {...props} header={<PageHeader title="정산 내역/명세서" />}>
       <SmallListShell count={STATEMENTS.length} selected={sel.selected.length}>
         <Table>
-          {/* 모든 열에 폭 — 합 976(1280 본문 폭). 처리 버튼은 [명세서] / [이의제기][확인] 두 줄로 접힌다 */}
+          {/*
+            모든 열에 폭 — 합 1104. 가산 열(128 · 본사 명세서와 같은 폭 · 기획 답 2026-11-06 §2 #7)을 넣어
+            1280(본문 976)에서는 표 안에서 가로로 넘긴다(실측 1104/976 · 본사 명세서 1133/976 과 같은 꼴 · 1440 은 넘치지 않는다). 처리 버튼은 [명세서] / [이의제기][확인] 두 줄로 접힌다
+          */}
           <colgroup>
             <col className="w-13" />
             <col className="w-26" />
             <col className="w-20" />
             <col className="w-28" />
+            <col className="w-32" />
             <col className="w-32" />
             <col className="w-28" />
             <col className="w-26" />
@@ -313,9 +318,10 @@ export function SettleStatementPage(props: SellerNavProps) {
               </TableTh>
               <TableTh>명세서번호</TableTh>
               <TableTh>정산월</TableTh>
-              {/* 금액 3열 — 계산을 맞춰 읽는 열이라 오른쪽(§7-2 계산 영역 예외 · 본사 명세서와 같다) */}
+              {/* 금액 4열 — 계산을 맞춰 읽는 열이라 오른쪽(§7-2 계산 영역 예외 · 본사 명세서와 같다) */}
               <TableTh align="right">확정 매출</TableTh>
               <TableTh align="right">차감(수수료·PG)</TableTh>
+              <TableTh align="right">가산(보전·셀러 귀속)</TableTh>
               <TableTh align="right">지급액</TableTh>
               <TableTh>지급일</TableTh>
               <TableTh align="center">상태</TableTh>
@@ -342,6 +348,9 @@ export function SettleStatementPage(props: SellerNavProps) {
                 </TableTd>
                 <TableTd align="right" className="tabular-nums">
                   {s.ded ? minus(s.ded) : "-"}
+                </TableTd>
+                <TableTd align="right" className="tabular-nums">
+                  {s.add ? plus(s.add) : "-"}
                 </TableTd>
                 <TableTd
                   align="right"

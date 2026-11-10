@@ -258,12 +258,12 @@ const sortTx = (rows: SettleTx[]) =>
 export interface SettlementRow {
   /** 본사 행은 지급 대상이 아니다(본사 명세용 · 세금계산서 없음) */
   kind: "seller" | "hq";
-  /** 셀러 마스터 id — 본사는 `S-0001`. 상세 경로·번호의 안정 키 */
+  /** 셀러 마스터 id — 본사는 `S-000`. 상세 경로·번호의 안정 키 */
   sellerId: string;
   /** 표시 이름 — 본사는 「본사」 */
   name: string;
   round: string;
-  /** 명세서번호 `STM-{YYMM}-{셀러 id 숫자 4자리}` — 본사 `STM-2609-0001` */
+  /** 명세서번호 `STM-{YYMM}-{셀러 id 숫자 4자리}` — 본사 `STM-2609-0000` */
   statementNo: string;
   /** 수수료율 % — 셀러 마스터 `commission`(본사 0) */
   rate: number;

@@ -175,7 +175,7 @@ export function feeBurdenOf(u: OrderUnit) {
   const type = claimTypeOf(u);
   if (faultOf(u.req?.reason) === "판매자")
     return "판매자 부담 (하자·배송 문제)";
-  if (type === "교환") return "판매자 부담 (교환 배송비 미징수 · 1차)";
+  if (type === "교환") return "판매자 부담";
   if (type === "취소") return "해당 없음 (발송 전 취소)";
   if (u.type === "렌트")
     return `고객 부담 — 반품 배송비(편도) ${wonText(claimFeeOf(u))} · 보증금에서 차감`;
@@ -256,6 +256,7 @@ function depositBlock(u: OrderUnit, done: boolean): CalcBlock {
       }),
       ...(fee
         ? [
+            /* 렌트 반품 줄은 기획 답 붙임 1 #16(판매 반품 상세) 밖이라 그대로 둔다 */
             line("returnFee", "반품 배송비", `${MINUS}${wonText(fee)}`, {
               hint: "편도 · 고객 귀책 · 보증금에서 차감",
             }),
@@ -336,9 +337,12 @@ export function claimBlocksOf(u: OrderUnit): CalcBlock[] {
           : []),
         ...(fee
           ? [
-              line("returnFee", "반품 배송비", `${MINUS}${wonText(fee)}`, {
-                hint: "편도 · 고객 귀책 · 환불액에서 차감",
-              }),
+              line(
+                "returnFee",
+                "반품 배송비(편도) 차감",
+                `${MINUS}${wonText(fee)}`,
+                { hint: "고객 귀책" },
+              ),
             ]
           : []),
         ...(point && refund === 0

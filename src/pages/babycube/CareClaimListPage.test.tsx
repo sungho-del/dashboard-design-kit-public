@@ -394,7 +394,9 @@ describe("CareClaimListPage (S14 안심케어 승인)", () => {
         within(dialog).getByRole("button", { name: "승인 처리" }),
       );
       expect(
-        await screen.findByText("승인 처리되었습니다. 익월 정산에 보전됩니다."),
+        await screen.findByText(
+          "승인 처리되었습니다. 다음 달 정산에 더해집니다.",
+        ),
       ).toBeVisible();
       /* 퍼블 범위 — 상태·건수는 그대로, 선택만 풀린다 */
       expect(statusBox("청구 접수 1건")).toBeVisible();
@@ -420,7 +422,7 @@ describe("CareClaimListPage (S14 안심케어 승인)", () => {
     it("여러 건이면 제목·알림에 건수가 붙는다 (문구 계약)", () => {
       expect(REVIEW_COPY.approveTitle(2)).toBe("안심케어 승인 (2건)");
       expect(REVIEW_COPY.approved(2)).toBe(
-        "2건 승인 처리되었습니다. 익월 정산에 보전됩니다.",
+        "2건 승인 처리되었습니다. 다음 달 정산에 더해집니다.",
       );
       expect(REVIEW_COPY.rejectTitle(2)).toBe("안심케어 반려 사유 입력 (2건)");
       expect(REVIEW_COPY.rejected(2)).toBe("2건을 반려 처리했습니다.");

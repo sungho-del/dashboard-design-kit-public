@@ -143,7 +143,10 @@ describe("반품 상세", () => {
     await user.click(screen.getByRole("button", { name: "주문 명세" }));
     const dialog = await screen.findByRole("dialog", { name: /^주문 명세/ });
     expect(within(dialog).getByText("단순 변심 · 환불 제외")).toBeVisible();
-    expect(within(dialog).getByText("반품 배송비")).toBeVisible();
+    /* 기획 답 2026-11-06 §2 #6(C44) — 본사와 같은 줄 이름 · 보조 글자 */
+    expect(within(dialog).getByText("반품 배송비(편도) 차감")).toBeVisible();
+    expect(within(dialog).getByText("고객 귀책")).toBeVisible();
+    expect(dialog).not.toHaveTextContent("환불액에서 차감");
     expect(within(dialog).getByText(won(refundOf(u)))).toBeVisible();
   });
 

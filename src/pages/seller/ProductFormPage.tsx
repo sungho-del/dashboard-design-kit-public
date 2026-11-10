@@ -1150,10 +1150,9 @@ function ProductFormBody({
             </FormField>
             {draft.periodOn ? (
               <div className="flex flex-col gap-3">
-                <BulletList
-                  className={cn("body-small text-text-sub", HELP_WIDTH)}
-                  items={COPY.periodHelp}
-                />
+                <p className={cn("body-small text-text-sub", HELP_WIDTH)}>
+                  {COPY.periodHelp}
+                </p>
                 {draft.periods.map((row, index) => {
                   const summary = periodSummary(row, dayRate);
                   const label = `기간 옵션 ${index + 1}`;
@@ -1474,7 +1473,6 @@ function ProductFormBody({
               label="성장단계"
               required
               htmlFor={fieldId("stage")}
-              description={COPY.stageHelp}
               error={errors.stage}
             >
               <Select
@@ -1742,7 +1740,6 @@ function ProductFormBody({
               <Checkbox
                 className={HELP_WIDTH}
                 label="방문 수령 추가 제공"
-                description={COPY.pickupHelp}
                 checked={draft.pickupOn}
                 onChange={(event) => set("pickupOn", event.target.checked)}
               />
@@ -2237,9 +2234,7 @@ function ProductFormBody({
                   <Tag tone={displayTone(storedDisplay)}>{storedDisplay}</Tag>
                 </ReadField>
                 <p className={cn("body-small -mt-3 text-text-sub", HELP_WIDTH)}>
-                  {storedStat === "재심사요청"
-                    ? COPY.displayLocked.rereview
-                    : COPY.displayLocked.rejected}
+                  {COPY.displayLocked}
                 </p>
               </>
             ) : (

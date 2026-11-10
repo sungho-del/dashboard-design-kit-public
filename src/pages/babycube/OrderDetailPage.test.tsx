@@ -349,7 +349,8 @@ describe("OrderDetailPage", () => {
       expect(lines["회수 배송비"]).toBe("무료");
       expect(lines["결제금액"]).toBe("18,200원");
       expect(lines["보증금"]).toBe("120,000원");
-      expect(hints["보증금"]).toContain("결제금액에 포함 안 됨");
+      /* 확인 요청 답(2026-11-06) 27번 — 보증금 줄 보조 글자 없음 */
+      expect(hints["보증금"]).toBeNull();
       /* 묶음 순서 — 쿠폰·포인트가 없으면 「할인」 묶음은 없다 · 보증금은 결제금액 **아래** */
       expect(blocks.map((block) => block.key)).toEqual([
         "product",
@@ -400,8 +401,37 @@ describe("OrderDetailPage", () => {
       const { lines, labelsOf } = await openStatement(user);
       expect(lines["픽업 요금"]).toBe("무료");
       expect(lines["배송비"]).toBeUndefined();
-      /* 「회수 배송비」 줄은 그대로 — 질문 14 */
-      expect(labelsOf("extra")).toContain("회수 배송비");
+      /* 확인 요청 답(2026-11-06) 14번 — 방문 수령 렌트는 「회수 배송비」 대신 「반납 요금」 */
+      expect(labelsOf("extra")).toEqual(["픽업 요금", "반납 요금"]);
+      expect(lines["반납 요금"]).toBe("무료");
+    });
+
+    /** 확인 요청 답(2026-11-06) 14번·17번 — 배송정보 라벨과 자체 수령 두 줄(develop 자체 수령 분기) */
+    it("방문 수령 건의 배송정보는 「픽업 요금」·「반납 요금」이고 준비 완료 알림일·수령 확인일이 있다", () => {
+      renderAt("/orders-all/U-R10");
+
+      expect(valueOf("픽업 요금")).toBe("무료");
+      expect(valueOf("반납 요금")).toBe("무료");
+      expect(hasRow("배송비")).toBe(false);
+      /* 값은 출고·수령 단계 시각과 같다 */
+      expect(valueOf("준비 완료 알림일")).toBe(valueOf("배송처리일"));
+      expect(valueOf("수령 확인일")).toBe(valueOf("배송완료일"));
+      expect(valueOf("수령 확인일")).toMatch(
+        /^\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}$/,
+      );
+    });
+
+    it("아직 준비 전인 방문 수령 건은 두 줄이 「-」 · 택배 건에는 두 줄이 없다", () => {
+      renderAt("/orders-all/U-R02");
+      expect(valueOf("준비 완료 알림일")).toBe("-");
+      expect(valueOf("수령 확인일")).toBe("-");
+
+      cleanup();
+      renderAt("/orders-all/U-R01");
+      expect(valueOf("배송비")).toBe("무료");
+      expect(hasRow("픽업 요금")).toBe(false);
+      expect(hasRow("준비 완료 알림일")).toBe(false);
+      expect(hasRow("수령 확인일")).toBe(false);
     });
 
     it("판매 — 판매가 × 수량 − 쿠폰 + 배송비 (원본은 0원으로 나왔다)", async () => {
@@ -537,6 +567,18 @@ describe("클레임 모드", () => {
     expect(onNavSelect).toHaveBeenCalledWith("/orders-cancel");
   });
 
+  /** 확인 요청 답(2026-11-06) 17번·21번 — 셀러 미준비 자동취소 건(U-S14) */
+  it("자동취소 건 — 배송비 부담 「해당 없음 (자동취소)」 · 취소 요청 건의 환불 상태는 「미실행」", async () => {
+    renderAt("/orders-cancel/U-S14");
+    expect(valueOf("배송비 부담")).toBe("해당 없음 (자동취소)");
+
+    cleanup();
+    const { user } = renderAt("/orders-cancel/U-R20");
+    expect(valueOf("배송비 부담")).toBe("해당 없음 (발송 전 취소)");
+    const { lines } = await openStatement(user);
+    expect(lines["환불 상태"]).toBe("미실행");
+  });
+
   it("주문 상세에는 클레임 줄이 없다 — 같은 처리단위라도 경로가 모드를 정한다", () => {
     renderAt("/orders-all/U-R23");
 
@@ -592,7 +634,13 @@ describe("클레임 모드", () => {
       const { lines, labelsOf, blocks } = await openStatement(user);
 
       /* 렌트가 1,200원/일 × 14일 = 16,800원 · 보증금 90,000원 */
-      expect(labelsOf("refund")).toEqual(["결제금액", "환불 예정액"]);
+      /* 확인 요청 답(2026-11-06) 21번 — 환불 묶음 끝 「환불 상태」(환불 처리중 = PG 응답 확인 중) */
+      expect(labelsOf("refund")).toEqual([
+        "결제금액",
+        "환불 예정액",
+        "환불 상태",
+      ]);
+      expect(lines["환불 상태"]).toBe("PG 응답 확인 중 (1차)");
       expect(labelsOf("depositRefund")).toEqual([
         "보증금",
         "보증금 반환 예정액",
@@ -615,7 +663,16 @@ describe("클레임 모드", () => {
       const { user } = renderAt("/orders-cancel/U-R24");
       const { lines, hints, labelsOf } = await openStatement(user);
 
-      expect(labelsOf("refund")).toEqual(["결제금액", "위약금", "환불 완료"]);
+      expect(labelsOf("refund")).toEqual([
+        "결제금액",
+        "위약금",
+        "환불 완료",
+        "환불 상태",
+      ]);
+      /* 취소 완료 = 「완료 · {결제수단} 취소 N원」(개발 `refundStatusText` 꼴) */
+      expect(lines["환불 상태"]).toBe(
+        `완료 · ${ORDERS.find((o) => o.id === "U-R24")!.payMethod} 취소 6,700원`,
+      );
       expect(lines["결제금액"]).toBe("8,400원");
       expect(lines["위약금"]).toBe("−1,700원");
       expect(lines["환불 완료"]).toBe("6,700원");
@@ -645,8 +702,9 @@ describe("클레임 모드", () => {
           `${label}${hints[label] ?? ""}`.includes("청구"),
         ),
       ).toBe(false);
+      /* 확인 요청 답(2026-11-06) 17번 — 「고객 부담 — 」 머리(develop 그대로) */
       expect(valueOf("배송비 부담")).toBe(
-        "반품 배송비(편도) 12,000원 · 환불액에서 차감",
+        "고객 부담 — 반품 배송비(편도) 12,000원 · 환불액에서 차감",
       );
     });
 

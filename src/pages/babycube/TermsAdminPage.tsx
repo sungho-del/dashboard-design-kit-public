@@ -14,6 +14,10 @@ import {
   Gnb,
   InfoItem,
   InfoList,
+  Modal,
+  ModalBody,
+  ModalFooter,
+  ModalHeader,
   PageHeader,
   SegmentedControl,
   Tag,
@@ -101,7 +105,8 @@ import { cn } from "../../lib/cn";
  *   문서를 바꾸면 본문처럼 기본값으로 돌아온다
  * - **예약(개정 예정본)이 있을 때만 [현행본][개정 예정본] 전환 + [예약 취소]**(판정 Q15) — 본문 위 세그먼트.
  *   현행본 = 위 편집 폼 그대로 · 개정 예정본 = 그 본문(읽기만)과 시행일(잠금) + 하단 [예약 취소].
- *   [예약 취소] 는 그 문서에 머무는 동안 전환을 걷고 현행본으로 돌아온다 — 저장본은 바꾸지 않아(퍼블 범위)
+ *   [예약 취소] 는 **확인 창**을 거친다(확인 요청 답(2026-11-06) 50번 — 본문은 답 문장 그대로).
+ *   확인하면 그 문서에 머무는 동안 전환을 걷고 현행본으로 돌아온다 — 저장본은 바꾸지 않아(퍼블 범위)
  *   문서를 바꾸면 예약이 다시 보인다(편집 초안과 같다). 예약이 없으면 지금 화면 그대로(예시 0건 — data 주석)
  *
  * ## 알려진 한계
@@ -133,6 +138,8 @@ export function TermsAdminPage({
   /* 예약(개정 예정본) — 판정 Q15. 있을 때만 전환 · [예약 취소] 는 이 문서에 머무는 동안만 걷는다 */
   const [showScheduled, setShowScheduled] = useState(false);
   const [scheduleCanceled, setScheduleCanceled] = useState(false);
+  /* [예약 취소] 확인 창 — 확인 요청 답 50번 */
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   const current = terms.find((doc) => doc.id === selectedId);
   const schedule = scheduleCanceled ? undefined : current?.scheduled;
@@ -149,6 +156,7 @@ export function TermsAdminPage({
   };
 
   const cancelSchedule = () => {
+    setCancelOpen(false);
     setScheduleCanceled(true);
     setShowScheduled(false);
   };
@@ -351,7 +359,10 @@ export function TermsAdminPage({
               </CardBody>
               <CardFooter>
                 {viewingScheduled ? (
-                  <Button variant="secondary" onClick={cancelSchedule}>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setCancelOpen(true)}
+                  >
                     {SCHEDULE_COPY.cancel}
                   </Button>
                 ) : (
@@ -365,6 +376,34 @@ export function TermsAdminPage({
           )}
         </Card>
       </div>
+
+      {/* [예약 취소] 확인 창 — 본문은 확인 요청 답 50번 문장 그대로 */}
+      <Modal
+        open={cancelOpen}
+        onClose={() => setCancelOpen(false)}
+        size="small"
+      >
+        <ModalHeader
+          /* 푸터에도 "닫기"가 있어 헤더 X 의 기본 라벨과 겹친다 — 이름을 갈라 준다 */
+          closeLabel="대화상자 닫기"
+          title={SCHEDULE_COPY.cancelTitle}
+        />
+        <ModalBody>
+          <p className="body-medium text-text">{SCHEDULE_COPY.cancelBody}</p>
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            variant="secondary"
+            size="large"
+            onClick={() => setCancelOpen(false)}
+          >
+            {SCHEDULE_COPY.cancelClose}
+          </Button>
+          <Button variant="critical" size="large" onClick={cancelSchedule}>
+            {SCHEDULE_COPY.cancel}
+          </Button>
+        </ModalFooter>
+      </Modal>
     </AppShell>
   );
 }

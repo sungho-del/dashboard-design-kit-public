@@ -96,7 +96,6 @@ import {
   sortOptions,
   validate,
   won,
-  type DiscountType,
   type CertRow,
   type Fee,
   type FieldKey,
@@ -191,12 +190,6 @@ const fieldId = (key: FieldKey) => `product-field-${key}`;
 const onlyDigits = (value: string) => value.replace(/[^0-9]/g, "");
 const withCommas = (value: string) =>
   value === "" ? "" : Number(value).toLocaleString("ko-KR");
-
-/** 할인 단위 — 원본 `%` / `원` */
-const DISCOUNT_TYPES: { value: DiscountType; label: string }[] = [
-  { value: "rate", label: "%" },
-  { value: "amt", label: "원" },
-];
 
 const ON_OFF = [
   { value: "on", label: "설정함" },
@@ -766,7 +759,10 @@ function ProductDetailBody({
         ? COPY.saleStatusHelp.approve
         : COPY.saleStatusHelp.reject;
 
-  /** 할인 블록 — 원본 「설정함/설정안함 + 값 + %/원」 */
+  /**
+   * 할인 블록 — 「설정함/설정안함 + 값 + 단위 글자」. 새 할인은 정액(원)만이고, 예전에 정률로 저장된 값은
+   * 값 칸을 잠근 채 「%」 로 보인다(확인 요청 답(2026-11-06) 10번 · 개발 `DiscountControl`)
+   */
   const discountBlock = (
     kind: "rent" | "sale",
     label: string,
@@ -794,27 +790,17 @@ function ProductDetailBody({
             htmlFor={fieldId(errorKey)}
             error={errors[errorKey]}
             description={amount > 0 ? `${won(amount)} 할인` : undefined}
-            suffix={
-              <Select
-                className="w-20"
-                aria-label={`${label} 단위`}
-                options={DISCOUNT_TYPES}
-                disabled={priceLocked}
-                value={type}
-                onValueChange={(next) =>
-                  set(
-                    kind === "rent" ? "rentDiscType" : "saleDiscType",
-                    next as DiscountType,
-                  )
-                }
-              />
-            }
           >
             <Input
               id={fieldId(errorKey)}
               inputMode="numeric"
               placeholder={kind === "rent" ? "렌트가에서" : "판매가에서"}
-              disabled={priceLocked}
+              disabled={priceLocked || type === "rate"}
+              rightIcon={
+                <span className="body-small text-text-sub">
+                  {type === "rate" ? "%" : "원"}
+                </span>
+              }
               value={type === "amt" ? withCommas(value) : value}
               invalid={Boolean(errors[errorKey])}
               onChange={(event) =>
@@ -1165,7 +1151,12 @@ function ProductDetailBody({
                 }
               />
             </FormField>
-            <FormField label="기간 옵션" group>
+            {/* [설정안함] 이면 아래 칸이 숨어 있다 — 일수 중복 오류는 라디오 아래에 보인다(확인 요청 답 49번) */}
+            <FormField
+              label="기간 옵션"
+              group
+              error={draft.periodOn ? undefined : errors.periods}
+            >
               <SegmentedControl
                 className="self-start"
                 items={lockable(ON_OFF)}

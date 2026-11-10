@@ -48,15 +48,15 @@ describe("PopupListPage (팝업 관리)", () => {
       [
         "",
         "1",
-        "첫 렌트 30% 쿠폰 안내",
-        "신규 가입하고 첫 렌트 30% 할인 쿠폰을 받아보세요. 마이페이지 › 쿠폰함에서 확인할 수 있어요.",
+        "신규 가입 20% 쿠폰 안내",
+        "신규 가입하고 20% 할인 쿠폰을 받아보세요. 마이페이지 › 쿠폰함에서 확인할 수 있어요.",
         "게시",
         "2026.07.01 ~ 2026.08.31",
         "2026.07.01",
       ],
     ]);
     /* 원문은 그대로 — 표에서만 바꾼다 */
-    expect(POPUPS[0].body).toContain("<b>첫 렌트 30% 할인 쿠폰</b>");
+    expect(POPUPS[0].body).toContain("<b>20% 할인 쿠폰</b>");
   });
 
   it("plainText — <br>·<br/> 는 공백, 태그 제거, 공백 정리", () => {
@@ -75,7 +75,7 @@ describe("PopupListPage (팝업 관리)", () => {
       renderAt();
       expect(bodyRows().map((row) => cellsOf(row).slice(1, 3))).toEqual([
         ["1", "숨긴 팝업"],
-        ["2", "첫 렌트 30% 쿠폰 안내"],
+        ["2", "신규 가입 20% 쿠폰 안내"],
       ]);
       expect(within(bodyRows()[0]).getByText("숨김")).toHaveClass(
         "text-text-sub",
@@ -112,7 +112,7 @@ describe("PopupListPage (팝업 관리)", () => {
 
     onNavSelect.mockClear();
     await user.click(
-      screen.getByRole("checkbox", { name: "첫 렌트 30% 쿠폰 안내 선택" }),
+      screen.getByRole("checkbox", { name: "신규 가입 20% 쿠폰 안내 선택" }),
     );
     expect(onNavSelect).not.toHaveBeenCalled();
   });
@@ -135,7 +135,7 @@ describe("PopupListPage (팝업 관리)", () => {
     expect(
       within(modal).getByRole("heading", { name: "팝업 삭제" }),
     ).toBeVisible();
-    expect(within(modal).queryByText("첫 렌트 30% 쿠폰 안내")).toBeNull();
+    expect(within(modal).queryByText("신규 가입 20% 쿠폰 안내")).toBeNull();
     await user.click(within(modal).getByRole("button", { name: "삭제" }));
 
     expect(await screen.findByText("삭제되었습니다.")).toBeVisible();

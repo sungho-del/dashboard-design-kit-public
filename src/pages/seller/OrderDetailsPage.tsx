@@ -36,12 +36,13 @@ import {
   won,
 } from "./OrderDetailsPage.data";
 import type { PayOrder } from "./seed/orders.data";
-import { Bold, Section, SellerShell, type SellerNavProps } from "./SettleParts";
+import { Section, SellerShell, type SellerNavProps } from "./SettleParts";
 
 /* =========================================================================
  * 주문 상세(통합 · SO-ORD-002) — `/order-details/{주문번호}` · 원본 `DETAILS.orderDetail`
  *
- * 주문 상품(처리단위 표 · 상품명 → 처리단위 상세) · 주문 정보(결제상태만 고친다) · 결제 요약(`CalcBreakdown`) · 안내
+ * 주문 상품(처리단위 표 · 상품명 → 처리단위 상세) · 주문 정보(결제상태만 고친다) · 결제 요약(`CalcBreakdown`)
+ * 「안내」 구역은 없다(기획 답 2026-11-06 §2 #6 — 본사와 같이 삭제)
  * [목록] … [영수증] [입금확인](입금대기만) [취소] [변경 저장]   ← 주 버튼 하나 맨 오른쪽
  * 퍼블 범위: 결제상태는 이 화면 state 만 · 버튼은 원본 알림 문구만. 도메인 = `./OrderDetailsPage.data.ts`.
  * ====================================================================== */
@@ -178,12 +179,6 @@ function OrderDetailsBody({ o, ...props }: SellerNavProps & { o: PayOrder }) {
 
       <Section title="결제 요약">
         <CalcBreakdown blocks={summaryBlocks(o)} />
-      </Section>
-
-      <Section title="안내">
-        <p className="body-small max-w-3xl break-keep text-text-sub">
-          <Bold text={ORDER_DETAIL_COPY.guide} />
-        </p>
       </Section>
 
       <Card variant="soft" className="sticky bottom-6 z-10">

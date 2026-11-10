@@ -319,7 +319,7 @@ describe("DisplayFormPage (배너/팝업 등록·수정)", () => {
       renderAt("/popups/PU-1");
 
       expect(heading()).toHaveTextContent("팝업 수정");
-      expect(titleInput()).toHaveValue("첫 렌트 30% 쿠폰 안내");
+      expect(titleInput()).toHaveValue("신규 가입 20% 쿠폰 안내");
       expect(screen.getByRole("textbox", { name: /내용/ })).toHaveValue(
         POPUPS[0].body,
       );
@@ -368,7 +368,7 @@ describe("DisplayFormPage (배너/팝업 등록·수정)", () => {
 
     goTo("/popups/PU-1");
     expect(heading()).toHaveTextContent("팝업 수정");
-    expect(titleInput()).toHaveValue("첫 렌트 30% 쿠폰 안내");
+    expect(titleInput()).toHaveValue("신규 가입 20% 쿠폰 안내");
     expect(screen.queryByText(/제목을 입력해주세요/)).toBeNull();
   });
 });

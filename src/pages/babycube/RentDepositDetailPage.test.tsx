@@ -93,11 +93,13 @@ describe("RentDepositDetailPage (보증금 상세)", () => {
       expect(valueOf("검수 판정")).toBe("분실");
     });
 
-    it("차감이 없으면 계산 상자는 `0원`(목록 칸의 `-` 와 다르다 — 원본) · 안심케어 본사 부담 보조 글자", () => {
+    /** 확인 요청 답(2026-11-06) 29번 — 「복원가능 손상 본사 부담」 보조 글자는 뺐다 */
+    it("차감이 없으면 계산 상자는 `0원`(목록 칸의 `-` 와 다르다 — 원본) · 안심케어 본사 부담 건에도 보조 글자가 없다", () => {
       renderAt("/rent-deposit/U-R28");
 
       expect(calcLine("deduction").value).toBe("0원");
-      expect(calcLine("deduction").dt).toBe("차감복원가능 손상 본사 부담");
+      expect(calcLine("deduction").dt).toBe("차감");
+      expect(screen.queryByText(/복원가능 손상 본사 부담/)).toBeNull();
       expect(calcLine("refund").value).toBe("80,000원");
     });
 

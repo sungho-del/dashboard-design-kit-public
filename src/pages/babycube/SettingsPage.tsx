@@ -198,7 +198,7 @@ export function SettingsPage({
         {field("ceo", "max-w-60")}
         {field("roadAddress", "max-w-105")}
         {field("detailAddress", "max-w-105")}
-        {/* 판정 Q18 새 칸 — 구획·순서는 기획 확인 요청 37번 답 전까지 임시(판매자 구획 끝) */}
+        {/* 판정 Q18 새 칸 — 「판매자 / 푸터정보」 구획 끝 · 필수 아님 · 빈 값(확인 요청 답 37번) */}
         {field("mailOrderNo", "max-w-60")}
         {field("email", "max-w-70")}
         {field("hosting", "max-w-70")}

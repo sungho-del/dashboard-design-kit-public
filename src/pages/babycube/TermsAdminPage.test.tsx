@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { TermsAdminPage } from "./TermsAdminPage";
@@ -137,12 +137,13 @@ describe("TermsAdminPage", () => {
       expect(editorValue()).toContain("제1조 (목적)");
     });
 
-    it("필수 8 · 미작성 4 — 미작성은 경고색, 선택 문서엔 배지가 없다", () => {
+    /** 확인 요청 답(2026-11-06) 35번 — 「개인정보 제3자 제공 동의」 본문이 들어와 미작성은 3 */
+    it("필수 8 · 미작성 3 — 미작성은 경고색, 선택 문서엔 배지가 없다", () => {
       renderPage();
 
       expect(within(docList()).getAllByText("필수")).toHaveLength(8);
       const blanks = within(docList()).getAllByText("미작성");
-      expect(blanks).toHaveLength(4);
+      expect(blanks).toHaveLength(3);
       blanks.forEach((blank) => expect(blank).toHaveClass("text-text-warning"));
 
       const blank = docItem("전자금융거래 이용약관");
@@ -155,6 +156,22 @@ describe("TermsAdminPage", () => {
 
       const written = docItem("렌탈\\(대여\\) 이용약관");
       expect(within(written).queryByText("미작성")).not.toBeInTheDocument();
+    });
+
+    it("개인정보 제3자 제공 동의 — 기획 문안(첫 줄 · 네 칸 · 끝 줄)이 본문이다", async () => {
+      const { user } = renderPage();
+
+      await user.click(docItem("개인정보 제3자 제공 동의"));
+
+      expect(editorValue().split("\n")).toEqual([
+        "베이비큐브는 주문하신 상품의 배송·반납 수거·상담·환불을 위해 아래와 같이 개인정보를 판매자에게 제공합니다.",
+        "1. 제공받는 자: 주문한 상품의 판매자",
+        "2. 제공 목적: 상품 배송, 렌트 상품 반납 수거, 주문 상담, 취소·반품·환불 처리",
+        "3. 제공 항목: 주문자·수령인의 이름, 휴대전화번호(추가 연락처 포함), 배송지 주소, 주문 정보(주문번호·상품·수량·요청사항)",
+        "4. 보유·이용 기간: 거래 종료(구매확정 또는 반납완료) 후 90일까지. 단, 관계 법령에 따라 보존해야 하는 경우 그 기간까지",
+        "동의를 거부할 수 있으나, 거부하시면 상품을 주문할 수 없습니다.",
+      ]);
+      expect(screen.getByRole("button", { name: "수정 저장" })).toBeVisible();
     });
   });
 
@@ -373,7 +390,7 @@ describe("TermsAdminPage", () => {
       expect(screen.queryByRole("button", { name: "예약 취소" })).toBeNull();
     });
 
-    it("예약이 있으면 현행본 ↔ 개정 예정본을 오가고, [예약 취소] 하면 전환이 걷히고 현행본으로 돌아온다", async () => {
+    it("예약이 있으면 현행본 ↔ 개정 예정본을 오가고, [예약 취소] 는 확인 창을 거쳐 전환을 걷고 현행본으로 돌아온다", async () => {
       const actual = await vi.importActual<
         typeof import("./TermsAdminPage.data")
       >("./TermsAdminPage.data");
@@ -403,8 +420,26 @@ describe("TermsAdminPage", () => {
       expect(screen.getByText("2026.11.18")).toBeVisible();
       expect(screen.queryByRole("button", { name: "수정 저장" })).toBeNull();
 
+      /* 확인 요청 답(2026-11-06) 50번 — 확인 창. [닫기] 는 아무것도 바꾸지 않는다 */
       await user.click(screen.getByRole("button", { name: "예약 취소" }));
-      expect(switcher()).toBeNull();
+      const dialog = await screen.findByRole("dialog");
+      expect(
+        within(dialog).getByText(
+          "예약을 취소하면 개정 예정본이 삭제되고 현행본이 그대로 적용됩니다. 예고 공지는 공지사항에서 직접 정리해 주세요.",
+        ),
+      ).toBeVisible();
+      await user.click(within(dialog).getByRole("button", { name: "닫기" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(radio("개정 예정본")).toBeChecked();
+      expect(editorValue()).toBe(SCHEDULED_BODY);
+
+      await user.click(screen.getByRole("button", { name: "예약 취소" }));
+      await user.click(
+        within(await screen.findByRole("dialog")).getByRole("button", {
+          name: "예약 취소",
+        }),
+      );
+      await waitFor(() => expect(switcher()).toBeNull());
       expect(editorValue()).toBe(first.body);
       expect(screen.getByRole("button", { name: "수정 저장" })).toBeVisible();
 

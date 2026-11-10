@@ -102,7 +102,7 @@ export const METRIC_GROUPS: { id: string; title: string; metrics: Metric[] }[] =
       title: "내 정산",
       metrics: [
         {
-          label: "확정 거래액 (정가)",
+          label: "확정 거래액 (판매가)",
           value: num(SUMMARY.list),
           unit: "원",
           navId: "/settle-own",

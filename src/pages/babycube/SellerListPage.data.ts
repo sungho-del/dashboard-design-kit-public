@@ -137,6 +137,12 @@ export interface Seller {
   /** 대표명 */
   ceo: string;
   phone: string;
+  /**
+   * 주소 — 셀러 상세 「주소」 행의 두 칸(도로명 주소 / 상세 주소 · 우편번호). 필수가 아니라 없을 수 있다
+   * (확인 요청 답(2026-11-06) 11번 · 개발 `SellerDetailScreen`)
+   */
+  roadAddress?: string;
+  detailAddress?: string;
   /** 수수료율(%) — 6~16 범위. **본사 직영은 0 확정** */
   commission: number;
   /** 입점일 `YYYY-MM-DD HH:mm` — 뼈대의 기간 필터가 이 형식을 파싱한다 */
@@ -196,8 +202,8 @@ export interface SellerBankAccount {
  * 셀러 목록 셀 · 셀러 상세 · 입점 심사 일괄 승인 · 입점 심사 상세 승인이 **이 규칙 하나**를 쓴다.
  * 허용 = 0 < r ≤ 100 · 소수 둘째 자리까지. 6~16% 밖은 막지 않고 경고만 한다.
  * **본사 행만 0% 이상**(판정 Q20-1 · Q20-5 · 디자인 §3 #15 · 개발 §2-1 「0 초과 규칙에 예외 추가」) —
- * `parseCommissionRate(값, true)`. 본사 행 상한·소수 자리·경고·칸 아래 안내는 기획 확인 요청 3번 답을 기다린다
- * (지금: 상한 100 · 소수 둘째 자리는 같은 규칙, 경고는 본사 행에 띄우지 않는다 — 개발과 같다).
+ * `parseCommissionRate(값, true)`. 본사 행도 상한 100 · 소수 둘째 자리는 같은 규칙이고, 6~16% 경고는 본사 행에
+ * 띄우지 않는다(확인 요청 답(2026-11-06) 3번). 본사 행 오류 문구는 기획에 다시 묻는 중이라 셀러 행과 같은 문구다.
  * ---------------------------------------------------------------------- */
 
 /** 허용 꼴이 아닐 때 — 개발 문구에서 「입점사」만 판정 Q10 대로 「셀러」 */
@@ -228,7 +234,7 @@ export const commissionInput = (value: string) => value.replace(/[^0-9.]/g, "");
 
 /**
  * 셀러 목록 셀 [수정] 알림 — 개발 `CommissionRateCell` 그대로(목록 셀에는 경고 자리가 없어 알림 뒤에 붙인다).
- * 본사 행은 경고를 붙이지 않는다(개발도 본사 행 제외 — 기획 확인 요청 3번)
+ * 본사 행은 경고를 붙이지 않는다(확인 요청 답(2026-11-06) 3번 · 개발도 본사 행 제외)
  */
 export const COMMISSION_CELL_COPY = {
   saved: (name: string, rate: number, headquarters = false) =>
@@ -944,14 +950,20 @@ const withListedProducts = (seed: SellerSeed): Seller => {
 
 const SELLER_SEEDS: SellerSeed[] = [
   {
-    /* 본사 직영 — 수수료율은 처음 0%, 수정 가능(판정 Q20-1) */
-    id: "S-0001",
-    name: "베이비큐브",
+    /*
+      본사 직영 — 수수료율은 처음 0%, 수정 가능(판정 Q20-1).
+      직영 매장 이름·코드는 「베이비크루저 (S-000)」 — 서비스명 통일(Q17) 대상이 아니다
+      (확인 요청 답(2026-11-06) §7 · `DM` #15 · 개발과 같음)
+    */
+    id: "S-000",
+    name: "베이비크루저",
     isHeadquarters: true,
-    /* 대표자·전화는 원본 본사 셀러 `S-000`(proto.html:954 · rep/tel)과 설정 화면 `SET` 그대로 —
-       설정(`SettingsPage.data.ts`)과 같은 값이다. 서로 읽지는 않는다(2026-11-03) */
-    ceo: "베이비큐브",
+    /* 대표자·전화·주소는 설정 화면(`SettingsPage.data.ts`)과 같은 값이다 — 대표자 「이학용」
+       (확인 요청 답(2026-11-06) §5). 서로 읽지는 않는다(2026-11-03) */
+    ceo: "이학용",
     phone: "02-1588-0000",
+    roadAddress: "서울특별시 강남구 테헤란로 501",
+    detailAddress: "12층 (06168)",
     commission: 0,
     date: "2025-09-01 09:00",
     exitDate: null,
@@ -1019,6 +1031,8 @@ const SELLER_SEEDS: SellerSeed[] = [
     isHeadquarters: false,
     ceo: "김하윤",
     phone: "010-3391-5502",
+    roadAddress: "서울특별시 성동구 성수이로 118",
+    detailAddress: "4층 402호 (04797)",
     commission: 12,
     date: "2025-11-04 10:20",
     exitDate: null,
@@ -1053,6 +1067,8 @@ const SELLER_SEEDS: SellerSeed[] = [
     isHeadquarters: false,
     ceo: "박정우",
     phone: "010-7724-1180",
+    roadAddress: "부산광역시 해운대구 센텀중앙로 97",
+    detailAddress: "A동 1203호 (48058)",
     commission: 9.5,
     date: "2026-01-16 15:42",
     exitDate: null,
@@ -1096,6 +1112,8 @@ const SELLER_SEEDS: SellerSeed[] = [
     isHeadquarters: false,
     ceo: "최민준",
     phone: "010-5581-3027",
+    /* 상세 주소 없이 도로명만 넣은 예시 */
+    roadAddress: "경기도 용인시 수지구 풍덕천로 152",
     commission: 8,
     date: "2026-04-21 13:38",
     exitDate: "2026-11-30 00:00",

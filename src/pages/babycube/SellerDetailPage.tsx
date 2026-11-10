@@ -46,7 +46,10 @@ import {
   bankAccountError,
   bankStatusText,
   BIZ_TYPES,
+  ADDRESS_COPY,
   COMMISSION_HINT,
+  EXITING_NOTE,
+  HQ_COMMISSION_HINT,
   commissionError,
   countText,
   DEAL_KIND_LABEL,
@@ -110,23 +113,26 @@ import {
  * ## ⚠️ 구성은 **원본 어드민 그대로**다 (BO-SEL-002 · 기획 v0.4 `DETAIL.sellers`)
  *
  * ```
- * 셀러 정보   ← 셀러명* · 대표자* · 연락처* · 사업자 유형* · 상품 취급 유형* ·
- *               사업자등록증 · 통신판매업신고증 · 상태* · 소개
+ * 셀러 정보   ← 셀러명* · 대표자* · 연락처* · 주소(2칸) · 사업자 유형* · 상품 취급 유형* ·
+ *               사업자등록증 · 통신판매업신고증 · 상태*(퇴점 처리중이면 아래 안내) · 소개
  * 운영 정보   ← 수수료율(%) · 위생인증 · 입점일 · 등록 상품수 · 평점
  * 정산 정보   ← 상태 한 줄 · 은행명 · 예금주 · 계좌번호 · 통장사본 · 안내 · [계좌 저장]
  *               (디자인 §3 #6 · 개발 `BankAccountCard`. 본사 행은 안내 한 줄만 · 퇴점 셀러는 읽기만)
  * 등록 상품 (N) ← (본사 행) [+ 상품 등록] · 표(No · 유형 · 판매 상태 · 상품코드 · 상품명 · 카테고리 ·
  *                     상품등록일 · 최종수정일 · 전시상태) + 페이지
- *                 본사 행의 상품코드 → 직영 상품 상세(`/products/{코드}`) · [+ 상품 등록] → `/products/new`
+ *                 상품코드 → 상품 상세(`/products/{코드}` · 본사 행·입점 셀러 행 모두) · [+ 상품 등록] → `/products/new`
  * [목록]                                   [취소] [저장하기]   ← 하단 액션 바 (화면 아래 고정)
  * ```
  * 섹션은 접을 수 있다(원본도 섹션마다 접기 버튼이 있다).
  *
  * ## 원본 정책 — 화면이 강제하는 것
- * - **본사 계정은 상태(입점)·위생인증(「인증 (본사 직영)」 — 판정 Q20-2)만 잠근다** — 나머지는 일반 셀러처럼
- *   고친다. 수수료율도 입력칸이고(처음 0%)
- *   본사 행만 0% 이상을 받는다(판정 Q20-1 · Q20-5 · 디자인 §3 #15 — 2026-10-15 「0% 잠금」을 풀었다).
- *   본사 행 칸 아래 안내·6~16% 경고는 없다(기획 확인 요청 3번 답 대기 — 개발도 본사 행 경고 없음)
+ * - **본사 계정은 상태(입점)·사업자 유형·상품 취급 유형·위생인증(「인증 (본사 직영)」 — 판정 Q20-2)을 잠근다**
+ *   (읽는 값 · 확인 요청 답(2026-11-06) 11번). 셀러명·대표자·연락처·주소·소개와 [저장하기] 는 연다.
+ *   수수료율도 입력칸이고(처음 0%) 본사 행만 0% 이상을 받는다(판정 Q20-1 · Q20-5 · 디자인 §3 #15).
+ *   본사 행 칸 아래 안내는 「0 이상 100 이하, 소수 둘째 자리까지 입력합니다.」, 6~16% 경고는 없다(확인 요청 답 3번)
+ * - 주소는 모든 셀러에 두 칸 — 필수 아님 · 각 300자(확인 요청 답 11번 · 개발과 같다)
+ * - **저장된 상태가 퇴점 처리중일 때만** 상태 칸 아래 「사용자 몰에서 새 주문과 쿠폰 받기가 막혀 있습니다.」
+ *   (확인 요청 답 33번 — 고르는 중인 값이 아니라 저장된 상태 기준, 수수료율 잠금과 같다)
  * - 셀러명·대표자·연락처는 **필수**, 글자 수 한도 40·20·20(원본 `gInput`)
  * - 수수료율은 **0 초과 100 이하 · 소수 둘째 자리까지**다(판정 Q20-5). 벗어나면 저장을 막고 이유를 낸다.
  *   6~16% 밖은 막지 않고 칸 아래 경고 한 줄(디자인 §3 #12 · 개발 「6~16 밖은 경고만」). 입력칸은 숫자·점만 받는다
@@ -449,6 +455,8 @@ interface Draft {
   name: string;
   ceo: string;
   phone: string;
+  roadAddress: string;
+  detailAddress: string;
   bizType: BizType;
   dealScope: DealScope;
   status: SellerStatus;
@@ -462,6 +470,8 @@ const draftOf = (seller: Seller): Draft => ({
   name: seller.name,
   ceo: seller.ceo,
   phone: seller.phone,
+  roadAddress: seller.roadAddress ?? "",
+  detailAddress: seller.detailAddress ?? "",
   bizType: seller.bizType,
   dealScope: seller.dealScope,
   status: seller.status,
@@ -622,27 +632,75 @@ function SellerDetailBody({
             {textField("name")}
             {textField("ceo")}
             {textField("phone")}
+            {/* 주소 — 모든 셀러 · 필수 아님 · 칸 2개(확인 요청 답 11번). 칸이 둘이라 `group` 으로 이름을 잇는다 */}
+            <FormField label={ADDRESS_COPY.label} group>
+              <div className="flex flex-col gap-2">
+                <Input
+                  className="max-w-120"
+                  aria-label={ADDRESS_COPY.road}
+                  value={draft.roadAddress}
+                  maxLength={ADDRESS_COPY.max}
+                  placeholder={ADDRESS_COPY.road}
+                  onChange={(event) => set("roadAddress")(event.target.value)}
+                />
+                <Input
+                  className="max-w-120"
+                  aria-label={ADDRESS_COPY.detail}
+                  value={draft.detailAddress}
+                  maxLength={ADDRESS_COPY.max}
+                  placeholder={ADDRESS_COPY.detail}
+                  onChange={(event) => set("detailAddress")(event.target.value)}
+                />
+              </div>
+            </FormField>
             {/*
               세그먼트는 `<label for>` 가 닿지 않는 그룹이라 `group` 으로 이름을 잇는다(§29-6b).
               `self-start` — FormField 의 세로 배치(flex-col)가 자식을 폭 가득 늘려, 회색 바탕이
               카드 끝까지 번졌다. 버튼 몇 개짜리 선택은 제 폭이어야 고를 것이 한눈에 들어온다.
+              본사 행은 두 칸 모두 잠금 — 위생인증과 같은 읽는 값(확인 요청 답 11번 · 개발 `locked`)
             */}
-            <FormField label="사업자 유형" required group>
-              <SegmentedControl
-                className="self-start"
-                items={BIZ_TYPES}
-                value={draft.bizType}
-                onValueChange={(value) => set("bizType")(value as BizType)}
-              />
-            </FormField>
-            <FormField label="상품 취급 유형" required group>
-              <SegmentedControl
-                className="self-start"
-                items={DEAL_SCOPES}
-                value={draft.dealScope}
-                onValueChange={(value) => set("dealScope")(value as DealScope)}
-              />
-            </FormField>
+            {hq ? (
+              <>
+                <ReadField label="사업자 유형">
+                  <span className="body-medium text-text">
+                    {
+                      BIZ_TYPES.find((item) => item.value === seller.bizType)
+                        ?.label
+                    }
+                  </span>
+                </ReadField>
+                <ReadField label="상품 취급 유형">
+                  <span className="body-medium text-text">
+                    {
+                      DEAL_SCOPES.find(
+                        (item) => item.value === seller.dealScope,
+                      )?.label
+                    }
+                  </span>
+                </ReadField>
+              </>
+            ) : (
+              <>
+                <FormField label="사업자 유형" required group>
+                  <SegmentedControl
+                    className="self-start"
+                    items={BIZ_TYPES}
+                    value={draft.bizType}
+                    onValueChange={(value) => set("bizType")(value as BizType)}
+                  />
+                </FormField>
+                <FormField label="상품 취급 유형" required group>
+                  <SegmentedControl
+                    className="self-start"
+                    items={DEAL_SCOPES}
+                    value={draft.dealScope}
+                    onValueChange={(value) =>
+                      set("dealScope")(value as DealScope)
+                    }
+                  />
+                </FormField>
+              </>
+            )}
             {DOCUMENT_KEYS.map((kind) => (
               <ReadField key={kind} label={DOCUMENTS[kind].label}>
                 <DocumentRow
@@ -665,7 +723,15 @@ function SellerDetailBody({
                 </span>
               </ReadField>
             ) : (
-              <FormField label="상태" required group>
+              /* 저장된 상태가 퇴점 처리중일 때만 칸 아래 안내(확인 요청 답 33번) */
+              <FormField
+                label="상태"
+                required
+                group
+                description={
+                  seller.status === "exiting" ? EXITING_NOTE : undefined
+                }
+              >
                 <SegmentedControl
                   className="self-start"
                   items={SELLER_STATES}
@@ -695,7 +761,7 @@ function SellerDetailBody({
           <>
             {/*
               수수료율 — 이 화면에서 가장 중요한 입력이다. 본사 행도 입력칸(처음 0% · 0% 이상 — 디자인 §3 #15).
-              본사 행 칸 아래 안내·경고는 기획 확인 요청 3번 답 전까지 띄우지 않는다
+              본사 행은 칸 아래 안내 한 줄만, 6~16% 경고는 띄우지 않는다(확인 요청 답 3번)
             */}
             {isCommissionLocked(seller.status) ? (
               /* 퇴점 처리중·퇴점 — 읽기 전용(판정 Q8). 저장된 상태 기준 · 재입점하면 다시 입력칸 */
@@ -711,7 +777,9 @@ function SellerDetailBody({
               <FormField
                 label="수수료율"
                 description={
-                  hq ? undefined : (
+                  hq ? (
+                    HQ_COMMISSION_HINT
+                  ) : (
                     <>
                       {COMMISSION_HINT}
                       {isAtypicalCommission(
@@ -867,22 +935,15 @@ function SellerDetailBody({
                             {saleMeta.label}
                           </Tag>
                         </TableTd>
-                        {/*
-                          본사 행은 직영 상품 상세(수정)로 잇는다(디자인 §3 #3). 입점 셀러 행을 이을지는
-                          기획 확인 중이라(질문 16) 글자로 둔다
-                        */}
+                        {/* 상품코드 → 상품 상세. 본사 행(디자인 §3 #3)·입점 셀러 행 모두 잇는다(확인 요청 답 16번) */}
                         <TableTd className="tabular-nums">
-                          {hq ? (
-                            <TextButton
-                              onClick={() =>
-                                onNavSelect(PRODUCT_PATH(product.code))
-                              }
-                            >
-                              {product.code}
-                            </TextButton>
-                          ) : (
-                            product.code
-                          )}
+                          <TextButton
+                            onClick={() =>
+                              onNavSelect(PRODUCT_PATH(product.code))
+                            }
+                          >
+                            {product.code}
+                          </TextButton>
                         </TableTd>
                         <TableTd ellipsis>{product.name}</TableTd>
                         <TableTd>{product.category}</TableTd>

@@ -51,6 +51,7 @@ import {
   REVIEW_COPY,
   STATUS_META,
   ymd,
+  businessVerifiedText,
   ymdhms,
   type Application,
 } from "./SellerReviewPage.data";
@@ -74,7 +75,7 @@ import {
  *
  * ```
  * 신청 정보 (입점 전)     ← 셀러명 · 대표명 · 연락처 · 사업자 유형 ·
- *                           상품 취급 유형 · 서류 2종 · 신청일(초까지)
+ *                           상품 취급 유형 · 서류 2종 · 신청일(초까지) · 사업자 확인
  * 심사 결과              ← 승인요청: 심사 상태 · 수수료율(%)* · 위생인증 (입력)
  *                           승인: 심사 상태 · 수수료율 · 승인일 · 위생인증 / 반려: 심사 상태 · 반려 사유 · 반려일
  * [목록]                                      [승인] [반려]   ← 하단 액션 바 (승인요청 건만)
@@ -88,7 +89,8 @@ import {
  * - **[승인] 은 확인 창을 거친다**(원본 `gateApprove` — 되돌릴 수 없는 처리라서)
  * - **반려에는 사유가 필수다** — 목록 일괄과 **같은 창**(`ReviewRejectModal`)을 쓴다
  * - 반려 건은 「반려 사유」·「반려일」 두 줄만(수수료율·위생인증 없음), 승인 건은 승인일·요율·위생(판정 Q11 ·
- *   제목 「심사 결과」 — 부록 A A18). 「심사 상태」 줄은 세 상태 모두 그대로(기획 확인 요청 34번)
+ *   제목 「심사 결과」 — 부록 A A18). 「심사 상태」 줄은 세 상태 모두 그대로(확인 요청 답(2026-11-06) 34번)
+ * - 신청 정보 끝 「사업자 확인」 줄 — 국세청 확인 완료 / 미확인(확인 요청 답 12번 · 개발과 같다)
  *
  * ## 표기 (2026-11-03 UX 검수)
  * - **반려 사유는 심사 상태 바로 아래** — 반려 건에서 가장 먼저 읽을 값이다(원본은 수수료율 다음).
@@ -352,6 +354,10 @@ function SellerReviewDetailBody({
             <InfoItem label="신청일" labelWidth={LABEL_WIDTH}>
               {ymdhms(application.date)}
             </InfoItem>
+            {/* 확인 요청 답 12번 — 신청일 다음 줄(개발 `Row label="사업자 확인"`) */}
+            <InfoItem label="사업자 확인" labelWidth={LABEL_WIDTH}>
+              {businessVerifiedText(application)}
+            </InfoItem>
           </InfoList>
         )}
       </Section>
@@ -413,7 +419,7 @@ function SellerReviewDetailBody({
         ) : (
           /*
             처리된 건 — 판정 Q11 상태별 항목: 승인 = 승인일·요율·위생 / 반려 = 반려 사유·반려일
-            (반려 건은 수수료율·위생인증 줄이 없다). 「심사 상태」 줄은 기획 확인 요청 34번 답 전까지 그대로
+            (반려 건은 수수료율·위생인증 줄이 없다). 「심사 상태」 줄은 세 상태 모두 그대로(확인 요청 답 34번)
           */
           <InfoList>
             <InfoItem label="심사 상태" labelWidth={LABEL_WIDTH}>

@@ -258,8 +258,8 @@ function StatementDetailBody({
       }
     >
       <Section title={SECTIONS.calc}>
-        {/* 셀러 정산과 같은 산출 내역 부품 + 계산 기준 안내(본사면 직영 안내 먼저) */}
-        <SettlementCalc lines={calcLinesOf(row)} notes={calcNotesOf(row)} />
+        {/* 셀러 정산과 같은 산출 내역 부품 + 계산 기준 안내 */}
+        <SettlementCalc lines={calcLinesOf(row)} notes={calcNotesOf()} />
       </Section>
 
       <Section title={SECTIONS.pay}>

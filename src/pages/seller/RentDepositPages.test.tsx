@@ -56,6 +56,8 @@ describe("보증금 내역", () => {
     const summary = screen.getByRole("region", { name: "보증금 요약" });
     for (const v of ["458,600", "27,500", "20,500", "5,000"])
       expect(within(summary).getByText(v)).toBeInTheDocument();
+    /* 기획 답 2026-11-06 §2 #6 — 라벨만(괄호 부연 없음) */
+    expect(summary).not.toHaveTextContent(/판정됨|상한=보증금/);
     expect(screen.getByText("목록 (총 18건)")).toBeInTheDocument();
     const first = bodyRows()[0];
     expect(within(first).getByText("20260618360509")).toBeInTheDocument();
@@ -99,6 +101,9 @@ describe("보증금 상세", () => {
     expect(screen.getByText("등록 3장")).toBeInTheDocument();
     expect(screen.getByText("반환 예정액")).toBeInTheDocument();
     expect(screen.getByText(/보증금 반환 실행됨/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "처리 상태" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "검수·반납 상세에서 처리" }),
     ).toBeNull();

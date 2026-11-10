@@ -113,7 +113,7 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
   /** 디자인 §3 #1 · 판정 Q20-3·4 · 부록 A B2 — 값은 보이되 고칠 수 없다(개발 `priceLocked`) */
   describe("입점 상품 금액 칸 잠금", () => {
     const LOCK_HELP =
-      "입점 상품의 금액은 입점사가 정합니다. 고칠 곳은 하단 바의 [반려 처리]로 알려 주세요.";
+      "입점 상품의 금액은 셀러가 정합니다. 고칠 곳은 하단 바의 [반려 처리]로 알려 주세요.";
 
     it("안내는 머리 상품 정보 줄 아래 한 번만 — 섹션마다 되풀이하지 않는다", () => {
       renderAt("BL240814");
@@ -135,9 +135,10 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
         "기간 옵션 1 장기 렌트 할인가",
       ])
         expect(textbox(name)).toBeDisabled();
+      /* 확인 요청 답 10번 — 단위는 고르지 않는다(셀렉트 없음) */
       expect(
-        screen.getByRole("combobox", { name: "렌트 할인 단위" }),
-      ).toBeDisabled();
+        screen.queryByRole("combobox", { name: "렌트 할인 단위" }),
+      ).toBeNull();
       for (const group of ["렌트 할인", "기간 옵션"])
         for (const radio of within(
           screen.getByRole("radiogroup", { name: group }),
@@ -340,9 +341,11 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
           "반려된 상품이라 전시 상태를 바꿀 수 없습니다.",
         ),
       ).toBeVisible();
-      /* 안내는 이 상태에 실제로 있는 버튼을 가리킨다 */
+      /* 확인 요청 답(2026-11-06) 4번 — 반려 건 문구 */
       expect(
-        within(display).getByText(/처분을 풀려면 아래 하단 바의 \[승인 처리\]/),
+        within(display).getByText(
+          "판매를 다시 열려면 [승인 처리]를 사용하세요.",
+        ),
       ).toBeVisible();
     });
   });
@@ -359,6 +362,10 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
       within(display).getByText(
         "반려된 상품이라 전시 상태를 바꿀 수 없습니다.",
       ),
+    ).toBeVisible();
+    /* 확인 요청 답(2026-11-06) 4번 — 재심사요청 건 문구 */
+    expect(
+      within(display).getByText("[승인 처리] 또는 [반려 처리]로 답하세요."),
     ).toBeVisible();
   });
 
@@ -926,10 +933,10 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
         ),
       ).toBeVisible();
       expect(
-        within(header()).getByText("본사 직영 상품 · 베이비큐브 (S-0001)"),
+        within(header()).getByText("본사 직영 상품 · 베이비크루저 (S-000)"),
       ).toBeVisible();
       expect(
-        screen.queryByText(/입점 상품의 금액은 입점사가 정합니다/),
+        screen.queryByText(/입점 상품의 금액은 셀러가 정합니다/),
       ).toBeNull();
       expect(barButtons()).toEqual(["목록", "취소", "수정 저장"]);
     });
@@ -950,8 +957,10 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
       ).toBeVisible();
     });
 
-    it("정률 할인은 원가의 % 를 반올림한 원 단위다", async () => {
+    /** 확인 요청 답(2026-11-06) 10번 — 새 할인은 정액(원)만 · 단위 셀렉트가 없다 */
+    it("새 할인은 정액(원)만 넣는다 — 단위를 고르는 칸이 없고 값만큼 빠진다", async () => {
       const { user } = renderAt("PR270901");
+      const price = section(/가격 · 렌트 기간/);
 
       await user.click(
         within(screen.getByRole("radiogroup", { name: "렌트 할인" })).getByRole(
@@ -959,20 +968,59 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
           { name: "설정함" },
         ),
       );
-      await user.click(
-        screen.getByRole("combobox", { name: "렌트 할인 단위" }),
-      );
-      await user.click(
-        within(await screen.findByRole("listbox")).getByRole("option", {
-          name: "%",
-        }),
-      );
-      await user.type(textbox("렌트 할인 값"), "10");
-
-      /* 900 × 10% = 90 */
       expect(
-        within(section(/가격 · 렌트 기간/)).getByText("810원/일"),
+        screen.queryByRole("combobox", { name: "렌트 할인 단위" }),
+      ).toBeNull();
+      expect(textbox("렌트 할인 값")).toBeEnabled();
+      await user.type(textbox("렌트 할인 값"), "100");
+
+      /* 900 − 100 = 800 */
+      expect(within(price).getAllByText("100원 할인")[0]).toBeVisible();
+      expect(within(price).getByText("800원/일")).toBeVisible();
+    });
+
+    /** 일수 중복은 설정 여부와 상관없이 검사한다 — 칸이 숨어 있으면 오류는 라디오 아래(확인 요청 답 49번) */
+    it("기간 옵션을 [설정안함] 으로 돌려도 같은 일수 두 줄은 막고, 오류는 라디오 아래에 보인다", async () => {
+      const { user } = renderAt("PR270901");
+      const radio = (name: string) =>
+        within(screen.getByRole("radiogroup", { name: "기간 옵션" })).getByRole(
+          "radio",
+          { name },
+        );
+
+      await user.click(radio("설정함"));
+      await user.type(textbox("기간 옵션 1 일수"), "30");
+      await user.type(textbox("기간 옵션 1 장기 렌트 할인가"), "20000");
+      await user.click(screen.getByRole("button", { name: "기간 옵션 추가" }));
+      await user.type(textbox("기간 옵션 2 일수"), "30");
+      await user.type(textbox("기간 옵션 2 장기 렌트 할인가"), "18000");
+      await user.click(radio("설정안함"));
+      await user.click(screen.getByRole("button", { name: "수정 저장" }));
+
+      expect(
+        screen.queryByRole("textbox", { name: "기간 옵션 1 일수" }),
+      ).toBeNull();
+      expect(
+        within(section(/가격 · 렌트 기간/)).getByText(
+          "기간 옵션의 일수는 중복해서 등록할 수 없습니다.",
+        ),
       ).toBeVisible();
+      expect(screen.queryByText("수정 저장했습니다.")).toBeNull();
+    });
+
+    /** 확인 요청 답(2026-11-06) 10번 — 예전에 정률로 저장된 값은 읽기 전용(개발 `productDiscountFieldPolicy`) */
+    it("예전에 정률로 저장된 할인은 값 칸이 잠기고 단위가 % 로 보인다", () => {
+      renderAt("LS672384");
+      const price = section(/가격 · 렌트 기간/);
+      const value = textbox("렌트 할인 값");
+
+      expect(value).toHaveValue("10");
+      expect(value).toBeDisabled();
+      expect(
+        within(value.parentElement as HTMLElement).getByText("%"),
+      ).toBeVisible();
+      /* 1,000 × 10% = 100 */
+      expect(within(price).getAllByText("100원 할인")[0]).toBeVisible();
     });
 
     /** 원본은 6번째에 경고 창을 띄우려 하지만 그려지지 않는다 — 잠그고 이유를 곁에 적는다 */
@@ -1108,7 +1156,7 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
       expect(onNavSelect).not.toHaveBeenCalled();
 
       await user.click(screen.getByRole("button", { name: "목록" }));
-      expect(onNavSelect).toHaveBeenCalledWith("/sellers/S-0001");
+      expect(onNavSelect).toHaveBeenCalledWith("/sellers/S-000");
     });
 
     it("판매 재고 0 이면 판매 상태가 품절 배지 · 재고를 채우면 [판매중][판매중지] 를 고른다", async () => {

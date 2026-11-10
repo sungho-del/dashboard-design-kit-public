@@ -258,6 +258,8 @@ function CouponDetailBody({
                 {condition.text}
               </span>
             </InfoItem>
+            {/* 확인 요청 답(2026-11-06) §5 — 사용 조건 다음 줄(개발 `CouponDetail` 과 같은 자리) */}
+            <InfoItem label="적용 대상">{coupon.target}</InfoItem>
           </InfoList>
         )}
       </Section>

@@ -115,6 +115,20 @@ describe("정산 내역/명세서 · 세금계산서", () => {
     expect(within(rows[1]).queryByRole("button", { name: "확인" })).toBeNull();
   });
 
+  /* 기획 답 2026-11-06 §2 #7 — 차감 다음 열 · 없으면 「-」 */
+  it("가산(보전·셀러 귀속) 열 — 차감 다음 · 이번 회차 +5,400원 · 지난 회차 「-」", () => {
+    renderAt(SettleStatementPage, "/settle-statement");
+    const heads = screen
+      .getAllByRole("columnheader")
+      .map((th) => th.textContent);
+    const at = heads.indexOf("가산(보전·셀러 귀속)");
+    expect(at).toBe(heads.indexOf("차감(수수료·PG)") + 1);
+    expect(heads[at + 1]).toBe("지급액");
+    const cellOf = (row: HTMLElement) =>
+      within(row).getAllByRole("cell")[at].textContent;
+    expect(bodyRows().map(cellOf)).toEqual(["+5,400원", "-", "-"]);
+  });
+
   it("[확인] → 원본 확인 창 → 알림(상태는 그대로)", async () => {
     const { user } = renderAt(SettleStatementPage, "/settle-statement");
     await user.click(
@@ -235,6 +249,9 @@ describe("명세서 상세", () => {
       "보증금·연체료·배상은 보증금 내역에서 분리 관리됩니다. 지급 전 발견 오류는 본사가 직권 정정합니다.",
     );
     expect(policy?.textContent).not.toMatch(/미정의|이 명세에 포함되지/);
+    /* 기획 답 2026-11-06 §4 #26 */
+    expect(policy?.textContent).toContain("− PG 수수료 − 취소·반품 차감");
+    expect(policy?.textContent).not.toContain("요율 미정");
   });
 
   it("없는 회차 — 찾을 수 없음", () => {

@@ -107,7 +107,7 @@ describe("SettingsPage", () => {
     it("필드 순서도 원본을 따른다", () => {
       renderPage();
 
-      // 판매자 섹션이 먼저이므로 앞의 8개가 그 섹션 필드다(새 세 칸은 그 끝 — 판정 Q18 · 자리는 기획 확인 요청 37번)
+      // 판매자 섹션이 먼저이므로 앞의 8개가 그 섹션 필드다(새 세 칸은 그 끝 — 판정 Q18 · 확인 요청 답(2026-11-06) 37번)
       expect(
         screen
           .getAllByRole("textbox")
@@ -197,7 +197,8 @@ describe("SettingsPage", () => {
         "placeholder",
         "예) 주식회사 렌티크",
       );
-      expect(field("대표자명")).toHaveValue("베이비큐브");
+      /* 확인 요청 답(2026-11-06) §5 — 대표자 「이학용」(상호와 따로) */
+      expect(field("대표자명")).toHaveValue("이학용");
       expect(field("주소")).toHaveValue("서울특별시 강남구 테헤란로 501");
       expect(field("상세 주소 · 우편번호")).toHaveValue("12층 (06168)");
       expect(field("업무 시간")).toHaveValue(

@@ -250,7 +250,9 @@ describe("노출 관리 — 판매 상태 (원본 `prodSaleStat` · 잠금 → �
       within(display).queryByRole("radiogroup", { name: "전시 상태" }),
     ).toBeNull();
     expect(
-      within(display).getByText(/재심사를 거쳐 처분이 풀리면/),
+      within(display).getByText(
+        "반려된 상품이라 전시 상태를 바꿀 수 없습니다.",
+      ),
     ).toBeVisible();
 
     expect(barButtons()).toEqual(["목록", "취소", "수정 저장", "재심사 요청"]);

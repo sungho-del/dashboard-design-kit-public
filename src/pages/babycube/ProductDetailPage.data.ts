@@ -61,7 +61,10 @@ const HQ_SELLER = SELLERS.find((seller) => seller.isHeadquarters);
 /** 본사 행 셀러 상세 — 직영 상품 수정의 [목록]·[취소] 가 돌아가는 곳(개발 `goList`) */
 export const HQ_SELLER_PATH = `/sellers/${HQ_SELLER?.id ?? ""}`;
 
-/** 할인 입력 방식 — 원본 `%` / `원` */
+/**
+ * 할인 입력 방식 — 새 할인은 정액(`amt` · 원)만 넣는다. 정률(`rate` · %)은 예전에 저장된 값만 남아
+ * 읽기 전용으로 보인다(확인 요청 답(2026-11-06) 10번 · 개발 `productDiscountFieldPolicy`)
+ */
 export type DiscountType = "amt" | "rate";
 
 /** 판매 상품의 상태 — 중고면 최초 구매일·등급을 더 받는다 */
@@ -411,6 +414,11 @@ export const draftOf = (product: Product): ProductDraft => {
   const periodOn = product.mode === "rent" && dayRate >= 1000;
   /* 판매 상품 하나는 중고 — 중고 칸(최초 구매일·등급)이 실제로 보이도록 */
   const used = product.id === "AR271948";
+  /*
+    렌트 상품 하나는 예전에 정률로 저장된 할인 — 「값 칸 읽기 전용 + %」 가 실제로 보이도록
+    (확인 요청 답(2026-11-06) 10번). 1,000원의 10% = 100원이라 목록·다른 화면 금액은 그대로다
+  */
+  const legacyRate = product.id === "LS672384";
 
   return {
     name: product.name,
@@ -423,9 +431,16 @@ export const draftOf = (product: Product): ProductDraft => {
     minor,
     rentBase: digits(product.rentBase),
     rentDiscOn: (product.rentDiscount ?? 0) > 0,
-    rentDiscType: "amt",
-    rentDiscVal:
-      (product.rentDiscount ?? 0) > 0 ? digits(product.rentDiscount) : "",
+    rentDiscType: legacyRate ? "rate" : "amt",
+    rentDiscVal: legacyRate
+      ? String(
+          Math.round(
+            ((product.rentDiscount ?? 0) / (product.rentBase ?? 1)) * 100,
+          ),
+        )
+      : (product.rentDiscount ?? 0) > 0
+        ? digits(product.rentDiscount)
+        : "",
     baseRentDays:
       product.mode === "rent" ? pick(product.id, ["7", "14", "30"]) : "",
     deposit: digits(product.deposit),
@@ -807,15 +822,21 @@ export const validate = (
       errors.baseRentDays = COPY.errors.baseRentDays;
     /* Q-63 · 개발 26c59cb — 비었거나 1 미만이면 막는다(우리 폼에는 임시저장이 없어 저장마다 검사) */
     if (num(draft.deposit) < 1) errors.deposit = COPY.errors.deposit;
-    if (draft.periodOn) {
-      const filled = draft.periods
-        .filter((row) => row.days !== "" && row.price !== "")
-        .map((row) => num(row.days));
-      if (draft.periods.some((row) => num(row.days) > 0 !== num(row.price) > 0))
-        errors.periods = COPY.errors.periods;
-      else if (direct && new Set(filled).size !== filled.length)
-        errors.periods = COPY.errors.periodsDuplicate;
-    }
+    /*
+      반쪽 입력은 [설정함] 일 때만, 일수 중복은 설정 여부와 상관없이 검사한다
+      (확인 요청 답(2026-11-06) 49번 · 개발 `product-form.ts`). [설정안함] 이면 칸이 숨어 있어
+      뼈대가 오류를 기간 옵션 라디오 아래에 보인다
+    */
+    const filled = draft.periods
+      .filter((row) => row.days !== "" && row.price !== "")
+      .map((row) => num(row.days));
+    if (
+      draft.periodOn &&
+      draft.periods.some((row) => num(row.days) > 0 !== num(row.price) > 0)
+    )
+      errors.periods = COPY.errors.periods;
+    else if (direct && new Set(filled).size !== filled.length)
+      errors.periods = COPY.errors.periodsDuplicate;
     if (!(num(draft.rentQty) > 0)) errors.rentQty = COPY.errors.rentQty;
   } else {
     if (!(num(draft.saleBase) > 0)) errors.saleBase = COPY.errors.saleBase;
@@ -865,11 +886,12 @@ export const COPY = {
   /** 등록 주체 읽는 값 — 입점 = 셀러명 · 직영(신규 포함) = 「본사」(디자인 §3 #13 · 판정 ⑭) */
   hqOwner: "본사",
   /**
-   * 입점 상품 금액 칸 잠금 안내 — 회신 부록 A B2 「문구 그대로, 상단 상품 정보 줄에 1번만 표시」
+   * 입점 상품 금액 칸 잠금 안내 — 회신 부록 A B2 「문구 그대로, 상단 상품 정보 줄에 1번만 표시」.
+   * 「셀러가 정합니다」 — 확인 요청 답(2026-11-06) 1번
    * (개발 `PriceLockHelp` 는 가격·배송·옵션 3섹션에 반복 · 디자인 §3 #1 · D-297)
    */
   priceLock:
-    "입점 상품의 금액은 입점사가 정합니다. 고칠 곳은 하단 바의 [반려 처리]로 알려 주세요.",
+    "입점 상품의 금액은 셀러가 정합니다. 고칠 곳은 하단 바의 [반려 처리]로 알려 주세요.",
   sections: {
     name: "상품명",
     mode: "유형",
@@ -928,12 +950,11 @@ export const COPY = {
   /** 직영 판매 상품 재고 0 — 「품절」 배지 아래(부록 A C12) */
   soldOutHelp:
     "재고가 0개라 품절입니다. [재고 수량]을 채우면 판매중으로 바뀝니다.",
-  /** 판매 상태 안내 — 원본 문장에서 **그 상태에 실제로 있는 버튼**을 가리키게 고쳤다 */
+  /** 판매 상태 안내 — 상태별 문구(부록 A C11 · 반려·재심사요청 건은 확인 요청 답(2026-11-06) 4번 그대로) */
   saleStatusHelp: {
     reject: "판매를 멈추려면 [반려 처리]를 사용하세요.",
-    approve:
-      "입점 상품의 판매 상태는 입력으로 바꾸지 않습니다 — 처분을 풀려면 아래 하단 바의 [승인 처리]를 눌러 주세요.",
-    both: "입점 상품의 판매 상태는 입력으로 바꾸지 않습니다 — 입점사의 재심사 요청에 아래 하단 바의 [승인 처리] 또는 [반려 처리]로 답해 주세요.",
+    approve: "판매를 다시 열려면 [승인 처리]를 사용하세요.",
+    both: "[승인 처리] 또는 [반려 처리]로 답하세요.",
   },
   /** 처분 건(반려·재심사요청) 전시 상태 아래 — 두 갈래 한 문장(부록 A C13) */
   displayLocked: "반려된 상품이라 전시 상태를 바꿀 수 없습니다.",

@@ -419,6 +419,8 @@ export interface Statement {
   gmv: number;
   /** 차감(수수료·PG·환수) */
   ded: number;
+  /** 가산(보전·셀러 귀속) — 안심케어 보전 + 셀러 귀속 3종. 0 이면 목록에 「-」(기획 답 2026-11-06 §2 #7) */
+  add: number;
   payout: number;
   payday: string;
   stat: StatementStatus;
@@ -433,6 +435,7 @@ export const STATEMENTS: Statement[] = [
     month: SETTLE_MONTH,
     gmv: SUMMARY.gmv,
     ded: SUMMARY.fee + SUMMARY.pg + SUMMARY.cancel,
+    add: SUMMARY.care + SUMMARY.penalty + SUMMARY.pickup + SUMMARY.shipping,
     payout: SUMMARY.payout,
     payday: SETTLE_PAYDAY,
     stat: "확인요청",
@@ -444,6 +447,7 @@ export const STATEMENTS: Statement[] = [
     month: "2026.05",
     gmv: 2841000,
     ded: 398000,
+    add: 0,
     payout: 2443000,
     payday: "2026.06.10",
     stat: "지급완료",
@@ -455,6 +459,7 @@ export const STATEMENTS: Statement[] = [
     month: "2026.04",
     gmv: 2312000,
     ded: 324000,
+    add: 0,
     payout: 1988000,
     payday: "2026.05.11", // 05.10 이 일요일 — 휴일이면 다음 영업일(디자인 §1 정산)
     stat: "지급완료",
@@ -498,7 +503,7 @@ export const STMT_REQUEST_NOTE =
 
 /** 정산 정책 — 원본 문면(굵은 낱말 `**`) */
 export const SETTLE_POLICY =
-  "**매출 확정 기준** — 판매는 **구매확정**, 렌트는 **반납완료** 시 매출로 확정되어 정산 대상이 됩니다(확정 전 건은 정산 제외). 지급액 = 확정 매출 − 판매 수수료(셀러별 요율) − PG 수수료(요율 미정 — PG사 계약 시 확정) − 취소·반품 차감 **+ 안심케어 보전**이며, **수수료는 본사 수익**으로 귀속됩니다. 세금계산서는 매월 10일에 발행됩니다(연동 준비 중). **보증금·연체료·배상은 보증금 내역**에서 분리 관리됩니다. **지급 전 발견 오류는 본사가 직권 정정**합니다.";
+  "**매출 확정 기준** — 판매는 **구매확정**, 렌트는 **반납완료** 시 매출로 확정되어 정산 대상이 됩니다(확정 전 건은 정산 제외). 지급액 = 확정 매출 − 판매 수수료(셀러별 요율) − PG 수수료 − 취소·반품 차감 **+ 안심케어 보전**이며, **수수료는 본사 수익**으로 귀속됩니다. 세금계산서는 매월 10일에 발행됩니다(연동 준비 중). **보증금·연체료·배상은 보증금 내역**에서 분리 관리됩니다. **지급 전 발견 오류는 본사가 직권 정정**합니다.";
 
 export const PAST_TX_NOTE =
   "지난달 거래 내역은 명세서 다운로드로 확인할 수 있습니다.";
@@ -534,10 +539,26 @@ export interface TaxInvoice {
   date: string;
   supply: number;
   vat: number;
+  /** 본사 발행 상태 — 셀러 상태는 정산 지급 상태가 아니라 이것을 따른다(기획 답 2026-11-06 §2 #39) */
+  issue: HqTaxIssue;
   stat: "수취완료" | "발행예정";
 }
 
-export const TAX_INVOICES: TaxInvoice[] = STATEMENTS.map((s) => {
+export type HqTaxIssue = "미발행" | "발행완료";
+
+/** 본사 발행 상태(예시 값 — 퍼블이 정함 · 실제는 본사 세금계산서 발행 데이터). 정산월 → 상태 */
+const HQ_TAX_ISSUE: Record<string, HqTaxIssue> = {
+  "2026.06": "미발행",
+  "2026.05": "발행완료",
+  "2026.04": "발행완료",
+};
+
+/** 본사 미발행 → 「발행예정」 · 발행완료 → 「수취완료」 */
+export const taxStatOf = (issue: HqTaxIssue): TaxInvoice["stat"] =>
+  issue === "발행완료" ? "수취완료" : "발행예정";
+
+/** 명세서 한 회차 + 본사 발행 상태 → 세금계산서 한 줄. 상태는 `s.stat`(지급 상태)을 읽지 않는다 */
+export const taxInvoiceOf = (s: Statement, issue: HqTaxIssue): TaxInvoice => {
   const supply = s.live ? SUMMARY.fee : Math.round(s.ded * 0.72);
   return {
     no: `TX-${s.month.slice(2).replace(".", "")}`,
@@ -547,9 +568,14 @@ export const TAX_INVOICES: TaxInvoice[] = STATEMENTS.map((s) => {
     date: s.payday,
     supply,
     vat: Math.round(supply * 0.1),
-    stat: s.stat === "지급완료" ? "수취완료" : "발행예정",
+    issue,
+    stat: taxStatOf(issue),
   };
-});
+};
+
+export const TAX_INVOICES: TaxInvoice[] = STATEMENTS.map((s) =>
+  taxInvoiceOf(s, HQ_TAX_ISSUE[s.month] ?? "미발행"),
+);
 
 /* ---------- 보증금 — 원본 `depBack`·`DEP_LABEL`·`SCREENS.rentDeposit` ---------- */
 

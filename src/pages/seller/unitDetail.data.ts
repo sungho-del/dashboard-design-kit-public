@@ -116,9 +116,7 @@ export const rentComponentOf = (u: OrderUnit) => {
 };
 export const depositStatusOf = (u: OrderUnit) => u.depStat || "점유중";
 export const careTextOf = (u: OrderUnit) =>
-  careOf(u)
-    ? "가입 — 복원가능 손상 본사 부담"
-    : "미가입 — 손상 배상은 보증금에서 차감(본사 부담 없음)";
+  careOf(u) ? "가입" : "미가입 — 손상 배상은 보증금에서 차감(본사 부담 없음)";
 
 /** 대여 정보 — 대여 기간 · 대여 시작 · 반납 예정일(연장이면 연장 전 예정일 병기) */
 export function rentTermOf(u: OrderUnit) {
@@ -160,7 +158,7 @@ const shipLine = (fee: number) => (fee > 0 ? more(fee) : "무료");
 
 /**
  * 렌트 주문 몫 — 원본 `udPriceBox` 렌트 갈래: 렌트 원가(원/일) → 할인 → 렌트가 → 렌트일 → 장기 렌트 할인 →
- * 소계 · 구성품(일가 × 렌트일) · 쿠폰 · 포인트(플랫폼 부담) · 안심케어(정산 미포함) · 배송비 · 회수 배송비
+ * 소계 · 구성품(일가 × 렌트일) · 쿠폰 · 포인트 · 안심케어(보조 글자 없음 — 기획 답 2026-11-06 §2 #6) · 배송비 · 회수 배송비
  */
 function rentOrderBlocks(u: OrderUnit): CalcBlock[] {
   const plan = rentPlanOf(u);
@@ -206,18 +204,14 @@ function rentOrderBlocks(u: OrderUnit): CalcBlock[] {
       label: "할인",
       lines: [
         ...(coupon ? [line("coupon", "쿠폰 할인", less(coupon))] : []),
-        ...(point
-          ? [line("point", "포인트 할인", less(point), { hint: "플랫폼 부담" })]
-          : []),
+        ...(point ? [line("point", "포인트 할인", less(point))] : []),
       ],
     },
     {
       key: "extra",
       label: "추가",
       lines: [
-        ...(careOf(u)
-          ? [line("care", "안심케어", more(CARE_FEE), { hint: "정산 미포함" })]
-          : []),
+        ...(careOf(u) ? [line("care", "안심케어", more(CARE_FEE))] : []),
         line("ship", "배송비", shipLine(shipFeeOf(u))),
         line("collect", "회수 배송비", shipLine(collectFeeOf(u))),
       ],

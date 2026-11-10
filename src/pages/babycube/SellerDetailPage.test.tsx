@@ -76,7 +76,7 @@ const saveButton = () => screen.getByRole("button", { name: "저장하기" });
 
 /** 일반 셀러(상품 3개 · 남은 일 있음) · 본사 계정 · 남은 일 없는 셀러(상품 0 · 계좌 미등록) */
 const NORMAL = "S-1042";
-const HEADQUARTERS = "S-0001";
+const HEADQUARTERS = "S-000";
 const QUIET = "S-1190";
 
 describe("SellerDetailPage (S03-D 셀러 상세)", () => {
@@ -182,7 +182,7 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       expect(within(operation).getByRole("textbox")).toHaveValue("12");
       expect(
         within(operation).getByText(
-          "입점사 정산의 기준 요율이며 0보다 크고 100 이하(소수 둘째 자리까지)로 입력합니다.",
+          "셀러 정산의 기준 요율이며 0보다 크고 100 이하(소수 둘째 자리까지)로 입력합니다.",
         ),
       ).toBeVisible();
       expect(within(operation).queryByText(/플랫폼 수수료\) 계산/)).toBeNull();
@@ -208,6 +208,59 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       },
     );
 
+    /** 확인 요청 답(2026-11-06) 33번 — 저장된 상태가 퇴점 처리중일 때만 상태 칸 아래 안내 */
+    it.each([
+      [NORMAL, false],
+      ["S-1155", true],
+      ["S-1204", false],
+    ])(
+      "상태 칸 아래 안내는 퇴점 처리중 셀러(%s → %s)에만 보인다",
+      (id, shown) => {
+        renderAt(id);
+        const note = within(section("셀러 정보")).queryByText(
+          "사용자 몰에서 새 주문과 쿠폰 받기가 막혀 있습니다.",
+        );
+
+        if (shown) expect(note).toBeVisible();
+        else expect(note).toBeNull();
+      },
+    );
+
+    it("퇴점 처리중으로 고르기만 해서는 안내가 나오지 않는다 — 저장된 상태 기준", async () => {
+      const { user } = renderAt(NORMAL);
+
+      await user.click(screen.getByRole("radio", { name: "퇴점 처리중" }));
+      expect(
+        screen.queryByText(
+          "사용자 몰에서 새 주문과 쿠폰 받기가 막혀 있습니다.",
+        ),
+      ).toBeNull();
+    });
+
+    /** 확인 요청 답(2026-11-06) 11번 — 모든 셀러 「주소」 행 · 필수 아님 */
+    it("주소 두 칸은 연락처 다음에 있고, 비워도 저장된다", async () => {
+      const { user } = renderAt(NORMAL);
+
+      expect(field("도로명 주소")).toHaveValue(
+        "서울특별시 성동구 성수이로 118",
+      );
+      expect(field("도로명 주소")).toHaveAttribute("maxlength", "300");
+      await user.clear(field("도로명 주소"));
+      await user.clear(field("상세 주소 · 우편번호"));
+      await user.click(saveButton());
+
+      expect(await screen.findByText("변경 내용을 저장했습니다")).toBeVisible();
+    });
+
+    it("주소가 없는 셀러는 빈 칸에 자리표시자만 보인다", () => {
+      renderAt(QUIET);
+
+      expect(field("도로명 주소")).toHaveValue("");
+      expect(screen.getByPlaceholderText("상세 주소 · 우편번호")).toHaveValue(
+        "",
+      );
+    });
+
     it("입점 셀러에는 잠금 안내가 없다", () => {
       renderAt(NORMAL);
       expect(
@@ -227,10 +280,34 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
   });
 
   /**
-   * ⚠️ 본사 계정 — **상태(입점)·위생인증(「인증 (본사 직영)」)만 잠근다**. 수수료율은 처음 0%, 수정 가능 · 본사 행만 0% 이상
+   * ⚠️ 본사 계정 — **상태(입점)·사업자 유형·상품 취급 유형·위생인증(「인증 (본사 직영)」)을 잠근다**
+   * (확인 요청 답(2026-11-06) 11번). 수수료율은 처음 0%, 수정 가능 · 본사 행만 0% 이상
    * (판정 Q20-1 · Q20-5 · 디자인 §3 #15 — 2026-10-15 「수수료율 0% 잠금」을 풀었다).
    */
   describe("본사 계정", () => {
+    /** 확인 요청 답(2026-11-06) 11번 — 사업자 유형·상품 취급 유형은 읽는 값, 셀러명·주소·소개는 열려 있다 */
+    it("사업자 유형·상품 취급 유형은 세그먼트 없이 읽는 값이고, 셀러명·주소는 고칠 수 있다", () => {
+      renderAt(HEADQUARTERS);
+      const basic = section("셀러 정보");
+
+      expect(within(basic).queryByRole("radio")).toBeNull();
+      expect(
+        within(basic).getByText("사업자 유형").nextElementSibling?.textContent,
+      ).toBe("법인");
+      expect(
+        within(basic).getByText("상품 취급 유형").nextElementSibling
+          ?.textContent,
+      ).toBe("전체");
+      expect(field("셀러명")).toBeEnabled();
+      expect(field("셀러명")).toHaveValue("베이비크루저");
+      expect(field("대표자")).toHaveValue("이학용");
+      /* 본사 행 주소는 설정 화면 주소와 같다 */
+      expect(field("도로명 주소")).toHaveValue(
+        "서울특별시 강남구 테헤란로 501",
+      );
+      expect(field("상세 주소 · 우편번호")).toHaveValue("12층 (06168)");
+    });
+
     /** 부록 A C69 · 개발 §3-2-5 — 「퇴점·심사 관리 대상이 아닙니다 (수수료율 0% 확정)」 안내는 지웠다 */
     it("상태 대신 「본사」·「입점」 배지만 낸다(안내 문구 없음)", () => {
       renderAt(HEADQUARTERS);
@@ -256,8 +333,8 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       ).not.toContain("수수료율");
     });
 
-    /** 판정 Q20-5 — 본사 행만 0% 이상. 칸 아래 안내·6~16% 경고는 띄우지 않는다(기획 확인 요청 3번) */
-    it("0% 그대로 저장되고, 칸 아래 안내·경고가 없다", async () => {
+    /** 판정 Q20-5 — 본사 행만 0% 이상. 칸 아래 안내는 본사 행 문구, 6~16% 경고는 없다(확인 요청 답 3번) */
+    it("0% 그대로 저장되고, 칸 아래에는 본사 행 안내만 있고 경고가 없다", async () => {
       const { user } = renderAt(HEADQUARTERS);
       const operation = section("운영 정보");
 
@@ -267,8 +344,13 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       expect(await screen.findByText("변경 내용을 저장했습니다")).toBeVisible();
       expect(screen.queryByText(/셀러 수수료율은 0보다 크고/)).toBeNull();
       expect(
+        within(operation).getByText(
+          "0 이상 100 이하, 소수 둘째 자리까지 입력합니다.",
+        ),
+      ).toBeVisible();
+      expect(
         within(operation).queryByText(
-          "입점사 정산의 기준 요율이며 0보다 크고 100 이하(소수 둘째 자리까지)로 입력합니다.",
+          "셀러 정산의 기준 요율이며 0보다 크고 100 이하(소수 둘째 자리까지)로 입력합니다.",
         ),
       ).toBeNull();
       expect(within(operation).queryByText(/일반적인 범위/)).toBeNull();
@@ -299,11 +381,12 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       expect(within(operation).getByText("인증 (본사 직영)")).toBeVisible();
     });
 
-    it("나머지(셀러 정보·취급 유형)는 고치고 저장할 수 있다", async () => {
+    it("나머지(셀러명·대표자·주소·소개)는 고치고 저장할 수 있다", async () => {
       const { user } = renderAt(HEADQUARTERS);
 
-      await user.click(screen.getByRole("radio", { name: "판매" }));
+      await user.type(field("셀러명"), " 직영");
       await user.type(field("대표자"), "님");
+      await user.type(field("상세 주소 · 우편번호"), " 1201호");
       await user.click(saveButton());
 
       expect(await screen.findByText("변경 내용을 저장했습니다")).toBeVisible();
@@ -417,18 +500,18 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
       expect(onNavSelect).toHaveBeenCalledWith("/products/PR270901");
     });
 
-    /** 입점 셀러 행을 이을지는 기획 확인 중(질문 16) — 글자로 둔다 */
-    it("입점 셀러는 [+ 상품 등록] 이 없고 상품코드는 글자다", () => {
-      renderAt(NORMAL);
+    /** 확인 요청 답(2026-11-06) 16번 — 입점 셀러 행의 상품코드도 상품 상세로 잇는다 */
+    it("입점 셀러는 [+ 상품 등록] 이 없고 상품코드로 상품 상세에 간다", async () => {
+      const { user, onNavSelect } = renderAt(NORMAL);
       const products = section(/^등록 상품/);
 
       expect(
         within(products).queryByRole("button", { name: "상품 등록" }),
       ).toBeNull();
-      expect(
-        within(products).queryByRole("button", { name: "AS730125" }),
-      ).toBeNull();
-      expect(within(products).getByText("AS730125")).toBeVisible();
+      await user.click(
+        within(products).getByRole("button", { name: "AS730125" }),
+      );
+      expect(onNavSelect).toHaveBeenCalledWith("/products/AS730125");
     });
 
     it("등록한 상품이 없으면 표 대신 빈 상태를 낸다", () => {

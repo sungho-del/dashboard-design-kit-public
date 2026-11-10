@@ -85,7 +85,7 @@ describe("CouponDetailPage (쿠폰 상세)", () => {
     ]);
   });
 
-  it("정액 쿠폰 CP-2608-01 — 9줄 값", () => {
+  it("정액 쿠폰 CP-2608-01 — 10줄 값", () => {
     renderAt("/promo/CP-2608-01");
 
     expect(valueOf("셀러명")).toBe("리틀베이비");
@@ -94,6 +94,8 @@ describe("CouponDetailPage (쿠폰 상세)", () => {
     expect(valueOf("할인 유형")).toBe("정액 (원)");
     expect(valueOf("할인 내용")).toBe("정액 5,000원");
     expect(valueOf("사용 조건")).toBe("30,000원 이상 구매");
+    /* 확인 요청 답(2026-11-06) §5 — 사용 조건 다음 「적용 대상」 */
+    expect(valueOf("적용 대상")).toBe("전체");
     expect(valueOf("사용 기간")).toBe("2026.08.01 ~ 2026.10.31");
     expect(valueOf("상태")).toBe("사용");
     expect(valueOf("발행일")).toBe("2026.08.01");
@@ -106,6 +108,7 @@ describe("CouponDetailPage (쿠폰 상세)", () => {
     expect(valueOf("할인 내용")).toBe("정률 30% (최대 20,000원)");
     expect(screen.getByText("30%").className).toContain("body-medium-bold");
     expect(valueOf("사용 조건")).toBe("50,000원 이상 구매");
+    expect(valueOf("적용 대상")).toBe("렌트");
     expect(valueOf("사용 기간")).toBe("2026.06.01 ~ 2026.12.31");
   });
 

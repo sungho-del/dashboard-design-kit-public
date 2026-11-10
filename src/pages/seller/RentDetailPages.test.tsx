@@ -191,7 +191,7 @@ describe("RentUseDetailPage — 대여·연체 관리 상세", () => {
     expect(
       screen.queryByRole("combobox", { name: "상품주문상태" }),
     ).not.toBeInTheDocument();
-    expect(valueOf("보증금 (고정액)")).toHaveTextContent("3,500원");
+    expect(valueOf("보증금")).toHaveTextContent("3,500원");
     expect(valueOf("보증금 상태")).toHaveTextContent("점유중");
     expect(valueOf("대여 시작")).toHaveTextContent("2026.06.24");
     expect(valueOf("반납 예정일")).toHaveTextContent("2026.09.24");

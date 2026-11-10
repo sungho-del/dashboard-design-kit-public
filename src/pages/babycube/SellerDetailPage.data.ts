@@ -31,6 +31,8 @@ import { COUPONS, couponStatus } from "./CouponListPage.data";
  * | `findSeller`         | 경로의 id → 셀러 레코드                           |
  * | `SECTIONS`           | 섹션 제목 3종 (원본 `sellers.form` 구성 순서)     |
  * | `FIELD_COPY`         | 입력칸 라벨·자리표시자·글자 수 한도·빈 값 오류    |
+ * | `ADDRESS_COPY`       | 주소 행 라벨·두 칸 자리표시자·글자 수 한도        |
+ * | `EXITING_NOTE`       | 퇴점 처리중 셀러의 상태 칸 아래 안내              |
  * | `BIZ_TYPES`          | 사업자 유형 택1 (법인/개인)                       |
  * | `DEAL_SCOPES`        | 상품 취급 유형 택1 (전체/렌트/판매)               |
  * | `SELLER_STATES`      | 상태 택1 (입점/퇴점 처리중/퇴점)                  |
@@ -42,9 +44,12 @@ import { COUPONS, couponStatus } from "./CouponListPage.data";
  * | `bankAccountError`   | [계좌 저장] 검사 (개발 `validateBankAccount`)      |
  *
  * ## 뼈대가 이 파일에 기대하는 계약
- * - **본사 계정은 상태(입점)·위생인증(「인증」 고정 — 판정 Q20-2)만 잠근다** — 나머지는 일반 셀러처럼 고친다.
+ * - **본사 계정은 상태(입점)·사업자 유형·상품 취급 유형·위생인증(「인증」 고정 — 판정 Q20-2)을 잠근다**
+ *   (확인 요청 답(2026-11-06) 11번 · 개발 `locked`). 셀러명·대표자·연락처·주소·소개와 [저장하기] 는 연다.
  *   수수료율은 본사 행도 입력칸(처음 0%)
  *   (판정 Q20-1 · 디자인 §3 #15 — 2026-10-15 「수수료율 0% 잠금」을 풀었다)
+ * - 주소는 모든 셀러에 두 칸(`ADDRESS_COPY`) — 필수 아님 · 각 300자(확인 요청 답 11번)
+ * - **저장된 상태가 퇴점 처리중일 때만** 상태 칸 아래 `EXITING_NOTE` 한 줄(확인 요청 답 33번)
  * - 수수료율은 **0 초과 100 이하 · 소수 둘째 자리까지**, **본사 행만 0 이상**(판정 Q20-5 · `SellerListPage.data.ts` 의 공용 규칙).
  *   벗어난 값은 저장할 수 없다. 6~16% 밖은 막지 않고 칸 아래 경고만(디자인 §3 #12)
  * - **저장된 상태가 퇴점 처리중·퇴점이면 수수료율은 읽기 전용**(판정 Q8 · `isCommissionLocked`·`COMMISSION_LOCKED_NOTE` 공용)
@@ -96,6 +101,21 @@ export const FIELD_COPY = {
 } as const;
 
 export type TextFieldKey = keyof typeof FIELD_COPY;
+
+/**
+ * 주소 — 연락처 다음 행, 칸 2개 · 필수 아님 · 각 300자
+ * (확인 요청 답(2026-11-06) 11번 · 개발 `SellerDetailScreen` 의 `Row label="주소"`)
+ */
+export const ADDRESS_COPY = {
+  label: "주소",
+  road: "도로명 주소",
+  detail: "상세 주소 · 우편번호",
+  max: 300,
+} as const;
+
+/** 저장된 상태가 퇴점 처리중일 때만 상태 칸 아래에 보인다 — 확인 요청 답(2026-11-06) 33번 문구 그대로 */
+export const EXITING_NOTE =
+  "사용자 몰에서 새 주문과 쿠폰 받기가 막혀 있습니다.";
 
 /** 소개 — 원본 `gText(t, "intro", "셀러 소개를 입력하세요")` (필수 아님) */
 export const INTRO_PLACEHOLDER = "셀러 소개를 입력하세요";
@@ -165,7 +185,7 @@ export const SHOWN_META = {
   hidden: { label: "숨김", tone: "default" as TagTone },
 };
 
-/** 본사 행 등록 상품 — 직영 상품 등록 · 상품코드 → 상품 상세(디자인 §3 #3) */
+/** 등록 상품 — 본사 행의 직영 상품 등록 · 상품코드 → 상품 상세(디자인 §3 #3 · 입점 셀러 행도 — 확인 요청 답 16번) */
 export const PRODUCT_NEW_PATH = "/products/new";
 export const PRODUCT_PATH = (code: string) => `/products/${code}`;
 
@@ -174,15 +194,17 @@ export const PRODUCT_PAGE_SIZE = 10;
 export const PRODUCT_PAGE_SIZES = [10, 20, 50, 100];
 
 /**
- * 수수료율 입력 아래 안내 — 부록 A A16 바꿈 문구 그대로(셀러 행만).
- * 「입점사」는 질문 1, 본사 행 칸 아래 안내는 질문 3 답 전까지 그대로 둔다
+ * 수수료율 입력 아래 안내 — 셀러 행은 부록 A A16 바꿈 문구(「셀러 정산」 — 확인 요청 답(2026-11-06) 1번),
+ * 본사 행은 확인 요청 답 3번 문구 그대로
  */
 export const COMMISSION_HINT =
-  "입점사 정산의 기준 요율이며 0보다 크고 100 이하(소수 둘째 자리까지)로 입력합니다.";
+  "셀러 정산의 기준 요율이며 0보다 크고 100 이하(소수 둘째 자리까지)로 입력합니다.";
+export const HQ_COMMISSION_HINT =
+  "0 이상 100 이하, 소수 둘째 자리까지 입력합니다.";
 
 /**
  * 수수료율 검사 — 허용 꼴(0 초과 100 이하 · 소수 둘째 자리 · 본사 행만 0 이상)이 아니면 개발 문구 한 줄
- * (빈 칸·글자·범위 모두). 본사 행 오류 문구는 기획 확인 요청 3번 답 전까지 같은 문구다
+ * (빈 칸·글자·범위 모두). 본사 행 오류 문구는 답에 없어 기획에 다시 묻는 중 — 그때까지 같은 문구다
  */
 export const commissionError = (value: string, headquarters = false) =>
   parseCommissionRate(value, headquarters) === null

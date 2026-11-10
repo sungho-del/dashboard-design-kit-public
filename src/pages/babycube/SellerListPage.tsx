@@ -431,8 +431,8 @@ export function SellerListPage({
 
   /**
    * [수정] — 원본은 셀에서 고치고 [수정] 을 눌러 확정한다.
-   * 허용 꼴(0 초과 100 이하 · 소수 둘째 자리)이 아니면 **되돌리고 알린다** — 조용히 버리면
-   * 사용자는 고쳐졌다고 믿는다. 맞으면 알리기만 한다(저장은 개발 영역).
+   * 허용 꼴(0 초과 100 이하 · 소수 둘째 자리)이 아니면 **친 값을 둔 채 오류만 알린다**
+   * (확인 요청 답(2026-11-06) 48번 · 개발 `CommissionRateCell`). 맞으면 알리기만 한다(저장은 개발 영역).
    */
   const commitCommission = (seller: Seller) => {
     const raw = draft[seller.id];
@@ -441,11 +441,6 @@ export function SellerListPage({
     /* 0 초과 100 이하 · 소수 둘째 자리까지 · 본사 행만 0 이상(판정 Q20-5 · 개발 `parseCommissionRate`) */
     const value = parseCommissionRate(raw, seller.isHeadquarters);
     if (value === null) {
-      setDraft((prev) => {
-        const next = { ...prev };
-        delete next[seller.id];
-        return next;
-      });
       toast(COMMISSION_RATE_MESSAGE);
       return;
     }

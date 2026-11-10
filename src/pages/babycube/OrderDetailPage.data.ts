@@ -15,6 +15,7 @@ import {
   type Order,
   type OrderStatus,
 } from "./OrderListPage.data";
+import { autoCancelLabelOf } from "./OrderCancelListPage.data";
 import { ADDRESSES, AIRPORTS, stageOf } from "./ProductDetailPage.data";
 import { PRODUCTS } from "./ProductListPage.data";
 import {
@@ -33,8 +34,9 @@ import {
  * **본사는 조회 전용.**
  *
  * ## 주문 명세 — `CalcBreakdown` 어댑터(`statementBlocksOf`)
- * 묶음: 상품(원가 → 상품 할인 → 단가 → 일수/수량 → 소계) · 할인(쿠폰·포인트) · 추가(안심케어·배송비 — 방문·공항은 「픽업 요금」) ·
- * 결제금액(결과) · 별도(보증금 — 결제금액에 들지 않는다). 클레임 모드는 결제금액을 원거래 금액으로 낮추고
+ * 묶음: 상품(원가 → 상품 할인 → 단가 → 일수/수량 → 소계) · 할인(쿠폰·포인트) · 추가(안심케어·배송비 — 방문·공항은
+ * 「픽업 요금」 · 렌트 회수 배송비 — 방문·공항은 「반납 요금」) · 결제금액(결과) · 별도(보증금 — 결제금액에 들지 않는다).
+ * 취소 명세는 환불 묶음 끝에 「환불 상태」 한 줄(`refundStatusTextOf` — 확인 요청 답(2026-11-06) 21번). 클레임 모드는 결제금액을 원거래 금액으로 낮추고
  * 클레임 묶음(`claimBlocksOf`)이 기준 → 차감 → 결과를 보인다. 부호는 읽기용 `−`/`+`(0 은 부호 없음).
  * 본문 주문정보의 결제금액·클레임 결과 줄은 **팝업과 같은 함수**(`payTotalOf`·`claimResultsOf`)를 읽는다.
  *
@@ -340,7 +342,7 @@ const calcLine = (
   extra: Partial<CalcLine> = {},
 ): CalcLine => ({ key, label, value, ...extra });
 
-/** 배송비 · 회수 배송비 — 택배만 상품 배송비를 받는다(방문·공항은 무료) */
+/** 배송비 · 회수 배송비(방문·공항은 「픽업 요금」·「반납 요금」) — 택배만 상품 배송비를 받는다(방문·공항은 무료) */
 const shipFeeOf = (order: Order) => (isParcel(order) ? order.shipFee : 0);
 
 /**
@@ -364,9 +366,6 @@ export const payTotalOf = (order: Order) => {
       (order.type === "rent" ? ship : 0),
   );
 };
-
-/** 보증금 줄의 보조 글자 — 결제금액과의 관계(상품 상세 「반납 검수 후 환급되는 금액」과 같은 뜻) */
-const DEPOSIT_HINT = "결제금액에 포함 안 됨 · 반납 검수 후 환급";
 
 /**
  * 주문 몫 — 「상품」(원가 → 상품 할인 → 단가 → 일수/수량 → 소계) · 「할인」(쿠폰·포인트) ·
@@ -418,7 +417,16 @@ const orderBlocksOf = (order: Order): CalcBlock[] => {
     ...(order.care ? [calcLine("care", "안심케어", more(order.care.fee))] : []),
     /* 방문 수령·공항 픽업은 「픽업 요금」(부록 A B16 — develop 자체 수령 분기) · 택배는 「배송비」 */
     calcLine("ship", isParcel(order) ? "배송비" : "픽업 요금", shipLine(ship)),
-    ...(rent ? [calcLine("returnShip", "회수 배송비", shipLine(ship))] : []),
+    /* 방문 수령·공항 픽업 렌트는 「반납 요금」(확인 요청 답(2026-11-06) 14번 — develop 자체 수령 분기) */
+    ...(rent
+      ? [
+          calcLine(
+            "returnShip",
+            isParcel(order) ? "회수 배송비" : "반납 요금",
+            shipLine(ship),
+          ),
+        ]
+      : []),
   ];
   return [
     { key: "product", label: "상품", lines: product },
@@ -431,7 +439,10 @@ const orderBlocksOf = (order: Order): CalcBlock[] => {
 const payLineOf = (order: Order, kind: "total" | "subtotal"): CalcLine =>
   calcLine("pay", "결제금액", won(payTotalOf(order)), { kind });
 
-/** 「별도」 보증금 — 결제금액 계산 밖의 돈이라 결과 묶음 **아래** 따로 (보조 글자색) */
+/**
+ * 「별도」 보증금 — 결제금액 계산 밖의 돈이라 결과 묶음 **아래** 따로 (보조 글자색).
+ * 보조 글자는 없다(확인 요청 답(2026-11-06) 27번 — 부록 A C27·C33 과 같은 기준)
+ */
 const depositAsideOf = (order: Order): CalcBlock[] =>
   order.type === "rent"
     ? [
@@ -441,7 +452,6 @@ const depositAsideOf = (order: Order): CalcBlock[] =>
           lines: [
             calcLine("deposit", "보증금", won(order.deposit ?? 0), {
               kind: "note",
-              hint: DEPOSIT_HINT,
             }),
           ],
         },
@@ -518,12 +528,16 @@ export const faultTextOf = (order: Order) =>
  * (사용자 결정 2026-11-02 — 원본은 「별도 청구」라 쓰고 환불액에서도 빼 이중 부담으로 읽혔다).
  * 교환 = 1차에는 교환 배송비를 받지 않아 고객 귀책도 「판매자 부담」(디자인 §3 #9 · 부록 A B11) ·
  * 판매자 귀책은 「판매자 부담 (하자·배송 문제)」(부록 A B11 비고 — develop `ExchangeDetail` 그대로).
- * 취소는 출고 전이라 배송비가 생기지 않는다.
+ * 취소는 출고 전이라 배송비가 생기지 않는다 — 셀러 미준비 자동취소 건만 「해당 없음 (자동취소)」.
+ * 자동취소·고객 귀책 반품의 「고객 부담 — 」 머리는 확인 요청 답(2026-11-06) 17번(develop 그대로).
  */
 export const feeBurdenOf = (order: Order) => {
   const claim = order.claim;
   if (!claim) return NONE;
-  if (claim.type === "cancel") return "해당 없음 (발송 전 취소)";
+  if (claim.type === "cancel")
+    return autoCancelLabelOf(order)
+      ? "해당 없음 (자동취소)"
+      : "해당 없음 (발송 전 취소)";
   if (claim.type === "exchange")
     return claim.fault === "seller"
       ? "판매자 부담 (하자·배송 문제)"
@@ -532,7 +546,7 @@ export const feeBurdenOf = (order: Order) => {
   const fee = claimFeeOf(order);
   if (fee === 0) return "반품 배송비 무료";
   const from = order.type === "rent" ? "보증금에서" : "환불액에서";
-  return `반품 배송비(편도) ${won(fee)} · ${from} 차감`;
+  return `고객 부담 — 반품 배송비(편도) ${won(fee)} · ${from} 차감`;
 };
 
 /** 신청 구분 배지 — 클레임 종류 이름. 원본은 1단계 상태명(「취소 요청」)을 고정으로 찍었다 */
@@ -546,7 +560,7 @@ export const claimTypeTextOf = (order: Order) =>
  *
  * | 경우             | 묶음                                                                                  |
  * | ---------------- | ------------------------------------------------------------------------------------- |
- * | 취소             | 「환불」 결제금액 → 환불 예정액/완료 · (렌트) 「보증금」 보증금 → 반환 예정액/완료        |
+ * | 취소             | 「환불」 결제금액 → 환불 예정액/완료 → 환불 상태 · (렌트) 「보증금」 보증금 → 반환 예정액/완료 |
  * | 판매 반품        | 「환불」 결제금액 → (고객 귀책) 반품 배송비 − → 환불 예정액/완료                          |
  * | 렌트 반품        | 「결제」 결제금액 · 「보증금」 보증금 → (고객 귀책) 반품 배송비 − → 반환 예정액/완료       |
  * | 교환             | 「결제」 결제금액 · 「교환」 처리 문장(교환 배송비는 1차 미징수 — 청구 줄 없음)             |
@@ -560,6 +574,25 @@ export const claimTypeTextOf = (order: Order) =>
  * - 렌트 반품은 원본처럼 보증금만 돌려준다. 반환액은 보증금 함수(`depositOf`) 하나가 정한다 —
  *   배송비를 여기서 다시 빼지 않는다(차감 줄은 보이기만 한다)
  */
+/**
+ * 환불 상태 한 줄 — 취소 명세 환불 묶음 끝(확인 요청 답(2026-11-06) 21번 · 개발 `refundStatusText` 꼴 그대로).
+ * 개발은 서버가 준 환불 시도 값이다. 퍼블은 취소 단계에 맞춘 예시 값이다:
+ * 취소 요청 = 「미실행」 · 환불 처리중 = 「PG 응답 확인 중 (1차)」 · 취소 완료 = 「완료 · {결제수단} 취소 N원[ · 포인트 NP 복구]」.
+ * 실패 꼴(「실패 (코드) 메시지」)은 예시 건을 두지 않았다
+ */
+export const refundStatusTextOf = (order: Order) => {
+  const claim = order.claim;
+  if (!claim || claim.status === "cancelRequested") return "미실행";
+  if (claim.status !== "canceled") return "PG 응답 확인 중 (1차)";
+  const refund = Math.max(0, payTotalOf(order) - claim.penalty);
+  return (
+    `완료 · ${order.payMethod} 취소 ${won(refund)}` +
+    (order.point
+      ? ` · 포인트 ${order.point.toLocaleString("ko-KR")}P 복구`
+      : "")
+  );
+};
+
 const claimBlocksOf = (order: Order): CalcBlock[] => {
   const claim = order.claim;
   if (!claim) return [];
@@ -605,6 +638,7 @@ const claimBlocksOf = (order: Order): CalcBlock[] => {
             ? { kind: "total" }
             : { kind: "total", hint: "결제금액 전액" },
         ),
+        calcLine("refundStatus", "환불 상태", refundStatusTextOf(order)),
       ],
     };
     if (!rent) return [refund];

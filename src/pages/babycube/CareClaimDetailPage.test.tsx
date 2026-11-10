@@ -107,7 +107,7 @@ describe("CareClaimDetailPage (S14-D 안심케어 청구 상세)", () => {
       expect(screen.queryByText(/본사는 승인·반려만 합니다/)).toBeNull();
       expect(valueOf("청구일")).toBe("2026.09.18");
       expect(valueOf("승인일")).toBe("2026.09.21");
-      expect(valueOf("정산 반영")).toBe("익월 정산 보전(+12,000원)");
+      expect(valueOf("정산 반영")).toBe("다음 달 정산(+12,000원)");
       expect(hasRow("반려 사유")).toBe(false);
 
       expect(bottomButtons()).toEqual(["목록"]);
@@ -205,7 +205,9 @@ describe("CareClaimDetailPage (S14-D 안심케어 청구 상세)", () => {
       );
 
       expect(
-        await screen.findByText("승인 처리되었습니다. 익월 정산에 보전됩니다."),
+        await screen.findByText(
+          "승인 처리되었습니다. 다음 달 정산에 더해집니다.",
+        ),
       ).toBeVisible();
       expect(valueOf("청구 상태")).toBe("청구 접수");
     });

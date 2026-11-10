@@ -49,7 +49,7 @@ import { SellerShell, type SellerNavProps } from "./SettleParts";
  * 공지사항 (고정 먼저 3건 · 전체보기)                       ← 원본 맨 위
  * 내 상품 | 내 응대 | 내 정산                               ← 1행 3열 · 카드 안 "라벨 ··· 값 단위 →"
  * 내 매출 현황(건수) | 내 매출 현황(금액)                   ← 1행 2열 · 남는 세로 공간을 흡수
- * 판매 관리 | 렌트 관리                                     ← 흐름 각 4단계(원본 순서 — 판매 먼저)
+ * 렌트 관리 | 판매 관리                                     ← 흐름 각 4단계(렌트 먼저 — 본사와 같게 · 기획 답 2026-11-06 §2 #9)
  * ```
  * 지표·흐름은 누르면 그 목록으로 간다(원본 `dashGo`/`nav`). 숫자·이동 = `./SellerDashboardPage.data.ts`.
  * 데이터 상태는 본사와 같다 — `/?preview=loading|empty|refreshing`(0 도 값이다).
@@ -290,14 +290,14 @@ export function SellerDashboardPage(props: SellerNavProps) {
 
       <div className="grid grid-cols-2 gap-6">
         <FlowCard
-          title="판매 관리"
-          steps={SALE_FLOW}
+          title="렌트 관리"
+          steps={RENT_FLOW}
           status={countsStatus}
           onNavSelect={onNavSelect}
         />
         <FlowCard
-          title="렌트 관리"
-          steps={RENT_FLOW}
+          title="판매 관리"
+          steps={SALE_FLOW}
           status={countsStatus}
           onNavSelect={onNavSelect}
         />

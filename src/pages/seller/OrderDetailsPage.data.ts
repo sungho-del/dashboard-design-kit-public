@@ -47,7 +47,6 @@ export function summaryBlocks(o: PayOrder): CalcBlock[] {
         {
           key: "dep",
           label: "보증금",
-          hint: "별도 점유",
           value: won(us.reduce((a, u) => a + (u.dep || 0), 0)),
         },
       ],
@@ -64,8 +63,6 @@ export function summaryBlocks(o: PayOrder): CalcBlock[] {
 
 export const ORDER_DETAIL_COPY = {
   unitsTitle: "주문 상품 — 담당·진행 상태는 상품별로 관리됩니다",
-  guide:
-    "한 주문(결제) 안의 상품은 **담당(자체/입점사)과 진행 상태가 각각 독립**적으로 진행됩니다. 상품명을 클릭하면 해당 관리 상세로 이동합니다.",
   receipt: (no: string) => `${no} 영수증`,
   deposit: (no: string) => `${no} 입금 확인`,
   saved: "저장되었습니다.",

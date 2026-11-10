@@ -502,7 +502,7 @@ function UnitDetailBody({
                 )}
                 {config.depositInProduct && !!u.dep && (
                   <>
-                    <Item label="보증금 (고정액)">
+                    <Item label="보증금">
                       {u.dep.toLocaleString("ko-KR")}원
                     </Item>
                     <Item label="보증금 상태">

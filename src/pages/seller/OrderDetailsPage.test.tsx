@@ -56,6 +56,10 @@ describe("주문 상세(통합)", () => {
     const { user, onNavSelect } = renderAt("/order-details/20260705880011");
     expect(screen.getByText("결제 합계")).toBeInTheDocument();
     expect(screen.getByText("렌탈료 합계")).toBeInTheDocument();
+    /* 기획 답 2026-11-06 §2 #6 — 보증금 보조 글자 · 「안내」 구역 없음 */
+    expect(screen.getByText("보증금")).toBeInTheDocument();
+    expect(screen.queryByText("별도 점유")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "안내" })).toBeNull();
     expect(screen.queryByRole("button", { name: "입금확인" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "변경 저장" }));
     expect(await screen.findByText("저장되었습니다.")).toBeInTheDocument();

@@ -165,23 +165,22 @@ export function RentDepositPage(props: SellerNavProps) {
   return (
     <SellerShell {...props} header={<PageHeader title="보증금 내역" />}>
       {/* 요약 4값 — 필터와 무관하다(보증금 있는 렌트 전체 · 원본 그대로 · 기획 확인) */}
-      {/* 원본 라벨의 괄호 부연은 caption 으로 — 라벨에 두면 1280 에서 두 줄이 되어 값이 이웃 타일보다 내려간다 */}
+      {/* 라벨만 — 원본 라벨의 괄호 부연은 뺐다(기획 답 2026-11-06 §2 #6 · 본사 보증금 내역과 같다) */}
       <section className="grid grid-cols-4 gap-6" aria-label="보증금 요약">
         {(
           [
-            ["점유중 보증금 총액", undefined, stats.hold],
-            ["환급 대기액", "판정됨·실행 전", stats.pending],
-            ["반환 완료액", undefined, stats.refunded],
-            ["차감 수익", "연체료+손상 · 상한=보증금", stats.deducted],
+            ["점유중 보증금 총액", stats.hold],
+            ["환급 대기액", stats.pending],
+            ["반환 완료액", stats.refunded],
+            ["차감 수익", stats.deducted],
           ] as const
-        ).map(([label, caption, value]) => (
+        ).map(([label, value]) => (
           <StatTile
             key={label}
             variant="card"
             label={label}
             value={value.toLocaleString("ko-KR")}
             unit="원"
-            caption={caption}
           />
         ))}
       </section>
@@ -482,14 +481,7 @@ export function RentDepositDetailPage(props: SellerNavProps) {
           <Item label="상품">{u.prod}</Item>
           <Item label="이용 기간">{u.period || "-"}</Item>
           <Item label="안심케어">
-            {care ? (
-              <span className="flex items-center gap-2">
-                <Tag size="small">가입</Tag>
-                <span className="text-text-sub">복원가능 손상 본사 부담</span>
-              </span>
-            ) : (
-              "미가입"
-            )}
+            {care ? <Tag size="small">가입</Tag> : "미가입"}
           </Item>
           {(u.od ?? 0) > 0 && (
             <Item label="연체 경과">
@@ -532,7 +524,7 @@ export function RentDepositDetailPage(props: SellerNavProps) {
         </NoteBox>
       </Section>
 
-      <Section title="처리 상태 (조회 전용)">
+      <Section title="처리 상태">
         <p className="body-medium break-keep text-text">
           {process === "holding" ? (
             <>

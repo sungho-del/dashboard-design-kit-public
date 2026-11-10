@@ -121,6 +121,23 @@ describe("SellerReviewDetailPage (S04-D 입점 심사 상세)", () => {
       expect(within(apply).getByText("2026.06.20 14:32:08")).toBeVisible();
     });
 
+    /** 확인 요청 답(2026-11-06) 12번 — 신청일 다음 「사업자 확인」 줄 */
+    it.each([
+      [REQUESTED, "국세청 확인 완료"],
+      [OTHER_REQUESTED, "미확인"],
+    ])("%s 의 신청 정보 마지막 줄은 「사업자 확인」 %s", (id, text) => {
+      renderAt(id);
+      const terms = Array.from(section(APPLY).querySelectorAll("dt"));
+
+      expect(terms.map((dt) => dt.textContent).slice(-2)).toEqual([
+        "신청일",
+        "사업자 확인",
+      ]);
+      expect(terms[terms.length - 1].nextElementSibling?.textContent).toBe(
+        text,
+      );
+    });
+
     it("서류를 등록번호·신고번호와 함께 내고, [보기] 는 미리보기 창을 연다", async () => {
       const { user } = renderAt(REQUESTED);
       const apply = section(APPLY);
@@ -215,7 +232,7 @@ describe("SellerReviewDetailPage (S04-D 입점 심사 상세)", () => {
       const labels = Array.from(result.querySelectorAll("dt")).map(
         (dt) => dt.textContent,
       );
-      /* 판정 Q11 — 반려 = 반려 사유·반려일. 수수료율·위생인증 줄이 없다(「심사 상태」는 기획 확인 요청 34번) */
+      /* 판정 Q11 — 반려 = 반려 사유·반려일. 수수료율·위생인증 줄이 없다(「심사 상태」는 그대로 — 확인 요청 답 34번) */
       expect(labels).toEqual(["심사 상태", "반려 사유", "반려일"]);
     });
 

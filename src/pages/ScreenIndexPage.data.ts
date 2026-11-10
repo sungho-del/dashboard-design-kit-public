@@ -174,7 +174,7 @@ export const SCREENS: ScreenEntry[] = [
       "본사 직영 상품 등록 — 상품 상세와 같은 폼 · 금액·유형·판매 상태가 열리고 처분 버튼이 없다",
     file: "babycube/ProductDetailPage.tsx",
     entryNote:
-      "GNB 에 없다 — 셀러 상세 본사 행(베이비큐브)에서 [+ 상품 등록]을 눌러 들어간다",
+      "GNB 에 없다 — 셀러 상세 본사 행(베이비크루저)에서 [+ 상품 등록]을 눌러 들어간다",
     icon: Package,
   },
   {

@@ -25,6 +25,7 @@ import {
  * | `HYGIENE_OPTIONS`·`commissionError` | 승인의 입력 규칙 (목록·상세 공용) |
  * | `filterSummary`   | 접힌 검색조건 줄의 요약                     |
  * | `ymd`·`ymdhms`    | 날짜 포맷                                   |
+ * | `businessVerifiedText` | 상세 「사업자 확인」 줄의 값(국세청 확인 완료 / 미확인) |
  * | `PAGE_SIZE`       | 페이지당 행 수                              |
  *
  * ## 뼈대가 이 파일에 기대하는 계약
@@ -97,6 +98,11 @@ export interface Application {
   bizType: ReviewBizType;
   /** 신청일 `YYYY-MM-DD HH:mm:ss` — 원본이 초까지 적는다 */
   date: string;
+  /**
+   * 사업자 확인 — 국세청 사업자 상태 확인을 마쳤는가. 상세 「사업자 확인」 줄
+   * (확인 요청 답(2026-11-06) 12번 · 개발 `businessVerified`)
+   */
+  businessVerified: boolean;
   /** 승인일. 승인 건만 */
   approvedAt: string | null;
   /** 반려일. 반려 건만 */
@@ -376,6 +382,13 @@ const ROWS: Row[] = [
   ],
 ];
 
+/** 사업자 확인이 아직인 신청 — 「미확인」 이 실제로 보이도록 둔 예시(퍼블이 정함 · 서버 값) */
+const UNVERIFIED = new Set(["SR-317"]);
+
+/** 「사업자 확인」 줄의 값 — 개발 문구 그대로 */
+export const businessVerifiedText = (application: Application) =>
+  application.businessVerified ? "국세청 확인 완료" : "미확인";
+
 export const APPLICATIONS: Application[] = ROWS.map(
   ([
     id,
@@ -397,6 +410,7 @@ export const APPLICATIONS: Application[] = ROWS.map(
     kind,
     bizType,
     date,
+    businessVerified: !UNVERIFIED.has(id),
     approvedAt: extra.approvedAt ?? null,
     rejectedAt: extra.rejectedAt ?? null,
     rejectReason: extra.rejectReason,
