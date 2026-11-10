@@ -131,6 +131,9 @@ const APP_FILES = {
   hq: [
     "src/App.tsx",
     "src/App.test.tsx",
+    /* 계정 줄 내용(이름 · 역할 · 로그아웃) — 본사·셀러 공용 조립 */
+    "src/pages/AccountBar.tsx",
+    "src/pages/AccountBar.test.tsx",
     "src/pages/babycube",
     "src/pages/gnbSections.tsx",
     "src/pages/ScreenIndexPage.tsx",
@@ -140,6 +143,9 @@ const APP_FILES = {
   seller: [
     "src/SellerApp.tsx",
     "src/SellerApp.test.tsx",
+    /* 계정 줄 내용(이름 · 역할 · 로그아웃) — 본사·셀러 공용 조립 */
+    "src/pages/AccountBar.tsx",
+    "src/pages/AccountBar.test.tsx",
     "src/pages/seller",
     "src/pages/sellerGnbSections.tsx",
     /* 주문 명세 부품 — 본사 화면 부품을 표현만 빌린다(의존: components/ui · lib/cn) */

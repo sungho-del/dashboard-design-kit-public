@@ -41,7 +41,64 @@ afterEach(() => {
 const pageTitle = () =>
   screen.getAllByRole("heading", { level: 1 })[0].textContent?.trim();
 
+const accountBar = () => screen.queryByRole("region", { name: "로그인 계정" });
+
 describe("App (전달본)", () => {
+  /**
+   * 계정 줄 — 진입점이 한 번 넣고 모든 셸 화면이 받는다(화면 파일은 넘기지 않는다).
+   * 대시보드 머리에만 있던 계정이 다른 화면에서 사라지던 문제의 회귀 방지다.
+   */
+  describe("계정 줄", () => {
+    it.each(["/", "/members", "/orders-all", "/screens"])(
+      "%s 맨 위에 계정과 [로그아웃]이 있다",
+      (path) => {
+        renderAt(path);
+        const bar = accountBar()!;
+        expect(
+          within(bar).getByTitle("운영관리자 · 본사 운영관리자"),
+        ).toBeVisible();
+        expect(
+          within(bar).getByRole("button", { name: "로그아웃" }),
+        ).toBeVisible();
+        /* 읽히는 순서 = GNB → 계정 줄 → 페이지 머리 */
+        expect(
+          bar.compareDocumentPosition(screen.getAllByRole("navigation")[0]) &
+            Node.DOCUMENT_POSITION_PRECEDING,
+        ).toBeTruthy();
+        expect(
+          bar.compareDocumentPosition(
+            screen.getAllByRole("heading", { level: 1 })[0],
+          ) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+      },
+    );
+
+    it("대시보드 머리에는 계정이 남아 있지 않다 — 줄 한 곳에만 있다", () => {
+      renderAt("/");
+      expect(screen.getAllByText("운영관리자")).toHaveLength(1);
+    });
+
+    it("[로그아웃]을 누르면 로그인 화면으로 가고, 거기에는 줄이 없다", async () => {
+      renderAt("/members");
+      await userEvent.click(screen.getByRole("button", { name: "로그아웃" }));
+
+      expect(window.location.pathname).toBe("/login");
+      expect(accountBar()).toBeNull();
+    });
+
+    it.each([
+      "/login",
+      "/password",
+      "/password-reset",
+      "/password-reset/confirm",
+    ])("인증 화면 %s 에는 계정 줄이 없다", (path) => {
+      renderAt(path);
+      expect(pageTitle()).not.toBe("화면 목록");
+      expect(accountBar()).toBeNull();
+      expect(screen.queryByRole("button", { name: "로그아웃" })).toBeNull();
+    });
+  });
+
   it.each(SCREENS.map((s) => [s.navId, s.name] as const))(
     "%s 는 폴백이 아니라 그 화면으로 열린다 (%s)",
     (path) => {

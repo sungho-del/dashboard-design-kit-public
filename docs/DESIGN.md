@@ -19,24 +19,32 @@
 
 ```
 ┌────────────┬──────────────────────────────────────┐
-│  GNB       │  PageHeader   min-h 72 · gutter 40   │
+│  GNB       │  계정 줄      h 48 · gutter 40        │
 │  224 / 60  ├──────────────────────────────────────┤
-│  100dvh    │  콘텐츠 (flex:1)                      │
+│  100dvh    │  PageHeader   min-h 72 · gutter 40   │
+│            ├──────────────────────────────────────┤
+│            │  콘텐츠 (flex:1)                      │
 └────────────┴──────────────────────────────────────┘
 ```
 
-| 항목           | 값                                                                 | 토큰                   |
-| -------------- | ------------------------------------------------------------------ | ---------------------- |
-| 셸 배치        | `display:flex` 가로 — GNB(고정폭) + 콘텐츠(`flex:1`)               | —                      |
-| GNB 컨테이너   | `min-width:60px; height:100dvh; flex-shrink:0; position:relative`  | `--size-gnb-collapsed` |
-| GNB 확장       | `224px`                                                            | `--size-gnb-expanded`  |
-| GNB 축소       | `60px` + `position:absolute` + `z-index:9000`, hover 시 224로 확장 | `--z-sidesheet`        |
-| 페이지 헤더    | `min-height:72px`, 좌우 40 / 컴팩트 52, 좌우 16                    | `--size-page-header`   |
-| 콘텐츠 최대폭  | 제한 없음(100%)이 기본 [추정] — 필요 시 페이지별 오버라이드        | —                      |
-| 브레이크포인트 | 992(데스크톱 경계) · 588(모바일 경계)                              | `--breakpoint-*`       |
+| 항목           | 값                                                                                                 | 토큰                   |
+| -------------- | -------------------------------------------------------------------------------------------------- | ---------------------- |
+| 셸 배치        | `display:flex` 가로 — GNB(고정폭) + 콘텐츠(`flex:1`)                                               | —                      |
+| GNB 컨테이너   | `min-width:60px; height:100dvh; flex-shrink:0; position:relative`                                  | `--size-gnb-collapsed` |
+| GNB 확장       | `224px`                                                                                            | `--size-gnb-expanded`  |
+| GNB 축소       | `60px` + `position:absolute` + `z-index:9000`, hover 시 224로 확장                                 | `--z-sidesheet`        |
+| 페이지 헤더    | `min-height:72px`, 좌우 40 / 컴팩트 52, 좌우 16                                                    | `--size-page-header`   |
+| 계정 줄        | `height:48px`, 좌우 40, 내용 오른쪽 정렬, `bg: surface`, 아래 선은 안쪽 그림자 1px `border` [유추] | —                      |
+| 콘텐츠 최대폭  | 제한 없음(100%)이 기본 [추정] — 필요 시 페이지별 오버라이드                                        | —                      |
+| 브레이크포인트 | 992(데스크톱 경계) · 588(모바일 경계)                                                              | `--breakpoint-*`       |
 
 > 레거시는 콘텐츠 `max-width: 1100px`(sm 840 / lg 1300)을 썼으나, 신규 Clay 셸에는 해당 제한이 없다.
 > 폭 제한이 필요한 페이지에서만 개별 적용한다.
+
+> **계정 줄** [유추 — §24 PageHeader · §1 Button small · §26 Avatar small] — 콘텐츠 열 맨 위(PageHeader 위)에서 로그인한 계정(「이름 · 역할」)과 [로그아웃]을 보여 준다.
+> 내용은 `Avatar` small(24) + 글자(`label-medium-bold` `text` / `label-medium` `text-sub` · 최대 320 · 끝 말줄임) + `Button` secondary small(32), 요소 간격 12 · 아바타↔글자 8.
+> 줄은 `AppShell` 의 `topBar` 슬롯이 그리고(`region` · 이름 「로그인 계정」 — `<header>` 아님), 내용은 **앱 진입점의 `AppShellProvider` 가 한 번** 넣는다. 화면 파일은 `topBar` 를 넘기지 않는다(그 화면만 끄는 `null` 은 예외).
+> 스크롤과 함께 올라간다(고정 아님). 계정 말고 다른 것(제목·검색·알림)을 얹지 않는다 — PageHeader 와 역할이 겹친다. 설계: `docs/specs/account-bar.md`
 
 ---
 

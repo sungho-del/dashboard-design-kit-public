@@ -1,2 +1,2 @@
-export { AppShell } from "./AppShell";
-export type { AppShellProps } from "./AppShell";
+export { AppShell, AppShellProvider } from "./AppShell";
+export type { AppShellProps, AppShellProviderProps } from "./AppShell";

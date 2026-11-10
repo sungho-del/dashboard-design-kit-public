@@ -1,6 +1,8 @@
 import { useState, type ComponentType } from "react";
-import { ToastProvider } from "./components/ui";
+import { AppShellProvider, ToastProvider } from "./components/ui";
 import { navigate, usePathname } from "./lib/router";
+import { AccountBar } from "./pages/AccountBar";
+import { APP_ACCOUNT } from "./pages/gnbSections";
 import { DashboardPage } from "./pages/DashboardPage";
 import { OrderDetailPage } from "./pages/OrderDetailPage";
 import { OrderListPage } from "./pages/OrderListPage";
@@ -283,7 +285,18 @@ export function App() {
 
   return (
     <ToastProvider position="bottom">
-      <Screen {...nav} />
+      {/*
+        계정 줄 — 여기서 한 번 넣으면 `AppShell` 을 그리는 모든 화면 맨 위에 나온다.
+        인증 4화면(`/login` · `/password*`)은 `AppShell` 을 그리지 않아 줄이 없다.
+        개발이 갈아끼울 것은 이름 · 역할 · 로그아웃 동작 셋이다(지금은 로그인 화면으로 가기만 한다).
+      */}
+      <AppShellProvider
+        topBar={
+          <AccountBar {...APP_ACCOUNT} onLogout={() => navigate("/login")} />
+        }
+      >
+        <Screen {...nav} />
+      </AppShellProvider>
     </ToastProvider>
   );
 }

@@ -55,7 +55,8 @@ publishing/
 │  │    X.test.tsx        동작 테스트
 │  │    seed/*.data.ts    원본 기획 v0.4 시드 덤프(자동 생성 — 손대지 않는다)
 │  │    *.golden.ts       원본을 브라우저로 열어 뽑은 정답(테스트가 우리 식과 대조)
-│  ├─ pages/sellerGnbSections.tsx   GNB 메뉴 구성 (항목 id = 경로 · 할 일 배지)
+│  ├─ pages/sellerGnbSections.tsx   GNB 메뉴 구성 (항목 id = 경로 · 할 일 배지) · 계정 줄 예시 값(`SELLER_ACCOUNT`)
+│  ├─ pages/AccountBar.tsx          계정 줄 내용 (스토어명 · 역할 · 로그아웃) — 본사와 공용
 │  ├─ pages/babycube/CalcBreakdown.tsx   계산 내역 부품(주문 명세·정산 명세·보증금) — 본사와 공용 화면 부품
 │  ├─ pages/babycube/BulletList.tsx      글머리 목록(도형 점) — 본사와 공용 화면 부품
 │  ├─ components/ui/      디자인 시스템 컴포넌트 38종
@@ -86,6 +87,7 @@ publishing/
 - `src/lib/cn.ts` 는 **클래스를 병합하지 않는다** — 같은 속성 클래스를 두 곳에서 내보내면 둘 다 남는다
 - Tailwind 는 `src/styles/tokens.css` 의 `@source` 로 스캔 범위를 **명시**한다. 새 소스 폴더는 거기 등록
 - 금액·상태 계산은 화면이 하지 않는다 — `orderUnit.data.ts`(처리단위 · 원본 식) · `claim.data.ts` · `settle.data.ts` · `ProductsPage.data.ts`(`saleStatOf`)가 한 곳에서 낸다
+- **계정 줄**(모든 화면 맨 위 · 「리틀베이비 · 대표」 + [로그아웃])은 `SellerApp.tsx` 의 `AppShellProvider` 가 한 번 넣는다 — 화면 파일에서 넘기지 않는다(넘긴 화면에서만 보이게 된다). 연동 시 갈아끼울 것은 셋이다: 스토어명·역할(`sellerGnbSections.tsx` 의 `SELLER_ACCOUNT`) · 로그아웃 동작(`SellerApp.tsx` — 로그인 화면이 퍼블 대상이 아니라 지금은 「로그아웃은 개발 연동 시 제공됩니다.」 알림만 띄운다)
 - GNB 는 `pages/seller/SellerGnb.tsx` 하나로 그린다(직영 미리보기가 여기서 메뉴를 거른다)
 - **목록 표는 모든 `<col>` 에 폭을 준다** — `Table` 이 `w-max` 라 폭 없는 열은 내용만큼 늘어난다. 표 안 말줄임은 `truncate` 가 아니라 `line-clamp-1`
 - **글머리표는 도형**(`pages/babycube/BulletList.tsx`) — 「·」 글자·`list-disc` 를 쓰지 않는다

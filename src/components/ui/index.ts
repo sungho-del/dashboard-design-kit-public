@@ -7,8 +7,8 @@
  * 컴포넌트를 추가하면 이 파일에도 등록할 것.
  */
 
-export { AppShell } from "./AppShell";
-export type { AppShellProps } from "./AppShell";
+export { AppShell, AppShellProvider } from "./AppShell";
+export type { AppShellProps, AppShellProviderProps } from "./AppShell";
 
 export { Avatar } from "./Avatar";
 export type { AvatarProps, AvatarSize } from "./Avatar";

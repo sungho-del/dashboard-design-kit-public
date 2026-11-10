@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { AppShell } from "./AppShell";
+import { AppShell, AppShellProvider } from "./AppShell";
 
 function shellOf(container: HTMLElement): HTMLElement {
   return container.firstChild as HTMLElement;
@@ -79,6 +79,90 @@ describe("AppShell", () => {
       const { container } = render(<AppShell>본문</AppShell>);
       expect(shellOf(container).children).toHaveLength(1);
       expect(screen.getByText("본문")).toBeVisible();
+    });
+  });
+
+  describe("계정 줄 (topBar)", () => {
+    const bar = () => screen.queryByRole("region", { name: "로그인 계정" });
+
+    it("안 넘기고 Provider 도 없으면 줄 요소가 없다 (빈 48 을 남기지 않는다)", () => {
+      const { container } = render(<AppShell>본문</AppShell>);
+      expect(bar()).toBeNull();
+      expect(slotOf(container, "top-bar")).toBeNull();
+    });
+
+    it("줄은 콘텐츠 열 안 · 헤더보다 앞에 놓인다", () => {
+      const { container } = render(
+        <AppShell
+          sidebar={<nav aria-label="주 메뉴" />}
+          topBar={<span>계정</span>}
+          header={<div data-testid="page-header" />}
+        >
+          본문
+        </AppShell>,
+      );
+      const content = slotOf(container, "content");
+
+      expect(content?.children[0]).toBe(bar());
+      expect(content?.children[1]).toBe(screen.getByTestId("page-header"));
+      expect(content?.children[2]).toBe(slotOf(container, "body"));
+      expect(bar()).toHaveTextContent("계정");
+    });
+
+    it("좌우 40 · 높이 48 · 오른쪽 정렬 · 아래 선은 안쪽 그림자다 (border 아님)", () => {
+      render(<AppShell topBar={<span>계정</span>}>본문</AppShell>);
+      expect(bar()).toHaveClass(
+        "h-12",
+        "px-10",
+        "justify-end",
+        "bg-surface",
+        "shadow-[inset_0_-1px_0_0_var(--color-border)]",
+      );
+      /* `border` 유틸이 없다 — 그림자 안의 토큰 이름(--color-border)은 예외 */
+      expect(
+        bar()
+          ?.className.split(" ")
+          .filter((c) => c.startsWith("border")),
+      ).toEqual([]);
+      /* banner 가 둘이 되지 않게 <header> 로 만들지 않는다 */
+      expect(bar()?.tagName).toBe("DIV");
+    });
+
+    it("Provider 값이 그려진다", () => {
+      render(
+        <AppShellProvider topBar={<span>공급된 계정</span>}>
+          <AppShell>본문</AppShell>
+        </AppShellProvider>,
+      );
+      expect(bar()).toHaveTextContent("공급된 계정");
+    });
+
+    it("prop 이 Provider 를 이긴다", () => {
+      render(
+        <AppShellProvider topBar={<span>공급된 계정</span>}>
+          <AppShell topBar={<span>화면 계정</span>}>본문</AppShell>
+        </AppShellProvider>,
+      );
+      expect(bar()).toHaveTextContent("화면 계정");
+      expect(screen.queryByText("공급된 계정")).toBeNull();
+    });
+
+    it("null 을 넘기면 Provider 가 있어도 줄이 없다", () => {
+      render(
+        <AppShellProvider topBar={<span>공급된 계정</span>}>
+          <AppShell topBar={null}>본문</AppShell>
+        </AppShellProvider>,
+      );
+      expect(bar()).toBeNull();
+    });
+
+    it("Provider 에 값이 없으면 줄이 없다", () => {
+      render(
+        <AppShellProvider>
+          <AppShell>본문</AppShell>
+        </AppShellProvider>,
+      );
+      expect(bar()).toBeNull();
     });
   });
 

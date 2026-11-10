@@ -38,6 +38,40 @@ afterEach(() => {
 const pageTitle = () =>
   screen.getAllByRole("heading", { level: 1 })[0].textContent?.trim();
 
+/**
+ * 계정 줄 — 진입점이 한 번 넣고 모든 셸 화면이 받는다.
+ * 셀러는 `SellerShell` 을 쓰는 화면과 `AppShell` 을 직접 그리는 화면이 섞여 있어 둘 다 본다.
+ */
+describe("SellerApp — 계정 줄", () => {
+  const accountBar = () =>
+    screen.queryByRole("region", { name: "로그인 계정" });
+
+  it.each([
+    ["/settle-own", "SellerShell 화면"],
+    ["/sale-proc", "ProcessList(직접 그리는 화면)"],
+    ["/", "대시보드"],
+    ["/screens", "화면 목록"],
+  ])("%s 맨 위에 「리틀베이비 · 대표」와 [로그아웃]이 있다 (%s)", (path) => {
+    renderAt(path);
+    const bar = accountBar()!;
+    expect(within(bar).getByTitle("리틀베이비 · 대표")).toBeVisible();
+    expect(within(bar).getByRole("button", { name: "로그아웃" })).toBeVisible();
+    /* 사람 이름은 줄에 쓰지 않는다 */
+    expect(within(bar).queryByText(/김유진/)).toBeNull();
+  });
+
+  it("[로그아웃]은 이동하지 않고 알림을 띄운다 (퍼블에 로그인 화면이 없다)", async () => {
+    renderAt("/sale-proc");
+    await userEvent.click(screen.getByRole("button", { name: "로그아웃" }));
+
+    expect(
+      await screen.findByText("로그아웃은 개발 연동 시 제공됩니다."),
+    ).toBeVisible();
+    expect(window.location.pathname).toBe("/sale-proc");
+    expect(accountBar()).not.toBeNull();
+  });
+});
+
 /** 원본 `SCREEN_MAP` menu:true 순서 그대로 — 그룹 라벨 · 항목 라벨 */
 const ORIGINAL_MENU: [string, string[]][] = [
   ["", ["대시보드"]],

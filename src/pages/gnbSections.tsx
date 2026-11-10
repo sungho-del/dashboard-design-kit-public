@@ -29,7 +29,7 @@ import {
   Wallet,
   XCircle,
 } from "lucide-react";
-import { Avatar, GnbBadge, Tag, type GnbSection } from "../components/ui";
+import { GnbBadge, Tag, type GnbSection } from "../components/ui";
 import {
   CLAIM_ROWS,
   REVIEWABLE_STATUS as CARE_RECEIVED,
@@ -171,31 +171,20 @@ export const GNB_LOGO_SLOTS = {
 };
 
 /**
- * GNB·헤더의 **앱 크롬 슬롯**. 로고와 같은 이유로 여기서 공유한다 —
- * 화면마다 직접 넣으면 **넣은 화면에서만 보이고 나머지에서는 사라진다**
- * (실제로 GNB 로고가 그랬다).
+ * 로그인한 운영자 — **계정 줄**(모든 화면 맨 위 · `AppShell` 의 `topBar`)에 「이름 · 역할」로 나온다.
  *
- * ⚠️ 객체로 묶는 이유는 `GNB_LOGO_SLOTS` 와 같다 — JSX 를 그대로 export 하면
- * eslint 의 `react-refresh/only-export-components` 가 컴포넌트로 보고 경고한다.
+ * 여기는 **값만** 둔다. 그리는 것은 `AccountBar.tsx`, 넣는 곳은 `App.tsx` 의 `AppShellProvider` 한 곳이다 —
+ * 화면마다 직접 넣으면 **넣은 화면에서만 보이고 나머지에서는 사라진다**(실제로 GNB 로고가 그랬고,
+ * 계정도 대시보드 머리에만 있었다).
+ *
+ * 이름과 역할이 둘 다 필요하다: 이름만으로는 **권한 범위**를 알 수 없고
+ * (본사 운영자와 셀러 운영자가 보는 것이 다르다), 역할만으로는 누가 로그인했는지 모른다.
+ * 아바타는 이름의 첫 글자를 쓴다 — "운영관리자" → **운**.
+ * 개발 연동 시 로그인 세션의 값으로 갈아끼운다.
  */
-export const APP_CHROME = {
-  /**
-   * 페이지 헤더 우측 — 로그인한 운영자.
-   *
-   * 이름과 역할이 둘 다 필요하다: 이름만으로는 **권한 범위**를 알 수 없고
-   * (본사 운영자와 셀러 운영자가 보는 것이 다르다), 역할만으로는 누가 로그인했는지 모른다.
-   * `Avatar` 는 `name` 의 첫 글자를 이니셜로 쓰므로 "운영관리자" → **운**.
-   */
-  headerAccount: (
-    <div className="flex items-center gap-2">
-      <Avatar name="운영관리자" size="medium" />
-      {/* 두 줄이지만 한 덩이로 읽혀야 한다 */}
-      <span className="flex flex-col">
-        <span className="label-medium-bold text-text">운영관리자</span>
-        <span className="body-small text-text-sub">본사 운영관리자</span>
-      </span>
-    </div>
-  ),
+export const APP_ACCOUNT = {
+  name: "운영관리자",
+  role: "본사 운영관리자",
 };
 
 /**

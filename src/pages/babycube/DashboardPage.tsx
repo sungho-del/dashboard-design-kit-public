@@ -48,7 +48,7 @@ import {
   type FunnelStep,
   type PeriodValue,
 } from "./DashboardPage.data";
-import { APP_CHROME, GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
+import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
 /* =========================================================================
  * S01 대시보드 (BabyCube 본사 운영 어드민) — 뼈대
@@ -529,9 +529,7 @@ export function BabycubeDashboardPage({
           collapsedLogo={GNB_LOGO_SLOTS.collapsed}
         />
       }
-      header={
-        <PageHeader title="대시보드" actions={APP_CHROME.headerAccount} />
-      }
+      header={<PageHeader title="대시보드" />}
     >
       {/*
         ── 지표 9장 (회원 3 · 셀러 3 · 매출 3) — 그룹이 열이다 ─────────

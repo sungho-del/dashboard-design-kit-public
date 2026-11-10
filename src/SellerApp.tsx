@@ -1,6 +1,8 @@
 import { useState, type ComponentType } from "react";
-import { ToastProvider } from "./components/ui";
+import { AppShellProvider, ToastProvider, useToast } from "./components/ui";
 import { navigate, usePathname } from "./lib/router";
+import { AccountBar } from "./pages/AccountBar";
+import { SELLER_ACCOUNT } from "./pages/sellerGnbSections";
 import {
   InqDetailPage,
   AskDetailPage,
@@ -210,6 +212,20 @@ const DETAIL_ROUTES: {
 /** 없는 경로 — 화면 목록(본사와 같다) */
 const FALLBACK = SellerScreenIndexPage;
 
+/**
+ * 계정 줄 내용 — 셀러 퍼블에는 로그인 화면이 없어 [로그아웃]은 이동하지 않고 알림만 띄운다.
+ * 알림(`useToast`)을 쓰려면 `ToastProvider` 안에서 그려져야 해서 따로 떼었다.
+ */
+function SellerAccountBar() {
+  const { toast } = useToast();
+  return (
+    <AccountBar
+      {...SELLER_ACCOUNT}
+      onLogout={() => toast("로그아웃은 개발 연동 시 제공됩니다.")}
+    />
+  );
+}
+
 export function SellerApp() {
   const [navOpen, setNavOpen] = useState(true);
   const pathname = usePathname();
@@ -232,7 +248,10 @@ export function SellerApp() {
 
   return (
     <ToastProvider position="bottom">
-      <Screen {...nav} />
+      {/* 계정 줄 — 여기서 한 번 넣으면 `AppShell` 을 그리는 모든 화면 맨 위에 나온다(본사와 같다) */}
+      <AppShellProvider topBar={<SellerAccountBar />}>
+        <Screen {...nav} />
+      </AppShellProvider>
     </ToastProvider>
   );
 }

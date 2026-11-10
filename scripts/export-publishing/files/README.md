@@ -52,7 +52,8 @@ publishing/
 │  │    X.tsx             뼈대 — 레이아웃·상호작용
 │  │    X.data.ts         도메인 — 타입·예시 데이터·라벨·포맷터 (API 가 들어올 자리)
 │  │    X.test.tsx        동작 테스트
-│  ├─ pages/gnbSections.tsx   GNB 메뉴 구성 (항목 id = 경로)
+│  ├─ pages/gnbSections.tsx   GNB 메뉴 구성 (항목 id = 경로) · 계정 줄 예시 값(`APP_ACCOUNT`)
+│  ├─ pages/AccountBar.tsx    계정 줄 내용 (이름 · 역할 · 로그아웃)
 │  ├─ components/ui/      디자인 시스템 컴포넌트 38종
 │  ├─ shadcn/ui/          shadcn 원본 층 (차트). 화면은 직접 쓰지 않고 components/ui 를 거친다
 │  ├─ lib/                router(최소 구현) · cn · dataStatus · periodPresets
@@ -73,6 +74,7 @@ publishing/
 - `src/lib/cn.ts` 는 **클래스를 병합하지 않는다** — 같은 속성 클래스를 두 곳에서 내보내면 둘 다 남는다. shadcn 층의 `src/lib/shadcn-utils.ts` (tailwind-merge) 와 섞지 말 것
 - Tailwind 는 `src/styles/tokens.css` 의 `@source` 로 스캔 범위를 **명시**한다. 새 소스 폴더를 만들면 거기 등록해야 클래스가 생성된다
 - 차트 계열색은 `CHART_SERIES_COLORS[i]` 상수로만. `` `var(--color-chart-series-${i})` `` 로 조립하면 배포 CSS 에서 빠진다
+- **계정 줄**(모든 화면 맨 위 · 「운영관리자 · 본사 운영관리자」 + [로그아웃])은 `App.tsx` 의 `AppShellProvider` 가 한 번 넣는다 — 화면 파일에서 넘기지 않는다(넘긴 화면에서만 보이게 된다). 로그인·비밀번호 4화면에는 줄이 없다. 연동 시 갈아끼울 것은 셋이다: 이름·역할(`gnbSections.tsx` 의 `APP_ACCOUNT`) · 로그아웃 동작(`App.tsx` — 지금은 `/login` 으로 가기만 한다)
 - 라우터는 `src/lib/router.ts` 의 최소 구현이다. 상세는 `App.tsx` 의 `DETAIL_ROUTES`(접두사 맵) — 화면이 경로 마지막 구간을 직접 읽는다
 
 ## 4. 실제 화면에 반영하기로 판정되면

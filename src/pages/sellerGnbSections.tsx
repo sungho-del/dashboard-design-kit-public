@@ -25,7 +25,7 @@ import {
   Wallet,
   XCircle,
 } from "lucide-react";
-import { Avatar, GnbBadge, Tag, type GnbSection } from "../components/ui";
+import { GnbBadge, Tag, type GnbSection } from "../components/ui";
 import { UNITS } from "./seller/seed/orders.data";
 /* 로고 에셋은 본사와 같다 — 같은 브랜드의 다른 계정이다(`gnbSections.tsx` 주석) */
 import babycubeLogo from "../assets/babycube-logo.svg";
@@ -126,23 +126,18 @@ export const SELLER_GNB_LOGO_SLOTS = {
 };
 
 /**
- * 앱 크롬 — 페이지 헤더 우측 계정.
+ * 로그인한 계정 — **계정 줄**(모든 화면 맨 위 · `AppShell` 의 `topBar`)에 「스토어명 · 역할」로 나온다.
  *
  * 원본은 사이드바 로고 아래 **스토어 상자**(「리틀베이비 / 김유진 대표」)와 탑바 우측(「김유진 대표」)에
- * 나눠 적는다. 본사 퍼블은 로고 아래 줄을 두지 않고 헤더 한 곳에 「이름 / 역할」 두 줄로 모았다
- * (메뉴 위가 뜸해지지 않게 — `gnbSections.tsx`). 톤을 맞추려고 같은 자리·같은 꼴로 두고,
- * 두 번째 줄에 **스토어명**을 넣어 원본 스토어 상자의 정보를 잃지 않는다.
+ * 나눠 적는다. 퍼블은 본사와 같은 자리·같은 꼴의 줄 하나로 모으고, 개발(develop) 표기대로
+ * 「{스토어명} · {역할}」을 쓴다 — 사람 이름 「김유진」은 줄에 쓰지 않는다.
+ *
+ * 여기는 **값만** 둔다. 그리는 것은 `AccountBar.tsx`, 넣는 곳은 `SellerApp.tsx` 의 `AppShellProvider` 한 곳이다.
+ * 개발 연동 시 로그인 세션의 값으로 갈아끼운다.
  */
-export const SELLER_APP_CHROME = {
-  headerAccount: (
-    <div className="flex items-center gap-2">
-      <Avatar name="김유진" size="medium" />
-      <span className="flex flex-col">
-        <span className="label-medium-bold text-text">김유진</span>
-        <span className="body-small text-text-sub">리틀베이비 대표</span>
-      </span>
-    </div>
-  ),
+export const SELLER_ACCOUNT = {
+  name: "리틀베이비",
+  role: "대표",
 };
 
 /**
