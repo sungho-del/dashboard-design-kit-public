@@ -3,6 +3,7 @@ import {
   PAYOUT_DATE,
   roundLabel,
   SETTLE_ROUND,
+  statementNoOf,
   type SettleTx,
   type SettlementRow,
 } from "./settlement.data";
@@ -22,7 +23,8 @@ import { dotted, minus, plus, won } from "./SellerSettlementPage.data";
  *
  * ## 뼈대가 이 파일에 기대하는 계약
  * - `findRow(id)` — 경로 마지막 조각(셀러 마스터 id)으로 이번 회차 행을 찾는다. 없으면 `undefined`
- * - `infoOf(row)` 가 「정산 정보」 줄을 준다(재발송 이력은 있을 때만) · `objectionOf(row)` 는 명세 위 경고 상자
+ * - `infoOf(row)` 가 「정산 정보」 줄을 준다(명세서번호는 늘 · 지급완료일은 지급완료 건만 · 재발송 이력은 있을 때만) ·
+ *   `objectionOf(row)` 는 명세 위 경고 상자 · `payLockOf(row)` 는 명세 금액 아래 「지급 처리 잠김」 안내(값이 있을 때만 — 예시 건 없음)
  * - `txNoteOf(tx)` 가 거래 내역 「정산 반영」 칸(앞 진하게 / 뒤 흐리게 · 환수 −N원 · 보전 +N원)
  * - 거래 내역은 `row.transactions`(반영 → 환수 → 제외 순으로 이미 정렬)
  *
@@ -68,6 +70,10 @@ export const orderPathOf = (tx: SettleTx) => `/orders-all/${tx.order.id}`;
 
 /** 「정산 정보」 값 — 재발송은 이력이 있을 때만(원본) */
 export const infoOf = (row: SettlementRow) => ({
+  /** 명세서번호 — 정산 명세서 화면과 같은 번호(`STM-YYMM-NNNN`) */
+  statementNo: statementNoOf(row.round, row.sellerId),
+  /** 지급완료일 — 지급완료 건만(develop: 값이 있을 때만) */
+  paidAt: row.paidAt ? dotted(row.paidAt) : null,
   count: `${row.count}건`,
   round: roundLabel(row.round),
   payoutDate: dotted(PAYOUT_DATE),
@@ -76,6 +82,14 @@ export const infoOf = (row: SettlementRow) => ({
     ? { text: row.resend.note, at: dotted(row.resend.at) }
     : null,
 });
+
+/**
+ * 「지급 처리 잠김 — {사유}」 — 지급할 수 없는 이유가 있을 때만(develop `SettlementDetailScreen` · 사유는 서버 값).
+ * 자리는 develop 처럼 정산 명세 금액 아래. **예시 건이 없어 지금은 어느 셀러에도 보이지 않는다**
+ */
+export const PAY_LOCK_LABEL = "지급 처리 잠김";
+export const payLockOf = (row: SettlementRow) =>
+  row.payUnavailableReason ?? null;
 
 /**
  * 셀러 이의 사유 — **이의제기 상태이고 사유가 있을 때만**(원본 조건 그대로). 이 화면에서 할 일

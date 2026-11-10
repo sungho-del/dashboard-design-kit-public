@@ -35,8 +35,12 @@ import {
 } from "../../lib/router";
 import {
   inspectionMetaOf,
+  isReviewOverdue,
+  OVERDUE_LABEL,
   REVIEW_COPY,
   REVIEWABLE_STATUS,
+  reviewDdayOf,
+  reviewDdayText,
   STATUS_META,
   won,
   ymd,
@@ -61,7 +65,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *
  * ```
  * 청구 근거   ← 주문번호 · 셀러 · 상품 · 이용 기간 · 검수 판정 · 보증금 · 보증금 차감
- * 청구 심사   ← 청구 상태 · 청구 복원비 · 청구일 · 발송 전 이미지 · 파손 이미지 ·
+ * 청구 심사   ← 청구 상태 · 청구 복원비 · 청구일 · 심사 기한(접수 건만 D-day·「기한 경과」) · 발송 전 이미지 · 파손 이미지 ·
  *               [승인] 승인일 · 정산 반영 / [반려] 반려 사유 (반려일) ·
  *               안내 상자(대조 안내 한 줄)
  * [목록]                                         [승인] [반려]   ← 하단 바 (청구 접수 건만 오른쪽)
@@ -266,6 +270,7 @@ function CareClaimDetailBody({
   const [zoomed, setZoomed] = useState<string | null>(null);
 
   const meta = STATUS_META[claim.status];
+  const dday = reviewDdayOf(claim);
   const inspection = inspectionMetaOf(claim.inspection);
   const deposit = depositOfClaim(claim);
   const evidence = evidenceOf(claim.order);
@@ -348,6 +353,22 @@ function CareClaimDetailBody({
               </Item>
               <Item label="청구일">
                 <span className="tabular-nums">{ymd(claim.claimedAt)}</span>
+              </Item>
+              {/* 목록과 같은 값 — 접수 건만 `(D-n)` 또는 「기한 경과」 Tag + `D+n`, 끝난 건은 날짜만(develop) */}
+              <Item label="심사 기한">
+                <span className="inline-flex items-center gap-1 tabular-nums">
+                  {ymd(claim.reviewDueOn)}
+                  {dday === null ? null : isReviewOverdue(claim) ? (
+                    <>
+                      <Tag tone="critical" size="small">
+                        {OVERDUE_LABEL}
+                      </Tag>
+                      {reviewDdayText(dday)}
+                    </>
+                  ) : (
+                    <span>({reviewDdayText(dday)})</span>
+                  )}
+                </span>
               </Item>
             </InfoList>
 

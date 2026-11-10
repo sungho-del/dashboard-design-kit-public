@@ -63,6 +63,8 @@ import {
   REREVIEW_NOTE,
   SEARCH_FIELDS,
   SEARCH_PLACEHOLDER,
+  STAGE_ALL_OPTION,
+  STAGE_NONE_OPTION,
   STATUS_META,
   approveMessage,
   canApprove,
@@ -74,6 +76,7 @@ import {
   perDay,
   rentPriceText,
   salePriceOf,
+  stageChipOf,
   won,
   ymdhms,
   type CheckMark,
@@ -87,6 +90,7 @@ import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
 import { PERIOD_PRESETS } from "../../lib/periodPresets";
 import { useSearchParams } from "../../lib/router";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
+import { STAGE_OPTIONS, stageOf } from "./ProductDetailPage.data";
 import { ProductRejectModal } from "./shared/ProductRejectModal";
 
 /* =========================================================================
@@ -106,7 +110,7 @@ import { ProductRejectModal } from "./shared/ProductRejectModal";
  * | 데이터·타입·라벨·단위  | `ProductListPage.data.ts` **전체**             |
  * | 표 컬럼 구성           | 이 파일의 `<colgroup>` + `TableHead` + 본문 셀 |
  * | 상태 대시 구성         | `FILTERS` (카드가 곧 상태 필터다)              |
- * | 검색조건 구성          | `FilterBar` 의 자식 (원본 순서: 기간→전시→유형→카테고리→검색) |
+ * | 검색조건 구성          | `FilterBar` 의 자식 (원본 순서: 기간→전시→유형→카테고리→성장단계→검색) |
  * | 행 액션                | 상품명 링크 · 관리 열의 `수정` 버튼            |
  * | 일괄 액션              | `SelectionBar` 버튼 2개(자격에 따라 나타난다)  |
  *
@@ -119,6 +123,9 @@ import { ProductRejectModal } from "./shared/ProductRejectModal";
  * - `canApprove`/`canReject` 가 **처분 자격**을 판정한다(원본 `productDispositionActions`).
  *   버튼을 보일지 말지도, 승인 알림의 제외 건수도 이 둘에서 나온다
  * - `CATEGORY_TREES[유형]` — 카테고리는 **유형을 고른 뒤에만** 열린다(원본 `catSelectHint`)
+ * - 성장단계 필터(develop `products/filter.tsx`)는 상품 상세의 `STAGE_OPTIONS`·`stageOf` 를 쓴다 —
+ *   상세의 처음 값·성장단계 관리의 등록 상품수와 같은 배정이다. `stageOf` 는 단계가 있으면
+ *   모든 상품에 단계를 주므로 「없음」은 지금 예시에서 늘 0건(빈 상태)이다
  * - 상태별 건수는 **뼈대가 지금 행에서 직접 센다** — 상수로 박으면 필터를 걸었을 때
  *   조용히 거짓말한다
  *
@@ -127,7 +134,7 @@ import { ProductRejectModal } from "./shared/ProductRejectModal";
  * 상품명·[수정]은 상품 상세(`/products/{상품코드}`)로 간다(원본 — 둘 다 같은 수정 폼).
  *
  * ## 원본과 일부러 다른 것
- * - **조건을 바꾸면 선택이 풀린다**(상태 카드·유형·카테고리·기간·검색). 원본은 선택을 남겨
+ * - **조건을 바꾸면 선택이 풀린다**(상태 카드·유형·카테고리·성장단계·기간·검색). 원본은 선택을 남겨
  *   안 보이는 행까지 다음 처리 대상에 섞인다. 처리 대상은 늘 지금 조회 결과 안에서만 정해진다
  * - 일괄 처리는 툴바 셀렉트가 아니라 §25 `SelectionBar` 다(고르면 나타난다)
  * - 반려 사유는 밑줄 태그가 아니라 태그 아래 [사유 보기] 다(`Tag` 는 표시 전용 span)
@@ -296,6 +303,7 @@ export function ProductListPage({
   const [major, setMajor] = useState("all");
   const [middle, setMiddle] = useState("all");
   const [minor, setMinor] = useState("all");
+  const [stage, setStage] = useState(STAGE_ALL_OPTION.value);
   const [dateField, setDateField] = useState<ProductDateField>("date");
   const [period, setPeriod] = useState<DateRange | undefined>();
   const [searchField, setSearchField] = useState<ProductSearchField>(
@@ -356,6 +364,10 @@ export function ProductListPage({
     const matchDisplay = display === "all" || product.display === display;
     const matchCategory =
       category === "all" || categoryPathOf(product).includes(category);
+    /* 「없음」 = 단계가 배정되지 않은 상품(`stageOf` 가 빈 값) */
+    const matchStage =
+      stage === STAGE_ALL_OPTION.value ||
+      stageOf(product) === (stage === STAGE_NONE_OPTION.value ? "" : stage);
     /* 검색은 **고른 대상 한 곳만** 훑는다(원본 `_searchfield`) */
     const matchKeyword =
       keyword.trim() === "" || product[searchField].includes(keyword.trim());
@@ -364,6 +376,7 @@ export function ProductListPage({
       matchMode &&
       matchDisplay &&
       matchCategory &&
+      matchStage &&
       matchKeyword &&
       inPeriod(product[dateField], period)
     );
@@ -461,6 +474,7 @@ export function ProductListPage({
     setMajor("all");
     setMiddle("all");
     setMinor("all");
+    setStage(STAGE_ALL_OPTION.value);
     setDateField("date");
     setPeriod(undefined);
     setSearchField(SEARCH_FIELDS[0].value);
@@ -568,7 +582,7 @@ export function ProductListPage({
 
       {/*
         검색조건 — 원본 `products.filter`. **접힌 채로 열리고** 걸린 조건은 요약이 말한다.
-        순서는 원본 그대로: 기간 → 전시 상태 → 유형 → 카테고리 → 검색어.
+        순서는 원본 그대로: 기간 → 전시 상태 → 유형 → 카테고리 → 성장단계 → 검색어.
 
         ⚠️ 판매 상태는 여기 없다 — 그 축의 입구는 위의 건수 대시 하나뿐이다.
       */}
@@ -579,6 +593,14 @@ export function ProductListPage({
           mode,
           display,
           category,
+          stage:
+            stage === STAGE_ALL_OPTION.value
+              ? undefined
+              : stageChipOf(
+                  stage,
+                  STAGE_OPTIONS.find((option) => option.value === stage)
+                    ?.label ?? stage,
+                ),
           dateField,
           from: period?.from,
           to: period?.to,
@@ -661,6 +683,17 @@ export function ProductListPage({
           disabled={middle === "all"}
           onValueChange={(value) => {
             setMinor(value);
+            refilter();
+          }}
+        />
+        {/* 성장단계 — develop `products/filter.tsx` (카테고리 다음 · 유형과 무관하게 열려 있다) */}
+        <Select
+          className="w-44"
+          aria-label="성장단계"
+          options={[STAGE_ALL_OPTION, ...STAGE_OPTIONS, STAGE_NONE_OPTION]}
+          value={stage}
+          onValueChange={(value) => {
+            setStage(value);
             refilter();
           }}
         />

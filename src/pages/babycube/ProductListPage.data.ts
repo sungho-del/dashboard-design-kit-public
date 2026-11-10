@@ -839,13 +839,25 @@ export const EMPTY_DESCRIPTION =
 /* -------------------------------------------------------------------------
  * 검색조건 요약 — 접힌 `FilterBar` 한 줄에 들어가는 글자
  *
- * 순서는 필터 행 순서(기간 → 전시 → 유형 → 카테고리 → 검색어)이고, 표기는 원본
+ * 순서는 필터 행 순서(기간 → 전시 → 유형 → 카테고리 → 성장단계 → 검색어)이고, 표기는 원본
  * `fbSummary` 처럼 **"항목명 값"** 이다(`유형 렌트` · `전시 상태 전시중`). 검색어만 다른
  * 목록 화면과 같은 `셀러명 «…»` 로 둔다.
  *
  * ⚠️ **판매 상태는 요약에 넣지 않는다.** 상태 축은 위의 건수 카드가 이미 선택된 채로
  * 보여 주고 있어, 여기서 또 적으면 같은 사실이 두 곳에서 말해진다.
  * ---------------------------------------------------------------------- */
+
+/**
+ * 성장단계 셀렉트의 앞뒤 선택지 — develop `products/filter.tsx` 글자 그대로.
+ * 단계 선택지(가운데)는 뼈대가 상품 상세의 `STAGE_OPTIONS` 를 끼워 넣는다
+ * (이 파일이 상품 상세 데이터를 import 하면 순환 참조가 된다).
+ */
+export const STAGE_ALL_OPTION = { value: "all", label: "성장단계 전체" };
+export const STAGE_NONE_OPTION = { value: "none", label: "없음" };
+
+/** 검색조건 요약의 성장단계 칩 — 고른 선택지의 글자 그대로, 「없음」만 「성장단계 없음」(develop) */
+export const stageChipOf = (value: string, label: string): string =>
+  value === STAGE_NONE_OPTION.value ? "성장단계 없음" : label;
 
 /** 조건이 하나도 없을 때 — 원본 문구 그대로 */
 export const NO_FILTER_TEXT = "조건 없음 (전체)";
@@ -861,6 +873,7 @@ export const filterSummary = ({
   mode,
   display,
   category,
+  stage,
   dateField,
   from,
   to,
@@ -871,6 +884,8 @@ export const filterSummary = ({
   display: string;
   /** 가장 깊이 고른 카테고리 코드, 없으면 `"all"` */
   category: string;
+  /** 성장단계 칩 글자(`stageChipOf`) — 고르지 않았으면 비운다 */
+  stage?: string;
   dateField: string;
   from?: Date;
   to?: Date;
@@ -896,6 +911,7 @@ export const filterSummary = ({
   if (category !== "all") {
     parts.push(categoryById(category)?.name ?? category);
   }
+  if (stage) parts.push(stage);
 
   if (keyword.trim() !== "") {
     parts.push(`${labelOf(SEARCH_FIELDS, searchField)} «${keyword.trim()}»`);

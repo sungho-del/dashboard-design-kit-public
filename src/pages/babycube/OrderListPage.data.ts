@@ -125,6 +125,11 @@ export interface Claim {
   events: ClaimEvent[];
   /** 렌트 취소 위약금(원) — 0 은 무료 취소. 화면은 계산하지 않고 이 예시 값을 읽는다(`CLAIM_SEEDS`) */
   penalty: number;
+  /**
+   * 출고 후 취소의 배송비 차감(원) — 취소 명세 「배송비 차감」 줄(부록 A C39·C40)이 읽는다.
+   * 예시 취소는 모두 출고 전이라 **값을 가진 건이 없다**(출고 후 취소 예시를 만들면 목록 건수가 바뀐다)
+   */
+  shipDeduct?: number;
 }
 
 /**
@@ -152,6 +157,11 @@ export interface CareClaim {
   status: CareClaimStatus;
   /** 청구일시 `YYYY-MM-DD HH:mm` — 반납 검수 뒤 */
   claimedAt: string;
+  /**
+   * 심사 기한 `YYYY-MM-DD` — 접수일 기준 3번째 영업일. **손으로 센 예시 값**이다
+   * (영업일 계산은 서버 몫 — 화면은 계산하지 않는다). 안심케어 승인 목록·청구 상세가 같은 값을 읽는다
+   */
+  reviewDueOn: string;
   /** 승인·반려 일시 — 접수 건은 `null` */
   decidedAt: string | null;
   /** 반려 사유 — 반려 건만 */
@@ -240,6 +250,18 @@ export interface Order {
   point: number;
   /** 안심케어 가입 — 미가입은 `null`. 렌트만 */
   care: Care | null;
+  /**
+   * 구성품(옵션) — 주문당 1회 정액(develop `options`·`components`). 주문 상세 상품정보 「구성품」 행과
+   * 주문 명세 「구성품」 묶음이 읽는다. ⚠️ **예시 건이 없다** — 금액이 결제금액에 더해지므로 넣으면
+   * 결제금액·정산·대시보드 숫자가 함께 바뀐다(정산 `settlement.data.ts` 는 아직 이 값을 읽지 않는다)
+   */
+  components?: { name: string; amount: number }[];
+  /**
+   * 기간 옵션으로 결제한 렌트 주문의 장기 렌트 할인 — 있으면 렌트일이 「N일 (기간 옵션)」,
+   * 없으면 「N일 (기본)」. `discount` = 정가(렌트가 × 렌트일) − `optionPrice`(그 기간의 등록가).
+   * ⚠️ **예시 건이 없다** — 구성품과 같은 이유(결제금액이 바뀐다)
+   */
+  longRent?: { discount: number; optionPrice: number };
 
   /* ── 반납 검수 · 확정 — 보증금(`deposit.data.ts`)과 정산(`settlement.data.ts`)이 읽는다 ── */
 
@@ -581,6 +603,8 @@ const CARE_SEEDS: Record<string, CareClaim | null> = {
     amount: 9000,
     status: "received",
     claimedAt: "2026-10-10 10:30",
+    /* 10-10(토) 접수 → 10-12(월) · 10-13(화) · 10-14(수) — 시연 기준일(10-19)에는 기한이 지났다 */
+    reviewDueOn: "2026-10-14",
     decidedAt: null,
     rejectReason: null,
   },
@@ -588,6 +612,8 @@ const CARE_SEEDS: Record<string, CareClaim | null> = {
     amount: 15000,
     status: "rejected",
     claimedAt: "2026-10-14 11:00",
+    /* 10-14(수) 접수 → 10-15(목) · 10-16(금) · 10-19(월) */
+    reviewDueOn: "2026-10-19",
     decidedAt: "2026-10-16 15:20",
     rejectReason:
       "복원 견적서 미첨부 — 수리 업체 견적서를 첨부해 다시 청구해 주세요.",
@@ -596,6 +622,8 @@ const CARE_SEEDS: Record<string, CareClaim | null> = {
     amount: 12000,
     status: "approved",
     claimedAt: "2026-09-18 10:00",
+    /* 09-18(금) 접수 → 09-21(월) · 09-22(화) · 09-23(수) */
+    reviewDueOn: "2026-09-23",
     decidedAt: "2026-09-21 10:30",
     rejectReason: null,
   },
@@ -603,6 +631,8 @@ const CARE_SEEDS: Record<string, CareClaim | null> = {
     amount: 18000,
     status: "approved",
     claimedAt: "2026-09-16 11:00",
+    /* 09-16(수) 접수 → 09-17(목) · 09-18(금) · 09-21(월) */
+    reviewDueOn: "2026-09-21",
     decidedAt: "2026-09-18 14:00",
     rejectReason: null,
   },

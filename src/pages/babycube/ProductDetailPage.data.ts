@@ -671,6 +671,26 @@ export const periodSummary = (option: PeriodOption, dayRate: number) => {
   return { label: daysLabel(days), regular, price, percent };
 };
 
+/**
+ * 진행 중인 예약 건수 — 상품코드로 정해 둔 **예시 값**이다(예약 데이터는 서버 몫).
+ * BL240814 만 활성 슬롯 수(4개 중 2번 중지 → 3)와 같게 두었다 — 슬롯 하나를 더 「중지」로
+ * 바꾸면 화면 안에서 「신규 예약 차단 중」 이 켜진다. 나머지 상품과 새 상품은 0건.
+ */
+export const activeReservationsOf = (product: Product | undefined): number =>
+  product?.id === "BL240814" ? 3 : 0;
+
+/**
+ * 렌트 수량 초과 — develop `rentSlotCapacity`: 진행 중 예약 > **활성** 슬롯 수(중지 제외).
+ * 안내의 {M} 도 develop 처럼 활성 수다(칸에 적힌 렌트 수량 전체가 아니다).
+ */
+export const rentOverbookOf = (
+  draft: Pick<ProductDraft, "rentQty" | "slotOff">,
+  reservations: number,
+) => {
+  const active = Math.max(0, num(draft.rentQty) - draft.slotOff.length);
+  return { active, overbooked: reservations > active };
+};
+
 /** 슬롯 이름 — 원본 `{상품ID}-{2자리}` */
 export const slotName = (code: string, index: number) =>
   `${code}-${String(index).padStart(2, "0")}`;
@@ -946,6 +966,10 @@ export const COPY = {
   periodFull: `기간 옵션은 최대 ${PERIOD_MAX}개까지 등록할 수 있습니다. 다른 기간을 등록하려면 기존 옵션을 삭제한 뒤 추가해주세요.`,
   rentQtyHelp: "같은 상품의 동시 대여 가능 건수입니다.",
   slotOffNote: "신규 예약 제외",
+  /** 렌트 수량 초과 — 배지와 안내(부록 A C4 바꿈 문구) */
+  overbookedBadge: "신규 예약 차단 중",
+  overbookedNote: (reservations: number, active: number) =>
+    `진행 중인 예약(${reservations}건)이 렌트 수량(${active}개)보다 많아 새 예약을 받지 않습니다.`,
   stockHelp: "판매 가능한 재고 수량입니다.",
   /** 직영 판매 상품 재고 0 — 「품절」 배지 아래(부록 A C12) */
   soldOutHelp:

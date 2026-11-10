@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { navigate } from "../../lib/router";
 import { MemberDetailPage } from "./MemberDetailPage";
-import { MEMBERS } from "./MemberListPage.data";
+import { MEMBERS, countPayments } from "./MemberListPage.data";
 
 /* -------------------------------------------------------------------------
  * S02-D 회원 상세 — 폼형
@@ -368,6 +368,43 @@ describe("MemberDetailPage (S02-D 회원 상세)", () => {
       expect(rowOfNo("20260731715028")).not.toBeNull();
     });
 
+    /** 추가 작업 요청 B9 — 연장 결제는 구분 「렌트 연장」, [렌트] 탭에 함께 나온다 */
+    it("렌트 연장 결제는 구분이 「렌트 연장」 이고 [렌트] 탭에만 나온다 — 주문번호는 링크가 아니다", async () => {
+      const { user } = renderAt("dain.hong@example.com");
+      const extensionRow = () =>
+        within(paymentSection()).queryByText("20261015418862")?.closest("tr") ??
+        null;
+
+      expect(
+        screen.getByRole("heading", { name: "결제 내역 (2)" }),
+      ).toBeVisible();
+      const cells = within(extensionRow()!).getAllByRole("cell");
+      expect(cells[3]).toHaveTextContent(/^렌트 연장$/);
+      expect(cells[4]).toHaveTextContent("디럭스 유모차 오로라");
+      expect(cells[5]).toHaveTextContent("12,600원");
+      expect(within(extensionRow()!).queryByRole("link")).toBeNull();
+
+      await user.click(screen.getByRole("radio", { name: "렌트" }));
+      expect(extensionRow()).not.toBeNull();
+      expect(
+        within(paymentSection()).getAllByRole("row").slice(1),
+      ).toHaveLength(2);
+
+      await user.click(screen.getByRole("radio", { name: "판매" }));
+      expect(extensionRow()).toBeNull();
+      expect(screen.getByText("이 구분의 결제 내역이 없습니다.")).toBeVisible();
+    });
+
+    /** 연장은 새 이용이 아니다 — 회원 목록의 「렌트 N」 이 늘면 안 된다 */
+    it("렌트 연장 결제는 이용 횟수에 세지 않는다", () => {
+      const member = MEMBERS.find(
+        (item) => item.id === "dain.hong@example.com",
+      )!;
+
+      expect(countPayments(member, "rent")).toBe(1);
+      expect(countPayments(member, "sale")).toBe(0);
+    });
+
     it("결제한 적이 없으면 표 대신 빈 상태를 낸다", () => {
       renderAt("jiwoo.han@example.com");
 
@@ -439,6 +476,12 @@ describe("MemberDetailPage (S02-D 회원 상세)", () => {
         within(dialog).getByText("정지 사유를 입력해주세요."),
       ).toBeVisible();
       expect(within(header()).getByText("정상")).toBeVisible();
+      /* 추가 작업 요청 B10 — 상세에서 연 정지 창에만 알림톡 안내 한 줄 */
+      expect(
+        within(dialog).getByText(
+          "정지·해제 처리 시 회원에게 알림톡(회원 이용 정지/정지 해제)이 발송됩니다.",
+        ),
+      ).toBeVisible();
 
       await user.type(within(dialog).getByRole("textbox"), "이용약관 위반");
       await user.click(
@@ -457,6 +500,8 @@ describe("MemberDetailPage (S02-D 회원 상세)", () => {
       const dialog = screen.getByRole("dialog", {
         name: "회원 휴면 사유 입력",
       });
+      /* 휴면 전환은 알림이 없다 — 알림톡 안내도 없다 */
+      expect(within(dialog).queryByText(/알림톡/)).toBeNull();
       await user.click(within(dialog).getByRole("button", { name: "취소" }));
 
       expect(screen.queryByRole("dialog")).toBeNull();

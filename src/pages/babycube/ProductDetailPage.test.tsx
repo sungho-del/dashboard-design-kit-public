@@ -286,6 +286,40 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
       await user.type(textbox("렌트 수량"), "3");
       expect(screen.queryByText("신규 예약 제외")).toBeNull();
     });
+
+    /** 추가 작업 요청 B7 — 진행 중 예약(예시 3건) > 활성 슬롯 수일 때만 */
+    it("슬롯을 중지해 활성 수가 진행 중 예약보다 적어지면 「신규 예약 차단 중」 이 켜지고, 되돌리면 꺼진다", async () => {
+      const { user } = renderAt("BL240814");
+      const slots = screen.getByRole("list", { name: "렌트 슬롯" });
+
+      /* 처음: 수량 4 · 2번 중지 → 활성 3 = 진행 중 예약 3 → 초과 아님 */
+      expect(screen.queryByText("신규 예약 차단 중")).toBeNull();
+
+      const first = within(slots).getByRole("radiogroup", {
+        name: "BL240814-01 상태",
+      });
+      await user.click(within(first).getByRole("radio", { name: "중지" }));
+
+      expect(screen.getByText("신규 예약 차단 중")).toBeVisible();
+      expect(
+        screen.getByText(
+          "진행 중인 예약(3건)이 렌트 수량(2개)보다 많아 새 예약을 받지 않습니다.",
+        ),
+      ).toBeVisible();
+
+      await user.click(within(first).getByRole("radio", { name: "활성" }));
+      expect(screen.queryByText("신규 예약 차단 중")).toBeNull();
+    });
+
+    it("진행 중 예약이 없는 상품은 슬롯을 모두 중지해도 차단 안내가 없다", async () => {
+      const { user } = renderAt("MC240812");
+      const slots = screen.getByRole("list", { name: "렌트 슬롯" });
+
+      for (const radio of within(slots).getAllByRole("radio", { name: "중지" }))
+        await user.click(radio);
+
+      expect(screen.queryByText("신규 예약 차단 중")).toBeNull();
+    });
   });
 
   describe("유형", () => {

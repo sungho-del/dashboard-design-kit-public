@@ -2,6 +2,7 @@ import type { TagTone } from "../../components/ui";
 import { INSPECTION_META } from "./deposit.data";
 import {
   CARE_CLAIM_STATUS_LABEL,
+  DEMO_TODAY,
   ORDERS,
   won,
   type CareClaimStatus,
@@ -39,6 +40,8 @@ import {
  * | `DATE_FIELDS`      | 기간 기준 (청구일 / 승인일 / 반려일)                 |
  * | `SEARCH_FIELDS`    | 검색 조건 (주문번호 / 셀러명 / 상품명)               |
  * | `REVIEW_COPY`      | 승인·반려 창과 알림 문구 (**목록·상세 공용**)        |
+ * | `reviewDdayOf`·`reviewDdayText`·`isReviewOverdue` | 심사 기한 D-day (**목록·상세 공용** · 접수 건만) |
+ * | `OVERDUE_LABEL`·`overdueNotice`·`OVERDUE_COUNT`   | 「기한 경과」 배지 · 목록 위 안내 한 줄          |
  * | `filterSummary`    | 접은 검색조건 줄의 요약                              |
  * | `won`·`ymd`        | 금액·날짜 포맷                                       |
  *
@@ -47,6 +50,8 @@ import {
  * - `claimedAt`(`YYYY-MM-DD HH:mm`)이 기본 기간축이다. 승인일·반려일은 그 상태가 아니면 `null` →
  *   기간을 걸면 그 행은 빠진다(`DATE_FIELDS[].pick`)
  * - **`REVIEWABLE_STATUS`(청구 접수)만 고를 수 있다** — 뼈대는 이 값으로 체크박스를 잠근다
+ * - `reviewDueOn`(심사 기한 날짜)은 **예시 값**이다 — 접수일 기준 3번째 영업일을 손으로 세어 주문 샘플에 둔다
+ *   (영업일 계산 로직을 만들지 않는다). D-day 는 시연 기준일(`DEMO_TODAY`)과의 날짜 차이 — 접수 건만 있다
  * - **승인 창의 합계는 데이터가 낸다**(`sumAmount`) — 원본도 심사 대상 복원비 합을 찍는다(2416)
  *
  * ## 원본 결함 — 어떻게 다뤘나
@@ -74,6 +79,8 @@ export interface CareClaimRow {
   amount: number;
   /** 청구일시 `YYYY-MM-DD HH:mm` */
   claimedAt: string;
+  /** 심사 기한 `YYYY-MM-DD` — 접수일 기준 3번째 영업일(예시 값) */
+  reviewDueOn: string;
   /** 승인일시 — 승인 건만 */
   approvedAt: string | null;
   /** 반려일시 — 반려 건만 */
@@ -95,6 +102,7 @@ const toRow = (order: Order): CareClaimRow | null => {
     inspection: order.inspection,
     amount: claim.amount,
     claimedAt: claim.claimedAt,
+    reviewDueOn: claim.reviewDueOn,
     approvedAt: claim.status === "approved" ? claim.decidedAt : null,
     rejectedAt: claim.status === "rejected" ? claim.decidedAt : null,
     rejectReason: claim.rejectReason,
@@ -110,6 +118,43 @@ export const CLAIM_ROWS: CareClaimRow[] = ORDERS.map(toRow).filter(
 
 /** **심사할 수 있는 상태** — 뼈대가 이 값으로 행 선택·상세 [승인][반려] 를 정한다 */
 export const REVIEWABLE_STATUS: CareClaimStatus = "received";
+
+/* -------------------------------------------------------------------------
+ * 심사 기한 — develop `care-claims/columns.tsx`(D-131). 표시만 한다(자동 처분 없음)
+ * ---------------------------------------------------------------------- */
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * 심사 기한까지 남은 날 — 시연 기준일 기준(남으면 양수 · 당일 0 · 지나면 음수).
+ * **청구 접수 건만** 있다 — 승인·반려로 끝난 건은 `null`(날짜만 보인다)
+ */
+export const reviewDdayOf = (row: CareClaimRow): number | null =>
+  row.status === REVIEWABLE_STATUS
+    ? Math.round(
+        (Date.parse(row.reviewDueOn) - Date.parse(DEMO_TODAY)) / DAY_MS,
+      )
+    : null;
+
+/** D-day 표기 — 남은 날 `D-n` · 당일 `D-day` · 지남 `D+n` (develop `reviewDdayText`) */
+export const reviewDdayText = (dday: number) => {
+  if (dday === 0) return "D-day";
+  return dday > 0 ? `D-${dday}` : `D+${-dday}`;
+};
+
+/** 기한이 지난 접수 건인가 — 「기한 경과」 배지와 목록 위 안내가 읽는다 */
+export const isReviewOverdue = (row: CareClaimRow) =>
+  (reviewDdayOf(row) ?? 0) < 0;
+
+/** 기한 경과 배지 — develop `StatusBadge` 「기한 경과」(위험색) */
+export const OVERDUE_LABEL = "기한 경과";
+
+/** 목록 위 안내 — 기한이 지난 접수 건이 있을 때만(develop `CareClaimsTable` 글자 그대로) */
+export const overdueNotice = (count: number) =>
+  `심사 기한이 지난 청구 ${count}건이 있습니다 — 먼저 처리해 주세요.`;
+
+/** 기한이 지난 접수 건수 — 탭·검색과 무관한 **전체** 건수다(develop: 서버 건수) */
+export const OVERDUE_COUNT = CLAIM_ROWS.filter(isReviewOverdue).length;
 
 /**
  * 청구 상태 → 라벨 · tone · 상태 카드 툴팁(원본 `STAT_TIP`).

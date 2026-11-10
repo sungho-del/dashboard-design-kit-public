@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { SellerSettlementDetailPage } from "./SellerSettlementDetailPage";
+import { findSettlement } from "./settlement.data";
 
 /* -------------------------------------------------------------------------
  * 셀러 정산 상세 (BO-STL-003) — 기획 v0.4 `DETAILS.settlement`
@@ -118,6 +119,13 @@ describe("셀러 정산 상세 — 베베하우스(확인완료 · 안심케어 
     expect(valueOf("정산 반영 거래 건수")).toBe("1건");
     expect(valueOf("정산월")).toBe("2026년 9월");
     expect(valueOf("지급일")).toBe("2026.10.12");
+    /* 추가 작업 요청 B15 — 셀러 다음 「명세서번호」 · 지급완료 전이라 「지급완료일」 없음 */
+    expect(valueOf("명세서번호")).toBe("STM-2609-0229");
+    const terms = screen.getAllByRole("term").map((term) => term.textContent);
+    expect(terms.indexOf("명세서번호")).toBe(terms.indexOf("셀러") + 1);
+    expect(hasRow("지급완료일")).toBe(false);
+    /* 잠김 예시 건은 없다 — 안내가 서지 않는다 */
+    expect(screen.queryByText("지급 처리 잠김")).toBeNull();
     expect(valueOf("지급 계좌")).toBe("국민은행 45**-**-****** (베베하우스)");
     expect(valueOf("정산 상태")).toBe("확인완료");
     expect(hasRow("셀러 이의 사유")).toBe(false);
@@ -292,6 +300,10 @@ describe("셀러 정산 상세 — 상태별", () => {
 
   it("아기별상사(지급완료) — 쿠폰·포인트 참고 줄 · 업무 버튼 없음", () => {
     renderAt("/settle-seller/S-1042");
+    /* 추가 작업 요청 B15 — 지급완료 건만 정산 상태 다음 「지급완료일」 */
+    expect(valueOf("지급완료일")).toBe("2026.10.12");
+    const terms = screen.getAllByRole("term").map((term) => term.textContent);
+    expect(terms.indexOf("지급완료일")).toBe(terms.indexOf("정산 상태") + 1);
     expect(valueOf("셀러 쿠폰")).toBe("−10,000원");
     expect(valueOf("포인트 사용분")).toBe("3,000원");
     expect(valueOf("지급 예정액")).toBe("161,500원");
@@ -311,5 +323,30 @@ describe("셀러 정산 상세 — 상태별", () => {
         "보류 종결 — 협의 결론 기록 · 맘스케어",
       ),
     ).toBeVisible();
+  });
+});
+
+/** 추가 작업 요청 B15 — 잠김 예시 건은 없다. 예시 행에 사유를 잠깐 얹어 조건부 안내만 본다 */
+describe("셀러 정산 상세 — 지급 처리 잠김 안내(조건부)", () => {
+  it("지급할 수 없는 이유가 있을 때만 정산 명세 금액 아래 「지급 처리 잠김 — {사유}」", () => {
+    const row = findSettlement("S-229")!;
+    expect(row.payUnavailableReason).toBeUndefined();
+    row.payUnavailableReason = "지급 계좌가 등록되지 않았습니다";
+    try {
+      renderAt("/settle-seller/S-229");
+      const note = screen.getByText("지급 처리 잠김").closest("p")!;
+      expect(note).toHaveAttribute("role", "note");
+      expect(note).toHaveTextContent(
+        "지급 처리 잠김 — 지급 계좌가 등록되지 않았습니다",
+      );
+      /* 자리 — 정산 명세 카드 안(정산 정보 카드가 아니다) */
+      expect(
+        screen
+          .getByRole("heading", { name: "정산 명세" })
+          .closest("[data-variant]"),
+      ).toContainElement(note);
+    } finally {
+      delete row.payUnavailableReason;
+    }
   });
 });

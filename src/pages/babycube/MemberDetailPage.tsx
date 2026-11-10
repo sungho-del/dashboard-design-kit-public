@@ -76,6 +76,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * 자녀 정보   ← 자녀 수 + 표(이름/태명 · 생년월일·개월수 · 성별)
  * 결제 내역 (N) ← [전체][렌트][판매] 탭 + 표
  *                (No · 주문번호 · 결제 일시 · 구분 · 상품명 · 결제금액 · 상태)
+ *                구분 = 렌트 / 판매 / 렌트 연장(연장 결제 — [렌트] 탭에 함께 나온다)
  * [목록]                                   [취소] [저장하기]   ← 하단 액션 바 (화면 아래 고정)
  * ```
  * 섹션은 접을 수 있다(원본도 섹션마다 접기 버튼이 있다).
@@ -87,7 +88,8 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * - **탈퇴 회원은 상태를 바꿀 수 없다** — 원본은 "드롭다운 없이 배지로만 표시"다.
  *   그래서 이 화면도 탈퇴면 택1 버튼 대신 배지를 낸다
  * - **휴면·정지로 저장하면 사유를 받는다**(원본 C-3 ⓐ) — 목록 일괄 변경과 **같은 모달**
- *   (`MemberReasonModal`)이다. 한때 이 자리에 "원본도 입력 자리를 그리지 않는다"고 적혀
+ *   (`MemberReasonModal`)이다. **상세에서 연 정지 창에만** 알림톡 안내 한 줄이 붙는다
+ *   (`alimtalkNote` — develop: 목록 일괄 창·휴면 창에는 없다). 한때 이 자리에 "원본도 입력 자리를 그리지 않는다"고 적혀
  *   있었는데 기획 v0.4 와 어긋난 판단이었다(2026-10-15 대조).
  *   기록된 사유는 **상태 선택 바로 아래** `정지 사유  …  · 처리 일시`(보조 글자)로 나온다 —
  *   정지 회원에서 가장 먼저 읽을 값이라 가입일·접속일 뒤에 묻지 않는다(2026-11-03 UX 검수).
@@ -538,7 +540,8 @@ export function MemberDetailPage({
                 <col className="w-12" />
                 <col className="w-40" />
                 <col className="w-35" />
-                <col className="w-18" />
+                {/* 구분 — 가장 긴 값 「렌트 연장」 Tag 가 한 줄에 들어가는 폭 */}
+                <col className="w-24" />
                 <col className="w-60" />
                 <col className="w-28" />
                 <col className="w-24" />
@@ -573,6 +576,7 @@ export function MemberDetailPage({
                       {/*
                         구분은 다른 목록(주문·상품)과 같은 **중립 태그**다 — 분류지 상태가 아니다.
                         렌트와 판매가 섞인 주문은 둘 다 낸다(원본 `modeTags(both)` — 예시에는 섞인 주문이 없다 · 디자인 §3 #19).
+                        연장 결제는 「렌트 연장」 하나다. 주문번호는 링크가 아니다(결제 상세 화면이 아직 없다).
                       */}
                       <TableTd align="center">
                         <span className="inline-flex gap-1">
@@ -632,6 +636,8 @@ export function MemberDetailPage({
       <MemberReasonModal
         target={reasonOpen ? draftStatus : null}
         count={1}
+        /* 정지 창에만 알림톡 안내 한 줄 — 상세에서 연 창에만 있다(develop) */
+        alimtalkNote
         onClose={() => setReasonOpen(false)}
         onConfirm={confirmReason}
       />

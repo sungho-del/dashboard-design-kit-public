@@ -35,7 +35,10 @@ import {
  *
  * ## 주문 명세 — `CalcBreakdown` 어댑터(`statementBlocksOf`)
  * 묶음: 상품(원가 → 상품 할인 → 단가 → 일수/수량 → 소계) · 할인(쿠폰·포인트) · 추가(안심케어·배송비 — 방문·공항은
- * 「픽업 요금」 · 렌트 회수 배송비 — 방문·공항은 「반납 요금」) · 결제금액(결과) · 별도(보증금 — 결제금액에 들지 않는다).
+ * 「픽업 요금」 · 렌트 회수 배송비 — 방문·공항은 「반납 요금」) · 결제금액(이 처리단위 몫) · 별도(보증금 — 결제금액에 들지 않는다) ·
+ * **주문 전체 승인액(결과)** — 같은 주문번호 처리단위의 결제금액 합 + 보증금(`orderApprovedOf`).
+ * 조건부 줄(추가 작업 요청 2026-11-09 B11·B12 — **예시 건은 없다**, 값이 결제금액을 바꾸기 때문): 상품 묶음의
+ * 「장기 렌트 할인」(기간 옵션 건) · 「구성품」 묶음(구성품이 있는 건) · 취소 명세의 「배송비 차감」(출고 후 취소).
  * 취소 명세는 환불 묶음 끝에 「환불 상태」 한 줄(`refundStatusTextOf` — 확인 요청 답(2026-11-06) 21번). 클레임 모드는 결제금액을 원거래 금액으로 낮추고
  * 클레임 묶음(`claimBlocksOf`)이 기준 → 차감 → 결과를 보인다. 부호는 읽기용 `−`/`+`(0 은 부호 없음).
  * 본문 주문정보의 결제금액·클레임 결과 줄은 **팝업과 같은 함수**(`payTotalOf`·`claimResultsOf`)를 읽는다.
@@ -345,20 +348,55 @@ const calcLine = (
 /** 배송비 · 회수 배송비(방문·공항은 「픽업 요금」·「반납 요금」) — 택배만 상품 배송비를 받는다(방문·공항은 무료) */
 const shipFeeOf = (order: Order) => (isParcel(order) ? order.shipFee : 0);
 
+/** 구성품 금액 합 — 주문당 1회 정액(develop). 구성품이 없으면 0 */
+const componentsTotalOf = (order: Order) =>
+  (order.components ?? []).reduce((sum, item) => sum + item.amount, 0);
+
+/** 렌트일 표기 — develop `rentDaysText`: 기간 옵션 건은 「N일 (기간 옵션)」, 아니면 「N일 (기본)」 */
+export const rentDaysTextOf = (order: Order) =>
+  `${order.rentDays}일 ${order.longRent ? "(기간 옵션)" : "(기본)"}`;
+
+/** 상품정보 「장기 렌트 할인」 값 — 기간 옵션 건만(develop 꼴: 할인액 + 그 기간의 등록가). 없으면 `null` */
+export const longRentTextOf = (order: Order) =>
+  order.longRent && order.longRent.discount > 0
+    ? `${less(order.longRent.discount)} (${order.rentDays}일 등록가 ${won(order.longRent.optionPrice)})`
+    : null;
+
 /**
- * 결제금액 = 상품 소계 − 쿠폰 − 포인트 + 안심케어 + 배송비 + 회수 배송비.
+ * 상품정보 「구성품」 값 — 한 줄에 하나(develop). 렌트는 「이름 +금액」, 판매는 이름만.
+ * 구성품이 없으면 빈 배열 — 뼈대가 행을 그리지 않는다
+ */
+export const componentTextsOf = (order: Order) =>
+  (order.components ?? []).map((item) =>
+    order.type === "rent" ? `${item.name} ${more(item.amount)}` : item.name,
+  );
+
+/**
+ * 주문 전체 승인액 — 같은 주문번호(결제 1건)의 **모든 처리단위** 결제금액 합 + 보증금.
+ * develop `order-payment.ts` 「보증금은 결제 합계 안에 들어 있다」 기준 — 처리단위 「결제금액」(보증금 제외)과 다른 값이다
+ */
+export const orderApprovedOf = (order: Order) =>
+  ORDERS.filter((item) => item.orderNo === order.orderNo).reduce(
+    (sum, item) => sum + payTotalOf(item) + (item.deposit ?? 0),
+    0,
+  );
+
+/**
+ * 결제금액 = 상품 소계(렌트 기간 옵션 건은 − 장기 렌트 할인) + 구성품 − 쿠폰 − 포인트 + 안심케어 + 배송비 + 회수 배송비.
  * ⚠️ **보증금은 들지 않는다**(원본 명세) — 명세에 「별도」 묶음으로 따로 보인다.
  */
 export const payTotalOf = (order: Order) => {
   const ship = shipFeeOf(order);
   const subtotal =
     order.type === "rent"
-      ? (rentPriceOf(order) ?? 0) * (order.rentDays ?? 0)
+      ? (rentPriceOf(order) ?? 0) * (order.rentDays ?? 0) -
+        (order.longRent?.discount ?? 0)
       : Math.max(0, (order.saleBasePrice ?? 0) - (order.saleDiscount ?? 0)) *
         order.qty;
   return Math.max(
     0,
-    subtotal -
+    subtotal +
+      componentsTotalOf(order) -
       order.coupon -
       order.point +
       (order.care?.fee ?? 0) +
@@ -380,6 +418,7 @@ const orderBlocksOf = (order: Order): CalcBlock[] => {
     (order.saleBasePrice ?? 0) - (order.saleDiscount ?? 0),
   );
   const rentPrice = rentPriceOf(order) ?? 0;
+  const longRent = order.longRent?.discount ?? 0;
   const product: CalcLine[] = rent
     ? [
         calcLine("base", "렌트 원가", perDay(order.rentBasePrice ?? 0)),
@@ -389,11 +428,27 @@ const orderBlocksOf = (order: Order): CalcBlock[] => {
           less(order.rentDiscount ?? 0, perDay),
         ),
         calcLine("price", "렌트가", perDay(rentPrice)),
-        calcLine("days", "렌트일", `${order.rentDays}일`),
-        calcLine("subtotal", "소계", won(rentPrice * (order.rentDays ?? 0)), {
-          kind: "subtotal",
-          hint: "렌트가 × 렌트일",
-        }),
+        calcLine("days", "렌트일", rentDaysTextOf(order)),
+        /* 기간 옵션 건만 — develop 명세 꼴 「장기 렌트 할인 (N일 등록가 적용)」 */
+        ...(longRent > 0
+          ? [
+              calcLine("longRent", "장기 렌트 할인", less(longRent), {
+                hint: `${order.rentDays}일 등록가 적용`,
+              }),
+            ]
+          : []),
+        calcLine(
+          "subtotal",
+          "소계",
+          won(rentPrice * (order.rentDays ?? 0) - longRent),
+          {
+            kind: "subtotal",
+            hint:
+              longRent > 0
+                ? "렌트가 × 렌트일 − 장기 렌트 할인"
+                : "렌트가 × 렌트일",
+          },
+        ),
       ]
     : [
         calcLine("base", "판매 원가", won(order.saleBasePrice ?? 0)),
@@ -430,12 +485,24 @@ const orderBlocksOf = (order: Order): CalcBlock[] => {
   ];
   return [
     { key: "product", label: "상품", lines: product },
+    /* 구성품이 있을 때만 — 머리 「구성품」 + 항목 줄(develop 명세: 소계 다음) */
+    ...(order.components?.length
+      ? [
+          {
+            key: "components",
+            label: "구성품",
+            lines: order.components.map((item, index) =>
+              calcLine(`component-${index}`, item.name, more(item.amount)),
+            ),
+          },
+        ]
+      : []),
     { key: "discount", label: "할인", lines: discounts },
     { key: "extra", label: "추가", lines: extras },
   ];
 };
 
-/** 결제금액 줄 — 주문 상세는 결과(가장 굵게), 클레임 상세는 원거래 금액(소계 굵기) */
+/** 결제금액 줄 — 이 처리단위의 몫(소계 굵기). 주문 상세의 결과 줄은 「주문 전체 승인액」이다 */
 const payLineOf = (order: Order, kind: "total" | "subtotal"): CalcLine =>
   calcLine("pay", "결제금액", won(payTotalOf(order)), { kind });
 
@@ -459,7 +526,7 @@ const depositAsideOf = (order: Order): CalcBlock[] =>
     : [];
 
 /**
- * 주문 명세 — `CalcBreakdown` 묶음. 주문 상세는 주문 몫 + 결제금액(결과) + 별도 보증금,
+ * 주문 명세 — `CalcBreakdown` 묶음. 주문 상세는 주문 몫 + 결제금액 + 별도 보증금 + 주문 전체 승인액(결과),
  * 클레임 상세는 주문 몫 + 클레임 몫(`claimBlocksOf` — 결제금액은 거기서 기준 줄이 된다).
  */
 export const statementBlocksOf = (
@@ -469,10 +536,23 @@ export const statementBlocksOf = (
   if (claimMode && order.claim) {
     return [...orderBlocksOf(order), ...claimBlocksOf(order)];
   }
+  /*
+   * 끝 두 줄(추가 작업 요청 B11 ④ — develop 명세 끝 「유닛 결제금액 스냅샷」 → 「주문 전체 승인액」):
+   * 이 처리단위의 「결제금액」(이름은 지금 그대로) → 별도 보증금 → 「주문 전체 승인액」. 강조는 develop 처럼 승인액
+   */
   return [
     ...orderBlocksOf(order),
-    { key: "pay", emphasis: true, lines: [payLineOf(order, "total")] },
+    { key: "pay", lines: [payLineOf(order, "subtotal")] },
     ...depositAsideOf(order),
+    {
+      key: "approved",
+      emphasis: true,
+      lines: [
+        calcLine("approved", "주문 전체 승인액", won(orderApprovedOf(order)), {
+          kind: "total",
+        }),
+      ],
+    },
   ];
 };
 
@@ -560,7 +640,7 @@ export const claimTypeTextOf = (order: Order) =>
  *
  * | 경우             | 묶음                                                                                  |
  * | ---------------- | ------------------------------------------------------------------------------------- |
- * | 취소             | 「환불」 결제금액 → 환불 예정액/완료 → 환불 상태 · (렌트) 「보증금」 보증금 → 반환 예정액/완료 |
+ * | 취소             | 「환불」 결제금액 → (위약금 −) → (배송비 차감 −) → 환불 예정액/완료 → 환불 상태 · (렌트) 「보증금」 보증금 → 반환 예정액/완료 |
  * | 판매 반품        | 「환불」 결제금액 → (고객 귀책) 반품 배송비 − → 환불 예정액/완료                          |
  * | 렌트 반품        | 「결제」 결제금액 · 「보증금」 보증금 → (고객 귀책) 반품 배송비 − → 반환 예정액/완료       |
  * | 교환             | 「결제」 결제금액 · 「교환」 처리 문장(교환 배송비는 1차 미징수 — 청구 줄 없음)             |
@@ -580,11 +660,23 @@ export const claimTypeTextOf = (order: Order) =>
  * 취소 요청 = 「미실행」 · 환불 처리중 = 「PG 응답 확인 중 (1차)」 · 취소 완료 = 「완료 · {결제수단} 취소 N원[ · 포인트 NP 복구]」.
  * 실패 꼴(「실패 (코드) 메시지」)은 예시 건을 두지 않았다
  */
+/**
+ * 취소 환불액 = 결제금액 − 위약금 − 배송비 차감(출고 후 취소만 — 예시 건은 없다).
+ * 명세의 환불 줄과 환불 상태 줄이 같은 값을 읽는다
+ */
+export const cancelRefundOf = (order: Order) =>
+  Math.max(
+    0,
+    payTotalOf(order) -
+      (order.claim?.penalty ?? 0) -
+      (order.claim?.shipDeduct ?? 0),
+  );
+
 export const refundStatusTextOf = (order: Order) => {
   const claim = order.claim;
   if (!claim || claim.status === "cancelRequested") return "미실행";
   if (claim.status !== "canceled") return "PG 응답 확인 중 (1차)";
-  const refund = Math.max(0, payTotalOf(order) - claim.penalty);
+  const refund = cancelRefundOf(order);
   return (
     `완료 · ${order.payMethod} 취소 ${won(refund)}` +
     (order.point
@@ -623,6 +715,7 @@ const claimBlocksOf = (order: Order): CalcBlock[] => {
 
   if (claim.type === "cancel") {
     const penalty = claim.penalty;
+    const shipDeduct = claim.shipDeduct ?? 0;
     const refund: CalcBlock = {
       key: "refund",
       label: "환불",
@@ -630,11 +723,15 @@ const claimBlocksOf = (order: Order): CalcBlock[] => {
       lines: [
         payLineOf(order, "subtotal"),
         ...(penalty > 0 ? [calcLine("penalty", "위약금", less(penalty))] : []),
+        /* 출고 후 취소만 — 값이 있을 때만(부록 A C39·C40 바꿈 이름 「배송비 차감」) */
+        ...(shipDeduct > 0
+          ? [calcLine("shipDeduct", "배송비 차감", less(shipDeduct))]
+          : []),
         calcLine(
           "refund",
           done ? "환불 완료" : "환불 예정액",
-          won(Math.max(0, pay - penalty)),
-          penalty > 0
+          won(cancelRefundOf(order)),
+          penalty + shipDeduct > 0
             ? { kind: "total" }
             : { kind: "total", hint: "결제금액 전액" },
         ),

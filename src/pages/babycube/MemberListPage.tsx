@@ -336,6 +336,7 @@ const loadingTable = (
 export function MemberReasonModal({
   target,
   count,
+  alimtalkNote = false,
   onClose,
   onConfirm,
 }: {
@@ -343,6 +344,8 @@ export function MemberReasonModal({
   target: MemberStatus | null;
   /** 대상 인원 — 2명 이상이면 제목에 붙는다(원본) */
   count: number;
+  /** 정지 창에 알림톡 안내 한 줄을 붙인다 — **회원 상세만** 켠다(develop: 목록 일괄 창에는 없다) */
+  alimtalkNote?: boolean;
   onClose: () => void;
   onConfirm: (reason: string) => void;
 }) {
@@ -396,6 +399,9 @@ export function MemberReasonModal({
           />
         </FormField>
         <p className="body-small text-text-sub">{REASON_COPY.note(target)}</p>
+        {alimtalkNote && target === "suspended" ? (
+          <p className="body-small text-text-sub">{REASON_COPY.alimtalk}</p>
+        ) : null}
       </ModalBody>
       <ModalFooter>
         <Button variant="secondary" size="large" onClick={close}>

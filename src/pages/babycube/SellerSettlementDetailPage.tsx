@@ -40,6 +40,8 @@ import {
   NOT_FOUND,
   OBJECTION_LABEL,
   objectionOf,
+  PAY_LOCK_LABEL,
+  payLockOf,
   orderPathOf,
   SECTIONS,
   sellerPathOf,
@@ -73,8 +75,9 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * 머리: 셀러 정산 상세 · {셀러} · {회차} · 상태 배지
  * 정산 명세      ← (이의제기 + 사유면 맨 위 경고 상자 「셀러 이의 사유 · 일시」) +
  *                  목록 합산과 같은 산출 내역 부품 `SettlementCalc`(요율 N% · 지급 예정액 · 안내 상자)
- * 정산 정보      ← 셀러(→ 셀러 상세) · 정산 반영 거래 건수 · 정산월 · 지급일 · 지급 계좌 · 정산 상태
- *                  (+ 재발송 이력이 있으면 수정 명세 재발송)
+ *                  (+ 지급할 수 없는 이유가 있으면 금액 아래 「지급 처리 잠김 — {사유}」 · 예시 건 없음)
+ * 정산 정보      ← 셀러(→ 셀러 상세) · 명세서번호 · 정산 반영 거래 건수 · 정산월 · 지급일 · 지급 계좌 · 정산 상태
+ *                  (+ 지급완료 건만 지급완료일 · 재발송 이력이 있으면 수정 명세 재발송)
  * {회차} 거래 내역 ← No · 주문번호(→ 주문 상세) · 유형 · 상품 · 금액 · 상태 · 정산 반영 + 페이지 + 요약·규칙 상자
  *                  「정산 반영」: 반영·환수 −N원·보전 +N원은 기본색, 나머지 흐리게(`txNoteOf`)
  * [목록]       [명세서] [취소] [확인] [지급완료|수정 명세 재발송]   ← 하단 고정 바 · 주 버튼은 맨 오른쪽 하나
@@ -241,6 +244,7 @@ function DetailBody({
   const kind = gateOf(row.status);
   const info = infoOf(row);
   const objection = objectionOf(row);
+  const payLock = payLockOf(row);
   const summary = txSummaryOf(row);
 
   const txPages = Math.max(1, Math.ceil(row.transactions.length / txPageSize));
@@ -313,6 +317,13 @@ function DetailBody({
               })}
               notes={SETTLE_NOTES}
             />
+            {/* 지급할 수 없는 이유가 있을 때만 — develop 자리(정산 명세 금액 아래). 예시 건은 없다 */}
+            {payLock ? (
+              <p role="note" className="body-small text-text-warning">
+                <span className="body-small-bold">{PAY_LOCK_LABEL}</span> —{" "}
+                {payLock}
+              </p>
+            ) : null}
           </>
         )}
       </Section>
@@ -327,6 +338,9 @@ function DetailBody({
                 {row.name}
               </TextButton>
             </Item>
+            <Item label="명세서번호">
+              <span className="tabular-nums">{info.statementNo}</span>
+            </Item>
             <Item label="정산 반영 거래 건수">{info.count}</Item>
             <Item label="정산월">{info.round}</Item>
             <Item label="지급일">{info.payoutDate}</Item>
@@ -336,6 +350,11 @@ function DetailBody({
                 {meta.label}
               </Tag>
             </Item>
+            {info.paidAt ? (
+              <Item label="지급완료일">
+                <span className="tabular-nums">{info.paidAt}</span>
+              </Item>
+            ) : null}
             {info.resend ? (
               <Item label="수정 명세 재발송">
                 {info.resend.text}{" "}

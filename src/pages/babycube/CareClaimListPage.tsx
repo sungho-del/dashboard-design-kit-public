@@ -58,6 +58,12 @@ import {
   sumAmount,
   won,
   ymd,
+  OVERDUE_COUNT,
+  OVERDUE_LABEL,
+  isReviewOverdue,
+  overdueNotice,
+  reviewDdayOf,
+  reviewDdayText,
   type CareClaimRow,
 } from "./CareClaimListPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
@@ -71,6 +77,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * ```
  * 상태 대시 (청구 접수 · 승인 · 반려 건수 — **전체 카드 없음**, 기본 청구 접수)  ← 원본 chipStatDash
  * 검색조건 (기본 펼침 · 기간 기준+빠른 선택+기간 · 검색조건+검색어)               ← 원본 filterBar
+ * (기한이 지난 접수 건이 있으면) 「심사 기한이 지난 청구 N건이 있습니다 — 먼저 처리해 주세요.」 ← develop CareClaimsTable
  * [ 목록 (총 N건) | 표(접수 건만 선택 · No · 복원비↕ 청구일↕) | 페이지 ]           ← 원본 listHead + table
  * 선택 일괄 심사 (승인 처리 / 반려 처리)                                         ← 원본 목록 머리의 심사 버튼
  * ```
@@ -78,6 +85,8 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  *
  * ## 갈아끼울 것 → `./CareClaimListPage.data.ts` (이 파일은 도메인을 모른다)
  * 표 열 구성은 이 파일의 `colgroup` + `TableHead` + 본문 셀이다(셋이 짝이다).
+ * 「심사 기한」 열은 **모든 탭**, 「D-day」 열은 **청구 접수 탭만**(`D-n`/`D-day`/`D+n` + 지났으면 「기한 경과」 Tag) —
+ * 추가 작업 요청(2026-11-09) B13 · develop `care-claims/columns.tsx`. 기한 날짜는 데이터의 예시 값이고 화면은 계산하지 않는다.
  *
  * ## 그대로 두는 것 (도메인 무관)
  * `inPeriod` · 3단 정렬(오름→내림→해제) · 상태 카드를 바꾸면 정렬·선택·페이지 해제(원본 `subnav`) ·
@@ -146,26 +155,28 @@ const nextSort = (
 
 /**
  * 열 폭 — 원본 열 정의를 4px 격자로 옮긴 값.
- * 선택 · No · 주문번호 · 셀러 · 상품 · 검수 판정 · 복원비 · 청구일 · [승인일|반려일] · 상태.
- * 승인일·반려일은 상호배타라 자리 하나만 끼어든다.
+ * 선택 · No · 주문번호 · 셀러 · 상품 · 검수 판정 · 복원비 · 청구일 · 심사 기한 · [D-day] · [승인일|반려일] · 상태.
+ * D-day(청구 접수 탭)와 승인일·반려일(그 탭)은 상호배타라 자리 하나만 끼어든다.
  */
 /*
   열 폭 — 실제 글자 폭 + 좌우 여백 24(No·셀러·검수 판정·복원비를 글자만큼) · 남는 폭은 상품.
-  합 964(체크박스 칸은 실제 52) — 1280 카드 안쪽 폭(976)에 상태 열까지 들어간다. 승인일·반려일 열이 붙는 탭은 1080 이라
-  1280 에서는 표 안에서만 가로로 민다(1440 은 다 보인다)
+  합 = 선택 52 · No 48 · 주문번호 152 · 셀러 96 · 상품 144 · 검수 판정 112 · 복원비 96 · 청구일 100 · 심사 기한 100 · [D-day 128 | 승인일·반려일 112] · 상태 108 → 청구 접수 탭 1136 · 승인/반려 탭 1120.
+  1440(카드 안쪽 1136)에는 딱 맞고, 1280(976)에서는 **표 안에서만 가로로 민다**(고정 열 없음)
 */
-const colgroup = (withDecidedAt: boolean) => (
+const colgroup = (extra: "dday" | "decidedAt") => (
   <colgroup>
+    <col className="w-13" />
     <col className="w-12" />
-    <col className="w-12" />
+    <col className="w-38" />
+    <col className="w-24" />
     <col className="w-36" />
-    <col className="w-24" />
-    <col className="w-49" />
     <col className="w-28" />
     <col className="w-24" />
-    <col className="w-28" />
-    {withDecidedAt ? <col className="w-28" /> : null}
-    <col className="w-28" />
+    <col className="w-25" />
+    <col className="w-25" />
+    {/* D-day — 「D+5」 + 「기한 경과」 Tag 가 한 줄에 드는 폭 */}
+    <col className={extra === "dday" ? "w-32" : "w-28"} />
+    <col className="w-27" />
   </colgroup>
 );
 
@@ -178,13 +189,15 @@ const SKELETON_WIDTHS = [
   "w-20",
   "w-14",
   "w-20",
+  "w-20",
+  "w-14",
   "w-14",
 ];
 
 /** 로딩 뼈대 — 머리는 실제 글자, 본문만 가린다(§D8-1) */
 const loadingTable = (
   <Table>
-    {colgroup(false)}
+    {colgroup("dday")}
     <TableHead sticky>
       <TableRow>
         <TableTh aria-label="선택" />
@@ -195,6 +208,8 @@ const loadingTable = (
         <TableTh align="center">검수 판정</TableTh>
         <TableTh>복원비</TableTh>
         <TableTh>청구일</TableTh>
+        <TableTh>심사 기한</TableTh>
+        <TableTh>D-day</TableTh>
         <TableTh align="center">상태</TableTh>
       </TableRow>
     </TableHead>
@@ -416,9 +431,10 @@ export function CareClaimListPage({
     setSelected([]);
   };
 
-  /* 승인일·반려일은 **그 상태일 때만** 열이 붙는다(원본) */
+  /* 승인일·반려일은 **그 상태일 때만** 열이 붙는다(원본) · D-day 는 청구 접수 탭만(develop) */
   const showApprovedAt = filter === "approved";
   const showRejectedAt = filter === "rejected";
+  const showDday = filter === REVIEWABLE_STATUS;
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -574,6 +590,13 @@ export function CareClaimListPage({
         />
       </FilterBar>
 
+      {/* 기한이 지난 접수 건이 있을 때만 — 탭·검색과 무관한 전체 건수(develop `CareClaimsTable`) */}
+      {OVERDUE_COUNT > 0 && status !== "empty" ? (
+        <p className="body-medium text-text-sub" role="status">
+          {overdueNotice(OVERDUE_COUNT)}
+        </p>
+      ) : null}
+
       <DataTableShell
         variant="soft"
         fill
@@ -615,7 +638,7 @@ export function CareClaimListPage({
         }
       >
         <Table>
-          {colgroup(showApprovedAt || showRejectedAt)}
+          {colgroup(showDday ? "dday" : "decidedAt")}
           <TableHead sticky>
             <TableRow>
               <TableTh align="center">
@@ -649,6 +672,8 @@ export function CareClaimListPage({
               >
                 청구일
               </TableTh>
+              <TableTh>심사 기한</TableTh>
+              {showDday ? <TableTh>D-day</TableTh> : null}
               {showApprovedAt ? <TableTh>승인일</TableTh> : null}
               {showRejectedAt ? <TableTh>반려일</TableTh> : null}
               <TableTh align="center">상태</TableTh>
@@ -658,6 +683,7 @@ export function CareClaimListPage({
             {paged.map((row, index) => {
               const meta = STATUS_META[row.status];
               const inspection = inspectionMetaOf(row.inspection);
+              const dday = reviewDdayOf(row);
               return (
                 <TableRow
                   key={row.id}
@@ -698,6 +724,25 @@ export function CareClaimListPage({
                   <TableTd className="tabular-nums">
                     {ymd(row.claimedAt)}
                   </TableTd>
+                  <TableTd className="tabular-nums">
+                    {ymd(row.reviewDueOn)}
+                  </TableTd>
+                  {showDday ? (
+                    <TableTd className="tabular-nums">
+                      {dday === null ? (
+                        "-"
+                      ) : (
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                          {reviewDdayText(dday)}
+                          {isReviewOverdue(row) ? (
+                            <Tag tone="critical" size="small">
+                              {OVERDUE_LABEL}
+                            </Tag>
+                          ) : null}
+                        </span>
+                      )}
+                    </TableTd>
+                  ) : null}
                   {showApprovedAt ? (
                     <TableTd className="tabular-nums">
                       {ymd(row.approvedAt)}

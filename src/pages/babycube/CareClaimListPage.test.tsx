@@ -2,7 +2,15 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { CareClaimListPage } from "./CareClaimListPage";
-import { CLAIM_ROWS, REVIEW_COPY, sumAmount } from "./CareClaimListPage.data";
+import {
+  CLAIM_ROWS,
+  OVERDUE_COUNT,
+  REVIEW_COPY,
+  isReviewOverdue,
+  reviewDdayOf,
+  reviewDdayText,
+  sumAmount,
+} from "./CareClaimListPage.data";
 import { SETTLEMENT_SUMMARY, SELLER_SETTLEMENTS } from "./settlement.data";
 
 /* -------------------------------------------------------------------------
@@ -68,7 +76,7 @@ function bodyRows(): HTMLElement[] {
   return within(table).getAllByRole("row").slice(1);
 }
 
-/** 열: 0 선택 · 1 No · 2 주문번호 · 3 셀러 · 4 상품 · 5 검수 판정 · 6 복원비 · 7 청구일 · [8 승인일|반려일] · 상태 */
+/** 열: 0 선택 · 1 No · 2 주문번호 · 3 셀러 · 4 상품 · 5 검수 판정 · 6 복원비 · 7 청구일 · 8 심사 기한 · [9 D-day|승인일|반려일] · 상태 */
 const cellsOf = (row: HTMLElement) => within(row).getAllByRole("cell");
 const column = (index: number) =>
   bodyRows().map((row) => cellsOf(row)[index].textContent);
@@ -150,14 +158,15 @@ describe("CareClaimListPage (S14 안심케어 승인)", () => {
 
       await user.click(statusBox("승인 2건"));
       expect(column(2)).toEqual([APPROVED_A, APPROVED_B]);
-      expect(column(8)).toEqual(["2026.09.21", "2026.09.18"]);
+      /* 8 은 심사 기한 — 승인일은 그 다음 칸이다 */
+      expect(column(9)).toEqual(["2026.09.21", "2026.09.18"]);
 
       await user.click(statusBox("반려 1건"));
       expect(column(2)).toEqual([REJECTED_NO]);
       expect(
         screen.getByRole("columnheader", { name: "반려일" }),
       ).toBeInTheDocument();
-      expect(column(8)).toEqual(["2026.10.16"]);
+      expect(column(9)).toEqual(["2026.10.16"]);
     });
 
     it("반려 카드 툴팁은 상품 문장이 아니라 안심케어 반려 안내다 (부록 A C48)", async () => {
@@ -214,6 +223,8 @@ describe("CareClaimListPage (S14 안심케어 승인)", () => {
         "검수 판정",
         "복원비",
         "청구일",
+        "심사 기한",
+        "D-day",
         "상태",
       ]);
       expect(cellsOf(rowOf(RECEIVED_NO)).map((td) => td.textContent)).toEqual([
@@ -225,8 +236,71 @@ describe("CareClaimListPage (S14 안심케어 승인)", () => {
         "파손(복원가능)",
         "9,000원",
         "2026.10.10",
+        /* 10-10(토) 접수 → 3번째 영업일 10-14 · 시연 기준일 10-19 → D+5 + 「기한 경과」 */
+        "2026.10.14",
+        "D+5기한 경과",
         "청구 접수",
       ]);
+    });
+
+    /** 추가 작업 요청 B13 — 「심사 기한」은 모든 탭, 「D-day」는 청구 접수 탭만 */
+    it("승인·반려 탭에는 「심사 기한」 열만 있고 「D-day」 열과 「기한 경과」 배지는 없다", async () => {
+      const { user } = renderPage();
+      const headers = () =>
+        within(screen.getByRole("table"))
+          .getAllByRole("columnheader")
+          .map((th) => th.textContent);
+      const table = () => within(screen.getByRole("table"));
+
+      expect(table().getByText("기한 경과")).toBeVisible();
+
+      await user.click(statusBox("승인 2건"));
+      expect(headers().slice(7)).toEqual([
+        "청구일",
+        "심사 기한",
+        "승인일",
+        "상태",
+      ]);
+      expect(column(8)).toEqual(["2026.09.23", "2026.09.21"]);
+      expect(table().queryByText("기한 경과")).toBeNull();
+
+      await user.click(statusBox("반려 1건"));
+      expect(headers().slice(7)).toEqual([
+        "청구일",
+        "심사 기한",
+        "반려일",
+        "상태",
+      ]);
+      expect(column(8)).toEqual(["2026.10.19"]);
+    });
+
+    it("기한이 지난 접수 건이 있으면 목록 위에 안내 한 줄 — 탭을 바꿔도 같은 건수다", async () => {
+      const { user } = renderPage();
+      const notice =
+        "심사 기한이 지난 청구 1건이 있습니다 — 먼저 처리해 주세요.";
+
+      expect(OVERDUE_COUNT).toBe(1);
+      expect(screen.getByRole("status")).toHaveTextContent(notice);
+
+      await user.click(statusBox("승인 2건"));
+      expect(screen.getByText(notice)).toBeVisible();
+    });
+
+    it("D-day 표기 — 남으면 D-n · 당일 D-day · 지나면 D+n, 끝난 청구에는 D-day 가 없다", () => {
+      expect(reviewDdayText(3)).toBe("D-3");
+      expect(reviewDdayText(0)).toBe("D-day");
+      expect(reviewDdayText(-5)).toBe("D+5");
+
+      const byId = (id: string) => CLAIM_ROWS.find((row) => row.id === id)!;
+      expect(reviewDdayOf(byId("U-R18"))).toBe(-5);
+      expect(isReviewOverdue(byId("U-R18"))).toBe(true);
+      /* 승인·반려 건은 기한 날짜만 — 기한이 지났어도 경과로 세지 않는다 */
+      expect(reviewDdayOf(byId("U-R28"))).toBeNull();
+      expect(isReviewOverdue(byId("U-R28"))).toBe(false);
+      /* 기한이 남은 접수 건(예시에는 없다) — 기한만 뒤로 옮긴 사본으로 본다 */
+      const later = { ...byId("U-R18"), reviewDueOn: "2026-10-21" };
+      expect(reviewDdayOf(later)).toBe(2);
+      expect(isReviewOverdue(later)).toBe(false);
     });
 
     it("「목록 (총 N건)」 · 엑셀 없음 · 단건 심사 버튼 없음", () => {

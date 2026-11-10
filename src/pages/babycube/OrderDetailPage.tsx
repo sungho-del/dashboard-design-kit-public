@@ -55,6 +55,9 @@ import {
   modeOfPath,
   paidAtText,
   payTotalOf,
+  componentTextsOf,
+  longRentTextOf,
+  rentDaysTextOf,
   placeOf,
   reachedAt,
   refundDueNoteOf,
@@ -81,6 +84,9 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * 명세 팝업은 `CalcBreakdown`(묶음·소계·결과) — 묶음은 `.data.ts` `statementBlocksOf` 가 준다.
  * 주문 목록의 주문번호가 이 화면으로 온다(`/orders-all/{처리단위}`). 렌트·판매는 한 화면에서 갈린다 —
  * 렌트만 렌트일·보증금·회수 배송비·대여 시작일이, 판매만 수량·구매확정일이 있다.
+ * 상품정보 조건부 줄(추가 작업 요청 2026-11-09 B11): 렌트일 뒤 「(기간 옵션)」/「(기본)」 · 기간 옵션 건만 「장기 렌트 할인」 ·
+ * 구성품이 있는 건만 「구성품」(렌트는 보증금 앞 · 판매는 수량 뒤). 값은 `.data.ts` `rentDaysTextOf`·`longRentTextOf`·
+ * `componentTextsOf` — **기간 옵션·구성품 예시 건은 없다**(결제금액이 바뀐다). 명세 끝은 결제금액 → 주문 전체 승인액.
  * 방문 수령·공항 픽업은 배송정보 라벨이 「픽업 요금」·「반납 요금」이고 「준비 완료 알림일」·「수령 확인일」 두 줄이 더 있다
  * (확인 요청 답(2026-11-06) 14번·17번 — develop 자체 수령 분기).
  * 「보증금 상태」 배지 아래 환급 실패 안내 한 줄은 결제사 기간 경과로 환급이 실패한 건만(개발 §3-2-8 · `refundDueNoteOf`).
@@ -272,6 +278,19 @@ function OrderDetailBody({
   const meta = STATUS_META[order.status];
   const deposit = DEPOSIT_STATUS_META[depositStatusOf(order)];
   const refundDue = refundDueNoteOf(order);
+  const longRentText = longRentTextOf(order);
+  /* 구성품 — 있을 때만 한 줄에 하나씩(렌트는 보증금 앞 · 판매는 수량 뒤에 놓인다) */
+  const componentTexts = componentTextsOf(order);
+  const componentsItem =
+    componentTexts.length > 0 ? (
+      <Item label="구성품">
+        <span className="flex flex-col gap-1">
+          {componentTexts.map((text) => (
+            <span key={text}>{text}</span>
+          ))}
+        </span>
+      </Item>
+    ) : null;
   /* 클레임 모드 — 경로가 클레임이고 그 클레임이 있다(`findOrder` 가 이미 맞춰 봤다) */
   const claimMode = mode !== "order" && order.claim !== null;
   const { listPath, noun } = MODES[mode];
@@ -395,7 +414,12 @@ function OrderDetailBody({
             )}
             {rent ? (
               <>
-                <Item label="렌트일">{order.rentDays}일</Item>
+                {/* 「(기간 옵션)」/「(기본)」 · 기간 옵션 건만 장기 렌트 할인 줄(develop) */}
+                <Item label="렌트일">{rentDaysTextOf(order)}</Item>
+                {longRentText ? (
+                  <Item label="장기 렌트 할인">{longRentText}</Item>
+                ) : null}
+                {componentsItem}
                 <Item label="보증금">{won(order.deposit ?? 0)}</Item>
                 <Item label="보증금 상태">
                   {/* 환급이 결제사 기간 경과로 실패한 건만 배지 아래 안내 한 줄(개발 §3-2-8 · develop 과 같은 조건) */}
@@ -412,7 +436,10 @@ function OrderDetailBody({
                 </Item>
               </>
             ) : (
-              <Item label="수량">{order.qty}개</Item>
+              <>
+                <Item label="수량">{order.qty}개</Item>
+                {componentsItem}
+              </>
             )}
           </InfoList>
         )}

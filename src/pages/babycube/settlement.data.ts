@@ -299,6 +299,12 @@ export interface SettlementRow {
   resend: { note: string; at: string } | null;
   /** 지급 처리일 — 지급완료만 */
   paidAt: string | null;
+  /**
+   * 지급 대상인데 지금 처리할 수 없는 이유(develop `payUnavailableReason` — 계좌 미등록 · 지급일 전 · 서버 값).
+   * 셀러 정산 상세의 「지급 처리 잠김 — {사유}」 안내가 읽는다. **예시 건이 없다** — 두 사유 모두 지금 예시와
+   * 맞지 않는다(지급 계좌는 고정 표기 · 시연 기준일이 지급일 뒤)
+   */
+  payUnavailableReason?: string;
   /** 처리단위 전부, 반영 → 환수 → 제외 순 */
   transactions: SettleTx[];
 }

@@ -27,6 +27,7 @@ import {
  * | `ACCOUNT_STATES` | 상태 택1 버튼의 값·라벨 (탈퇴는 **고를 수 없다**)      |
  * | `monthsSince`    | 자녀 개월 수 — 원본 "생년월일 · 개월수" 표기용         |
  * | `won` · `ymd`    | 단위 포맷                                               |
+ * | `paymentKinds`   | 결제 건의 구분(렌트·판매·렌트 연장) — 연장은 `extension` |
  *
  * ## 뼈대가 이 파일에 기대하는 계약
  * - `ACCOUNT_STATES` 는 **고를 수 있는 상태만** 담는다. 원본 정책이 "탈퇴 회원은 상태
@@ -129,10 +130,14 @@ export const PAYMENT_TABS: { value: "all" | PaymentKind; label: string }[] = [
   { value: "sale", label: "판매" },
 ];
 
-/** 구분 열 표기 — 이 서비스의 두 갈래 */
-export const PAYMENT_KIND_LABEL: Record<PaymentKind, string> = {
+/** 구분 열에 찍히는 값 — 렌트·판매 + 연장 결제(develop `MemberOrder.mode` 의 「렌트 연장」) */
+export type PaymentKindTag = PaymentKind | "extension";
+
+/** 구분 열 표기 — 이 서비스의 두 갈래와 렌트 연장 결제 */
+export const PAYMENT_KIND_LABEL: Record<PaymentKindTag, string> = {
   rent: "렌트",
   sale: "판매",
+  extension: "렌트 연장",
 };
 
 /**
@@ -150,11 +155,16 @@ export const PAYMENT_STATUS_META: Record<
   canceled: { label: "결제취소", tone: "default" },
 };
 
-/** 주문의 구분 — 렌트·판매가 섞이면 둘 다다(원본 `modeOf` 의 both) */
-export const paymentKinds = (payment: MemberPayment): PaymentKind[] =>
-  (["rent", "sale"] as const).filter((kind) =>
-    payment.items.some((item) => item.kind === kind),
-  );
+/**
+ * 주문의 구분 — 렌트·판매가 섞이면 둘 다다(원본 `modeOf` 의 both).
+ * 연장 결제는 상품 처리단위가 없어 `items` 가 아니라 결제 건의 `extension` 으로 정한다 → 「렌트 연장」 하나.
+ */
+export const paymentKinds = (payment: MemberPayment): PaymentKindTag[] =>
+  payment.extension
+    ? ["extension"]
+    : (["rent", "sale"] as const).filter((kind) =>
+        payment.items.some((item) => item.kind === kind),
+      );
 
 /** 상품명 칸 — 원본 `prodOf`: 첫 상품 + ` 외 N건` */
 export const productText = (payment: MemberPayment) =>
@@ -165,6 +175,7 @@ export const productText = (payment: MemberPayment) =>
 /**
  * 탭으로 거른 결제 내역. `"all"` 이면 그대로 낸다.
  * 섞인 주문은 **[렌트]·[판매] 양쪽에** 나온다 — 원본도 `kindsOf(o).includes(탭)` 으로 거른다.
+ * 렌트 연장 결제는 [렌트] 에만 나온다.
  */
 export const filterPayments = (
   payments: MemberPayment[],
@@ -172,7 +183,12 @@ export const filterPayments = (
 ) =>
   tab === "all"
     ? payments
-    : payments.filter((payment) => paymentKinds(payment).includes(tab));
+    : payments.filter((payment) =>
+        /* 렌트 연장 결제는 [렌트] 탭에 함께 나온다(퍼블 결정 — develop 은 서버가 거른다) */
+        payment.extension
+          ? tab === "rent"
+          : paymentKinds(payment).includes(tab),
+      );
 
 /**
  * 일시 표기 — 원본 `2026.06.29 13:15`. 결제 일시와 휴면·정지 처리 일시가 쓴다.

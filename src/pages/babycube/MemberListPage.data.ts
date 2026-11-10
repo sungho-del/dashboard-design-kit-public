@@ -85,6 +85,12 @@ export interface MemberPayment {
   /** 결제금액(원) */
   amount: number;
   status: PaymentStatus;
+  /**
+   * 렌트 연장 결제 — develop `MemberOrder.mode` 의 「렌트 연장」(상품 처리단위가 없는 연장 결제 주문).
+   * `items` 로는 구분을 정할 수 없어 결제 건에 직접 표시한다. `items` 에는 **연장한 렌트 상품 이름만**
+   * 담는다(상품명 칸용) — 새로 빌린 것이 아니므로 이용 횟수(`countPayments`)에는 세지 않는다.
+   */
+  extension?: true;
 }
 
 export type PaymentKind = "rent" | "sale";
@@ -205,6 +211,8 @@ interface BriefRow {
   reason?: [text: string, at: string];
   /** 보유 포인트 — 포인트 원장 합(`PointListPage.data.ts`). 원장이 없으면 생략 = 0 */
   points?: number;
+  /** `uses` 로 만든 결제 **앞에**(더 최근) 붙는 결제 — 렌트 연장 결제 예시용 */
+  extraPayments?: MemberPayment[];
 }
 
 const BRIEF_PRODUCTS: Record<PaymentKind, string> = {
@@ -317,6 +325,17 @@ const BRIEF_ROWS: BriefRow[] = [
     kids: 2,
     lastVisit: "2026-09-14",
     points: 1600,
+    /* 렌트 연장 결제 예시 — 이 회원의 렌트 건 U-R12(디럭스 유모차 오로라 · 대여중(연장))의 7일 연장분 */
+    extraPayments: [
+      {
+        orderNo: "20261015418862",
+        paidAt: "2026-10-15 20:41",
+        items: [{ kind: "rent", product: "디럭스 유모차 오로라" }],
+        amount: 12600,
+        status: "paid",
+        extension: true,
+      },
+    ],
   },
   {
     name: "고은찬",
@@ -465,19 +484,22 @@ const toMember = (row: BriefRow, index: number): Member => {
     activeRents: 0,
     statusReason: row.reason?.[0],
     statusAt: row.reason?.[1],
-    payments: row.uses
-      .map((kind, i) => {
-        const at = new Date(year, month + i, 1);
-        const day = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-01`;
-        return {
-          orderNo: `${day.replace(/-/g, "")}${String(100000 + index * 10 + i)}`,
-          paidAt: `${day} 10:00`,
-          items: [{ kind, product: BRIEF_PRODUCTS[kind] }],
-          amount: kind === "rent" ? 148000 : 28000,
-          status: "paid" as const,
-        };
-      })
-      .reverse(),
+    payments: [
+      ...(row.extraPayments ?? []),
+      ...row.uses
+        .map((kind, i) => {
+          const at = new Date(year, month + i, 1);
+          const day = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-01`;
+          return {
+            orderNo: `${day.replace(/-/g, "")}${String(100000 + index * 10 + i)}`,
+            paidAt: `${day} 10:00`,
+            items: [{ kind, product: BRIEF_PRODUCTS[kind] }],
+            amount: kind === "rent" ? 148000 : 28000,
+            status: "paid" as const,
+          };
+        })
+        .reverse(),
+    ],
     children: Array.from({ length: row.kids }, (_, i) => ({
       name: ["첫째", "둘째", "셋째"][i],
       birth: `202${i + 1}-0${i + 3}-10`,
@@ -951,6 +973,8 @@ export const countPayments = (member: Member, kind: PaymentKind) =>
   member.payments.filter(
     (payment) =>
       payment.status === "paid" &&
+      /* 렌트 연장 결제는 새 이용이 아니다 — 세면 목록의 「렌트 N」 이 늘어난다 */
+      !payment.extension &&
       payment.items.some((item) => item.kind === kind),
   ).length;
 
@@ -985,6 +1009,9 @@ export const REASON_COPY = {
     next === "dormant"
       ? "휴면은 12개월 미접속 시 자동 전환이 원칙이며, 어드민 수동 전환은 예외라 사유를 기록합니다. 회원이 다시 로그인하면 [정상]으로 돌아갑니다."
       : "입력한 사유는 회원 상세에 기록되며, 확인 시 정지 회원이 됩니다.",
+  /** 회원 **상세**에서 연 정지 창에만 붙는 한 줄 — develop `MemberDetailScreen` 글자 그대로(목록 일괄·휴면 창에는 없다) */
+  alimtalk:
+    "정지·해제 처리 시 회원에게 알림톡(회원 이용 정지/정지 해제)이 발송됩니다.",
   error: (next: MemberStatus) =>
     `${STATUS_META[next].label} 사유를 입력해주세요.`,
   confirm: (next: MemberStatus) => `${STATUS_META[next].label} 처리`,

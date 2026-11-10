@@ -92,6 +92,8 @@ import {
   newDraft,
   optionKey,
   periodSummary,
+  activeReservationsOf,
+  rentOverbookOf,
   slotName,
   sortOptions,
   validate,
@@ -160,7 +162,9 @@ import { ProductRejectModal } from "./shared/ProductRejectModal";
  * - 저장 오류는 첫 오류 토스트가 아니라 **칸 아래 인라인** + 접힌 섹션을 펼치고 첫 오류로 이동(폼 규격 §29)
  * - 기간 옵션이 5개면 [추가] 를 잠그고 안내를 늘 보인다 — 원본은 6번째에 띄울 경고 창이 그려지지 않는다
  * - 판매 상태 안내는 그 상태에 **실제로 있는 버튼**을 가리킨다(원본은 반려 건에도 [반려 처리]를 가리킨다)
- * - 렌트 수량의 「초과 상태 — 신규 예약 차단 중」 은 진행 중 예약 데이터가 없어 그리지 않는다
+ * - 렌트 수량 초과는 칸 아래 경고 Tag 「신규 예약 차단 중」 + 안내 한 줄(부록 A C4 문구). 조건은 develop 처럼
+ *   진행 중 예약 > **활성** 슬롯 수(`rentOverbookOf`) — 슬롯을 「중지」로 바꾸면 화면 안에서 켜진다.
+ *   진행 중 예약 건수는 예시 값(`activeReservationsOf`)이다
  * - 상세설명은 **평문 입력칸**이다(원본은 서식 편집기 — 2026-10-19 사용자 결정, 편집기는 개발 연동 때)
  * - 상품이미지는 **자리 표시 + 확대**만, 등록·교체·삭제·순서 바꾸기는 알림(사용자 결정 — 업로드는 개발 영역).
  *   확대는 닫기가 있는 창이다(원본은 문구·닫기 없는 전체 오버레이)
@@ -606,6 +610,9 @@ function ProductDetailBody({
       slotOff: prev.slotOff.filter((n) => n <= num(qty)),
     }));
   };
+  /* 렌트 수량 초과 — 진행 중 예약(예시 값) > 활성 슬롯 수. 슬롯 토글·수량 변경에 따라 다시 판정된다 */
+  const reservations = activeReservationsOf(product);
+  const overbook = rentOverbookOf(draft, reservations);
   const toggleSlot = (n: number) =>
     set(
       "slotOff",
@@ -1338,6 +1345,14 @@ function ProductDetailBody({
                 onChange={(event) => setRentQty(event.target.value)}
               />
             </FormField>
+            {overbook.overbooked ? (
+              <div className="flex flex-wrap items-center gap-2" role="status">
+                <Tag tone="warning">{COPY.overbookedBadge}</Tag>
+                <span className="body-small text-text-sub">
+                  {COPY.overbookedNote(reservations, overbook.active)}
+                </span>
+              </div>
+            ) : null}
             {num(draft.rentQty) > 0 ? (
               <ul className="flex flex-col gap-2" aria-label="렌트 슬롯">
                 {Array.from({ length: num(draft.rentQty) }, (_, index) => {

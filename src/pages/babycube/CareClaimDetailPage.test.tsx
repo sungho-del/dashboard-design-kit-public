@@ -106,6 +106,8 @@ describe("CareClaimDetailPage (S14-D 안심케어 청구 상세)", () => {
       expect(valueOf("청구 복원비")).toBe("12,000원");
       expect(screen.queryByText(/본사는 승인·반려만 합니다/)).toBeNull();
       expect(valueOf("청구일")).toBe("2026.09.18");
+      /* 추가 작업 요청 B14 — 끝난 청구는 기한 날짜만(D-day·배지 없음) */
+      expect(valueOf("심사 기한")).toBe("2026.09.23");
       expect(valueOf("승인일")).toBe("2026.09.21");
       expect(valueOf("정산 반영")).toBe("다음 달 정산(+12,000원)");
       expect(hasRow("반려 사유")).toBe(false);
@@ -144,6 +146,8 @@ describe("CareClaimDetailPage (S14-D 안심케어 청구 상세)", () => {
 
       expect(valueOf("청구 상태")).toBe("청구 접수");
       expect(valueOf("보증금")).toBe("70,000원");
+      /* 추가 작업 요청 B14 — 접수 건만 D-day. 기한(10-14)이 지나 「기한 경과」 배지 + D+5 (목록과 같은 값) */
+      expect(valueOf("심사 기한")).toBe("2026.10.14기한 경과D+5");
       /* 부록 A C53 — 청구 접수일 때 안내 삭제 */
       expect(screen.queryByText(/반려하면 보증금 차감 판단으로/)).toBeNull();
       expect(hasRow("승인일")).toBe(false);

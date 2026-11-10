@@ -977,6 +977,8 @@ describe("체크 후 일괄 상태 변경", () => {
     /* 앞에서 적다 만 글자가 남지 않는다 */
     expect(within(dialog).getByRole("textbox")).toHaveValue("");
     expect(within(dialog).getByText(/회원 상세에 기록/)).toBeVisible();
+    /* 알림톡 안내는 회원 상세에서 연 정지 창에만 있다(추가 작업 요청 B10) */
+    expect(within(dialog).queryByText(/알림톡/)).toBeNull();
   });
 
   it("2명 이상이면 제목에 인원이 붙는다", async () => {

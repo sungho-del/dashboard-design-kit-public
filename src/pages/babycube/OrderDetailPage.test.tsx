@@ -12,11 +12,17 @@ import { navigate } from "../../lib/router";
 import { STAGES } from "./GrowthStageListPage.data";
 import { OrderDetailPage } from "./OrderDetailPage";
 import {
+  cancelRefundOf,
   claimFeeOf,
+  componentTextsOf,
   historyOf,
+  longRentTextOf,
+  orderApprovedOf,
+  payTotalOf,
+  rentDaysTextOf,
   statementBlocksOf,
 } from "./OrderDetailPage.data";
-import { ORDERS } from "./OrderListPage.data";
+import { ORDERS, type Order } from "./OrderListPage.data";
 import { draftOf } from "./ProductDetailPage.data";
 import { PRODUCTS } from "./ProductListPage.data";
 
@@ -343,7 +349,7 @@ describe("OrderDetailPage", () => {
       expect(lines["렌트 원가"]).toBe("1,500원/일");
       expect(lines["상품 할인"]).toBe("\u2212200원/일");
       expect(lines["렌트가"]).toBe("1,300원/일");
-      expect(lines["렌트일"]).toBe("14일");
+      expect(lines["렌트일"]).toBe("14일 (기본)");
       expect(lines["소계"]).toBe("18,200원");
       expect(lines["배송비"]).toBe("무료");
       expect(lines["회수 배송비"]).toBe("무료");
@@ -352,17 +358,213 @@ describe("OrderDetailPage", () => {
       /* 확인 요청 답(2026-11-06) 27번 — 보증금 줄 보조 글자 없음 */
       expect(hints["보증금"]).toBeNull();
       /* 묶음 순서 — 쿠폰·포인트가 없으면 「할인」 묶음은 없다 · 보증금은 결제금액 **아래** */
+      /* 추가 작업 요청 B11 ④ — 끝은 「주문 전체 승인액」(결제금액 + 보증금 · 이 주문번호는 처리단위 하나) */
       expect(blocks.map((block) => block.key)).toEqual([
         "product",
         "extra",
         "pay",
         "deposit",
+        "approved",
       ]);
+      expect(lines["주문 전체 승인액"]).toBe("138,200원");
+      /* 기본 렌트일 건 · 구성품 없는 건에는 조건부 줄이 없다 */
+      expect(lines["장기 렌트 할인"]).toBeUndefined();
+      expect(blocks.map((block) => block.key)).not.toContain("components");
       /* 차감은 기본 글자색 — 명세에 경고색이 없다 */
       expect(dialog.querySelector(".text-text-critical")).toBeNull();
 
       await user.click(within(dialog).getByRole("button", { name: "닫기" }));
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    });
+
+    /** 추가 작업 요청 B11 ④ — 같은 주문번호의 처리단위 결제금액 합 + 보증금 */
+    it("주문 전체 승인액은 같은 주문번호 처리단위를 모두 더한다 (U-R09 + U-R22)", async () => {
+      const units = ORDERS.filter(
+        (order) =>
+          order.orderNo === ORDERS.find((o) => o.id === "U-R09")!.orderNo,
+      );
+      expect(units.map((order) => order.id).sort()).toEqual(["U-R09", "U-R22"]);
+      const expected = units.reduce(
+        (sum, order) => sum + payTotalOf(order) + (order.deposit ?? 0),
+        0,
+      );
+
+      const { user } = renderAt("/orders-all/U-R09");
+      const { lines } = await openStatement(user);
+
+      expect(amount(lines["주문 전체 승인액"])).toBe(expected);
+      /* 이 처리단위 몫(결제금액 + 보증금)보다 크다 — 다른 처리단위가 들어 있다 */
+      expect(expected).toBeGreaterThan(
+        amount(lines["결제금액"]) + amount(lines["보증금"]),
+      );
+    });
+
+    it("판매 건의 승인액은 보증금이 없어 결제금액과 같다 (처리단위 하나)", () => {
+      const order = ORDERS.find((o) => o.id === "U-S01")!;
+      expect(ORDERS.filter((o) => o.orderNo === order.orderNo)).toHaveLength(1);
+      expect(orderApprovedOf(order)).toBe(payTotalOf(order));
+    });
+
+    /**
+     * 추가 작업 요청 B11 ①② · B12 — 조건부 줄. **예시 건은 없다**(값이 결제금액을 바꾼다) —
+     * 예시 주문에 값을 얹은 사본으로 줄과 계산만 본다.
+     */
+    describe("조건부 줄 — 구성품 · 장기 렌트 할인 · 배송비 차감 (데이터 단위)", () => {
+      const rentOrder = ORDERS.find((o) => o.id === "U-R01")!;
+      const saleOrder = ORDERS.find((o) => o.id === "U-S01")!;
+      const linesOf = (order: Order, key: string, claimMode = false) =>
+        statementBlocksOf(order, claimMode)
+          .find((block) => block.key === key)
+          ?.lines.map((line) => [line.label, line.value]);
+
+      it("예시 주문에는 구성품·기간 옵션·배송비 차감 값이 없다 — 숫자가 번지지 않는다", () => {
+        for (const order of ORDERS) {
+          expect(order.components).toBeUndefined();
+          expect(order.longRent).toBeUndefined();
+          expect(order.claim?.shipDeduct).toBeUndefined();
+          if (order.type === "rent")
+            expect(rentDaysTextOf(order)).toBe(`${order.rentDays}일 (기본)`);
+        }
+      });
+
+      it("구성품 — 렌트는 「이름 +금액」, 판매는 이름만 · 명세에 「구성품」 묶음 · 결제금액에 더해진다", () => {
+        const components = [
+          { name: "전용 레인커버", amount: 3000 },
+          { name: "컵홀더", amount: 1000 },
+        ];
+        const rent = { ...rentOrder, components };
+        const sale = { ...saleOrder, components };
+
+        expect(componentTextsOf(rentOrder)).toEqual([]);
+        expect(componentTextsOf(rent)).toEqual([
+          "전용 레인커버 +3,000원",
+          "컵홀더 +1,000원",
+        ]);
+        expect(componentTextsOf(sale)).toEqual(["전용 레인커버", "컵홀더"]);
+
+        expect(linesOf(rentOrder, "components")).toBeUndefined();
+        expect(linesOf(rent, "components")).toEqual([
+          ["전용 레인커버", "+3,000원"],
+          ["컵홀더", "+1,000원"],
+        ]);
+        /* 묶음 순서 — 상품 다음 */
+        expect(
+          statementBlocksOf(rent)
+            .map((block) => block.key)
+            .slice(0, 2),
+        ).toEqual(["product", "components"]);
+        expect(payTotalOf(rent)).toBe(payTotalOf(rentOrder) + 4000);
+        expect(payTotalOf(sale)).toBe(payTotalOf(saleOrder) + 4000);
+      });
+
+      /* 화면 줄 — 예시 건이 없어 예시 주문에 값을 잠깐 얹어 그려 본다(끝나면 되돌린다) */
+      it("상품정보 — 값이 있는 건만 「장기 렌트 할인」·「구성품」 행이 서고, 보증금 앞이다", () => {
+        expect(rentOrder.components).toBeUndefined();
+        rentOrder.components = [{ name: "전용 레인커버", amount: 3000 }];
+        rentOrder.longRent = { discount: 2200, optionPrice: 16000 };
+        try {
+          renderAt("/orders-all/U-R01");
+
+          expect(valueOf("렌트일")).toBe("14일 (기간 옵션)");
+          expect(valueOf("장기 렌트 할인")).toBe(
+            "−2,200원 (14일 등록가 16,000원)",
+          );
+          expect(valueOf("구성품")).toBe("전용 레인커버 +3,000원");
+          const labels = [
+            ...screen
+              .getAllByText("렌트일")
+              .find((element) => element.tagName === "DT")!
+              .closest("dl")!
+              .querySelectorAll("dt"),
+          ].map((term) => term.textContent);
+          expect(labels.slice(labels.indexOf("렌트일"))).toEqual([
+            "렌트일",
+            "장기 렌트 할인",
+            "구성품",
+            "보증금",
+            "보증금 상태",
+          ]);
+        } finally {
+          delete rentOrder.components;
+          delete rentOrder.longRent;
+        }
+      });
+
+      it("상품정보 — 예시 건은 렌트일 「(기본)」 이고 조건부 행이 없다", () => {
+        renderAt("/orders-all/U-R01");
+
+        expect(valueOf("렌트일")).toBe("14일 (기본)");
+        expect(hasRow("장기 렌트 할인")).toBe(false);
+        expect(hasRow("구성품")).toBe(false);
+      });
+
+      it("기간 옵션 건 — 렌트일 「(기간 옵션)」 · 「장기 렌트 할인」 줄 · 소계와 결제금액에서 빠진다", () => {
+        /* U-R01: 1,300원/일 × 14일 = 18,200 → 14일 등록가 16,000 = 할인 2,200 */
+        const order = {
+          ...rentOrder,
+          longRent: { discount: 2200, optionPrice: 16000 },
+        };
+
+        expect(longRentTextOf(rentOrder)).toBeNull();
+        expect(rentDaysTextOf(order)).toBe("14일 (기간 옵션)");
+        expect(longRentTextOf(order)).toBe(
+          "\u22122,200원 (14일 등록가 16,000원)",
+        );
+
+        const product = statementBlocksOf(order).find(
+          (block) => block.key === "product",
+        )!.lines;
+        expect(product.map((line) => line.label)).toEqual([
+          "렌트 원가",
+          "상품 할인",
+          "렌트가",
+          "렌트일",
+          "장기 렌트 할인",
+          "소계",
+        ]);
+        const byLabel = Object.fromEntries(
+          product.map((line) => [line.label, line]),
+        );
+        expect(byLabel["렌트일"].value).toBe("14일 (기간 옵션)");
+        expect(byLabel["장기 렌트 할인"].value).toBe("\u22122,200원");
+        expect(byLabel["장기 렌트 할인"].hint).toBe("14일 등록가 적용");
+        expect(byLabel["소계"].value).toBe("16,000원");
+        expect(payTotalOf(order)).toBe(payTotalOf(rentOrder) - 2200);
+      });
+
+      it("취소 명세 「배송비 차감」 — 값이 있을 때만 위약금 다음에 서고 환불액에서 빠진다", () => {
+        /* U-R24: 결제금액 8,400 − 위약금 1,700 = 6,700 (취소 완료) */
+        const base = ORDERS.find((o) => o.id === "U-R24")!;
+        const shipped = {
+          ...base,
+          claim: { ...base.claim!, shipDeduct: 6000 },
+        };
+
+        expect(linesOf(base, "refund", true)!.map(([label]) => label)).toEqual([
+          "결제금액",
+          "위약금",
+          "환불 완료",
+          "환불 상태",
+        ]);
+        expect(linesOf(shipped, "refund", true)).toEqual([
+          ["결제금액", "8,400원"],
+          ["위약금", "\u22121,700원"],
+          ["배송비 차감", "\u22126,000원"],
+          ["환불 완료", "700원"],
+          ["환불 상태", `완료 · ${base.payMethod} 취소 700원`],
+        ]);
+        expect(cancelRefundOf(shipped)).toBe(700);
+
+        /* 위약금 없는 취소(U-R23)에도 배송비 차감만 따로 선다 */
+        const free = ORDERS.find((o) => o.id === "U-R23")!;
+        expect(
+          linesOf(
+            { ...free, claim: { ...free.claim!, shipDeduct: 6000 } },
+            "refund",
+            true,
+          )!.map(([label]) => label),
+        ).toEqual(["결제금액", "배송비 차감", "환불 예정액", "환불 상태"]);
+      });
     });
 
     it("본문 주문정보의 결제금액은 팝업과 같은 값이다", async () => {

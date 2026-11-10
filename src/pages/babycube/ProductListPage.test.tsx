@@ -2,6 +2,8 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { ProductListPage } from "./ProductListPage";
+import { LISTED_PRODUCTS } from "./ProductListPage.data";
+import { STAGE_OPTIONS, stageOf } from "./ProductDetailPage.data";
 
 /* -------------------------------------------------------------------------
  * 상품 관리 (S05) — 목록형
@@ -686,6 +688,44 @@ describe("ProductListPage", () => {
       expect(
         screen.getByText("전시 상태 전시중 · 유형 렌트 · 카시트"),
       ).toBeVisible();
+    });
+
+    /** 추가 작업 요청 B6 — develop `products/filter.tsx` 성장단계 셀렉트 */
+    it("성장단계로 좁히면 그 단계 상품만 남고, 요약에 단계 이름이 뜬다", async () => {
+      const { user } = renderPage();
+      const stage = STAGE_OPTIONS[0];
+      const expected = LISTED_PRODUCTS.filter(
+        (product) =>
+          product.status === "onSale" && stageOf(product) === stage.value,
+      ).map((product) => product.id);
+      /* 전부이거나 0건이면 필터가 걸렸는지 알 수 없다 */
+      expect(expected.length).toBeGreaterThan(0);
+      expect(expected.length).toBeLessThan(10);
+
+      await openFilters(user);
+      expect(selectTrigger("성장단계")).toHaveTextContent("성장단계 전체");
+      await chooseOption(user, "성장단계", stage.label);
+
+      expect(visibleCodes()).toEqual(expected);
+
+      await user.click(screen.getByRole("button", { name: /검색 닫기/ }));
+      expect(screen.getByText(stage.label)).toBeVisible();
+    });
+
+    it("성장단계 「없음」은 요약에 「성장단계 없음」으로 뜨고, 해당 상품이 없어 빈 상태다", async () => {
+      const { user } = renderPage();
+
+      await chooseOption(user, "성장단계", "없음");
+
+      expect(bodyRows()).toHaveLength(0);
+      expect(screen.getByText("해당 조건의 상품이 없습니다")).toBeVisible();
+
+      await user.click(screen.getByRole("button", { name: /검색 닫기/ }));
+      expect(screen.getByText("성장단계 없음")).toBeVisible();
+
+      /* 초기화하면 단계 조건도 풀린다 */
+      await user.click(screen.getByRole("button", { name: "필터 초기화" }));
+      expect(visibleCodes()).toEqual(ON_SALE_PAGE_1);
     });
 
     /** 결과 밖으로 나간 선택이 남으면 보이지 않는 상품이 다음 처리 대상에 섞인다 */
