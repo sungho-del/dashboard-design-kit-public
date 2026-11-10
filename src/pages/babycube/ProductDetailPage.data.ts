@@ -67,6 +67,12 @@ export const HQ_SELLER_PATH = `/sellers/${HQ_SELLER?.id ?? ""}`;
  */
 export type DiscountType = "amt" | "rate";
 
+/** 할인 값 칸 잠금 — 입점 상품(금액 잠금)이거나, 직영이라도 예전에 정률로 저장된 값이면 잠근다(확인 요청 답 2026-11-06 10번) */
+export const isDiscountValueLocked = (
+  priceLocked: boolean,
+  type: DiscountType,
+) => priceLocked || type === "rate";
+
 /** 판매 상품의 상태 — 중고면 최초 구매일·등급을 더 받는다 */
 export type Condition = "new" | "used";
 

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { navigate } from "../../lib/router";
 import { ProductDetailPage } from "./ProductDetailPage";
+import { isDiscountValueLocked } from "./ProductDetailPage.data";
 
 /* -------------------------------------------------------------------------
  * 상품 상세 (BO-PRD-002) — 폼형 · 1단계
@@ -1043,6 +1044,13 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
     });
 
     /** 확인 요청 답(2026-11-06) 10번 — 예전에 정률로 저장된 값은 읽기 전용(개발 `productDiscountFieldPolicy`) */
+    /** 잠금 사유 두 가지를 따로 가린다 — 예시 정률 상품(LS672384)은 입점 상품이라 원래 금액이 잠겨 있다 */
+    it("할인 값 칸 잠금 — 직영 정률은 잠기고 직영 정액은 열린다 · 입점은 늘 잠긴다", () => {
+      expect(isDiscountValueLocked(false, "rate")).toBe(true);
+      expect(isDiscountValueLocked(false, "amt")).toBe(false);
+      expect(isDiscountValueLocked(true, "amt")).toBe(true);
+    });
+
     it("예전에 정률로 저장된 할인은 값 칸이 잠기고 단위가 % 로 보인다", () => {
       renderAt("LS672384");
       const price = section(/가격 · 렌트 기간/);

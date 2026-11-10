@@ -34,9 +34,9 @@
   `AppShell` `Avatar` `Button` `Card` `Chart` `Checkbox` `DataTableShell` `DatePicker` `Divider` `Dropdown` `EmptyState` `FilterBar` `FormField` `Gnb` `IconButton` `InfoList` `Input` `Modal` `PageHeader` `Pagination` `ProgressBar` `Radio` `SegmentedControl` `Select` `SelectionBar` `SideSheet` `Skeleton` `Spinner` `StatGrid` `StatTile` `Switch` `Table` `Tabs` `Tag` `Textarea` `TextButton` `Toast` `Tooltip`
   버튼 계열 variant는 `Button/variants.ts`를 공유한다 (Button·IconButton 동일 규격)
   ⚠️ `FormField`는 **`Input`·`Textarea`·`Select` 전용**이다. `Switch`·`Checkbox`·`Radio`는 루트가 이미 `<label>`이라 감싸면 라벨이 중첩된다 — 자체 `label`·`description` prop을 쓴다
-- `src/pages/` — BabyCube 화면 **31종** + 화면 생성기 원본(템플릿 4종) + GNB 구성 `gnbSections.tsx`(여러 페이지 공유):
+- `src/pages/` — BabyCube 화면(경로 등록은 `src/App.tsx` · 목록은 `/screens`) + 화면 생성기 원본(템플릿 4종) + GNB 구성 `gnbSections.tsx`(여러 페이지 공유):
   - **템플릿 4종**(루트, 이커머스) — `OrderListPage`(목록형) · `ProductFormPage`(폼형) · `OrderDetailPage`(상세형) · `DashboardPage`(통계형). 화면 생성기가 변형해 쓰는 원본. 경로 `/_template/*` — **GNB·화면 목록에는 없고 전달본에도 들어가지 않는다**
-  - `src/pages/babycube/` **31종** — 실전 기획서(`pipeline/01-service-brief.json`)로 Stage 5 가 생성. **원본 route 그대로**(`/` · `/members` · …)
+  - `src/pages/babycube/` — 실전 기획서(`pipeline/01-service-brief.json`)로 Stage 5 가 생성. **원본 route 그대로**(`/` · `/members` · …)
   - 저장소 색인 `ScreenIndexPage`(`/screens`)가 BabyCube 전체 목록을 연다
     모든 화면이 `{navOpen, onNavOpenChange, activeNav, onNavSelect}` props를 받는다. `src/App.tsx`는 **전역 Provider + 경로→화면 조회 맵만**(215줄). 화면마다 URL 이 있고, 라우터는 `src/lib/router.ts` 의 최소 구현이다 — **GNB 항목 id 가 곧 경로**라 별도 매핑표를 두지 않는다(한쪽만 고치면 조용히 어긋난다)
     **GNB 구성·로고 슬롯을 페이지 파일에 두지 말 것** — `App → 페이지 → App` 순환 참조가 되고, 한 페이지에만 넘기면 나머지 화면에서 로고가 사라진다. 반드시 `gnbSections.tsx`의 `GNB_SECTIONS`·`GNB_LOGO_SLOTS`를 가져다 쓴다

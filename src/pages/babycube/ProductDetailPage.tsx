@@ -98,6 +98,7 @@ import {
   sortOptions,
   validate,
   won,
+  isDiscountValueLocked,
   type CertRow,
   type Fee,
   type FieldKey,
@@ -802,7 +803,7 @@ function ProductDetailBody({
               id={fieldId(errorKey)}
               inputMode="numeric"
               placeholder={kind === "rent" ? "렌트가에서" : "판매가에서"}
-              disabled={priceLocked || type === "rate"}
+              disabled={isDiscountValueLocked(priceLocked, type)}
               rightIcon={
                 <span className="body-small text-text-sub">
                   {type === "rate" ? "%" : "원"}
