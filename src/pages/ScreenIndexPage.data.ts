@@ -8,6 +8,7 @@ import {
   FileText,
   FolderTree,
   Images,
+  KeyRound,
   LayoutDashboard,
   Megaphone,
   MessageSquare,
@@ -214,6 +215,30 @@ export const SCREENS: ScreenEntry[] = [
     file: "babycube/OrderDetailPage.tsx",
     entryNote:
       "GNB 에 없다 — 주문 목록에서 주문번호나 행을 눌러 들어간다. 취소·반품·교환 상세도 이 화면이 맡는다",
+    icon: ShoppingCart,
+  },
+  {
+    navId: "/order-detail/20261015418862",
+    name: "결제 상세",
+    type: "상세형",
+    origin: "babycube",
+    summary:
+      "결제(주문번호) 1건의 주문 정보 · 결제 요약(조회 전용) — 예시는 렌트 연장 결제",
+    file: "babycube/OrderPaymentDetailPage.tsx",
+    entryNote:
+      "GNB 에 없다 — 회원 상세 결제 내역 · 보증금 상세 · 대여 상세의 주문번호로 들어간다",
+    icon: ReceiptText,
+  },
+  {
+    navId: "/rent-detail/U-R12",
+    name: "대여 상세",
+    type: "상세형",
+    origin: "babycube",
+    summary:
+      "렌트 처리단위의 진행 상태 · 계약 · 연장 이력 · 검수 · 보증금 · 이미지(조회 전용) — 예시는 연장 건",
+    file: "babycube/RentContractDetailPage.tsx",
+    entryNote:
+      "GNB 에 없다 — 결제 상세 「렌트 연장」 줄의 대여 건으로 들어간다",
     icon: ShoppingCart,
   },
   {
@@ -542,6 +567,58 @@ export const SCREENS: ScreenEntry[] = [
     summary: "고객센터·사업자 정보 · 섹션 접기 + 필수 표시",
     file: "babycube/SettingsPage.tsx",
     icon: Settings,
+  },
+  /* ── 인증 화면 4종 — 메뉴 없이 가운데 창 하나. 유형은 템플릿 4종 밖이라 가장 가까운 폼형으로 적는다 ── */
+  {
+    navId: "/login",
+    name: "로그인",
+    type: "폼형",
+    origin: "babycube",
+    summary: "아이디(이메일) · 비밀번호 — 두 칸을 채워야 [로그인]",
+    file: "babycube/AuthPages.tsx",
+    entryNote: "GNB 에 없다 — 주소로 직접 연다",
+    icon: KeyRound,
+  },
+  {
+    navId: "/password",
+    name: "비밀번호 변경",
+    type: "폼형",
+    origin: "babycube",
+    summary: "현재 · 새 비밀번호 · 확인 — 확인 불일치 검사",
+    file: "babycube/AuthPages.tsx",
+    entryNote: "GNB 에 없다 — 비밀번호 변경이 강제된 계정만 온다",
+    icon: KeyRound,
+  },
+  {
+    navId: "/password-reset",
+    name: "비밀번호 찾기",
+    type: "폼형",
+    origin: "babycube",
+    summary: "재설정 메일 요청 — 입력 전 / 보낸 뒤",
+    file: "babycube/AuthPages.tsx",
+    entryNote: "GNB 에 없다 — 로그인의 [비밀번호 찾기]로 들어간다",
+    icon: KeyRound,
+  },
+  {
+    navId: "/password-reset/confirm",
+    name: "비밀번호 재설정(링크 무효)",
+    type: "폼형",
+    origin: "babycube",
+    summary: "토큰 없이 열면 링크 무효 안내 + [다시 요청하기]",
+    file: "babycube/AuthPages.tsx",
+    entryNote: "GNB 에 없다 — 재설정 메일의 링크로 들어간다",
+    icon: KeyRound,
+  },
+  {
+    navId: "/password-reset/confirm?token=sample",
+    name: "비밀번호 재설정",
+    type: "폼형",
+    origin: "babycube",
+    summary: "새 비밀번호 · 확인 — 불일치 → 규칙 검사 → 완료",
+    file: "babycube/AuthPages.tsx",
+    entryNote:
+      "GNB 에 없다 — 재설정 메일의 링크(?token=)로 들어간다. token 값은 예시다",
+    icon: KeyRound,
   },
 ];
 

@@ -9,6 +9,12 @@ import { ScreenIndexPage } from "./pages/ScreenIndexPage";
 import { TEMPLATE_ROUTES } from "./pages/routes";
 
 /* BabyCube — 기획서(pipeline/01-service-brief.json)에서 Stage 5 가 생성한 28화면 */
+import {
+  LoginPage,
+  PasswordChangePage,
+  PasswordResetConfirmPage,
+  PasswordResetRequestPage,
+} from "./pages/babycube/AuthPages";
 import { BannerListPage } from "./pages/babycube/BannerListPage";
 import { CareClaimDetailPage } from "./pages/babycube/CareClaimDetailPage";
 import { CareClaimListPage } from "./pages/babycube/CareClaimListPage";
@@ -30,12 +36,14 @@ import { OrderCancelListPage } from "./pages/babycube/OrderCancelListPage";
 import { OrderExchangeListPage } from "./pages/babycube/OrderExchangeListPage";
 /* ⚠️ 이름이 템플릿의 `OrderListPage`·`OrderDetailPage` 와 겹친다 — 그 둘만 별칭을 준다 */
 import { OrderDetailPage as BcOrderDetailPage } from "./pages/babycube/OrderDetailPage";
+import { OrderPaymentDetailPage } from "./pages/babycube/OrderPaymentDetailPage";
 import { OrderListPage as BcOrderListPage } from "./pages/babycube/OrderListPage";
 import { OrderReturnListPage } from "./pages/babycube/OrderReturnListPage";
 import { PointDetailPage } from "./pages/babycube/PointDetailPage";
 import { PointListPage } from "./pages/babycube/PointListPage";
 import { PopupListPage } from "./pages/babycube/PopupListPage";
 import { ProductListPage } from "./pages/babycube/ProductListPage";
+import { RentContractDetailPage } from "./pages/babycube/RentContractDetailPage";
 import { RentDepositDetailPage } from "./pages/babycube/RentDepositDetailPage";
 import { RentDepositListPage } from "./pages/babycube/RentDepositListPage";
 import { ReviewDetailPage } from "./pages/babycube/ReviewDetailPage";
@@ -131,6 +139,16 @@ const ROUTES: Record<string, ComponentType<NavProps>> = {
   "/scripts": ScriptSettingsPage,
   "/settings": SettingsPage,
 
+  /*
+   * ── 인증 화면 4종 — 셸(GNB·페이지 머리) 없이 가운데 창 하나. GNB 에 없다 ──
+   * 정확 일치라 `/password-reset/confirm` 과 `/password-reset` 이 서로를 가리지 않는다
+   * (쿼리 `?token=` 은 `usePathname` 이 떼고 화면이 직접 읽는다).
+   */
+  "/login": LoginPage,
+  "/password": PasswordChangePage,
+  "/password-reset/confirm": PasswordResetConfirmPage,
+  "/password-reset": PasswordResetRequestPage,
+
   /* ── 저장소 색인 (원본에 없는 화면) ── */
   "/screens": ScreenIndexPage,
 
@@ -188,6 +206,17 @@ const DETAIL_ROUTES: {
     prefix: "/orders-exchange/",
     parent: "/orders-exchange",
     screen: BcOrderDetailPage,
+  },
+  /* 결제 상세(주문번호 1건) · 대여 상세(렌트 처리단위) — 조회 전용. [목록]이 주문 목록이라 부모도 주문 목록 */
+  {
+    prefix: "/order-detail/",
+    parent: "/orders-all",
+    screen: OrderPaymentDetailPage,
+  },
+  {
+    prefix: "/rent-detail/",
+    parent: "/orders-all",
+    screen: RentContractDetailPage,
   },
   /* 정산 관리 — 원본 숨은 상세 4개(셀러 정산 · 보증금 · 안심케어 청구 · 정산 명세서) */
   {

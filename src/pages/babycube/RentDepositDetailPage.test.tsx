@@ -239,13 +239,15 @@ describe("RentDepositDetailPage (보증금 상세)", () => {
   });
 
   describe("이동", () => {
-    it("주문번호 → 그 처리단위의 주문 상세 · 회원 → 회원 상세 · 셀러 → 셀러 상세", async () => {
+    it("주문번호 → 결제 상세 · 회원 → 회원 상세 · 셀러 → 셀러 상세", async () => {
       const { user, onNavSelect } = renderAt("/rent-deposit/U-R30");
 
       await user.click(
         screen.getByRole("button", { name: orderNoOf("U-R30") }),
       );
-      expect(onNavSelect).toHaveBeenLastCalledWith("/orders-all/U-R30");
+      expect(onNavSelect).toHaveBeenLastCalledWith(
+        `/order-detail/${orderNoOf("U-R30")}`,
+      );
 
       await user.click(screen.getByRole("button", { name: "서하준" }));
       expect(onNavSelect).toHaveBeenLastCalledWith(

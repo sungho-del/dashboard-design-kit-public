@@ -139,12 +139,33 @@ describe("App (전달본)", () => {
     expect(window.location.pathname).toBe("/orders-all");
   });
 
+  /** 추가 작업 요청 A1·A2 — 결제 상세 ↔ 대여 상세가 서로 실제로 도착한다(둘 다 GNB 는 주문 목록) */
+  it("연장 결제의 결제 상세 → 대여 건 → 대여 상세 → 연장 이력 주문번호 → 다시 그 결제 상세 → [목록]", async () => {
+    renderAt("/order-detail/20261015418862");
+    expect(pageTitle()).toBe("결제 상세");
+
+    await userEvent.click(screen.getByRole("button", { name: "U-R12" }));
+    expect(window.location.pathname).toBe("/rent-detail/U-R12");
+    expect(pageTitle()).toBe("대여 상세");
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "20261015418862" }),
+    );
+    expect(window.location.pathname).toBe("/order-detail/20261015418862");
+    expect(pageTitle()).toBe("결제 상세");
+
+    await userEvent.click(screen.getByRole("button", { name: "목록" }));
+    expect(window.location.pathname).toBe("/orders-all");
+  });
+
   /** 번호 없이 들어온 상세는 그 목록으로(개발 §2-4) — 주소를 바꿔 달아 「뒤로」가 빈 주소로 돌아가 다시 튕기지 않는다 */
   it.each([
     ["/orders-all/", "/orders-all"],
     ["/orders-cancel/", "/orders-cancel"],
     ["/orders-return/", "/orders-return"],
     ["/orders-exchange/", "/orders-exchange"],
+    ["/order-detail/", "/orders-all"],
+    ["/rent-detail/", "/orders-all"],
   ])(
     "번호 없이 %s 로 들어오면 %s 목록이 열리고 기록은 쌓이지 않는다",
     (path, list) => {

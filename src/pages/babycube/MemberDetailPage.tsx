@@ -22,6 +22,7 @@ import {
   TableTd,
   TableTh,
   Tag,
+  TextButton,
   useToast,
 } from "../../components/ui";
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
@@ -61,6 +62,7 @@ import {
   type PaymentKind,
 } from "./MemberListPage.data";
 import { MemberReasonModal } from "./MemberListPage";
+import { hasPayment, paymentPathOf } from "./OrderPaymentDetailPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
 /* =========================================================================
@@ -567,8 +569,19 @@ export function MemberDetailPage({
                         {visiblePayments.length - index}
                       </TableTd>
                       {/* 주문번호·일시·금액은 **등폭**이다(§D6-2) — 자릿수가 세로로 맞아야 한다 */}
+                      {/* 결제 상세가 열리는 주문번호(주문 예시 · 연장 결제)만 링크 — 없는 번호는 글자 그대로 */}
                       <TableTd className="tabular-nums">
-                        {payment.orderNo}
+                        {hasPayment(payment.orderNo) ? (
+                          <TextButton
+                            onClick={() =>
+                              onNavSelect(paymentPathOf(payment.orderNo))
+                            }
+                          >
+                            {payment.orderNo}
+                          </TextButton>
+                        ) : (
+                          payment.orderNo
+                        )}
                       </TableTd>
                       <TableTd className="tabular-nums">
                         {dateTimeText(payment.paidAt)}
@@ -576,7 +589,7 @@ export function MemberDetailPage({
                       {/*
                         구분은 다른 목록(주문·상품)과 같은 **중립 태그**다 — 분류지 상태가 아니다.
                         렌트와 판매가 섞인 주문은 둘 다 낸다(원본 `modeTags(both)` — 예시에는 섞인 주문이 없다 · 디자인 §3 #19).
-                        연장 결제는 「렌트 연장」 하나다. 주문번호는 링크가 아니다(결제 상세 화면이 아직 없다).
+                        연장 결제는 「렌트 연장」 하나다.
                       */}
                       <TableTd align="center">
                         <span className="inline-flex gap-1">

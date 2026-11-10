@@ -75,8 +75,8 @@ export const sellerPathOf = (row: DepositRow) => {
 export const memberPathOf = (row: DepositRow) =>
   `/members/${encodeURIComponent(row.memberId)}`;
 
-/** 주문번호 → 그 처리단위의 주문 상세(같은 주문번호의 다른 처리단위와 갈린다) */
-export const orderPathOf = (row: DepositRow) => `/orders-all/${row.id}`;
+/** 주문번호 → 결제 상세(주문번호 1건 — develop `RentDepositDetail` 과 같은 도착지 · 추가 작업 요청 A1) */
+export const orderPathOf = (row: DepositRow) => `/order-detail/${row.orderNo}`;
 
 /** 이용 기간 — 점 표기 */
 export const periodText = (period: string) =>

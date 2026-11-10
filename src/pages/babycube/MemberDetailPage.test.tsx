@@ -369,8 +369,8 @@ describe("MemberDetailPage (S02-D 회원 상세)", () => {
     });
 
     /** 추가 작업 요청 B9 — 연장 결제는 구분 「렌트 연장」, [렌트] 탭에 함께 나온다 */
-    it("렌트 연장 결제는 구분이 「렌트 연장」 이고 [렌트] 탭에만 나온다 — 주문번호는 링크가 아니다", async () => {
-      const { user } = renderAt("dain.hong@example.com");
+    it("렌트 연장 결제는 구분이 「렌트 연장」 이고 [렌트] 탭에만 나온다 — 주문번호는 결제 상세로 간다", async () => {
+      const { user, onNavSelect } = renderAt("dain.hong@example.com");
       const extensionRow = () =>
         within(paymentSection()).queryByText("20261015418862")?.closest("tr") ??
         null;
@@ -382,7 +382,17 @@ describe("MemberDetailPage (S02-D 회원 상세)", () => {
       expect(cells[3]).toHaveTextContent(/^렌트 연장$/);
       expect(cells[4]).toHaveTextContent("디럭스 유모차 오로라");
       expect(cells[5]).toHaveTextContent("12,600원");
-      expect(within(extensionRow()!).queryByRole("link")).toBeNull();
+      /* 추가 작업 요청 A1 — 결제 상세가 열리는 주문번호만 링크, 주문 예시에 없는 번호는 글자 그대로 */
+      const payRows = within(paymentSection()).getAllByRole("row").slice(1);
+      expect(
+        payRows.flatMap((row) => within(row).queryAllByRole("button")),
+      ).toHaveLength(1);
+      await user.click(
+        within(extensionRow()!).getByRole("button", { name: "20261015418862" }),
+      );
+      expect(onNavSelect).toHaveBeenLastCalledWith(
+        "/order-detail/20261015418862",
+      );
 
       await user.click(screen.getByRole("radio", { name: "렌트" }));
       expect(extensionRow()).not.toBeNull();
