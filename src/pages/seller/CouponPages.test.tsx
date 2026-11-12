@@ -122,6 +122,24 @@ describe("쿠폰 등록/수정", () => {
     expect(screen.getByText(/\[렌트 전용\]/)).toBeInTheDocument();
   });
 
+  it("[시작일|종료일 지우기] — 값이 있을 때만 · 누르면 날짜가 비고 버튼이 사라진다(개발 요청 12번)", async () => {
+    const { user } = renderAt(CouponFormPage, "/promo/CP-2608-01");
+    const start = screen.getByRole("button", { name: "시작일 지우기" });
+    expect(start).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "종료일 지우기" }));
+    expect(screen.queryByRole("button", { name: "종료일 지우기" })).toBeNull();
+    expect(screen.getByRole("button", { name: "종료일" })).toHaveTextContent(
+      "날짜 선택",
+    );
+    await user.click(start);
+    expect(screen.queryByRole("button", { name: "시작일 지우기" })).toBeNull();
+  });
+
+  it("신규 쿠폰은 날짜가 비어 [지우기]가 없다", () => {
+    renderAt(CouponFormPage, "/promo/new");
+    expect(screen.queryAllByRole("button", { name: /지우기/ })).toHaveLength(0);
+  });
+
   it("없는 쿠폰 — 찾을 수 없음", () => {
     renderAt(CouponFormPage, "/promo/CP-0000-00");
     expect(screen.getByText("찾을 수 없는 쿠폰입니다")).toBeInTheDocument();

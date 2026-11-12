@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { ArrowDownToLine, Plus, Ticket } from "lucide-react";
 import {
   Button,
@@ -256,6 +256,18 @@ function Help({ text }: { text: string }) {
   );
 }
 
+/**
+ * 날짜칸 + [지우기]를 묶은 `FormField group` 의 자식. FormField 가 오류 때 주입하는 `invalid` 를
+ * DOM 에 흘리지 않는다(본사 `DisplayFormPage` 와 같다)
+ */
+function FieldGroup({
+  invalid,
+  ...rest
+}: ComponentProps<"div"> & { invalid?: boolean }) {
+  void invalid;
+  return <div role="group" {...rest} />;
+}
+
 export function CouponFormPage(props: SellerNavProps) {
   const pathname = usePathname();
   const rest = pathname.slice(LIST_PATH.length + 1);
@@ -413,22 +425,47 @@ function CouponFormBody({
       </Section>
 
       <Section title="사용 기간">
+        {/* [시작일|종료일 지우기]는 값이 있을 때만 — 단일 달력은 비우는 손잡이가 없어 비워서 「상시」·「기한 없음」으로 되돌린다(개발 요청 12번) */}
         <div className="flex flex-wrap gap-6">
-          <FormField label="시작일">
-            <DatePicker
-              className="w-60"
-              value={toDate(draft.start)}
-              onChange={(next) => set("start", fromDate(next))}
-              placeholder="날짜 선택"
-            />
+          <FormField label="시작일" group>
+            <FieldGroup className="flex flex-wrap items-center gap-2">
+              <DatePicker
+                className="w-60"
+                aria-label="시작일"
+                value={toDate(draft.start)}
+                onChange={(next) => set("start", fromDate(next))}
+                placeholder="날짜 선택"
+              />
+              {draft.start ? (
+                <TextButton
+                  tone="secondary"
+                  size="small"
+                  onClick={() => set("start", "")}
+                >
+                  시작일 지우기
+                </TextButton>
+              ) : null}
+            </FieldGroup>
           </FormField>
-          <FormField label="종료일">
-            <DatePicker
-              className="w-60"
-              value={toDate(draft.end)}
-              onChange={(next) => set("end", fromDate(next))}
-              placeholder="날짜 선택"
-            />
+          <FormField label="종료일" group>
+            <FieldGroup className="flex flex-wrap items-center gap-2">
+              <DatePicker
+                className="w-60"
+                aria-label="종료일"
+                value={toDate(draft.end)}
+                onChange={(next) => set("end", fromDate(next))}
+                placeholder="날짜 선택"
+              />
+              {draft.end ? (
+                <TextButton
+                  tone="secondary"
+                  size="small"
+                  onClick={() => set("end", "")}
+                >
+                  종료일 지우기
+                </TextButton>
+              ) : null}
+            </FieldGroup>
           </FormField>
         </div>
         <Help text={COUPON_COPY.periodHelp} />
