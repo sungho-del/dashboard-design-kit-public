@@ -345,3 +345,36 @@ export const INSPECT_COPY = {
       ? `이미지는 최대 10장까지 등록할 수 있습니다. (${room}장만 등록)`
       : "이미지는 최대 10장까지 등록할 수 있습니다.",
 } as const;
+
+/**
+ * 대여·연체 상세 대여 정보 — develop 문구 그대로(개발 요청 2026-11-12 31번).
+ * 회수지 변경 요청 상자(고객 접수 요청을 [확정]하면 그 주소가 회수지) · 연장 이력 표 · 직접 반납 [반납 확인]
+ */
+export const RENT_USE_COPY = {
+  pickupTitle: "회수지 변경 요청",
+  pickupConfirm:
+    "요청한 주소를 회수지로 확정합니다. 고객에게 확정 안내가 발송됩니다.",
+  pickupClosed: "수거 송장이 등록되어 마감됩니다",
+  pickupConfirmed: "확정된 회수지",
+  pickupHelp:
+    "확정하면 회수 송장은 이 주소로 발행합니다. 확정 전 요청은 송장 등록 시 자동 마감됩니다.",
+  pickupDone: "회수지 변경을 확정했습니다.",
+  pickupGateTitle: "회수지 변경 확정",
+  returnReady: "실제 반납 물품을 받은 뒤 검수를 시작합니다.",
+  returnTooEarly: "이용 종료 다음 날부터 반납 확인할 수 있습니다.",
+  extensionTitle: "연장 이력",
+  extensionHeads: [
+    "회차",
+    "신청일",
+    "연장 전 예정일",
+    "새 예정일",
+    "추가 일수",
+    "연장 금액",
+    "주문번호",
+    "취소",
+  ],
+  extensionEmpty: "연관 항목 없음",
+  extensionHelp:
+    "연장·취소는 고객이 사용자 몰에서 결제·실행합니다. 위약금은 정산에서 셀러 귀속입니다.",
+  returnAddress: "회수지(변경 확정)",
+} as const;

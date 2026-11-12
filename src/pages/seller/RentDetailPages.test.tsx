@@ -209,6 +209,64 @@ describe("RentShipDetailPage — 배송 관리 상세(렌트)", () => {
 });
 
 describe("RentUseDetailPage — 대여·연체 관리 상세", () => {
+  /* ---- 개발 요청 2026-11-12 31번 ---- */
+  it("회수지 변경 요청 상자 — 접수 내용 + [확정] → 확인 창 → 확정 알림", async () => {
+    const { user } = renderAt(RentUseDetailPage, "/rent-use/20260623493905-1");
+    expect(screen.getByText("회수지 변경 요청")).toBeVisible();
+    expect(screen.getByText("회수지 변경 요청").parentElement).toHaveTextContent(
+      "서울특별시 마포구 월드컵북로 400 (상암동) 5층 · 메모 경비실 앞",
+    );
+    expect(
+      screen.getByText(
+        "확정하면 회수 송장은 이 주소로 발행합니다. 확정 전 요청은 송장 등록 시 자동 마감됩니다.",
+      ),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "확정" }));
+    await user.click(
+      within(dialog("회수지 변경 확정")).getByRole("button", { name: "확정" }),
+    );
+    expect(
+      await screen.findByText("회수지 변경을 확정했습니다."),
+    ).toBeVisible();
+  });
+
+  it("확정된 회수지 — 상자에 「확정된 회수지」 · 배송지 정보에 「회수지(변경 확정)」 줄", () => {
+    renderAt(RentUseDetailPage, "/rent-use/20260620615440-1");
+    expect(screen.getByText("확정된 회수지")).toBeVisible();
+    expect(valueOf("회수지(변경 확정)")).toHaveTextContent(
+      "경기도 성남시 분당구 판교역로 166 (백현동) 3층",
+    );
+  });
+
+  it("연장 이력 표 — develop 열 · 없으면 「연관 항목 없음」", () => {
+    renderAt(RentUseDetailPage, "/rent-use/20260626112036-1");
+    const table = screen
+      .getByRole("heading", { name: "연장 이력" })
+      .parentElement!.querySelector("table")!;
+    expect(
+      within(table)
+        .getAllByRole("columnheader")
+        .map((th) => th.textContent),
+    ).toEqual([
+      "회차",
+      "신청일",
+      "연장 전 예정일",
+      "새 예정일",
+      "추가 일수",
+      "연장 금액",
+      "주문번호",
+      "취소",
+    ]);
+    expect(within(table).getByText("31일")).toBeVisible();
+  });
+
+  it("자체 수령 — 수거 칸 「직접 반납」 + [반납 확인](이용 종료 전엔 잠김)", () => {
+    renderAt(RentUseDetailPage, "/rent-use/20260507560696-1");
+    expect(valueOf("수거 택배사")).toHaveTextContent("직접 반납");
+    expect(screen.getByRole("button", { name: "반납 확인" })).toBeDisabled();
+    expect(screen.getByText("연관 항목 없음")).toBeVisible();
+  });
+
   it("상태 배지 · 상품정보 보증금 · 대여 정보(원본 값) · 처리 버튼 없음", () => {
     renderAt(RentUseDetailPage, "/rent-use/20260623493905-1");
     expect(sectionTitles()).toEqual([

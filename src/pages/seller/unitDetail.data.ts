@@ -253,3 +253,47 @@ const RESHIP: Record<string, { courier: string; invoice: string }> = {
   "20260618339421-1": { courier: "CJ대한통운", invoice: "607300112233" },
 };
 export const reshipOf = (u: OrderUnit) => RESHIP[u.id] ?? null;
+
+/**
+ * 회수지 변경 요청 예시 — 대여중 한 건은 확정 전 요청, 연체 한 건은 확정된 회수지(개발 요청 31번).
+ * 받는 분·연락처는 그 건의 수령인 값을 쓴다. 실제 값은 서버
+ */
+const PICKUP_CHANGE: Record<
+  string,
+  {
+    request?: { at: string; address: string; note?: string };
+    confirmed?: { at: string; address: string };
+  }
+> = {
+  "20260623493905-1": {
+    request: {
+      at: "2026.06.27 14:20:00",
+      address: "서울특별시 마포구 월드컵북로 400 (상암동) 5층",
+      note: "경비실 앞",
+    },
+  },
+  "20260620615440-1": {
+    confirmed: {
+      at: "2026.06.18 11:05:00",
+      address: "경기도 성남시 분당구 판교역로 166 (백현동) 3층",
+    },
+  },
+};
+export const pickupChangeOf = (u: OrderUnit) => PICKUP_CHANGE[u.id] ?? null;
+
+/** 연장 이력 예시 — 대여중(연장) 한 건의 1회차(개발 요청 31번). 연장·취소는 고객이 실행 · 실제 값은 서버 */
+const EXTENSIONS: Record<string, string[][]> = {
+  "20260626112036-1": [
+    [
+      "1회",
+      "2026.06.28 09:30:12",
+      "2026.07.15",
+      "2026.08.15",
+      "31일",
+      "62,000원",
+      "20260628093012",
+      "-",
+    ],
+  ],
+};
+export const extensionsOf = (u: OrderUnit) => EXTENSIONS[u.id] ?? [];

@@ -10,13 +10,19 @@ import {
   ModalBody,
   ModalHeader,
   Select,
+  Table,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableTd,
+  TableTh,
   Tag,
   useToast,
 } from "../../components/ui";
 import { cn } from "../../lib/cn";
 import { CalcBreakdown } from "../babycube/CalcBreakdown";
 import { ACTION_COPY, DEPOSIT_COPY } from "./gate.data";
-import { StatusTag } from "./OrderGates";
+import { NoticeGateModal, StatusTag } from "./OrderGates";
 import { COURIERS, careOf } from "./orderUnit.data";
 import { collectAllowed } from "./processList.data";
 import type { OrderUnit } from "./seed/orders.data";
@@ -27,7 +33,12 @@ import {
   careTextOf,
   judgmentDescOf,
   judgmentOptionsOf,
+  RENT_USE_COPY,
+  extensionsOf,
   orNone,
+  pickupChangeOf,
+  receiverOf,
+  receiverTelOf,
   rentTermOf,
   type CollectMode,
 } from "./unitDetail.data";
@@ -225,17 +236,129 @@ const COURIER_OPTIONS = [
  * 대여 정보 — 원본 `rentUseDetail`·`rentInspDetail` `rentInfo`. 대여·연체는 [수거 신청](수거 송장 등록),
  * 검수·반납은 안심케어·검수 판정 줄이 더 서고 수거 신청 건만 [송장수정]
  */
+/**
+ * 회수지 변경 요청 상자 — develop `PickupChangeBox` 를 퍼블 부품으로(개발 요청 31번).
+ * 고객 접수 요청을 [확정]하면 그 주소가 회수지가 된다. 확정 전 요청은 수거 송장 등록 때 자동 마감
+ */
+function PickupChangeBox({ u }: { u: OrderUnit }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const change = pickupChangeOf(u);
+  if (!change) return null;
+  const { request, confirmed } = change;
+  /* 수거 송장이 이미 있으면 확정할 수 없다(마감) */
+  const canConfirm = !u.retInvoice;
+  return (
+    <div className="flex flex-col gap-2 rounded-medium bg-surface-sub p-4">
+      {request && (
+        <div className="flex flex-wrap items-center gap-2">
+          <b className="label-medium-bold text-text">
+            {RENT_USE_COPY.pickupTitle}
+          </b>
+          <span className="body-medium break-keep text-text">
+            접수 {request.at} · {receiverOf(u)} · {receiverTelOf(u)} ·{" "}
+            {request.address}
+            {request.note ? ` · 메모 ${request.note}` : ""}
+          </span>
+          {canConfirm ? (
+            <Button
+              variant="secondary"
+              size="small"
+              title={RENT_USE_COPY.pickupConfirm}
+              onClick={() => setOpen(true)}
+            >
+              확정
+            </Button>
+          ) : (
+            <span className="body-small text-text-sub">
+              {RENT_USE_COPY.pickupClosed}
+            </span>
+          )}
+        </div>
+      )}
+      {confirmed && (
+        <p className="body-medium break-keep text-text">
+          <b>{RENT_USE_COPY.pickupConfirmed}</b> · {confirmed.at} ·{" "}
+          {confirmed.address}
+        </p>
+      )}
+      <p className="body-small break-keep text-text-sub">
+        {RENT_USE_COPY.pickupHelp}
+      </p>
+      <NoticeGateModal
+        open={open}
+        title={RENT_USE_COPY.pickupGateTitle}
+        count={1}
+        confirmLabel="확정"
+        onClose={() => setOpen(false)}
+        onConfirm={() => {
+          setOpen(false);
+          toast(RENT_USE_COPY.pickupDone);
+        }}
+      >
+        <span>{RENT_USE_COPY.pickupConfirm}</span>
+      </NoticeGateModal>
+    </div>
+  );
+}
+
+/** 연장 이력 표 — develop 열 그대로(개발 요청 31번). 없으면 「연관 항목 없음」 */
+function ExtensionHistory({ u }: { u: OrderUnit }) {
+  const rows = extensionsOf(u);
+  return (
+    <section className="flex flex-col gap-3">
+      <h3 className="label-large-bold text-text">
+        {RENT_USE_COPY.extensionTitle}
+      </h3>
+      <Table>
+        <TableHead>
+          <TableRow>
+            {RENT_USE_COPY.extensionHeads.map((head) => (
+              <TableTh key={head}>{head}</TableTh>
+            ))}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {rows.length ? (
+            rows.map((cells) => (
+              <TableRow key={cells[0]}>
+                {cells.map((cell, index) => (
+                  <TableTd key={index} className="tabular-nums">
+                    {cell}
+                  </TableTd>
+                ))}
+              </TableRow>
+            ))
+          ) : (
+            <TableRow>
+              <TableTd colSpan={8} className="text-text-sub">
+                {RENT_USE_COPY.extensionEmpty}
+              </TableTd>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+      <p className="body-small break-keep text-text-sub">
+        {RENT_USE_COPY.extensionHelp}
+      </p>
+    </section>
+  );
+}
+
 export function RentInfoBody({
   u,
   state,
   mode,
   inspection,
+  onReturnConfirm,
 }: {
   u: OrderUnit;
   state: RentDetailState;
   mode: CollectMode;
   /** 검수·반납 — 안심케어 · 검수 판정 줄 */
   inspection?: boolean;
+  /** 자체 수령 직접 반납 [반납 확인] — 확인 창을 연다(개발 요청 31번) */
+  onReturnConfirm?: () => void;
 }) {
   const { toast } = useToast();
   const term = rentTermOf(u);
@@ -251,60 +374,86 @@ export function RentInfoBody({
     toast(ACTION_COPY.collectRequested(1));
   };
   const ro = mode === "ro";
+  /* 대여·연체 상세의 자체 수령 — 택배 수거 대신 「직접 반납」 + [반납 확인](develop · 개발 요청 31번) */
+  const direct = mode === "request" && u.shipWay === "방문 수령";
+  const returnReady = collectAllowed(u);
   return (
-    <InfoList>
-      <Item label="대여 기간">{term.period}</Item>
-      <Item label="상태">
-        <StatusTag status={u.stat ?? ""} />
-      </Item>
-      {inspection ? (
-        <>
-          <Item label="안심케어">{careTextOf(u)}</Item>
-          <Item label="검수 판정">
-            {state.judgment ? <StatusTag status={state.judgment} /> : "검수 전"}
-          </Item>
-        </>
-      ) : (
-        <>
-          <Item label="대여 시작">{term.start}</Item>
-          <Item label="반납 예정일">{term.due}</Item>
-        </>
-      )}
-      <Item label="수거 택배사">
-        {ro ? (
-          orNone(collect.courier)
+    <div className="flex flex-col gap-4">
+      <PickupChangeBox u={u} />
+      <InfoList>
+        <Item label="대여 기간">{term.period}</Item>
+        <Item label="상태">
+          <StatusTag status={u.stat ?? ""} />
+        </Item>
+        {inspection ? (
+          <>
+            <Item label="안심케어">{careTextOf(u)}</Item>
+            <Item label="검수 판정">
+              {state.judgment ? (
+                <StatusTag status={state.judgment} />
+              ) : (
+                "검수 전"
+              )}
+            </Item>
+          </>
         ) : (
-          <Select
-            className="w-56"
-            aria-label="수거 택배사"
-            options={COURIER_OPTIONS}
-            value={collect.courier}
-            onValueChange={(courier) => setCollect({ ...collect, courier })}
-          />
+          <>
+            <Item label="대여 시작">{term.start}</Item>
+            <Item label="반납 예정일">{term.due}</Item>
+          </>
         )}
-      </Item>
-      <Item label="수거 송장번호">
-        {ro ? (
-          orNone(collect.invoice)
-        ) : (
-          <span className="flex flex-wrap items-center gap-2">
-            <Input
-              className="w-60"
-              inputMode="numeric"
-              aria-label="수거 송장번호"
-              placeholder="수거 송장번호 입력"
-              value={collect.invoice}
-              onChange={(event) =>
-                setCollect({ ...collect, invoice: event.target.value })
-              }
+        <Item label="수거 택배사">
+          {direct ? (
+            "직접 반납"
+          ) : ro ? (
+            orNone(collect.courier)
+          ) : (
+            <Select
+              className="w-56"
+              aria-label="수거 택배사"
+              options={COURIER_OPTIONS}
+              value={collect.courier}
+              onValueChange={(courier) => setCollect({ ...collect, courier })}
             />
-            <Button variant="secondary" onClick={submit}>
-              {mode === "request" ? "수거 신청" : "송장수정"}
+          )}
+        </Item>
+        <Item label="수거 송장번호">
+          {direct ? (
+            <Button
+              variant="secondary"
+              disabled={!returnReady}
+              title={
+                returnReady
+                  ? RENT_USE_COPY.returnReady
+                  : RENT_USE_COPY.returnTooEarly
+              }
+              onClick={onReturnConfirm}
+            >
+              반납 확인
             </Button>
-          </span>
-        )}
-      </Item>
-    </InfoList>
+          ) : ro ? (
+            orNone(collect.invoice)
+          ) : (
+            <span className="flex flex-wrap items-center gap-2">
+              <Input
+                className="w-60"
+                inputMode="numeric"
+                aria-label="수거 송장번호"
+                placeholder="수거 송장번호 입력"
+                value={collect.invoice}
+                onChange={(event) =>
+                  setCollect({ ...collect, invoice: event.target.value })
+                }
+              />
+              <Button variant="secondary" onClick={submit}>
+                {mode === "request" ? "수거 신청" : "송장수정"}
+              </Button>
+            </span>
+          )}
+        </Item>
+      </InfoList>
+      {mode === "request" && <ExtensionHistory u={u} />}
+    </div>
   );
 }
 

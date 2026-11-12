@@ -93,6 +93,8 @@ import {
   productCodeOf,
   purchasedAtOf,
   reachedAt,
+  RENT_USE_COPY,
+  pickupChangeOf,
   readyDueOf,
   readyNoticeOf,
   refundNoticeOf,
@@ -615,6 +617,9 @@ function UnitDetailBody({
                 state={rentState}
                 mode={config.collectMode?.(u) ?? "ro"}
                 inspection={sections.includes("inspect")}
+                onReturnConfirm={() =>
+                  setGate({ kind: "returnConfirm", ids: [u.id] })
+                }
               />
             ) : key === "inspect" ? (
               <InspectBody u={u} state={rentState} />
@@ -747,6 +752,12 @@ function UnitDetailBody({
             <Item label="수령인 연락처">{receiverTelOf(u)}</Item>
             <Item label="추가 연락처">{extraTelOf(u)}</Item>
             <Item label="배송지">{orNone(u.addr)}</Item>
+            {/* 확정된 회수지 — develop 「회수지(변경 확정)」 줄(개발 요청 31번) */}
+            {pickupChangeOf(u)?.confirmed && (
+              <Item label={RENT_USE_COPY.returnAddress}>
+                {pickupChangeOf(u)?.confirmed?.address}
+              </Item>
+            )}
             <Item label="배송 메모">{orNone(u.shipMemo)}</Item>
             {/* 기획 보드 08 — 손님이 적은 건에만 */}
             {pickupRequestOf(u) && (
