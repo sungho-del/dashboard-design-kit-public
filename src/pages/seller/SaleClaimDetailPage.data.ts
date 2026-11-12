@@ -19,9 +19,48 @@ export * from "./SaleClaimDetailPage.labels";
 /** 원본 `udRmaDetail` 하단 버튼 — 다음 단계 [{다음} 처리] · [{유형} 반려] · 반려 건 [재반송 처리] */
 export function claimActionsOf(u: OrderUnit, type: ClaimType): DetailAction[] {
   const stat = claimStatOf(u) || CLAIM_FLOW[type][0];
-  /* 출고 뒤 취소 건은 반품으로 넘긴다 */
+  const rent = u.type === "렌트";
+  /*
+   * 출고 뒤 취소 건은 반품으로 넘긴다. 렌트 취소 요청은 출고됐어도 [환불 처리중]이 함께 있다
+   * (develop · 개발 요청 33번)
+   */
   if (type === "취소" && isShipped(u) && stat !== "취소 완료")
-    return [{ label: "반품 전환", special: "toReturn" }];
+    return [
+      ...(rent && stat === "취소 요청"
+        ? [{ label: "환불 처리중 처리", to: "환불 처리중" }]
+        : []),
+      { label: "반품 전환", special: "toReturn" as const },
+    ];
+  /*
+   * 렌트 반품 — 수거·검수·환불은 대여·연체 / 검수·반납 메뉴가 맡아 「다음 처리」가 없다.
+   * 승인 = [대여·연체 관리로] · 수거완료·검수 = [검수·반납 관리로](develop · 개발 요청 34번)
+   */
+  if (rent && type === "반품") {
+    const id = u.id;
+    const actions: DetailAction[] = [];
+    if (stat === "반품 신청")
+      actions.push({ label: "반품 승인 처리", to: "반품 승인" });
+    if (stat === "반품 승인")
+      actions.push({ label: "대여·연체 관리로", go: `/rent-use/${id}` });
+    if (stat === "반품 수거완료" || stat === "반품 검수")
+      actions.push({
+        label: "검수·반납 관리로",
+        go: `/rent-insp-return/${id}`,
+      });
+    if (["반품 신청", "반품 승인", "반품 수거중"].includes(stat))
+      actions.push({
+        label: "반품 반려",
+        to: "반품 반려",
+        tone: "criticalTonal",
+      });
+    if (stat === "반품 반려" || stat === "반품 거부")
+      actions.push({
+        label: "재반송 처리",
+        to: "재반송",
+        tone: "criticalTonal",
+      });
+    return actions;
+  }
   const flow = CLAIM_FLOW[type];
   const exceptions = CLAIM_EXCEPTIONS[type];
   const ci = flow.indexOf(stat);

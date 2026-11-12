@@ -439,27 +439,14 @@ describe("RentCancelPage · RentRmaPage — 렌트 클레임", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("반품 버킷(2 · 3 · 2) · 「교환으로 변경」 없음 · 접수 [반품 승인] [반품 거부]", async () => {
+  it("반품 버킷(2 · 3 · 2) · 「교환으로 변경」 없음 · 접수 [반품 승인] [반품 반려] · 진행 카드엔 처리 버튼 없음(개발 요청 34번)", async () => {
     const { user } = renderPage(RentRmaPage);
     expect(cardLabels()).toEqual(["접수2건", "진행3건", "완료2건"]);
-    expect(bulkButtons()).toEqual(["반품 승인", "반품 거부"]);
+    expect(bulkButtons()).toEqual(["반품 승인", "반품 반려"]);
     await pickCard(user, /진행/);
-    expect(bulkButtons()).toEqual([
-      "반품 수거완료",
-      "반품 검수",
-      "환불 처리중",
-      "반품 완료",
-    ]);
+    expect(
+      screen.queryByRole("group", { name: "상태 변경" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("교환으로 변경")).not.toBeInTheDocument();
-  });
-
-  it("렌트 반품 [환불 처리중] — 명세는 보증금 반환(반품 배송비 보증금에서 차감 없음 · 판매자 귀책)", async () => {
-    const { user } = renderPage(RentRmaPage);
-    await pickCard(user, /진행/);
-    await pick(user, "20260620338890");
-    await user.click(bulk("환불 처리중"));
-    const dialog = screen.getByRole("dialog", { name: "환불 처리" });
-    expect(dialog).toHaveTextContent("보증금 반환 예정액");
-    expect(dialog).not.toHaveTextContent("반품 배송비");
   });
 });

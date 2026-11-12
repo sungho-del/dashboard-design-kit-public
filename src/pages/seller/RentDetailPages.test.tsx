@@ -14,6 +14,7 @@ import {
   RentUseDetailPage,
   type RentDetailPageProps,
 } from "./RentDetailPages";
+import { claimActionsOf } from "./SaleClaimDetailPage.data";
 import { UNITS } from "./seed/orders.data";
 
 /* -------------------------------------------------------------------------
@@ -532,5 +533,43 @@ describe("렌트 클레임 상세 — 취소 · 반품", () => {
           .flatMap((b) => b.lines)
           .some((l) => l.key === "pointRestore"),
       ).toBe(false);
+  });
+});
+
+describe("렌트 취소·반품 상세 — 개발 요청 2026-11-12 33·34번", () => {
+  it("33 · 출고된 렌트 취소 요청은 [환불 처리중 처리]와 [반품 전환]이 함께", () => {
+    const base = UNITS.find(
+      (u) =>
+        u.type === "렌트" &&
+        u.req?.type === "취소" &&
+        u.req.stat === "취소 요청",
+    )!;
+    expect(
+      claimActionsOf({ ...base, ship: "2026.06.20 10:00" }, "취소").map(
+        (a) => a.label,
+      ),
+    ).toEqual(["환불 처리중 처리", "반품 전환"]);
+  });
+
+  it("34 · 렌트 반품 — 승인 = [대여·연체 관리로] · 수거완료·검수 = [검수·반납 관리로] · 「다음 처리」 없음", () => {
+    const base = UNITS.find(
+      (u) => u.type === "렌트" && u.req?.type === "반품",
+    )!;
+    const at = (stat: string) =>
+      claimActionsOf({ ...base, req: { ...base.req!, stat } }, "반품").map(
+        (a) => ("go" in a ? `${a.label}→${a.go}` : a.label),
+      );
+    expect(at("반품 신청")).toEqual(["반품 승인 처리", "반품 반려"]);
+    expect(at("반품 승인")).toEqual([
+      `대여·연체 관리로→/rent-use/${base.id}`,
+      "반품 반려",
+    ]);
+    expect(at("반품 수거완료")).toEqual([
+      `검수·반납 관리로→/rent-insp-return/${base.id}`,
+    ]);
+    expect(at("반품 검수")).toEqual([
+      `검수·반납 관리로→/rent-insp-return/${base.id}`,
+    ]);
+    expect(at("환불 처리중")).toEqual([]);
   });
 });
