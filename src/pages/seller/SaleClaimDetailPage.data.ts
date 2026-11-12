@@ -102,6 +102,19 @@ export function claimActionsOf(u: OrderUnit, type: ClaimType): DetailAction[] {
   return actions;
 }
 
+/**
+ * 출고 뒤 취소 예시 — 시드의 취소 요청은 전부 출고 전이라 [반품 전환]이 화면에 안 보인다.
+ * 판매 · 렌트 취소 요청 한 건씩 출고된 것으로 연다(개발 요청 21 · 33번). 실제 값은 서버
+ */
+const SHIPPED_CANCEL: Record<string, { courier: string; invoice: string }> = {
+  "20260614914021-1": { courier: "CJ대한통운", invoice: "612877410098" },
+  "20260617158784-1": { courier: "롯데택배", invoice: "517289567001" },
+};
+const withShippedSample = (u: OrderUnit | undefined) => {
+  const s = u && SHIPPED_CANCEL[u.id];
+  return s ? { ...u, ...s, ship: `${s.courier} ${s.invoice}` } : u;
+};
+
 /** 원본 `udRmaDetail(u, {type, isRent})` — 렌트는 제목에 (렌트) · 「교환으로 변경」 없음(원본 `DETAIL_TITLES`) */
 export const claimDetail = (
   type: ClaimType,
@@ -114,8 +127,10 @@ export const claimDetail = (
     listPath: path,
     listLabel: `${type} 관리로`,
     find: (id) =>
-      UNITS.find(
-        (u) => u.id === id && u.type === unitType && u.req?.type === type,
+      withShippedSample(
+        UNITS.find(
+          (u) => u.id === id && u.type === unitType && u.req?.type === type,
+        ),
       ),
     statusOptions: claimStatuses(type)
       .filter((s) => unitType === "판매" || s !== "교환으로 변경")

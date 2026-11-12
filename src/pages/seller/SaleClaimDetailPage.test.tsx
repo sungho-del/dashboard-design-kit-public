@@ -259,6 +259,21 @@ describe("클레임 상세 — 개발 요청 2026-11-12 21~24번", () => {
     );
   });
 
+  it("21 · 출고 뒤 취소 예시 건 — 화면에서 [반품 전환] 창이 열린다(시드엔 출고된 취소 요청이 없다)", async () => {
+    const { user } = renderAt(
+      SaleCancelDetailPage,
+      "/sale-cancel/20260614914021-1",
+    );
+    expect(
+      screen.getByText("발송 후 · CJ대한통운 612877410098"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "환불 처리중 처리" }),
+    ).toBeNull();
+    await user.click(screen.getByRole("button", { name: "반품 전환" }));
+    expect(screen.getByRole("dialog", { name: "반품 전환" })).toBeVisible();
+  });
+
   it("21 · 반품 [교환으로 변경] 창에도 동의 체크", async () => {
     const { user } = renderAt(
       SaleReturnDetailPage,

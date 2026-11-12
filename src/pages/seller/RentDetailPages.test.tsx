@@ -551,6 +551,14 @@ describe("렌트 취소·반품 상세 — 개발 요청 2026-11-12 33·34번", 
     ).toEqual(["환불 처리중 처리", "반품 전환"]);
   });
 
+  it("33 · 출고된 렌트 취소 예시 건 — 화면에 두 버튼이 함께 보인다(시드엔 출고된 취소 요청이 없다)", () => {
+    renderAt(RentCancelDetailPage, "/rent-cancel/20260617158784-1");
+    expect(
+      screen.getByRole("button", { name: "환불 처리중 처리" }),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "반품 전환" })).toBeVisible();
+  });
+
   it("34 · 렌트 반품 — 승인 = [대여·연체 관리로] · 수거완료·검수 = [검수·반납 관리로] · 「다음 처리」 없음", () => {
     const base = UNITS.find(
       (u) => u.type === "렌트" && u.req?.type === "반품",
