@@ -65,6 +65,7 @@ import {
   minus,
   plus,
   settleBlocksOf,
+  txOfStatement,
   txPathOf,
   unpaidNoteOf,
   won,
@@ -594,8 +595,8 @@ function StatementDetailBody({
   const requested = s.stat === "확인요청";
   const requestNote = requestNoteOf(s);
   const objectedNote = objectedNoteOf(s);
-  /* 지난 회차도 거래 표(develop · 개발 요청 37번) — 지난 회차 거래 예시는 시드에 없어 빈 표 */
-  const txs = s.live ? SETTLE_TX : [];
+  /* 지난 회차도 거래 표(develop · 개발 요청 37번) — 정산 반영 칸 · 각주는 그 회차 기준 */
+  const txs = txOfStatement(s);
   const monthLabel = `${s.month.replace(".", "년 ")}월`;
 
   const totalPages = Math.max(1, Math.ceil(txs.length / pageSize));
@@ -684,6 +685,7 @@ function StatementDetailBody({
               <TxTable
                 units={paged}
                 start={start}
+                month={s.month}
                 onOpen={(u) => props.onNavSelect(txPathOf(u))}
               />
             </div>
@@ -702,7 +704,7 @@ function StatementDetailBody({
                 />
               }
             />
-            <TxFoot units={txs} />
+            <TxFoot units={txs} month={s.month} />
           </>
         ) : (
           <EmptyState size="section" title={LIST_COPY.emptyTitle} />

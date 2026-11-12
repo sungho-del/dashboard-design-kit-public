@@ -67,17 +67,18 @@ export function confirmDateOf(u: OrderUnit) {
   return p.length > 1 ? p[1].trim().slice(0, 10) : "";
 }
 
-export const settleInMonth = (u: OrderUnit) =>
-  confirmDateOf(u).slice(0, 7) === SETTLE_MONTH;
+/** `month` 회차에 확정된 건 — 기본은 이번 회차. 지난 회차 명세의 거래 표도 같은 규칙(개발 요청 37번) */
+export const settleInMonth = (u: OrderUnit, month = SETTLE_MONTH) =>
+  confirmDateOf(u).slice(0, 7) === month;
 
 /** 환수 — 전월 이전에 확정(지급)된 건이 취소·반품 「완료」로 끝난 경우만 */
-export function settleClawback(u: OrderUnit) {
+export function settleClawback(u: OrderUnit, month = SETTLE_MONTH) {
   const d = confirmDateOf(u);
   return !!(
     u.req &&
     (u.req.stat === "취소 완료" || u.req.stat === "반품 완료") &&
     d &&
-    d.slice(0, 7) < SETTLE_MONTH
+    d.slice(0, 7) < month
   );
 }
 
@@ -295,12 +296,12 @@ export interface TxNote {
   sub?: string;
 }
 
-export function txNoteOf(u: OrderUnit): TxNote {
+export function txNoteOf(u: OrderUnit, month = SETTLE_MONTH): TxNote {
   if (settleVoided(u))
     return {
-      sub: `제외 · ${u.req?.type ?? ""}${settleClawback(u) ? " 환수" : ""}`,
+      sub: `제외 · ${u.req?.type ?? ""}${settleClawback(u, month) ? " 환수" : ""}`,
     };
-  if (settleInMonth(u))
+  if (settleInMonth(u, month))
     return u.req
       ? { main: "반영", sub: `· ${keptReasonOf(u)}` }
       : { main: "반영" };
@@ -312,9 +313,15 @@ export const txNoteText = (n: TxNote) =>
   [n.main, n.sub].filter(Boolean).join(" ");
 
 /** 이번 회차 근거가 위로 — 반영 → 환수 차감 → 그 밖 제외, 같은 군은 주문번호 내림차순 */
-export function sortTx(units: OrderUnit[]) {
+export function sortTx(units: OrderUnit[], month = SETTLE_MONTH) {
   const rank = (u: OrderUnit) =>
-    settleVoided(u) ? (settleClawback(u) ? 1 : 2) : settleInMonth(u) ? 0 : 2;
+    settleVoided(u)
+      ? settleClawback(u, month)
+        ? 1
+        : 2
+      : settleInMonth(u, month)
+        ? 0
+        : 2;
   return units
     .slice()
     .sort(
@@ -322,8 +329,8 @@ export function sortTx(units: OrderUnit[]) {
     );
 }
 
-export function txFootOf(units: OrderUnit[]) {
-  const inc = units.filter((u) => !settleVoided(u) && settleInMonth(u));
+export function txFootOf(units: OrderUnit[], month = SETTLE_MONTH) {
+  const inc = units.filter((u) => !settleVoided(u) && settleInMonth(u, month));
   return {
     count: inc.length,
     amount: sum(inc, (u) => u.amt || 0),
@@ -332,11 +339,12 @@ export function txFootOf(units: OrderUnit[]) {
 }
 
 /** 각주 규칙 3줄 — 원본 `settleTxFoot` 목록(굵은 낱말 `**`) */
-export const TX_RULES = [
-  `**${SETTLE_MONTH_KO} 확정분**만 이번 회차 매출로 반영 — 판매=구매확정(배송 완료 7일 경과 자동 확정 포함) / 렌트=반납완료`,
+export const txRulesOf = (monthKo: string) => [
+  `**${monthKo} 확정분**만 이번 회차 매출로 반영 — 판매=구매확정(배송 완료 7일 경과 자동 확정 포함) / 렌트=반납완료`,
   "취소·반품 건은 매출에서 제외 — 그중 **전월 이전에 확정(지급)된 건이 완료로 종결된 경우만** 차감(환수), 확정 이력 없는 건은 제외만",
   "**거부·반려로 끝난 건**은 거래가 유지되어 매출에 반영",
 ];
+export const TX_RULES = txRulesOf(SETTLE_MONTH_KO);
 
 /** 거래 상태 칸 — 원본 `statusBadge(flowStat(u))` */
 export const txStatusOf = flowStatOf;

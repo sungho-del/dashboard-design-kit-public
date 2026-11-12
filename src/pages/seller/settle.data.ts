@@ -49,7 +49,10 @@ export function settleSummary(): SettleSummary {
   const gmv = Math.max(0, list - coupon);
   const fee = Math.round((gmv * STORE_FEE_RATE) / 100);
   const pg = Math.round(gmv * PG_RATE);
-  const cancel = sum(mine.filter(settleClawback), clawbackOf);
+  const cancel = sum(
+    mine.filter((u) => settleClawback(u)),
+    clawbackOf,
+  );
   /* 안심케어 보전 — 이번 회차 반납완료 확정분 중 **본사 승인 건만** */
   const care = sum(
     mine.filter(
@@ -91,6 +94,10 @@ export const SUMMARY = settleSummary();
 
 /** 이번 회차 거래 내역(정렬 끝) — 매출 정산 · 명세서 상세가 같이 쓴다 */
 export const SETTLE_TX = sortTx(myUnits());
+
+/** 명세서 한 회차의 거래 내역 — 지난 회차도 같은 모집단을 그 회차 기준으로 정렬(개발 요청 37번 · develop 은 저장된 스냅샷) */
+export const txOfStatement = (s: Statement) =>
+  s.live ? SETTLE_TX : sortTx(myUnits(), s.month);
 
 export const STATEMENTS: Statement[] = [
   {

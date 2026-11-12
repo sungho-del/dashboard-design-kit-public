@@ -239,6 +239,13 @@ describe("명세서 상세", () => {
         "지난달 거래 내역은 명세서 다운로드로 확인할 수 있습니다.",
       ),
     ).toBeNull();
+    /* 지난 회차도 거래 표가 그려지고, 정산 반영 · 각주는 그 회차(05월) 기준이다 */
+    expect(
+      screen.getByRole("columnheader", { name: "정산 반영" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("반영").length).toBeGreaterThan(0);
+    expect(screen.getByText(/3건 · 279,000원/)).toBeInTheDocument();
+    expect(screen.getByText("2026년 05월 확정분")).toBeInTheDocument();
     expect(screen.getByText("지급완료일")).toBeInTheDocument();
     expect(
       screen.getByText("취소·반품 차감 금액이 주문 내역과 다릅니다."),

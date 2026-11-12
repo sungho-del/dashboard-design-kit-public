@@ -27,8 +27,9 @@ import {
 } from "./OrderGates";
 import type { OrderUnit } from "./seed/orders.data";
 import {
+  SETTLE_MONTH,
   STMT_GATE,
-  TX_RULES,
+  txRulesOf,
   txFootOf,
   txNoteOf,
   txStatusOf,
@@ -163,10 +164,13 @@ export function NoteBox({ children }: { children: ReactNode }) {
 export function TxTable({
   units,
   start,
+  month,
   selection,
   onOpen,
 }: {
   units: OrderUnit[];
+  /** 정산 반영 칸의 기준 회차(`YYYY.MM`) — 없으면 이번 회차. 지난 회차 명세(개발 요청 37번) */
+  month?: string;
   /** 페이지 시작 위치 — No 열 */
   start: number;
   /** 있으면 No 대신 체크박스 열 */
@@ -216,7 +220,7 @@ export function TxTable({
       </TableHead>
       <TableBody>
         {units.map((u, index) => {
-          const note = txNoteOf(u);
+          const note = txNoteOf(u, month);
           return (
             <TableRow key={u.id} clickable onClick={() => onOpen(u)}>
               <TableTd className="tabular-nums">
@@ -264,8 +268,15 @@ export function TxTable({
 }
 
 /** 거래 내역 각주 — 반영 건수·금액 = 명세의 확정 거래액(원본 `settleTxFoot`) */
-export function TxFoot({ units }: { units: OrderUnit[] }) {
-  const foot = txFootOf(units);
+export function TxFoot({
+  units,
+  month = SETTLE_MONTH,
+}: {
+  units: OrderUnit[];
+  /** 기준 회차(`YYYY.MM`) — 없으면 이번 회차 */
+  month?: string;
+}) {
+  const foot = txFootOf(units, month);
   return (
     <NoteBox>
       <p>
@@ -277,7 +288,7 @@ export function TxFoot({ units }: { units: OrderUnit[] }) {
         <strong className="body-small-bold text-text">{foot.excluded}건</strong>
       </p>
       <BulletList
-        items={TX_RULES.map((rule) => (
+        items={txRulesOf(`${month.replace(".", "년 ")}월`).map((rule) => (
           <Bold key={rule} text={rule} />
         ))}
       />
