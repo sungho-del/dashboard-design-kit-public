@@ -39,7 +39,7 @@ function renderAt(path: string) {
 }
 
 describe("주문 상세(통합)", () => {
-  it("한 결제의 처리단위를 모두 늘어놓고 상품명 → 유형별 처리단위 상세", async () => {
+  it("한 결제의 내 스토어 처리단위를 늘어놓고 상품명 → 유형별 처리단위 상세", async () => {
     const { user, onNavSelect } = renderAt("/order-details/20260705880011");
     expect(
       screen.getByRole("heading", { name: "주문 상세(통합)" }),
@@ -54,10 +54,22 @@ describe("주문 상세(통합)", () => {
 
   it("결제 요약 · [변경 저장] 알림 · [목록] → 주문 통합 관리", async () => {
     const { user, onNavSelect } = renderAt("/order-details/20260705880011");
-    expect(screen.getByText("결제 합계")).toBeInTheDocument();
-    expect(screen.getByText("렌탈료 합계")).toBeInTheDocument();
-    /* 기획 답 2026-11-06 §2 #6 — 보증금 보조 글자 · 「안내」 구역 없음 */
-    expect(screen.getByText("보증금")).toBeInTheDocument();
+    /* 개발 요청 14번 — 내 스토어 두 줄 · 담당·셀러 열과 주문 전체 합계·보증금 줄은 없다 */
+    expect(
+      screen.getByRole("heading", { name: "내 스토어 결제 요약" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("내 스토어 유닛 수")).toBeInTheDocument();
+    expect(screen.getByText("2건")).toBeInTheDocument();
+    expect(screen.getByText("내 스토어 유닛 결제 합계")).toBeInTheDocument();
+    for (const gone of ["결제 합계", "렌탈료 합계", "보증금"])
+      expect(screen.queryByText(gone)).toBeNull();
+    expect(
+      screen.queryByRole("columnheader", { name: "담당" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("columnheader", { name: "셀러" }),
+    ).toBeNull();
+    /* 기획 답 2026-11-06 §2 #6 — 「안내」 구역 없음 */
     expect(screen.queryByText("별도 점유")).toBeNull();
     expect(screen.queryByRole("heading", { name: "안내" })).toBeNull();
     expect(screen.queryByRole("button", { name: "입금확인" })).toBeNull();

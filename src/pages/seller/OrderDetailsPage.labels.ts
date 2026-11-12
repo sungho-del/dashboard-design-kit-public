@@ -12,8 +12,7 @@ import { flowStatOf } from "./orderUnit.labels";
  *
  * ## 기획 확인 필요 (원본대로 둔 것)
  * - 원본 돌아갈 곳 `ordersAll`(전체 주문 목록)은 셀러 앱에 없는 화면이다 — 우리는 주문 통합 관리(`/sale-orders`)로 돌아간다
- * - 결제 요약의 판매·렌탈료 합계 = 처리단위 저장 금액(`u.amt`) 합 · 결제 합계 = 결제 저장값(`o.amt`) — 둘이 다를 수 있다(원본 특이점)
- * - 셀러 화면인데 한 결제의 **다른 셀러·본사 처리단위까지** 보인다(원본 `unitsOf` 가 판매자를 거르지 않는다)
+ * - 원본은 한 결제의 다른 셀러·본사 처리단위까지 보였다 — develop 대로 **내 스토어 유닛만** 보인다(개발 요청 14번)
  * - 이 화면으로 오는 통로가 원본 셀러 메뉴에 없다(화면 목록에서만 연다)
  * ====================================================================== */
 
@@ -33,7 +32,9 @@ export const unitPathOf = (u: { type: string; id: string }) =>
 export const unitStatusOf = flowStatOf;
 
 export const ORDER_DETAIL_COPY = {
-  unitsTitle: "주문 상품 — 담당·진행 상태는 상품별로 관리됩니다",
+  /** develop 구역 이름 — 「담당」·「셀러」 열을 빼서 내 스토어 몫임을 이름이 말한다(개발 요청 14번) */
+  unitsTitle: "주문 상품 — 내 스토어 담당 유닛",
+  sumTitle: "내 스토어 결제 요약",
   receipt: (no: string) => `${no} 영수증`,
   deposit: (no: string) => `${no} 입금 확인`,
   saved: "저장되었습니다.",

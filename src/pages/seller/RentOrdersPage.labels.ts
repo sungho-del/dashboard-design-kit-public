@@ -7,7 +7,8 @@ import type { OrderUnit } from "./seed/orders.data";
 
 /** 처리구분 — 원본 `ORDER_CATS.rentOrders`(렌트에는 교환이 없다 · H-11) */
 export const RENT_CATS = ["렌트", "취소", "반품"] as const;
-export const rentFlowOptions = (cat: string) => flowOptionsOf(RENT_CATS, cat);
+export const rentFlowOptions = (cat: string) =>
+  flowOptionsOf(RENT_CATS, cat ? [cat] : []);
 
 /**
  * 주문번호 목적지 — 원본 `orderHomeScr` 렌트 갈래. 클레임이면 취소/반품 메뉴, 아니면 처리상태(`flowStat`)로

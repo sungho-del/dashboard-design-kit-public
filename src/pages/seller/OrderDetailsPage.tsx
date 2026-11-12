@@ -91,7 +91,8 @@ function OrderDetailsBody({ o, ...props }: SellerNavProps & { o: PayOrder }) {
       header={
         <PageHeader
           title="주문 상세(통합)"
-          description={`${o.no} · ${o.mem} · ${o.paidAt} · ${o.method} · 상품 ${us.length}건`}
+          /* 「상품 N건」은 뺐다 — 내 스토어 유닛만 세면 주문 전체 건수로 읽힌다(결제 요약이 유닛 수를 말한다 · develop) */
+          description={`${o.no} · ${o.mem} · ${o.paidAt} · ${o.method}`}
           badges={<StatusTag status={o.payStat} />}
         />
       }
@@ -104,16 +105,12 @@ function OrderDetailsBody({ o, ...props }: SellerNavProps & { o: PayOrder }) {
               <col className="w-20" />
               <col className="w-20" />
               <col className="w-32" />
-              <col className="w-20" />
-              <col className="w-32" />
               <col className="w-32" />
             </colgroup>
             <TableHead>
               <TableRow>
                 <TableTh>상품</TableTh>
-                <TableTh align="center">담당</TableTh>
                 <TableTh align="center">유형</TableTh>
-                <TableTh>셀러</TableTh>
                 <TableTh>수량</TableTh>
                 <TableTh>금액</TableTh>
                 <TableTh align="center">상태</TableTh>
@@ -134,12 +131,8 @@ function OrderDetailsBody({ o, ...props }: SellerNavProps & { o: PayOrder }) {
                     </TextButton>
                   </TableTd>
                   <TableTd align="center">
-                    <Tag size="small">{u.owner}</Tag>
-                  </TableTd>
-                  <TableTd align="center">
                     <Tag size="small">{u.type}</Tag>
                   </TableTd>
-                  <TableTd>{u.seller}</TableTd>
                   <TableTd className="tabular-nums">{u.qty}개</TableTd>
                   <TableTd className="tabular-nums">{won(u.amt)}</TableTd>
                   <TableTd align="center">
@@ -177,7 +170,7 @@ function OrderDetailsBody({ o, ...props }: SellerNavProps & { o: PayOrder }) {
         </FormField>
       </Section>
 
-      <Section title="결제 요약">
+      <Section title={ORDER_DETAIL_COPY.sumTitle}>
         <CalcBreakdown blocks={summaryBlocks(o)} />
       </Section>
 

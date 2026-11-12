@@ -19,14 +19,15 @@ import type { OrderUnit } from "./seed/orders.data";
  * | 주문번호 →  | 발주 · 배송 · 클레임 상세     | 렌트 발주 · 배송 · 대여·연체 · 검수·반납 · 클레임 |
  *
  * ## 원본을 그대로 둔 것
- * - **조회 전용** — 상태변경 버튼·체크박스가 없다(전이 실행 지점은 처리 메뉴 하나뿐 · UI-313)
+ * - **조회 전용** — 상태변경 버튼이 없다(전이 실행 지점은 처리 메뉴 하나뿐 · UI-313). 행 체크박스는 선택분 엑셀용(개발 요청 13번)
  * - 상태 카드가 아니라 **읽기 전용 집계 타일**(카드를 두면 [전체]가 성립하지 않는다) · 세는 대상은 검색 결과
  * - 주문번호를 누르면 그 건을 **지금 담당하는 메뉴의 상세**로 간다(클레임이 걸리면 그 클레임 메뉴)
  * - 왼쪽 고정 열 없음 — 표 전체가 한 덩어리로 가로 스크롤(원본 2026-08-06 사용자 지시)
  *
  * ## 원본과 다르게 둔 곳
- * - 처리구분·안심케어(원본 다중 칩)는 **하나만 고르는 칸** — 본사 퍼블이 검색조건 줄의 칩·라디오를 셀렉트로
- *   모은 결정(2026-10-19)과 같다. 두 구분을 함께 거르는 조합(취소+반품)은 없어진다
+ * - 안심케어(원본 다중 칩)는 **하나만 고르는 칸**(값이 둘뿐이라 결과가 같다)
+ * - 처리구분은 **체크박스 묶음(복수)** — develop 이 「취소+반품」 같은 조합 검색을 지키려고 복수로 둔다(개발 요청 2026-11-12 13번).
+ *   아무것도 안 고르면 전체 · 처리구분을 바꿔 고른 처리상태가 선택지에서 빠지면 처리상태를 푼다
  * ====================================================================== */
 
 export interface OrdersOverviewConfig {
@@ -46,17 +47,15 @@ export const DATE_FIELDS = [
   { value: "confirmedAt", label: "주문 확인일" },
 ] as const;
 
-export const catOptionsOf = (cats: readonly string[]) => [
-  { value: "", label: "처리구분 전체" },
-  ...cats.map((c) => ({ value: c, label: c })),
-];
-
 /**
- * 처리상태 선택지 — 원본 `orderFlowOpts`: 고른 처리구분의 단계만, 없으면 전 계열.
+ * 처리상태 선택지 — 원본 `orderFlowOpts`: 고른 처리구분들의 단계만, 없으면 전 계열.
  * 「배송 지연」은 표준 단계에 없지만 어드민에 실재하는 상태라 「배송 준비」 다음에 끼운다(원본)
  */
-export function flowOptionsOf(cats: readonly string[], cat: string) {
-  const picked = (cat ? [cat] : [...cats]).filter((c) => FLOW_STEPS[c]);
+export function flowOptionsOf(
+  cats: readonly string[],
+  chosen: readonly string[],
+) {
+  const picked = (chosen.length ? chosen : cats).filter((c) => FLOW_STEPS[c]);
   const list: string[] = [];
   picked.forEach((c) =>
     FLOW_STEPS[c].forEach((s) => {
@@ -93,7 +92,8 @@ export const SEARCH_FIELDS = [
 export interface OrderFilters {
   dateField: string;
   period?: DateRange;
-  cat: string;
+  /** 처리구분 — 복수 · 비면 전체 */
+  cats: string[];
   shipWay: string;
   care: string;
   flow: string;
@@ -103,7 +103,7 @@ export interface OrderFilters {
 export const EMPTY_FILTERS: OrderFilters = {
   dateField: "orderedAt",
   period: undefined,
-  cat: "",
+  cats: [],
   shipWay: "all",
   care: "all",
   flow: "",
@@ -123,7 +123,7 @@ export function matchesFilters(u: OrderUnit, f: OrderFilters) {
     if (!day || day < ymd(f.period.from)) return false;
     if (day > ymd(f.period.to ?? f.period.from)) return false;
   }
-  if (f.cat && flowCatOf(u) !== f.cat) return false;
+  if (f.cats.length && !f.cats.includes(flowCatOf(u))) return false;
   if (f.shipWay !== "all" && u.shipWay !== f.shipWay) return false;
   if (f.care !== "all" && careLabelOf(u) !== f.care) return false;
   if (f.flow && flowStatOf(u) !== f.flow) return false;
@@ -145,6 +145,23 @@ export function matchesFilters(u: OrderUnit, f: OrderFilters) {
   return true;
 }
 
+/**
+ * 처리구분 체크 하나를 켜고 끈다 — 처리구분 순서(원본 `ORDER_CATS`)로 다시 적고,
+ * 고른 처리상태가 새 선택지에 없으면 푼다(develop `catToggle`)
+ */
+export function catToggle(
+  f: OrderFilters,
+  all: readonly string[],
+  cat: string,
+): Partial<OrderFilters> {
+  const cats = all.filter((c) =>
+    c === cat ? !f.cats.includes(c) : f.cats.includes(c),
+  );
+  const keep =
+    !f.flow || flowOptionsOf(all, cats).some((o) => o.value === f.flow);
+  return keep ? { cats } : { cats, flow: "" };
+}
+
 const dot = (d: Date) => ymd(d).replace(/-/g, ".");
 
 /** 검색조건 요약 — 원본 `fbSummary` 꼴 */
@@ -155,7 +172,7 @@ export function filterSummary(f: OrderFilters) {
     out.push(
       `${dateLabel} ${dot(f.period.from)}~${dot(f.period.to ?? f.period.from)}`,
     );
-  if (f.cat) out.push(`처리구분 ${f.cat}`);
+  if (f.cats.length) out.push(`처리구분 ${f.cats.join(", ")}`);
   if (f.shipWay !== "all") out.push(`배송 방법 ${f.shipWay}`);
   if (f.care !== "all") out.push(`안심케어 ${f.care}`);
   if (f.flow) out.push(`처리상태 ${f.flow}`);

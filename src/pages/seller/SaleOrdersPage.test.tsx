@@ -85,23 +85,25 @@ describe("SaleOrdersPage — 주문 통합 관리", () => {
     ).toBeVisible();
   });
 
-  it("조회 전용 — 체크박스·상태변경 버튼 없음 · 11열", () => {
+  it("조회 전용 — 상태변경 버튼 없음 · 행 체크박스(선택분 엑셀 · 개발 요청 13번) · 12열", () => {
     renderPage();
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(
+      within(rows()[0]).getByRole("checkbox", { name: /선택$/ }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("group", { name: "상태 변경" }),
     ).not.toBeInTheDocument();
     expect(
       within(screen.getByRole("table")).getAllByRole("columnheader"),
-    ).toHaveLength(11);
+    ).toHaveLength(12);
     expect(rows()[0]).toHaveTextContent("89신규 주문20260623864962");
     expect(rows()[1]).toHaveTextContent("배송중");
   });
 
   it("처리구분을 고르면 집계·목록이 같이 줄고, 처리상태 선택지가 그 계열로 바뀐다", async () => {
     const { user } = renderPage();
-    await user.click(screen.getByRole("combobox", { name: "처리구분" }));
-    await user.click(screen.getByRole("option", { name: "취소" }));
+    const cats = screen.getByRole("group", { name: "처리구분" });
+    await user.click(within(cats).getByRole("checkbox", { name: "취소" }));
     const total = SALE_ORDER_UNITS.filter(
       (u) => flowCatOf(u) === "취소",
     ).length;
@@ -116,6 +118,26 @@ describe("SaleOrdersPage — 주문 통합 관리", () => {
       "환불 처리중",
       "취소 완료",
     ]);
+  });
+
+  it("처리구분은 여러 개 — 취소+반품 조합 · 빠진 계열의 처리상태는 풀린다(개발 요청 13번)", async () => {
+    const { user } = renderPage();
+    const cats = screen.getByRole("group", { name: "처리구분" });
+    await user.click(within(cats).getByRole("checkbox", { name: "취소" }));
+    await user.click(within(cats).getByRole("checkbox", { name: "반품" }));
+    const both = SALE_ORDER_UNITS.filter((u) =>
+      ["취소", "반품"].includes(flowCatOf(u)),
+    ).length;
+    expect(
+      screen.getByRole("heading", { name: `목록 (총 ${both}건)` }),
+    ).toBeVisible();
+    expect(screen.getByText(/처리구분 취소, 반품/)).toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "처리상태" }));
+    await user.click(screen.getByRole("option", { name: "취소 요청" }));
+    await user.click(within(cats).getByRole("checkbox", { name: "취소" }));
+    expect(
+      screen.getByRole("combobox", { name: "처리상태" }),
+    ).toHaveTextContent("처리상태 전체");
   });
 
   it("주문번호 → 지금 담당하는 메뉴의 상세(신규 주문 = 발주 관리 · 배송중 = 배송 관리)", async () => {
@@ -134,5 +156,19 @@ describe("SaleOrdersPage — 주문 통합 관리", () => {
     expect(
       await screen.findByText("89건을 엑셀(CSV)로 다운로드했습니다."),
     ).toBeVisible();
+  });
+
+  it("행을 고르면 고른 행만 엑셀 · 머리 체크는 이 페이지 전체(개발 요청 13번)", async () => {
+    const { user } = renderPage();
+    await user.click(within(rows()[0]).getByRole("checkbox"));
+    await user.click(within(rows()[1]).getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: /엑셀 다운로드/ }));
+    expect(
+      await screen.findByText("2건을 엑셀(CSV)로 다운로드했습니다."),
+    ).toBeVisible();
+    const head = screen.getByRole("checkbox", { name: "이 페이지 전체 선택" });
+    expect(head).toBePartiallyChecked();
+    await user.click(head);
+    expect(within(rows()[9]).getByRole("checkbox")).toBeChecked();
   });
 });

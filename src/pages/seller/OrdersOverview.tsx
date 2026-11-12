@@ -3,6 +3,7 @@ import { ArrowDownToLine, Search } from "lucide-react";
 import {
   AppShell,
   Button,
+  Checkbox,
   DataTableShell,
   DatePicker,
   EmptyState,
@@ -38,7 +39,7 @@ import {
   PAGE_SIZES,
   SEARCH_FIELDS,
   SHIP_WAYS,
-  catOptionsOf,
+  catToggle,
   filterSummary,
   flowOptionsOf,
   matchesFilters,
@@ -59,7 +60,9 @@ import type { OrderUnit } from "./seed/orders.data";
  *
  * [ 집계 타일 4 | 검색조건(펼침+요약) | 목록 (총 N건) · 엑셀 | 표 11열(렌트 12) | 페이지 ]
  *
- * 처리 목록(`ProcessList`)과 **의도적으로 다른 표**다(원본 `orderAllTable` — 입력칸·체크박스·고정 열 없음).
+ * 처리 목록(`ProcessList`)과 **의도적으로 다른 표**다(원본 `orderAllTable` — 입력칸·고정 열 없음).
+ * 개발 요청(2026-11-12) 13·26번: 처리구분은 체크박스 묶음(복수) · 행 체크박스 + 머리 전체 선택(고른 행만 엑셀).
+ * 선택은 조건·페이지를 바꿔도 남는다(develop — 이 화면엔 상태 카드가 없어 화면을 떠날 때만 비운다)
  * 계약·검색·집계는 `./ordersOverview.data.ts`, 화면 설정은 `SaleOrdersPage.data` · `RentOrdersPage.data`,
  * 처리상태 파생은 `orderUnit.data` `flowStatOf`. 렌트는 이용기간 정렬 열 · 상품명 옆 안심케어 · 안심케어 검색.
  *
@@ -106,6 +109,7 @@ export function OrdersOverview({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [sort, setSort] = useState<Sort | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
   const dataStatus = asStatus(useSearchParams().get("preview"));
 
   const patch = (next: Partial<OrderFilters>) => {
@@ -126,7 +130,7 @@ export function OrdersOverview({
         return sort.dir === "asc" ? order : -order;
       })
     : matched;
-  const columnCount = rent ? 12 : 11;
+  const columnCount = rent ? 13 : 12;
   const sortHead = (key: SortKey, label: string) => (
     <TableTh
       sortable
@@ -144,9 +148,28 @@ export function OrdersOverview({
   const start = (currentPage - 1) * pageSize;
   const paged = filtered.slice(start, start + pageSize);
 
+  const pageIds = paged.map((u) => u.id);
+  const allChecked =
+    pageIds.length > 0 && pageIds.every((id) => selected.includes(id));
+  const someChecked =
+    !allChecked && pageIds.some((id) => selected.includes(id));
+  const toggle = (id: string) =>
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id],
+    );
+  const toggleAll = () =>
+    setSelected((prev) =>
+      allChecked
+        ? prev.filter((id) => !pageIds.includes(id))
+        : [...prev, ...pageIds.filter((id) => !prev.includes(id))],
+    );
+
+  /** 고른 행이 결과 안에 있으면 그것만, 없으면 결과 전체(develop) — 퍼블은 건수 알림만 */
   const exportCsv = () => {
-    if (filtered.length === 0) return toast(COPY.excelEmpty);
-    toast(COPY.excel(filtered.length));
+    const picked = filtered.filter((u) => selected.includes(u.id));
+    const n = picked.length || filtered.length;
+    if (n === 0) return toast(COPY.excelEmpty);
+    toast(COPY.excel(n));
   };
 
   return (
@@ -198,14 +221,23 @@ export function OrdersOverview({
           startPlaceholder="시작일"
           endPlaceholder="종료일"
         />
-        <Select
-          className="w-32"
+        {/* 처리구분 복수 선택(개발 요청 13번) — 아무것도 안 고르면 전체 */}
+        <div
+          role="group"
           aria-label="처리구분"
-          options={catOptionsOf(config.cats)}
-          value={filters.cat}
-          /* 처리구분이 바뀌면 처리상태 선택지가 바뀐다 — 고른 상태를 푼다(원본 `resets: ['flow']`) */
-          onValueChange={(value) => patch({ cat: value, flow: "" })}
-        />
+          className="flex h-(--size-control-medium) items-center gap-3"
+        >
+          <span className="label-medium text-text-sub">처리구분</span>
+          {config.cats.map((c) => (
+            <Checkbox
+              key={c}
+              size="small"
+              label={c}
+              checked={filters.cats.includes(c)}
+              onChange={() => patch(catToggle(filters, config.cats, c))}
+            />
+          ))}
+        </div>
         <Select
           className="w-32"
           aria-label="배송 방법"
@@ -225,7 +257,7 @@ export function OrdersOverview({
         <Select
           className="w-36"
           aria-label="처리상태"
-          options={flowOptionsOf(config.cats, filters.cat)}
+          options={flowOptionsOf(config.cats, filters.cats)}
           value={filters.flow}
           onValueChange={(value) => patch({ flow: value })}
         />
@@ -294,6 +326,7 @@ export function OrdersOverview({
       >
         <Table>
           <colgroup>
+            <col className="w-13" />
             <col className="w-14" />
             <col className="w-29" />
             <col className="w-36" />
@@ -309,6 +342,16 @@ export function OrdersOverview({
           </colgroup>
           <TableHead>
             <TableRow>
+              {/* 선택분 엑셀용 체크박스(개발 요청 13번) */}
+              <TableTh>
+                <Checkbox
+                  size="small"
+                  aria-label="이 페이지 전체 선택"
+                  checked={allChecked}
+                  indeterminate={someChecked}
+                  onChange={toggleAll}
+                />
+              </TableTh>
               <TableTh>No</TableTh>
               <TableTh align="center">주문상태</TableTh>
               <TableTh>주문번호</TableTh>
@@ -340,6 +383,14 @@ export function OrdersOverview({
                   const options = optionsOf(u);
                   return (
                     <TableRow key={u.id}>
+                      <TableTd>
+                        <Checkbox
+                          size="small"
+                          aria-label={`${u.no} ${u.prod} 선택`}
+                          checked={selected.includes(u.id)}
+                          onChange={() => toggle(u.id)}
+                        />
+                      </TableTd>
                       <TableTd className="tabular-nums">
                         {filtered.length - (start + index)}
                       </TableTd>

@@ -87,6 +87,7 @@ describe("RentOrdersPage — 렌트 주문 통합 관리", () => {
         .getAllByRole("columnheader")
         .map((th) => th.textContent?.trim()),
     ).toEqual([
+      "",
       "No",
       "주문상태",
       "주문번호",
@@ -100,7 +101,8 @@ describe("RentOrdersPage — 렌트 주문 통합 관리", () => {
       "옵션 수량",
       "구매자명",
     ]);
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    /* 행 체크박스(선택분 엑셀 · 개발 요청 26번) */
+    expect(within(rows()[0]).getByRole("checkbox")).toBeInTheDocument();
     expect(rows()[0]).toHaveTextContent("3,824,000원");
     expect(rows()[0]).toHaveTextContent("2026.06.27 ~ 2026.09.27");
   });

@@ -7,7 +7,8 @@ import type { OrderUnit } from "./seed/orders.data";
 
 /** 처리구분 — 원본 `ORDER_CATS.saleOrders` */
 export const CATS = ["판매", "취소", "반품", "교환"] as const;
-export const flowOptions = (cat: string) => flowOptionsOf(CATS, cat);
+export const flowOptions = (cat: string) =>
+  flowOptionsOf(CATS, cat ? [cat] : []);
 
 /**
  * 주문번호 목적지 — 원본 `orderHomeScr` → `SCR_DETAIL`. 클레임이 걸려 있으면 그 클레임 메뉴,
