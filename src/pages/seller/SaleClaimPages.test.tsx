@@ -178,13 +178,13 @@ describe("SaleReturnPage — 반품 관리", () => {
     ).toBeVisible();
   });
 
-  it("[반품 완료] → 환불 실행 확인 창(develop 문구)", async () => {
+  it("[반품 완료] → 환불 실행 확인 창(제목 「반품 완료 — 환불 실행」 · develop 문구)", async () => {
     const { user } = renderPage(SaleReturnPage);
     await user.click(within(cards()).getByRole("button", { name: /진행/ }));
     await user.click(within(rows()[0]).getByRole("checkbox"));
     await user.click(bulk("반품 완료"));
     const dialog = await screen.findByRole("dialog", {
-      name: "반품 완료 처리",
+      name: "반품 완료 — 환불 실행",
     });
     /* 누르는 순간 환불이 실행된다 — develop 문구(개발 요청 25번) */
     expect(

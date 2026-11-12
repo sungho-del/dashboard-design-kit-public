@@ -1194,7 +1194,6 @@ export function ProcessList({
       <GateHost
         gate={gate}
         units={config.units}
-        shipImagesUnknown={rent}
         onClose={() => setGate(null)}
         onDone={(message) => gate && finish(gate.ids, message)}
         onShipImage={(u) =>

@@ -169,6 +169,8 @@ export const CLAIM_GATE_COPY = {
     "실제 수거 택배사와 송장번호를 등록하면 수거중 단계로 전환됩니다.",
   pickupRedeliverTitle: "재배송 등록",
   pickupRedeliverLead: "자체 수령 주문이라 송장 없이 재수령 안내로 진행합니다.",
+  /** 환불 실행 확인 창 제목 — develop 「취소 완료 — 환불 실행」 · 「반품 완료 — 환불 실행」(개발 회신 2026-11-12 2번) */
+  refundDoneTitle: (stat: string) => `${stat} — 환불 실행`,
   refundDone: {
     "취소 완료":
       "환불 실행 확정 · 되돌릴 수 없음. 결제 승인 취소(PG)와 포인트·쿠폰 복원이 함께 실행되고 고객에게 환불 완료 안내가 나갑니다.",

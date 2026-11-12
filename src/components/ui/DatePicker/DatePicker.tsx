@@ -430,7 +430,8 @@ export type DatePickerProps = DatePickerSingleProps | DatePickerRangeProps;
  * - **포커스**: `FloatingFocusManager`(modal=false)가 패널로 포커스를 옮기고
  *   닫을 때 트리거로 되돌린다. 딤이 없는 팝오버라 모달 트랩은 쓰지 않는다.
  * - **z-index**: 팝오버는 자신을 띄운 레이어(모달 포함) 위에 떠야 하므로
- *   `--z-modal` 을 쓴다. 토스트(11000)보다는 아래다. (design-core.md z-index 4단)
+ *   `--z-modal` + 1 — Select · Dropdown 과 같은 층이다. 같은 `--z-modal` 이면 창 뒤에 깔렸다
+ *   (셀러 개발 회신 2026-11-12 3번). 토스트(11000)보다는 아래다. (design-core.md z-index 4단)
  */
 export function DatePicker(props: DatePickerProps) {
   const {
@@ -698,7 +699,7 @@ export function DatePicker(props: DatePickerProps) {
               className={cn(
                 panelBaseClasses,
                 // 부유형: radius large(12) + shadow-layer (§17)
-                "z-(--z-modal) rounded-large shadow-layer",
+                "z-[calc(var(--z-modal)+1)] rounded-large shadow-layer",
               )}
             >
               {panelContent}

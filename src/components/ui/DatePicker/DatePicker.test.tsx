@@ -73,6 +73,13 @@ describe("DatePicker", () => {
     expect(getTrigger()).toHaveAttribute("aria-expanded", "true");
   });
 
+  it("패널은 창(모달) 위 층 — Select · Dropdown 과 같은 --z-modal + 1", async () => {
+    render(<DatePicker defaultMonth={FIXED_MONTH} />);
+    await userEvent.click(getTrigger());
+    const panel = await screen.findByRole("dialog", { name: "날짜 선택" });
+    expect(panel.className).toContain("z-[calc(var(--z-modal)+1)]");
+  });
+
   it("Escape 로 패널이 닫힌다", async () => {
     render(<DatePicker defaultMonth={FIXED_MONTH} />);
 
