@@ -24,7 +24,7 @@ import { CalcBreakdown } from "../babycube/CalcBreakdown";
 import { ACTION_COPY, DEPOSIT_COPY } from "./gate.data";
 import { NoticeGateModal, StatusTag } from "./OrderGates";
 import { COURIERS, careOf } from "./orderUnit.data";
-import { collectAllowed } from "./processList.data";
+import { collectAllowed, selfReturnOf } from "./processList.data";
 import type { OrderUnit } from "./seed/orders.data";
 import type { RentDetailState } from "./useRentDetail";
 import {
@@ -377,7 +377,7 @@ export function RentInfoBody({
   };
   const ro = mode === "ro";
   /* 대여·연체 상세의 자체 수령 — 택배 수거 대신 「직접 반납」 + [반납 확인](develop · 개발 요청 31번) */
-  const direct = mode === "request" && u.shipWay === "방문 수령";
+  const direct = mode === "request" && selfReturnOf(u);
   const returnReady = collectAllowed(u);
   /* 이용 종료일이 지났으면 연체 안내가 나간다(D-101) */
   const overdue = collectAllowed(u);

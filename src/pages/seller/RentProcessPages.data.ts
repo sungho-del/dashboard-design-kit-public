@@ -1,5 +1,9 @@
 import { CLAIM_BUCKETS, claimStatOf, claimStatuses } from "./claim.data";
-import { preDispatchLink, type ProcessListConfig } from "./processList.data";
+import {
+  preDispatchLink,
+  selfReturnOf,
+  type ProcessListConfig,
+} from "./processList.data";
 import { OVERBOOKED_PRODUCTS } from "./ProductFormPage.data";
 import { UNITS, type OrderUnit } from "./seed/orders.data";
 import {
@@ -93,7 +97,7 @@ export const RENT_USE: ProcessListConfig = {
   collectBulk: true,
   rentStartColumn: true,
   /* 자체 수령은 「직접 반납」 + [반납 확인](개발 요청 30번) · 택배는 수거 신청 */
-  collectColumn: (u) => (u.shipWay === "방문 수령" ? "selfReturn" : "register"),
+  collectColumn: (u) => (selfReturnOf(u) ? "selfReturn" : "register"),
   shipColumns: () => "ro",
   detailPath: (u) => `/rent-use/${u.id}`,
 };

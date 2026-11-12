@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentType } from "react";
 import { ToastProvider } from "../../components/ui";
@@ -549,6 +555,27 @@ describe("렌트 취소·반품 상세 — 개발 요청 2026-11-12 33·34번", 
         (a) => a.label,
       ),
     ).toEqual(["환불 처리중 처리", "반품 전환"]);
+  });
+
+  it("30 · 직접 반납 예시 건(연체) — [반납 확인]이 열려 확인 창이 뜬다(시드의 자체 수령 건은 이용 종료 전이라 잠긴다)", async () => {
+    const { user } = renderAt(RentUseDetailPage, "/rent-use/20260509572958-1");
+    await user.click(screen.getByRole("button", { name: "반납 확인" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "반납 물품을 실제로 받았습니까? 확인하면 즉시 검수중으로 이동합니다.",
+    );
+  });
+
+  it("34 · 렌트 반품 예시 건 — 승인 = [대여·연체 관리로] · 수거완료 = [검수·반납 관리로]가 화면에 보인다", async () => {
+    const a = renderAt(RentRmaDetailPage, "/rent-rma/20260617170452-1");
+    await a.user.click(
+      screen.getByRole("button", { name: "대여·연체 관리로" }),
+    );
+    expect(a.onNavSelect).toHaveBeenCalledWith("/rent-use/20260617170452-1");
+    cleanup();
+    renderAt(RentRmaDetailPage, "/rent-rma/20260620179203-1");
+    expect(
+      screen.getByRole("button", { name: "검수·반납 관리로" }),
+    ).toBeVisible();
   });
 
   it("33 · 출고된 렌트 취소 예시 건 — 화면에 두 버튼이 함께 보인다(시드엔 출고된 취소 요청이 없다)", () => {

@@ -288,6 +288,15 @@ export function collectAllowed(u: OrderUnit) {
   return !end || end <= DEMO_TODAY;
 }
 
+/**
+ * 직접 반납(자체 수령) — 택배 수거가 없어 [반납 확인]으로 받는다(개발 요청 30번).
+ * 시드의 자체 수령 대여 건은 이용 종료 전 하나뿐이라 버튼이 늘 잠긴다 → 연체 한 건을 직접 반납 예시로 둔다
+ * (확인 창이 화면에서 열리게 · 대여·연체 관리 목록과 상세에서만). 실제 값은 서버
+ */
+const SELF_RETURN_SAMPLE = "20260509572958-1";
+export const selfReturnOf = (u: OrderUnit) =>
+  u.shipWay === "방문 수령" || u.id === SELF_RETURN_SAMPLE;
+
 export const PAGE_SIZE = 10;
 export const PAGE_SIZES = [10, 20, 50, 100];
 

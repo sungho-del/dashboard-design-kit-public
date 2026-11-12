@@ -110,9 +110,20 @@ const SHIPPED_CANCEL: Record<string, { courier: string; invoice: string }> = {
   "20260614914021-1": { courier: "CJ대한통운", invoice: "612877410098" },
   "20260617158784-1": { courier: "롯데택배", invoice: "517289567001" },
 };
+/**
+ * 렌트 반품 진행 예시 — 시드의 렌트 반품은 신청 · 수거중 · 완료뿐이라 [대여·연체 관리로] · [검수·반납 관리로]가
+ * 화면에 안 보인다. 수거중 두 건을 상세에서 승인 · 수거완료로 연다(개발 요청 34번). 실제 값은 서버
+ */
+const RENT_RETURN_STAT: Record<string, string> = {
+  "20260617170452-1": "반품 승인",
+  "20260620179203-1": "반품 수거완료",
+};
 const withShippedSample = (u: OrderUnit | undefined) => {
-  const s = u && SHIPPED_CANCEL[u.id];
-  return s ? { ...u, ...s, ship: `${s.courier} ${s.invoice}` } : u;
+  if (!u) return u;
+  const s = SHIPPED_CANCEL[u.id];
+  if (s) return { ...u, ...s, ship: `${s.courier} ${s.invoice}` };
+  const stat = RENT_RETURN_STAT[u.id];
+  return stat && u.req ? { ...u, req: { ...u.req, stat } } : u;
 };
 
 /** 원본 `udRmaDetail(u, {type, isRent})` — 렌트는 제목에 (렌트) · 「교환으로 변경」 없음(원본 `DETAIL_TITLES`) */
