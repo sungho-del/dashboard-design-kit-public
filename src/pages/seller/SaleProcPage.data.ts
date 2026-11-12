@@ -1,4 +1,4 @@
-import type { ProcessListConfig } from "./processList.data";
+import { preDispatchLink, type ProcessListConfig } from "./processList.data";
 import { UNITS, type OrderUnit } from "./seed/orders.data";
 
 /* =========================================================================
@@ -56,5 +56,7 @@ export const SALE_PROC: ProcessListConfig = {
   singleOnly: ["취소"],
   /* 택배사·송장번호 열은 **배송 준비·배송 지연 카드에서만**(원본 `orderColFlags.shipCols`) */
   shipColumns: (card) => (card === "신규 주문" ? null : "register"),
+  /* 방문 수령 준비 단계 [준비 완료] · 「전체」(`?stat=`)의 신규 주문 [주문 확인] — 상세로(개발 요청 15번) */
+  rowLink: preDispatchLink,
   detailPath: (u) => `/sale-proc/${u.id}`,
 };

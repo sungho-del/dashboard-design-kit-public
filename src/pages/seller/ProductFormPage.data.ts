@@ -172,3 +172,17 @@ export const ADDRESS_IN_USE_SAMPLE =
 /** 수령 전 주문 건수 예시 — 수정 저장 전 확인 창이 보이도록 출고지(A1) 한 곳에만 둔다. 실제 값은 서버 */
 const PENDING_ORDERS: Record<string, number> = { A1: 2 };
 export const pendingOrdersOf = (id: string) => PENDING_ORDERS[id] ?? 0;
+
+/**
+ * 진행 중 예약이 활성 수량보다 많은 내 렌트 상품 — 렌트 발주 관리 상단 「초과 상태」 줄(개발 요청 27번).
+ * 활성 = 렌트 수량 − 중지 슬롯 · 예약 건수는 위 예시(`reservationsOf`)
+ */
+export const OVERBOOKED_PRODUCTS = PRODUCTS.filter(
+  (p) => p.src !== "본사" && p.mode !== "sale",
+)
+  .map((p) => ({
+    name: p.name,
+    reservations: reservationsOf(p.id),
+    active: Number(p.qty || 0) - (p.slotOff?.length ?? 0),
+  }))
+  .filter((p) => p.reservations > p.active);

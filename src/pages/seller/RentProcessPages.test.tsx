@@ -114,6 +114,22 @@ describe("RentListPage — 렌트 발주 관리", () => {
     expect(headers()).toContain("송장번호");
   });
 
+  it("목록 위 「초과 상태 — 신규 예약 차단 중」 줄 · 자체 수령 준비 행은 [준비 완료] → 상세(개발 요청 27번)", async () => {
+    const { user, onNavSelect } = renderPage(RentListPage);
+    const notice = screen.getByRole("region", { name: "수량 초과 상품" });
+    expect(notice).toHaveTextContent("초과 상태 — 신규 예약 차단 중");
+    expect(notice).toHaveTextContent(
+      "스토케 트립트랩 하이체어(예약 3건 > 활성 2개) — 기존 예약은 보호되며 신규 예약만 차단됩니다(수량 풀 ㉡).",
+    );
+    await pickCard(user, /배송 준비/);
+    const pickup = rows().find((r) => within(r).queryByText("방문 수령"))!;
+    expect(
+      within(pickup).getByRole("textbox", { name: /송장번호/ }),
+    ).toBeDisabled();
+    await user.click(within(pickup).getByRole("button", { name: "준비 완료" }));
+    expect(onNavSelect.mock.calls[0][0]).toMatch(/^\/rent-list\//);
+  });
+
   it("첫 행 — 결제금액(명세 식) · 렌트 단가 원/일 · 시작 3일 안이면 ⚠ 경고", () => {
     renderPage(RentListPage);
     const first = rows()[0];

@@ -61,6 +61,7 @@ import {
 import {
   CARE_OPTIONS,
   LIST_COPY,
+  OVERBOOKED_COPY,
   PAGE_SIZE,
   PAGE_SIZES,
   SEARCH_PLACEHOLDER,
@@ -389,7 +390,11 @@ export function ProcessList({
 }: ProcessListProps) {
   const { toast } = useToast();
   const rent = !!config.rent;
-  const [card, setCard] = useState(config.defaultCard);
+  const params = useSearchParams();
+  /** `?stat=`(빈 값) = 「전체」 — 카드가 켜지지 않은 채 이 화면 전부(develop · legacy 주소 그대로) */
+  const [card, setCard] = useState(() =>
+    params.has("stat") && !params.get("stat") ? "" : config.defaultCard,
+  );
   const [filters, setFilters] = useState<ProcFilters>(() =>
     emptyFilters(config),
   );
@@ -402,7 +407,7 @@ export function ProcessList({
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [collectDrafts, setCollectDrafts] = useState<Record<string, Draft>>({});
   const [gate, setGate] = useState<Gate | null>(null);
-  const dataStatus = asStatus(useSearchParams().get("preview"));
+  const dataStatus = asStatus(params.get("preview"));
 
   const inCard =
     config.inCard ??
@@ -443,7 +448,7 @@ export function ProcessList({
   const scoped = config.units.filter((u) =>
     matchesFilters(u, filters, config.searchFields),
   );
-  const matched = scoped.filter((u) => inCard(u, card));
+  const matched = card ? scoped.filter((u) => inCard(u, card)) : scoped;
   const filtered = sort
     ? [...matched].sort((a, b) => {
         const order = sortValue(a, sort.key).localeCompare(
@@ -522,7 +527,7 @@ export function ProcessList({
     finish(ids, ACTION_COPY.shipped(units.length));
   };
 
-  /** 행의 출고 송장 버튼 — 원본 `rentShipOne` · `rentInvoiceEdit` · `cancelToReturn` · `rmaCollectShip` */
+  /** 행의 출고 송장 버튼 — 원본 `rentShipOne` · `rentInvoiceEdit` · `rmaCollectShip`(취소 행은 [상세 처리] · 개발 요청 19번) */
   const rowShip = (u: OrderUnit) => {
     const d = draftOf(u);
     if (shipKind === "register") {
@@ -533,10 +538,6 @@ export function ProcessList({
     if (shipKind === "edit") {
       if (!d.invoice.trim()) return toast(ACTION_COPY.invoiceFirst);
       return toast(ACTION_COPY.invoiceEdited);
-    }
-    if (shipKind === "cancel") {
-      if (!hasInvoice(u)) return toast(ACTION_COPY.courierAndInvoice);
-      return toast(ACTION_COPY.cancelToReturn);
     }
     const type = claimTypeOf(u);
     if (!hasInvoice(u)) return toast(ACTION_COPY.collectFirst);
@@ -807,7 +808,9 @@ export function ProcessList({
       case "courier":
       case "invoice": {
         const d = draftOf(u);
-        const canEdit = editable(u);
+        /* 행 버튼이 상세로 가는 행 — 송장 칸은 잠그고 버튼은 상세로(개발 요청 15·19·27번) */
+        const link = config.rowLink?.(u) ?? null;
+        const canEdit = !link && editable(u);
         if (key === "courier")
           return td(
             <Select
@@ -830,15 +833,25 @@ export function ProcessList({
               disabled={!canEdit}
               onChange={(event) => setDraft(u, { invoice: event.target.value })}
             />
-            {shipCopy?.button && (
+            {link ? (
               <Button
                 variant="secondary"
                 size="small"
-                disabled={!canEdit}
-                onClick={() => rowShip(u)}
+                onClick={() => onNavSelect(config.detailPath(u))}
               >
-                {shipCopy.button}
+                {link}
               </Button>
+            ) : (
+              shipCopy?.button && (
+                <Button
+                  variant="secondary"
+                  size="small"
+                  disabled={!canEdit}
+                  onClick={() => rowShip(u)}
+                >
+                  {shipCopy.button}
+                </Button>
+              )
             )}
           </span>,
         );
@@ -910,6 +923,22 @@ export function ProcessList({
       }
       header={<PageHeader title={config.title} />}
     >
+      {/* 수량 초과 상품 — 렌트 발주 관리(개발 요청 27번 · develop 문구) */}
+      {config.overbooked?.length ? (
+        <section aria-label="수량 초과 상품" className="flex flex-col gap-2">
+          {config.overbooked.map((p) => (
+            <div key={p.name} className="flex flex-wrap items-center gap-2">
+              <Tag tone="warning" dot>
+                {OVERBOOKED_COPY.badge}
+              </Tag>
+              <span className="body-small text-text-sub">
+                <b className="text-text">{p.name}</b>
+                {OVERBOOKED_COPY.line(p.reservations, p.active)}
+              </span>
+            </div>
+          ))}
+        </section>
+      ) : null}
       {/* 상태 카드 — 원본 한 줄 4칸 격자 */}
       <Card>
         <CardBody>

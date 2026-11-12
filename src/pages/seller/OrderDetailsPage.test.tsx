@@ -63,12 +63,8 @@ describe("주문 상세(통합)", () => {
     expect(screen.getByText("내 스토어 유닛 결제 합계")).toBeInTheDocument();
     for (const gone of ["결제 합계", "렌탈료 합계", "보증금"])
       expect(screen.queryByText(gone)).toBeNull();
-    expect(
-      screen.queryByRole("columnheader", { name: "담당" }),
-    ).toBeNull();
-    expect(
-      screen.queryByRole("columnheader", { name: "셀러" }),
-    ).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "담당" })).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "셀러" })).toBeNull();
     /* 기획 답 2026-11-06 §2 #6 — 「안내」 구역 없음 */
     expect(screen.queryByText("별도 점유")).toBeNull();
     expect(screen.queryByRole("heading", { name: "안내" })).toBeNull();

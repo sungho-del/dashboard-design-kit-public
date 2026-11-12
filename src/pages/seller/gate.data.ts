@@ -247,7 +247,7 @@ export const DEPOSIT_COPY = {
 
 /* -------------------------------------------------------------------------
  * 행·상세의 송장 버튼 — 창 없이 검사 후 알림(원본 `rentShipOne` · `rentInvoiceEdit` ·
- * `cancelToReturn` · `rmaCollectShip`). 목록 행과 상세 배송정보가 같은 문구를 낸다
+ * `rmaCollectShip`). 목록 행과 상세 배송정보가 같은 문구를 낸다
  * ---------------------------------------------------------------------- */
 
 export const ACTION_COPY = {
@@ -264,9 +264,6 @@ export const ACTION_COPY = {
   invoiceEdited: "송장번호를 수정했습니다.",
   invoiceEditedBulk: (n: number, skipped: number) =>
     `${n}건 송장번호 수정 완료${skipped ? ` · ${skipped}건 제외(송장번호 없음)` : ""}`,
-  /** 취소 관리 행 [송장등록] — 송장이 수거 송장으로 넘어가 반품으로 전환(원본 `cancelToReturn`) */
-  cancelToReturn:
-    "송장 등록 → 반품 처리로 전환되어 [반품 관리]로 이동했습니다.",
   collectFirst: "수거 택배사와 수거 송장번호를 입력해주세요.",
   /**
    * 반품·교환 행 [송장등록] → 수거중. 원본은 흐름 배열의 3번째(`seq[2]`)를 써서 「반품 지연」으로

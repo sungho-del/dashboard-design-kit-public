@@ -1,5 +1,6 @@
 import { CLAIM_BUCKETS, claimStatOf, claimStatuses } from "./claim.data";
-import type { ProcessListConfig } from "./processList.data";
+import { preDispatchLink, type ProcessListConfig } from "./processList.data";
+import { OVERBOOKED_PRODUCTS } from "./ProductFormPage.data";
 import { UNITS, type OrderUnit } from "./seed/orders.data";
 import {
   RENT_LIST_STATS,
@@ -54,6 +55,9 @@ export const RENT_LIST: ProcessListConfig = {
   singleOnly: ["취소"],
   /* 신규 주문 카드엔 송장 열이 없다(원본 `shipCols` · 2026-08-07) */
   shipColumns: (card) => (card === "신규 주문" ? null : "register"),
+  /* 자체 수령 준비 단계 [준비 완료] · 「전체」의 신규 주문 [주문 확인] — 상세로(개발 요청 27번) */
+  rowLink: preDispatchLink,
+  overbooked: OVERBOOKED_PRODUCTS,
   detailPath: (u) => `/rent-list/${u.id}`,
 };
 

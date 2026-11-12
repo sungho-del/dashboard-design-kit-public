@@ -47,8 +47,10 @@ export const SALE_CANCEL: ProcessListConfig = {
     "환불 처리중": ["취소 완료"],
     "취소 완료": [],
   },
-  /* 출고 송장 칸 + [송장등록] → 반품으로 전환(원본 `cancelToReturn`) */
+  /* 출고 송장 칸 — 읽기 전용(원본은 [송장등록] → 반품 전환 · develop 은 상세에서 · 개발 요청 19번) */
   shipColumns: () => "cancel",
+  /* 행 송장 칸은 읽기 전용 + [상세 처리](상세로 · develop · 개발 요청 19번) — 반품 전환은 상세에서 */
+  rowLink: () => "상세 처리",
   detailPath: (u) => `/sale-cancel/${u.id}`,
 };
 

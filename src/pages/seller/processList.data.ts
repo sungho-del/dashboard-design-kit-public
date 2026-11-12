@@ -41,6 +41,12 @@ export interface Option {
   label: string;
 }
 
+export interface OverbookedProduct {
+  name: string;
+  reservations: number;
+  active: number;
+}
+
 export interface ProcessListConfig {
   screen: ProcessScreen;
   /** 원본 탑바 h1 */
@@ -63,6 +69,13 @@ export interface ProcessListConfig {
   invoiceEditBulk?: boolean;
   /** 그 카드의 택배사·송장 열 — `null` 이면 열이 없다 */
   shipColumns: (card: string) => ShipColumnKind | null;
+  /**
+   * 행 송장 칸 대신 상세로 가는 버튼 글자 — 값이 있으면 그 행의 택배사·송장 칸을 잠그고 버튼이 상세로 간다
+   * (develop `preDispatchShipmentDetailAction` · 취소 [상세 처리] · 개발 요청 2026-11-12 15·19·27번)
+   */
+  rowLink?: (u: OrderUnit) => string | null;
+  /** 목록 위 「초과 상태」 줄 — 진행 중 예약이 활성 수량보다 많은 상품(렌트 발주 · 개발 요청 27번). 비면 그리지 않는다 */
+  overbooked?: readonly OverbookedProduct[];
   detailPath: (u: OrderUnit) => string;
   /** 렌트 처리 화면 — 이용 기간 열(고정 · 정렬) · 렌트 금액 열 · 상품 수량 없음 · 검색조건 안심케어(원본 `orderColFlags`) */
   rent?: boolean;
@@ -74,6 +87,20 @@ export interface ProcessListConfig {
   collectBulk?: boolean;
   /** 상태 열 머리 도움말(렌트 배송 관리) */
   statusHelp?: string;
+}
+
+/**
+ * 발주 단계 행 버튼 — develop `preDispatchShipmentDetailAction` 그대로(판매·렌트 같다).
+ * 신규 주문 = [주문 확인](「전체」 보기에서만 송장 열이 보인다) · 방문 수령 + 배송 준비·지연 = [준비 완료] · 그 밖(택배 송장등록)은 없음
+ */
+export function preDispatchLink(u: OrderUnit): string | null {
+  if (u.stat === "신규 주문") return "주문 확인";
+  if (
+    u.shipWay === "방문 수령" &&
+    ["배송 준비", "배송 지연"].includes(u.stat ?? "")
+  )
+    return "준비 완료";
+  return null;
 }
 
 /** 원본 데모 기준일 `FB_TODAY` — 빠른 기간(오늘·1주일…)이 여기서 센다 */
@@ -266,6 +293,13 @@ export const PAGE_SIZES = [10, 20, 50, 100];
 export const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 
 /** 목록 문구 — 원본 글자 그대로 */
+/** 렌트 발주 관리 상단 「초과 상태」 줄 — develop `RentListNotice` 문구 그대로(상품명은 굵게 앞에) */
+export const OVERBOOKED_COPY = {
+  badge: "초과 상태 — 신규 예약 차단 중",
+  line: (reservations: number, active: number) =>
+    `(예약 ${reservations}건 > 활성 ${active}개) — 기존 예약은 보호되며 신규 예약만 차단됩니다(수량 풀 ㉡).`,
+} as const;
+
 export const LIST_COPY = {
   /** 엑셀 — 원본 `exportCsv`: 고른 행이 있으면 그것만, 없으면 조회 결과 전체(퍼블은 알림만) */
   excelEmpty: "다운로드할 데이터가 없습니다.",

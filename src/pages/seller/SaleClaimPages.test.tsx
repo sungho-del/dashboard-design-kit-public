@@ -104,25 +104,18 @@ describe("SaleCancelPage — 취소 관리", () => {
     ).toBeVisible();
   });
 
-  it("행 [송장등록] — 택배사·송장이 다 있어야 하고, 반품으로 전환된다는 알림(원본 `cancelToReturn`)", async () => {
-    const { user } = renderPage(SaleCancelPage);
+  it("행 송장 칸은 읽기 전용 + [상세 처리] → 취소 상세(개발 요청 19번)", async () => {
+    const { user, onNavSelect } = renderPage(SaleCancelPage);
     const row = rows()[0];
-    await user.click(within(row).getByRole("button", { name: "송장등록" }));
     expect(
-      await screen.findByText("택배사와 송장번호를 입력해주세요."),
-    ).toBeVisible();
-    await user.click(within(row).getByRole("combobox", { name: /택배사/ }));
-    await user.click(screen.getByRole("option", { name: "CJ대한통운" }));
-    await user.type(
+      within(row).getByRole("combobox", { name: /택배사/ }),
+    ).toBeDisabled();
+    expect(
       within(row).getByRole("textbox", { name: /송장번호/ }),
-      "612877412203",
-    );
-    await user.click(within(row).getByRole("button", { name: "송장등록" }));
-    expect(
-      await screen.findByText(
-        "송장 등록 → 반품 처리로 전환되어 [반품 관리]로 이동했습니다.",
-      ),
-    ).toBeVisible();
+    ).toBeDisabled();
+    expect(within(row).queryByRole("button", { name: "송장등록" })).toBeNull();
+    await user.click(within(row).getByRole("button", { name: "상세 처리" }));
+    expect(onNavSelect.mock.calls[0][0]).toMatch(/^\/sale-cancel\//);
   });
 });
 

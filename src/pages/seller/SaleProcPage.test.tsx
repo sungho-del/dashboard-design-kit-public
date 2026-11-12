@@ -1,4 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
+import { navigate } from "../../lib/router";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/ui";
 import { SaleProcPage } from "./SaleProcPage";
@@ -202,6 +203,35 @@ describe("SaleProcPage — 발주 관리", () => {
     expect(
       await screen.findByText("송장 등록 완료 → [배송 관리]로 이동했습니다."),
     ).toBeVisible();
+  });
+
+  it("방문 수령 행은 송장 칸이 잠기고 [준비 완료] → 상세(개발 요청 15번)", async () => {
+    const { user, onNavSelect } = renderPage();
+    await user.click(
+      within(cards()).getByRole("button", { name: /배송 준비/ }),
+    );
+    const pickup = rows().filter((r) => within(r).queryByText("방문 수령"));
+    expect(pickup).toHaveLength(2);
+    const row = pickup[0];
+    expect(
+      within(row).getByRole("combobox", { name: /택배사/ }),
+    ).toBeDisabled();
+    expect(within(row).queryByRole("button", { name: "송장등록" })).toBeNull();
+    await user.click(within(row).getByRole("button", { name: "준비 완료" }));
+    expect(onNavSelect.mock.calls[0][0]).toMatch(/^\/sale-proc\//);
+  });
+
+  it("「전체」(`?stat=`)는 카드가 꺼진 채 22건 · 신규 주문 행은 [주문 확인](개발 요청 15번)", async () => {
+    act(() => navigate("/sale-proc?stat="));
+    renderPage();
+    expect(
+      screen.getByRole("heading", { name: "목록 (총 22건)" }),
+    ).toBeVisible();
+    const fresh = rows().find((r) => within(r).queryByText("신규 주문"))!;
+    expect(
+      within(fresh).getByRole("button", { name: "주문 확인" }),
+    ).toBeVisible();
+    act(() => navigate("/sale-proc"));
   });
 
   it("주문번호를 누르면 그 처리단위의 발주 관리 상세로 간다", async () => {
