@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -13,6 +13,7 @@ import {
   Card,
   CardBody,
   CardHeader,
+  ConfirmModal,
   Checkbox,
   DatePicker,
   EmptyState,
@@ -53,6 +54,9 @@ import type { AddressBookEntry } from "./seed/store.data";
 import type { SellerProduct } from "./seed/products.data";
 import {
   ADDRESSES,
+  ADDRESS_IN_USE_SAMPLE,
+  addressInUse,
+  pendingOrdersOf,
   CATEGORY_TREES,
   CERT_TYPES,
   COMMENT_MAX,
@@ -81,6 +85,7 @@ import {
   needsCertNumber,
   optionKey,
   periodSummary,
+  reservationsOf,
   saleStatOf,
   saleStatTone,
   slotName,
@@ -152,8 +157,8 @@ import {
  * - 카테고리가 그 유형의 트리에 없는 상품(P-311 렌트 · 판매 분류 「목욕·위생」)은 **빈 대분류**로 연다 —
  *   원본은 「대분류 선택」 으로 보이면서 값은 남아 검사를 통과한다(보이지 않는 값으로 저장)
  * - 기간 옵션이 5개면 [추가] 를 잠그고 안내를 늘 보인다 — 원본은 6번째에 띄울 경고 창이 그려지지 않는다
- * - 렌트 수량의 「초과 상태 — 신규 예약 차단 중」 은 진행 중 예약 데이터를 잇지 않아 그리지 않는다
- * - 상세설명은 **평문 입력칸**이다(원본은 서식 편집기 — 2026-10-19 사용자 결정, 편집기는 개발 연동 때)
+ * - 렌트 수량의 「초과 상태 — 신규 예약 차단 중」 은 예시 예약 건수(P-001 · 3건)로 그린다(개발 요청 8번)
+ * - 상세설명은 서식 편집기 툴바다(개발 요청 2026-11-12 9번 — 2026-10-19 평문 결정을 develop 에 맞춰 되돌림). [이미지 삽입]은 알림
  * - 상품이미지는 **자리 표시 + 확대**만, 등록·교체·삭제·순서 바꾸기는 알림(업로드는 개발 영역).
  *   확대는 닫기가 있는 창이다(원본은 문구·닫기 없는 전체 오버레이)
  * - 주소록은 **고르기만** 화면 안에서 하고 등록·수정·삭제는 알림(판매자 계정 데이터). 검색은 치는 대로 거른다
@@ -385,6 +390,84 @@ function LoadingLines({ rows }: { rows: number }) {
   );
 }
 
+/**
+ * 상세설명 서식 편집기 — develop `DetailEditor` 와 같은 툴바(글자 크기 · 굵게·기울임·밑줄·취소선 · 정렬 3 ·
+ * 글머리·번호 · 구분선 · [이미지 삽입]). 서식은 화면 안에서 실제로 걸린다(브라우저 편집 명령) · 값은 HTML.
+ * [이미지 삽입]은 업로드라 퍼블은 알림만. 처음 값만 편집 영역에 넣는다 — 입력마다 다시 넣으면 커서가 맨 앞으로 튄다
+ */
+function DetailEditor({
+  value,
+  onChange,
+  onInsertImage,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onInsertImage: () => void;
+}) {
+  const editor = useRef<HTMLDivElement>(null);
+  const initial = useRef(value);
+  useEffect(() => {
+    if (editor.current) editor.current.innerHTML = initial.current;
+  }, []);
+  const command = (name: string, argument?: string) => {
+    editor.current?.focus();
+    document.execCommand(name, false, argument);
+    onChange(editor.current?.innerHTML ?? "");
+  };
+  return (
+    <FormField label="상세설명" group description={COPY.detailHelp}>
+      <div
+        role="group"
+        aria-label="상세설명 편집기"
+        className="flex flex-col gap-2"
+      >
+        <div
+          role="toolbar"
+          aria-label="서식"
+          className="flex flex-wrap items-center gap-1"
+        >
+          <Select
+            className="w-28"
+            size="small"
+            aria-label="글자 크기"
+            placeholder="글자 크기"
+            options={[...COPY.detailFontSizes]}
+            value=""
+            onValueChange={(size) => command("fontSize", size)}
+          />
+          {COPY.detailTools.map((tool) => (
+            <Button
+              key={tool.command}
+              variant="ghost"
+              size="small"
+              aria-label={tool.name}
+              /* 버튼이 포커스를 가져가면 편집 영역의 선택이 풀린다 */
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => command(tool.command)}
+            >
+              {tool.label}
+            </Button>
+          ))}
+          <Button variant="secondary" size="small" onClick={onInsertImage}>
+            이미지 삽입
+          </Button>
+        </div>
+        <div
+          ref={editor}
+          role="textbox"
+          aria-multiline="true"
+          aria-label="상세설명"
+          contentEditable
+          suppressContentEditableWarning
+          data-placeholder={COPY.detailPlaceholder}
+          onInput={(event) => onChange(event.currentTarget.innerHTML)}
+          className="body-medium min-h-60 overflow-auto rounded-medium bg-surface p-3 text-text outline-1 -outline-offset-1 outline-border focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus empty:before:text-text-minimal empty:before:content-[attr(data-placeholder)] [&_img]:max-w-full"
+        />
+      </div>
+    </FormField>
+  );
+}
+
 /** 주소록을 여는 자리 — 방문 수령·공항 픽업이 같은 주소록을 쓴다(원본 `addrBookOpen(target)`) */
 type AddressTarget = "pickup" | "airport";
 
@@ -398,6 +481,281 @@ function AddressLines({ address }: { address: AddressBookEntry }) {
         {address.tel1 || "-"} / {address.tel2 || "-"}
       </span>
     </div>
+  );
+}
+
+/** 주소록 등록·수정 폼 값 — 4칸(구분 라디오 없음 · develop) */
+interface AddressDraft {
+  id: string | null;
+  name: string;
+  addr: string;
+  tel1: string;
+  tel2: string;
+}
+const EMPTY_ADDRESS: AddressDraft = {
+  id: null,
+  name: "",
+  addr: "",
+  tel1: "",
+  tel2: "",
+};
+type AddressView = "list" | "form" | "confirmDelete" | "confirmSave";
+
+/**
+ * 주소록 창 — develop `AddressBookModal` 과 같은 창들(개발 요청 10번).
+ * 목록(고르기·수정·삭제·신규등록) → 등록·수정 폼(이름 · 주소 + [주소검색] · 연락처1 · 연락처2) →
+ * 수정이면 수령 전 주문이 있을 때 확인 창 → 저장 알림. 삭제는 확인 창 → 쓰는 상품이 있으면 거부 알림.
+ * 퍼블 범위: 저장·삭제는 알림만이라 목록은 그대로 남는다 · [주소검색]은 알림. 창은 한 번에 하나만 띄운다
+ */
+function AddressBookModal({
+  target,
+  addresses,
+  query,
+  onQueryChange,
+  onSelect,
+  onClose,
+}: {
+  target: AddressTarget | null;
+  addresses: AddressBookEntry[];
+  query: string;
+  onQueryChange: (next: string) => void;
+  onSelect: (address: AddressBookEntry) => void;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const [view, setView] = useState<AddressView>("list");
+  const [draft, setDraft] = useState<AddressDraft>(EMPTY_ADDRESS);
+  const [errors, setErrors] = useState<
+    Partial<Record<"name" | "addr" | "tel1" | "tel2", string>>
+  >({});
+  const [deleting, setDeleting] = useState<AddressBookEntry | null>(null);
+  const copy = COPY.addressBook;
+
+  /* 닫았다 다시 열면 목록부터 */
+  const [openedFor, setOpenedFor] = useState(target);
+  if (openedFor !== target) {
+    setOpenedFor(target);
+    setView("list");
+  }
+  if (target === null) return null;
+
+  const openForm = (address: AddressBookEntry | null) => {
+    setDraft(
+      address
+        ? {
+            id: address.id,
+            name: address.name,
+            addr: address.addr,
+            tel1: address.tel1,
+            tel2: address.tel2,
+          }
+        : EMPTY_ADDRESS,
+    );
+    setErrors({});
+    setView("form");
+  };
+  const edit = (key: keyof AddressDraft) => (value: string) =>
+    setDraft((prev) => ({ ...prev, [key]: value }));
+
+  /* develop 검사 — 이름·주소 필수 · 연락처는 비우거나 숫자 9~11자리(공백·하이픈 무시) */
+  const validate = () => {
+    const telOk = (v: string) => {
+      const digits = v.replace(/[\s-]/g, "");
+      return digits === "" || /^\d{9,11}$/.test(digits);
+    };
+    const next: typeof errors = {};
+    if (!draft.name.trim()) next.name = copy.nameRequired;
+    if (!draft.addr.trim()) next.addr = copy.addressRequired;
+    if (!telOk(draft.tel1)) next.tel1 = copy.telInvalid;
+    if (!telOk(draft.tel2)) next.tel2 = copy.telInvalid;
+    setErrors(next);
+    const first = next.name ?? next.addr ?? next.tel1 ?? next.tel2;
+    if (first) toast({ message: first, tone: "critical" });
+    return !first;
+  };
+  const persist = () => {
+    toast(copy.saved);
+    setView("list");
+  };
+  const save = () => {
+    if (!validate()) return;
+    if (draft.id && pendingOrdersOf(draft.id) > 0)
+      return setView("confirmSave");
+    persist();
+  };
+  const remove = () => {
+    if (deleting && addressInUse(deleting.id))
+      toast({ message: ADDRESS_IN_USE_SAMPLE, tone: "critical" });
+    else toast(copy.deleted);
+    setDeleting(null);
+    setView("list");
+  };
+
+  return (
+    <>
+      <Modal open={view === "list"} onClose={onClose} size="medium">
+        <ModalHeader
+          closeLabel="대화상자 닫기"
+          title={COPY.address[target].button}
+        />
+        <ModalBody>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="body-small text-text-sub">
+              총 {addresses.length}개 · 최근 등록순
+            </span>
+            <Input
+              className="w-60"
+              aria-label="관리이름 검색"
+              placeholder="관리이름 검색"
+              value={query}
+              onChange={(event) => onQueryChange(event.target.value)}
+            />
+          </div>
+          <ul className="flex flex-col gap-2">
+            {addresses.map((address) => (
+              <li
+                key={address.id}
+                className="flex items-start justify-between gap-2 rounded-medium p-3 outline-1 -outline-offset-1 outline-border"
+              >
+                <AddressLines address={address} />
+                <span className="flex shrink-0 items-center gap-2">
+                  <TextButton
+                    aria-label={`${address.name} 선택`}
+                    onClick={() => onSelect(address)}
+                  >
+                    선택
+                  </TextButton>
+                  <TextButton
+                    tone="secondary"
+                    aria-label={`${address.name} 수정`}
+                    onClick={() => openForm(address)}
+                  >
+                    수정
+                  </TextButton>
+                  <TextButton
+                    tone="secondary"
+                    aria-label={`${address.name} 삭제`}
+                    onClick={() => {
+                      setDeleting(address);
+                      setView("confirmDelete");
+                    }}
+                  >
+                    삭제
+                  </TextButton>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            variant="secondary"
+            size="large"
+            onClick={() => openForm(null)}
+          >
+            신규등록
+          </Button>
+          <Button size="large" onClick={onClose}>
+            닫기
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      <Modal
+        open={view === "form"}
+        onClose={() => setView("list")}
+        size="medium"
+        closeOnOverlayClick={false}
+      >
+        <ModalHeader
+          closeLabel="대화상자 닫기"
+          title={draft.id ? copy.editTitle : copy.createTitle}
+        />
+        <ModalBody>
+          <FormField label="이름" required error={errors.name}>
+            <Input
+              placeholder={copy.namePlaceholder}
+              maxLength={50}
+              value={draft.name}
+              invalid={Boolean(errors.name)}
+              onChange={(event) => edit("name")(event.target.value)}
+            />
+          </FormField>
+          <FormField label="주소" required group error={errors.addr}>
+            <div className="flex gap-2">
+              <Input
+                className="flex-1"
+                aria-label="주소"
+                placeholder={copy.addressPlaceholder}
+                maxLength={200}
+                value={draft.addr}
+                invalid={Boolean(errors.addr)}
+                onChange={(event) => edit("addr")(event.target.value)}
+              />
+              <Button
+                variant="secondary"
+                onClick={() => toast(COPY.addressPending)}
+              >
+                주소검색
+              </Button>
+            </div>
+          </FormField>
+          <FormField label="연락처1" error={errors.tel1}>
+            <Input
+              inputMode="tel"
+              placeholder={copy.telPlaceholder}
+              value={draft.tel1}
+              invalid={Boolean(errors.tel1)}
+              onChange={(event) => edit("tel1")(event.target.value)}
+            />
+          </FormField>
+          <FormField label="연락처2" error={errors.tel2}>
+            <Input
+              inputMode="tel"
+              placeholder={copy.telPlaceholder}
+              value={draft.tel2}
+              invalid={Boolean(errors.tel2)}
+              onChange={(event) => edit("tel2")(event.target.value)}
+            />
+          </FormField>
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            variant="secondary"
+            size="large"
+            onClick={() => setView("list")}
+          >
+            취소
+          </Button>
+          <Button size="large" onClick={save}>
+            저장
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      <ConfirmModal
+        open={view === "confirmDelete"}
+        onClose={() => {
+          setDeleting(null);
+          setView("list");
+        }}
+        onConfirm={remove}
+        title={copy.deleteConfirm}
+        description={deleting?.name}
+        confirmLabel="삭제"
+      />
+      <ConfirmModal
+        open={view === "confirmSave"}
+        onClose={() => setView("form")}
+        onConfirm={persist}
+        title={copy.saveConfirm}
+        description={
+          draft.id ? copy.pendingOrders(pendingOrdersOf(draft.id)) : undefined
+        }
+        confirmLabel="저장"
+        tone="primary"
+      />
+    </>
   );
 }
 
@@ -634,6 +992,8 @@ function ProductFormBody({
 
   /* 상품이미지 — 확대해 볼 칸의 이름(「대표이미지」·「추가이미지 2」). 업로드류는 알림만 */
   const [zoomed, setZoomed] = useState<string | null>(null);
+  /** [초안 삭제] 확인 창(개발 요청 7번) */
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const imagePending = () => toast(COPY.imagePending);
 
   /* 인증 정보 · 고시 — 줄마다 id 로 고친다(지우고 더해도 입력칸이 엉키지 않게) */
@@ -785,6 +1145,12 @@ function ProductFormBody({
   /* [재심사 요청]은 반려에서만 · [임시저장]은 등록이거나 초안일 때만(원본 `_pfReReq`·`_pfDraftable`) */
   const rereviewable = storedStat === "반려";
   const draftable = isNew || storedStat === "임시저장";
+  /* 렌트 수량 초과(개발 요청 8번) — 진행 중 예약 > 활성 수량. 수량·중지를 바꾸면 그 자리에서 다시 센다 */
+  const reservations = reservationsOf(product?.id);
+  const activeSlots =
+    num(draft.rentQty) -
+    draft.slotOff.filter((n) => n <= num(draft.rentQty)).length;
+  const overbooked = rent && reservations > activeSlots;
   const storedDisplay = product ? displayOf(product) : null;
 
   /** 할인 블록 — 원본 「설정함/설정안함 + 값 + %/원」 */
@@ -1318,6 +1684,17 @@ function ProductFormBody({
                 onChange={(event) => setRentQty(event.target.value)}
               />
             </FormField>
+            {/* 진행 중 예약이 활성 수량보다 많으면 신규만 막힌다(개발 요청 8번 · develop 문구) */}
+            {overbooked ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Tag tone="warning" dot>
+                  {COPY.overbookedBadge}
+                </Tag>
+                <span className="body-small text-text-sub">
+                  {COPY.overbooked(reservations, activeSlots)}
+                </span>
+              </div>
+            ) : null}
             {num(draft.rentQty) > 0 ? (
               <ul className="flex flex-col gap-2" aria-label="렌트 슬롯">
                 {Array.from({ length: num(draft.rentQty) }, (_, index) => {
@@ -1433,7 +1810,7 @@ function ProductFormBody({
         )}
       </Section>
 
-      {/* ⑦ 상세설명 — 원본은 서식 편집기. 우리는 평문(사용자 결정 — 편집기는 개발 연동 때) */}
+      {/* ⑦ 상세설명 — 서식 편집기(개발 요청 9번 · develop 툴바 그대로). 상품마다 새로 붙여 처음 값을 다시 넣는다 */}
       <Section
         title={COPY.sections.detail}
         open={isOpen("detail")}
@@ -1444,14 +1821,12 @@ function ProductFormBody({
         {loading ? (
           <LoadingLines rows={3} />
         ) : (
-          <FormField label="상세설명" description={COPY.detailHelp}>
-            <Textarea
-              minRows={6}
-              placeholder={COPY.detailPlaceholder}
-              value={draft.detail}
-              onChange={(event) => set("detail", event.target.value)}
-            />
-          </FormField>
+          <DetailEditor
+            key={product?.id ?? "new"}
+            value={draft.detail}
+            onChange={(next) => set("detail", next)}
+            onInsertImage={imagePending}
+          />
         )}
       </Section>
 
@@ -2211,6 +2586,12 @@ function ProductFormBody({
                           ({product.review.at})
                         </span>
                       ) : null}
+                      {/* 재심사 요청 시각(개발 요청 11번 · develop 문구) */}
+                      {product.review?.reqAt ? (
+                        <span className="block text-text-sub tabular-nums">
+                          {COPY.rereviewAt(product.review.reqAt)}
+                        </span>
+                      ) : null}
                     </p>
                   ) : null}
                 </div>
@@ -2296,9 +2677,20 @@ function ProductFormBody({
       */}
       <Card variant="soft" className="sticky bottom-6 z-10">
         <div className="flex items-center justify-between gap-2">
-          <Button variant="secondary" onClick={toList}>
-            목록
-          </Button>
+          {/* [초안 삭제] — 임시저장 초안만 · [목록] 옆(개발 요청 7번 · develop 자리) */}
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={toList}>
+              목록
+            </Button>
+            {!isNew && isDraft ? (
+              <Button
+                variant="criticalTonal"
+                onClick={() => setDeleteOpen(true)}
+              >
+                {COPY.deleteDraft}
+              </Button>
+            ) : null}
+          </div>
           <div className="flex items-center gap-2">
             {draftable ? (
               <Button variant="secondary" onClick={saveDraft}>
@@ -2324,6 +2716,19 @@ function ProductFormBody({
         </div>
       </Card>
 
+      {/* 초안 삭제 확인 — develop 문구 · 확인하면 목록으로(퍼블은 실제로 지우지 않는다) */}
+      <ConfirmModal
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={() => {
+          setDeleteOpen(false);
+          toList();
+        }}
+        title={COPY.deleteDraftConfirm}
+        description={product?.name}
+        confirmLabel={COPY.deleteDraft}
+      />
+
       {/* 이미지 확대 — 원본은 화면 전체를 덮는 오버레이(문구·닫기 없음). 우리는 닫기가 있는 창 */}
       <Modal
         open={zoomed !== null}
@@ -2348,80 +2753,23 @@ function ProductFormBody({
         </ModalFooter>
       </Modal>
 
-      {/* 판매자 주소록 — 방문 수령·공항 픽업 공용. 고르기는 화면 안에서, 등록·수정·삭제는 알림(판매자 계정 데이터) */}
-      <Modal
-        open={addressFor !== null}
+      {/* 판매자 주소록·공항 픽업 주소록 — 고르기는 화면 안에서 · 등록·수정·삭제는 창까지 그리고 저장은 알림(개발 요청 10번) */}
+      <AddressBookModal
+        target={addressFor}
+        addresses={shownAddresses}
+        query={addressQuery}
+        onQueryChange={setAddressQuery}
+        onSelect={(address) => {
+          if (!addressFor) return;
+          set(
+            addressFor === "airport" ? "airportAddress" : "pickupAddress",
+            address.id,
+          );
+          setAddressFor(null);
+          toast(COPY.address[addressFor].selected);
+        }}
         onClose={() => setAddressFor(null)}
-        size="medium"
-      >
-        <ModalHeader closeLabel="대화상자 닫기" title="주소록" />
-        <ModalBody>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="body-small text-text-sub">
-              총 {shownAddresses.length}개 · 최근 등록순
-            </span>
-            <Input
-              className="w-60"
-              aria-label="관리이름 검색"
-              placeholder="관리이름 검색"
-              value={addressQuery}
-              onChange={(event) => setAddressQuery(event.target.value)}
-            />
-          </div>
-          <ul className="flex flex-col gap-2">
-            {shownAddresses.map((address) => (
-              <li
-                key={address.id}
-                className="flex items-start justify-between gap-2 rounded-medium p-3 outline-1 -outline-offset-1 outline-border"
-              >
-                <AddressLines address={address} />
-                <span className="flex shrink-0 items-center gap-2">
-                  <TextButton
-                    aria-label={`${address.name} 선택`}
-                    onClick={() => {
-                      if (!addressFor) return;
-                      set(
-                        addressFor === "airport"
-                          ? "airportAddress"
-                          : "pickupAddress",
-                        address.id,
-                      );
-                      setAddressFor(null);
-                      toast(COPY.address[addressFor].selected);
-                    }}
-                  >
-                    선택
-                  </TextButton>
-                  <TextButton
-                    tone="secondary"
-                    onClick={() => toast(COPY.addressPending)}
-                  >
-                    수정
-                  </TextButton>
-                  <TextButton
-                    tone="secondary"
-                    onClick={() => toast(COPY.addressPending)}
-                  >
-                    삭제
-                  </TextButton>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </ModalBody>
-        <ModalFooter>
-          <Button
-            variant="secondary"
-            size="large"
-            onClick={() => toast(COPY.addressPending)}
-          >
-            신규등록
-          </Button>
-          <Button size="large" onClick={() => setAddressFor(null)}>
-            닫기
-          </Button>
-        </ModalFooter>
-      </Modal>
+      />
     </SellerShell>
   );
 }

@@ -355,16 +355,6 @@ export const defaultInfo = (): InfoRow[] =>
     fixed: true,
   }));
 
-/**
- * 상세설명 HTML → 평문. 시드는 `<b>제목</b><div><br></div><div>줄</div>…` 한 꼴뿐이다
- * (`<div>` = 줄바꿈 · `<div><br></div>` = 빈 줄). 평문 칸에 태그 글자가 보이면 안 된다.
- */
-export const plainText = (html: string) =>
-  html
-    .replace(/<br>/g, "")
-    .replace(/<div>/g, "\n")
-    .replace(/<[^>]+>/g, "");
-
 /** 등록 모드 처음 값 — 원본 `_pfDefaults` (렌트 · 판매중 · 전시중 · 나머지는 빈 칸) */
 export const emptyDraft = (): ProductDraft => ({
   name: "",
@@ -621,8 +611,28 @@ export const COPY = {
   imagePending: "이미지 등록·교체·삭제는 개발 연동 시 제공됩니다.",
   detailPlaceholder:
     "상품 상세페이지를 작성하세요. 소재·사이즈·구성품·사용 연령·세탁/관리 방법·주의사항 등을 이미지와 함께 자유롭게 구성할 수 있습니다.",
+  /** 상세설명 안내 — develop 문구(서식 편집기가 붙어 「개발 연동 시」 문장을 뺐다 · 개발 요청 9번) */
   detailHelp:
-    "사용자 앱 상품 상세 ‘상품정보’ 탭 본문으로 노출됩니다. 서식(굵게·정렬·목록·이미지 삽입) 편집기는 개발 연동 시 붙습니다.",
+    "사용자 앱 상품 상세 ‘상품정보’ 탭 본문으로 노출됩니다. 이미지 형식 : jpg,png · 이미지 용량 : 1MB 이하 (최대 5MB)",
+  /** 서식 편집기 툴바 — develop `DetailEditor` 그대로(글자 크기 · 버튼 글자 · 읽는 이름) */
+  detailFontSizes: [
+    { value: "2", label: "작게" },
+    { value: "3", label: "보통" },
+    { value: "4", label: "크게" },
+    { value: "5", label: "아주 크게" },
+  ],
+  detailTools: [
+    { command: "bold", label: "B", name: "굵게" },
+    { command: "italic", label: "I", name: "기울임" },
+    { command: "underline", label: "U", name: "밑줄" },
+    { command: "strikeThrough", label: "S", name: "취소선" },
+    { command: "justifyLeft", label: "왼쪽", name: "왼쪽 정렬" },
+    { command: "justifyCenter", label: "가운데", name: "가운데 정렬" },
+    { command: "justifyRight", label: "오른쪽", name: "오른쪽 정렬" },
+    { command: "insertUnorderedList", label: "• 목록", name: "글머리 기호" },
+    { command: "insertOrderedList", label: "1. 목록", name: "번호 목록" },
+    { command: "insertHorizontalRule", label: "구분선", name: "구분선" },
+  ],
   /* 칸 도움말은 본사 화면과 같은 문구(기획 답 2026-11-06 §2 #6 — 성장단계·방문 수령 도움말은 삭제) */
   certHelp: "인증 대상이 아닌 상품은 '해당없음'을 선택합니다.",
   infoHelp: "기본 항목은 삭제하거나 이름을 바꿀 수 없습니다.",
@@ -641,8 +651,29 @@ export const COPY = {
       selected: "공항 픽업 주소가 선택되었습니다.",
     },
   },
-  /** 주소록 편집은 판매자 계정의 데이터라 퍼블은 알림만 */
-  addressPending: "주소록 등록·수정·삭제는 개발 연동 시 제공됩니다.",
+  /** 주소 검색은 외부 주소 API 라 퍼블은 알림만 */
+  addressPending: "주소 검색은 개발 연동 시 제공됩니다.",
+  /**
+   * 주소록 창 안의 창들 — develop `AddressBookModal` 문구 그대로(개발 요청 2026-11-12 10번).
+   * 창 제목은 연 자리에 따라 「판매자 주소록」·「공항 픽업 주소록」(= `address.*.button`)
+   */
+  addressBook: {
+    createTitle: "주소록 신규등록",
+    editTitle: "주소록 수정",
+    namePlaceholder: "주소지 관리이름",
+    addressPlaceholder: "주소를 입력해주세요",
+    telPlaceholder: "-없이 연락가능한 전화번호 입력",
+    nameRequired: "주소지 관리이름을 입력해주세요.",
+    addressRequired: "주소를 입력해주세요.",
+    telInvalid: "연락처는 숫자만 입력해주세요.",
+    saved: "주소가 저장되었습니다.",
+    deleted: "주소가 삭제되었습니다.",
+    deleteConfirm: "이 주소를 삭제할까요?",
+    saveConfirm: "주소를 저장할까요?",
+    /** 수정 저장 전 — 수령 전 주문이 있으면 */
+    pendingOrders: (n: number) =>
+      `진행 중인 주문 ${n}건은 주문 당시 주소 그대로 안내됩니다. 장소가 바뀌었다면 고객에게 직접 알려 주세요.`,
+  },
   airportHelp: "공항 픽업 상품은 반납도 같은 공항에서 합니다.",
   optionHelp:
     "옵션명과 옵션값을 입력하고 [옵션목록으로 적용]을 누르면 조합이 만들어집니다(최대 3개). 옵션가는 주문당 한 번만 더해집니다.",
@@ -706,6 +737,17 @@ export const COPY = {
     `${id} 상품이 임시저장되었습니다. 등록을 마치면 판매가 시작됩니다.`,
   draftNeedsName: "상품명을 입력해주세요 — 임시저장에도 이름은 필요합니다.",
   rereviewDone: "재심사를 요청했습니다. 본사 판단을 기다립니다.",
+  /* 아래는 develop 문구 그대로(개발 요청 2026-11-12 7·8·11번) */
+  /** [초안 삭제] 확인 창 — 임시저장 초안만 */
+  deleteDraft: "초안 삭제",
+  deleteDraftConfirm: "이 초안을 삭제할까요? 삭제한 초안은 복구할 수 없습니다.",
+  /** 렌트 수량 초과 — 진행 중 예약이 활성 수량보다 많으면 신규 예약만 막힌다 */
+  overbookedBadge: "초과 상태 — 신규 예약 차단 중",
+  overbooked: (reservations: number, active: number) =>
+    `진행 중 예약 ${reservations}건 > 활성 수량 ${active}개 — 기존 예약은 보호되며 신규만 차단됩니다.`,
+  /** 반려 사유 아래 재심사 요청 시각 */
+  rereviewAt: (at: string) =>
+    `${at} 재심사를 요청해 본사 판단을 기다리는 중입니다.`,
   errors: {
     name: "상품명을 입력해주세요.",
     category: "카테고리(대분류)를 선택해주세요.",

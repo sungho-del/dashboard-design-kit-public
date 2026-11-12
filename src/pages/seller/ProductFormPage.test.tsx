@@ -157,14 +157,15 @@ describe("상품 상세 (수정) — 시드 값이 칸에 그대로(원본 `open
     expect(screen.queryByRole("combobox", { name: /등록 주체/ })).toBeNull();
   });
 
-  it("상세설명은 HTML 시드를 평문으로 · 옵션은 1축 「옵션」 으로 접고 옵션가·재고를 싣는다", () => {
+  it("상세설명은 서식 편집기에 HTML 시드 그대로 · 옵션은 1축 「옵션」 으로 접고 옵션가·재고를 싣는다", () => {
     renderEdit("P-001");
 
+    /* 개발 요청 9번 — 평문 칸 대신 서식 편집기(시드 굵은 제목이 그대로 굵게) */
     const detail = screen.getByRole("textbox", { name: "상세설명" });
-    expect((detail as HTMLTextAreaElement).value).toContain(
-      "스토케 트립트랩 하이체어\n\n소재 : 친환경 ABS",
+    expect(detail.querySelector("b")).toHaveTextContent(
+      "스토케 트립트랩 하이체어",
     );
-    expect((detail as HTMLTextAreaElement).value).not.toMatch(/<\/?[a-z]/);
+    expect(detail).toHaveTextContent("소재 : 친환경 ABS");
 
     expect(textbox("옵션 1 옵션명")).toHaveValue("옵션");
     expect(textbox("옵션 1 옵션값")).toHaveValue("모빌");
@@ -276,6 +277,83 @@ describe("노출 관리 — 판매 상태 (원본 `prodSaleStat` · 잠금 → �
     ).toBeVisible();
     expect(barButtons()).toEqual(["목록", "취소", "수정 저장"]);
     expect(primaries()).toEqual(["수정 저장"]);
+    /* 반려 사유 아래 재심사 요청 시각(개발 요청 11번) */
+    expect(
+      within(display).getByText(
+        "2026.06.21 14:35:02 재심사를 요청해 본사 판단을 기다리는 중입니다.",
+      ),
+    ).toBeVisible();
+  });
+
+  /* ---- 개발 요청 2026-11-12 7·8·9번 ---- */
+
+  it("상세설명 툴바 — develop 순서 그대로 · [이미지 삽입]은 알림", async () => {
+    const { user } = renderEdit("P-001");
+    const toolbar = screen.getByRole("toolbar", { name: "서식" });
+    expect(
+      within(toolbar).getByRole("combobox", { name: "글자 크기" }),
+    ).toHaveTextContent("글자 크기");
+    expect(
+      within(toolbar)
+        .getAllByRole("button")
+        .map((b) => b.getAttribute("aria-label") ?? b.textContent),
+    ).toEqual([
+      "굵게",
+      "기울임",
+      "밑줄",
+      "취소선",
+      "왼쪽 정렬",
+      "가운데 정렬",
+      "오른쪽 정렬",
+      "글머리 기호",
+      "번호 목록",
+      "구분선",
+      "이미지 삽입",
+    ]);
+    await user.click(
+      within(toolbar).getByRole("button", { name: "이미지 삽입" }),
+    );
+    expect(
+      await screen.findByText(
+        "이미지 등록·교체·삭제는 개발 연동 시 제공됩니다.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("[초안 삭제] — 임시저장 초안만 · 확인 창(develop 문구) · 확인하면 목록으로", async () => {
+    const { user, onNavSelect } = renderEdit("P-310");
+    await user.click(within(bar()).getByRole("button", { name: "초안 삭제" }));
+    const dialog = screen.getByRole("dialog", {
+      name: "이 초안을 삭제할까요? 삭제한 초안은 복구할 수 없습니다.",
+    });
+    expect(
+      within(dialog).getByText("유아 원목 책상·의자 세트 (작성중)"),
+    ).toBeVisible();
+    await user.click(within(dialog).getByRole("button", { name: "초안 삭제" }));
+    expect(onNavSelect).toHaveBeenCalledWith("/products");
+  });
+
+  it("[초안 삭제]는 초안이 아니면 없다", () => {
+    renderEdit("P-001");
+    expect(
+      within(bar()).queryByRole("button", { name: "초안 삭제" }),
+    ).toBeNull();
+  });
+
+  it("렌트 수량 초과 — 진행 중 예약 3건 > 활성 2개면 배지 + 문장 · 중지를 풀면 사라진다", async () => {
+    const { user } = renderEdit("P-001");
+    const qty = section(/렌트 수량/);
+    expect(
+      within(qty).getByText("초과 상태 — 신규 예약 차단 중"),
+    ).toBeVisible();
+    expect(
+      within(qty).getByText(
+        "진행 중 예약 3건 > 활성 수량 2개 — 기존 예약은 보호되며 신규만 차단됩니다.",
+      ),
+    ).toBeVisible();
+    const third = within(qty).getByRole("radiogroup", { name: /-03 상태/ });
+    await user.click(within(third).getByRole("radio", { name: "활성" }));
+    expect(within(qty).queryByText("초과 상태 — 신규 예약 차단 중")).toBeNull();
   });
 
   it("임시저장 초안 — 배지 + 안내(실제 버튼 [수정 저장]을 가리킨다) · [임시저장] 이 있다", async () => {
@@ -289,7 +367,13 @@ describe("노출 관리 — 판매 상태 (원본 `prodSaleStat` · 잠금 → �
     expect(
       within(display).queryByRole("radiogroup", { name: "판매 상태" }),
     ).toBeNull();
-    expect(barButtons()).toEqual(["목록", "임시저장", "취소", "수정 저장"]);
+    expect(barButtons()).toEqual([
+      "목록",
+      "초안 삭제",
+      "임시저장",
+      "취소",
+      "수정 저장",
+    ]);
     expect(primaries()).toEqual(["수정 저장"]);
 
     await user.click(screen.getByRole("button", { name: "임시저장" }));
@@ -438,7 +522,8 @@ describe("저장 검사 — 원본 `pfValidate` + Q-63", () => {
     expect(screen.getByText("공항 픽업 주소를 선택해주세요.")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "공항 픽업 주소록" }));
-    const dialog = screen.getByRole("dialog", { name: "주소록" });
+    /* 창 제목은 연 자리 이름(develop · 개발 요청 10번) */
+    const dialog = screen.getByRole("dialog", { name: "공항 픽업 주소록" });
     await user.click(
       within(dialog).getByRole("button", {
         name: "공항 픽업존 (김포 국내선) 선택",
@@ -452,6 +537,92 @@ describe("저장 검사 — 원본 `pfValidate` + Q-63", () => {
       within(section(/^배송/)).getByText("공항 픽업존 (김포 국내선)"),
     ).toBeVisible();
     expect(screen.queryByText("공항 픽업 주소를 선택해주세요.")).toBeNull();
+  });
+});
+
+describe("주소록 창 안의 창들 — 개발 요청 2026-11-12 10번(develop 문구)", () => {
+  const openBook = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByRole("button", { name: "판매자 주소록" }));
+    return screen.getByRole("dialog", { name: "판매자 주소록" });
+  };
+
+  it("[신규등록] → 4칸 폼(구분 라디오 없음) · 빈 채로 저장하면 칸 오류 · 채우면 저장 알림 후 목록", async () => {
+    const { user } = renderEdit("P-002");
+    const book = await openBook(user);
+    await user.click(within(book).getByRole("button", { name: "신규등록" }));
+    const form = screen.getByRole("dialog", { name: "주소록 신규등록" });
+    expect(within(form).queryByRole("radio")).toBeNull();
+    expect(within(form).getAllByRole("textbox")).toHaveLength(4);
+    await user.click(within(form).getByRole("button", { name: "저장" }));
+    expect(
+      within(form).getByText("주소지 관리이름을 입력해주세요."),
+    ).toBeVisible();
+    expect(within(form).getByText("주소를 입력해주세요.")).toBeVisible();
+
+    await user.type(
+      within(form).getByPlaceholderText("주소지 관리이름"),
+      "두 번째 출고지",
+    );
+    await user.type(
+      within(form).getByRole("textbox", { name: "주소" }),
+      "서울특별시 송파구 충민로 66",
+    );
+    const [tel1] =
+      within(form).getAllByPlaceholderText("-없이 연락가능한 전화번호 입력");
+    await user.type(tel1, "12ab");
+    await user.click(within(form).getByRole("button", { name: "저장" }));
+    expect(
+      within(form).getByText("연락처는 숫자만 입력해주세요."),
+    ).toBeVisible();
+    await user.clear(tel1);
+    await user.type(tel1, "0212345678");
+    await user.click(within(form).getByRole("button", { name: "저장" }));
+    expect(await screen.findByText("주소가 저장되었습니다.")).toBeVisible();
+    expect(
+      screen.getByRole("dialog", { name: "판매자 주소록" }),
+    ).toBeInTheDocument();
+  });
+
+  it("[수정] → 값이 채워진 폼 · 수령 전 주문이 있으면 저장 전 확인 창", async () => {
+    const { user } = renderEdit("P-002");
+    const book = await openBook(user);
+    await user.click(
+      within(book).getByRole("button", { name: "리틀베이비 출고지 수정" }),
+    );
+    const form = screen.getByRole("dialog", { name: "주소록 수정" });
+    expect(within(form).getByPlaceholderText("주소지 관리이름")).toHaveValue(
+      "리틀베이비 출고지",
+    );
+    await user.click(within(form).getByRole("button", { name: "저장" }));
+    const confirm = screen.getByRole("dialog", { name: "주소를 저장할까요?" });
+    expect(
+      within(confirm).getByText(
+        "진행 중인 주문 2건은 주문 당시 주소 그대로 안내됩니다. 장소가 바뀌었다면 고객에게 직접 알려 주세요.",
+      ),
+    ).toBeVisible();
+    await user.click(within(confirm).getByRole("button", { name: "저장" }));
+    expect(await screen.findByText("주소가 저장되었습니다.")).toBeVisible();
+  });
+
+  it("[삭제] → 확인 창 · 쓰는 상품이 있는 주소는 거부 알림 · 없으면 삭제 알림", async () => {
+    const { user } = renderEdit("P-002");
+    let book = await openBook(user);
+    await user.click(
+      within(book).getByRole("button", { name: "리틀베이비 출고지 삭제" }),
+    );
+    let confirm = screen.getByRole("dialog", { name: "이 주소를 삭제할까요?" });
+    await user.click(within(confirm).getByRole("button", { name: "삭제" }));
+    expect(
+      await screen.findByText("이 주소를 쓰는 상품이 있어 삭제할 수 없습니다."),
+    ).toBeVisible();
+
+    book = screen.getByRole("dialog", { name: "판매자 주소록" });
+    await user.click(
+      within(book).getByRole("button", { name: "반품교환지 삭제" }),
+    );
+    confirm = screen.getByRole("dialog", { name: "이 주소를 삭제할까요?" });
+    await user.click(within(confirm).getByRole("button", { name: "삭제" }));
+    expect(await screen.findByText("주소가 삭제되었습니다.")).toBeVisible();
   });
 });
 

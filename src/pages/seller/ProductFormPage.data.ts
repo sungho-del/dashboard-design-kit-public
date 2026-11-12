@@ -14,7 +14,6 @@ import {
   emptyDraft,
   digits,
   displayOf,
-  plainText,
   defaultInfo,
   fee,
 } from "./ProductFormPage.labels";
@@ -101,7 +100,7 @@ export const draftOf = (p: SellerProduct): ProductDraft => {
     tags: p.tags?.join(", ") ?? "",
     mainImage: Boolean(p.mainImg),
     extraImages: p.addImgs.length,
-    detail: plainText(p.detail),
+    detail: p.detail,
     stage: p.stage,
     certs: certs.length
       ? certs.map((row, index) => ({ id: index + 1, ...row }))
@@ -150,3 +149,26 @@ export const draftOf = (p: SellerProduct): ProductDraft => {
     optionAxes: flatOptions.length ? ["옵션"] : [],
   };
 };
+
+/**
+ * 진행 중 예약 건수 예시 — 시드에 예약 수가 없어 한 상품에만 둔다(개발 요청 8번 「초과 상태」가 보이도록).
+ * P-001 은 렌트 수량 3 · 3번 중지라 활성 2개 → 예약 3건이면 처음부터 초과 상태다. 실제 값은 서버 슬롯 원장
+ */
+const RESERVATIONS: Record<string, number> = { "P-001": 3 };
+export const reservationsOf = (id: string | undefined) =>
+  (id && RESERVATIONS[id]) || 0;
+
+/** 주소를 쓰는 상품이 있나 — 시드 상품의 방문 수령·공항 픽업 주소(A1·A3·A4). 이 주소는 삭제가 거부된다(개발 요청 10번) */
+const ADDRESSES_IN_USE = new Set(
+  PRODUCTS.flatMap((p) => [p.pickupAddrId, p.airportAddrId]).filter(Boolean),
+);
+export const addressInUse = (id: string) => ADDRESSES_IN_USE.has(id);
+/**
+ * 쓰는 중인 주소 삭제 거부 — develop 은 서버 409 문구를 그대로 띄운다. 그 문구가 서버에 있어
+ * 퍼블은 예시 문장을 둔다(서버 값 자리)
+ */
+export const ADDRESS_IN_USE_SAMPLE =
+  "이 주소를 쓰는 상품이 있어 삭제할 수 없습니다.";
+/** 수령 전 주문 건수 예시 — 수정 저장 전 확인 창이 보이도록 출고지(A1) 한 곳에만 둔다. 실제 값은 서버 */
+const PENDING_ORDERS: Record<string, number> = { A1: 2 };
+export const pendingOrdersOf = (id: string) => PENDING_ORDERS[id] ?? 0;

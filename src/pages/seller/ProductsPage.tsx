@@ -43,6 +43,7 @@ import {
   SELLER_PERIOD_PRESETS,
 } from "./processList.data";
 import {
+  CONFLICT_SAMPLE_ID,
   DATE_FIELDS,
   EMPTY_FILTERS,
   MY_PRODUCTS,
@@ -51,9 +52,11 @@ import {
   SALE_STATS,
   SEARCH_FIELDS,
   SHOW_OPTIONS,
+  STAGE_FILTER_OPTIONS,
   STAT_TIP,
   TYPE_OPTIONS,
-  categoryOptionsOf,
+  catPathOf,
+  categoryLevelsOf,
   detailPathOf,
   filterSummary,
   isRent,
@@ -61,11 +64,15 @@ import {
   matchesExceptStat,
   matchesFilters,
   priceOf,
+  rateDiscountOf,
+  rentDiscountOf,
   rentPriceOf,
   reviewOf,
+  saleDiscountOf,
   saleStatOf,
   salePriceOf,
   showStatOf,
+  stageSummaryOf,
   won,
   type PriceDraft,
   type PriceField,
@@ -92,6 +99,12 @@ import { SellerShell, type SellerNavProps } from "./SettleParts";
  * - 반려 사유는 밑줄 태그가 아니라 태그 아래 [사유 보기](`Tag` 는 표시 전용)
  * - 유형 라디오 → 셀렉트 · 조건을 바꾸면 선택·페이지가 풀린다(가격 고친 값은 남는다)
  * - 가격 열 ⓘ 는 머리 글자 옆 도움말 아이콘(원본 `th-help`)
+ *
+ * ## 개발 요청(2026-11-12)으로 develop 화면에 맞춘 것
+ * - 3·4번: 검색조건 카테고리 대·중·소 3단(고른 칸에 하위 분류가 있을 때만 다음 셀렉트) · 성장단계(전체 · 단계 · 없음)
+ * - 5번: 목록 제목 옆 저장 결과 한 줄 + 가격을 고쳤으면 [가격 변경 취소]. 저장이 충돌하면(예시 상품 하나)
+ *   충돌 안내 + 같은 자리 버튼이 [서버값 다시 불러오기]가 된다
+ * - 6번: 정률 할인 상품은 할인 칸을 잠그고(고친 원가로 다시 환산한 금액) 옆에 안내 아이콘
  * ====================================================================== */
 
 /** 좌측 고정 5열 52 / 72 / 112 / 112 / 232 → left 누적합(합 580). `<colgroup>` 과 함께 고친다 */
@@ -120,24 +133,26 @@ const TRAIL_TD = cn("sticky right-0 z-1 bg-inherit", EDGE_LEFT);
 
 const withCommas = (n: number) => n.toLocaleString("ko-KR");
 
+function HelpIcon({ label, tip }: { label: string; tip: string }) {
+  return (
+    <Tooltip content={tip}>
+      <span tabIndex={0} aria-label={label} className="inline-flex">
+        <CircleHelp
+          size={16}
+          strokeWidth={1.2}
+          aria-hidden
+          className="text-icon-sub"
+        />
+      </span>
+    </Tooltip>
+  );
+}
+
 function HeadHelp({ label }: { label: string }) {
   return (
     <span className="inline-flex items-center gap-1 whitespace-nowrap">
       {label}
-      <Tooltip content={PRICE_TIP}>
-        <span
-          tabIndex={0}
-          aria-label={`${label} 도움말`}
-          className="inline-flex"
-        >
-          <CircleHelp
-            size={16}
-            strokeWidth={1.2}
-            aria-hidden
-            className="text-icon-sub"
-          />
-        </span>
-      </Tooltip>
+      <HelpIcon label={`${label} 도움말`} tip={PRICE_TIP} />
     </span>
   );
 }
@@ -165,6 +180,12 @@ export function ProductsPage(props: SellerNavProps) {
   const [drafts, setDrafts] = useState<Record<string, PriceDraft>>({});
   const [filterOpen, setFilterOpen] = useState(true);
   const [reasonOf, setReasonOf] = useState<SellerProduct | null>(null);
+  /** 저장 결과 한 줄 — 오류(빨강) · 충돌(버튼이 [서버값 다시 불러오기]) · 안내 */
+  const [feedback, setFeedback] = useState<{
+    error: boolean;
+    text: string;
+    conflict?: boolean;
+  } | null>(null);
   const dataStatus = asStatus(useSearchParams().get("preview"));
 
   const patch = (next: Partial<ProductFilters>) => {
@@ -174,8 +195,11 @@ export function ProductsPage(props: SellerNavProps) {
   };
   const reset = () => patch(EMPTY_FILTERS);
 
-  const ctx = MY_PRODUCTS.filter((p) => matchesExceptStat(p, filters));
-  const filtered = ctx.filter((p) => matchesFilters(p, filters));
+  const ctx = MY_PRODUCTS.filter((p) =>
+    matchesExceptStat(p, filters, catPathOf(p)),
+  );
+  const filtered = ctx.filter((p) => matchesFilters(p, filters, catPathOf(p)));
+  const levels = categoryLevelsOf(filters.type, filters.cat, filters.cat2);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const start = (currentPage - 1) * pageSize;
@@ -196,17 +220,37 @@ export function ProductsPage(props: SellerNavProps) {
 
   const setPrice = (id: string, f: PriceField, raw: string) => {
     const digits = raw.replace(/[^0-9]/g, "");
+    setFeedback((current) => (current?.conflict ? current : null));
     setDrafts((prev) => ({
       ...prev,
       [id]: { ...prev[id], [f]: digits === "" ? 0 : Number(digits) },
     }));
   };
 
-  /** 원본 `pSaveSelected` — 체크한 행 중 고친 값이 있는 것만 센다(퍼블은 알림만) */
+  /**
+   * 원본 `pSaveSelected` — 체크한 행 중 고친 값이 있는 것만 센다(퍼블은 알림 + 결과 한 줄 · 행 값은 남는다).
+   * 고친 행에 충돌 예시 상품이 있으면 develop 의 409 안내(입력·선택 유지)
+   */
   const saveSelected = () => {
-    if (selected.length === 0) return toast(PRODUCT_COPY.saveNone);
-    const n = selected.filter((id) => drafts[id]).length;
-    toast(n ? PRODUCT_COPY.saved(n) : PRODUCT_COPY.saveNoChange);
+    const fail = (text: string, conflict = false) => {
+      setFeedback({ error: true, text, conflict });
+      toast({ message: text, tone: "critical" });
+    };
+    if (selected.length === 0) return fail(PRODUCT_COPY.saveNone);
+    const changed = selected.filter((id) => drafts[id]);
+    if (!changed.length) {
+      setFeedback({ error: false, text: PRODUCT_COPY.saveNoChange });
+      return toast(PRODUCT_COPY.saveNoChange);
+    }
+    if (changed.includes(CONFLICT_SAMPLE_ID))
+      return fail(PRODUCT_COPY.conflict, true);
+    setFeedback({ error: false, text: PRODUCT_COPY.saved(changed.length) });
+    toast(PRODUCT_COPY.saved(changed.length));
+  };
+  /** [가격 변경 취소]·[서버값 다시 불러오기] — 가격 초안만 버린다. 선택은 남긴다 */
+  const discardDrafts = () => {
+    setDrafts({});
+    setFeedback({ error: false, text: PRODUCT_COPY.discarded });
   };
   const exportCsv = () => {
     const picked = selected.length > 0;
@@ -226,35 +270,65 @@ export function ProductsPage(props: SellerNavProps) {
       onChange={(event) => setPrice(p.id, f, event.target.value)}
     />
   );
+  /** 할인 칸 — 정률 할인 상품은 잠그고 고친 원가 기준 환산 금액을 보인다(개발 요청 6번) */
+  const discountCell = (
+    p: SellerProduct,
+    col: "rentDisc" | "saleDisc",
+    label: string,
+  ) => {
+    const rate = rateDiscountOf(p);
+    if (!rate) return moneyCell(p, col, label);
+    const amount =
+      col === "rentDisc"
+        ? rentDiscountOf(p, drafts[p.id], rate)
+        : saleDiscountOf(p, drafts[p.id], rate);
+    return (
+      <span className="flex items-center gap-1">
+        <Input
+          size="small"
+          className="w-28"
+          disabled
+          readOnly
+          aria-label={`${p.name} ${label}`}
+          value={withCommas(amount)}
+        />
+        <HelpIcon label={`${label} 잠김 안내`} tip={PRODUCT_COPY.rateLockTip} />
+      </span>
+    );
+  };
   const priceCell = (p: SellerProduct, col: PriceCol) => {
     const rent = isRent(p);
     const sale = isSale(p);
+    const rate = rateDiscountOf(p);
     switch (col) {
       case "rent":
-      case "rentDisc":
       case "dep":
         return rent ? moneyCell(p, col, PRICE_HEAD[col].label) : "-";
+      case "rentDisc":
+        return rent ? discountCell(p, col, PRICE_HEAD[col].label) : "-";
       case "rentPrice":
         return rent ? (
           <span className="body-medium-bold whitespace-nowrap tabular-nums">
-            {won(rentPriceOf(p, drafts[p.id]))}/일
+            {won(rentPriceOf(p, drafts[p.id], rate))}/일
           </span>
         ) : (
           "-"
         );
       case "sale":
-      case "saleDisc":
         return sale ? moneyCell(p, col, PRICE_HEAD[col].label) : "-";
+      case "saleDisc":
+        return sale ? discountCell(p, col, PRICE_HEAD[col].label) : "-";
       case "salePrice":
         return sale ? (
           <span className="body-medium-bold whitespace-nowrap tabular-nums">
-            {won(salePriceOf(p, drafts[p.id]))}
+            {won(salePriceOf(p, drafts[p.id], rate))}
           </span>
         ) : (
           "-"
         );
     }
   };
+  const hasDrafts = Object.keys(drafts).length > 0;
 
   return (
     <SellerShell {...props} header={<PageHeader title="상품 관리" />}>
@@ -280,7 +354,10 @@ export function ProductsPage(props: SellerNavProps) {
       <FilterBar
         open={filterOpen}
         onOpenChange={setFilterOpen}
-        summary={filterSummary(filters)}
+        summary={filterSummary(
+          filters,
+          stageSummaryOf(filters.stage, STAGE_FILTER_OPTIONS),
+        )}
         onReset={reset}
       >
         <Select
@@ -309,16 +386,44 @@ export function ProductsPage(props: SellerNavProps) {
           aria-label="유형"
           options={[...TYPE_OPTIONS]}
           value={filters.type}
-          onValueChange={(value) => patch({ type: value, cat: "" })}
+          onValueChange={(value) =>
+            patch({ type: value, cat: "", cat2: "", cat3: "" })
+          }
         />
-        {/* 잠긴 동안에는 셀렉트 자신이 이유를 말한다(「유형 먼저 선택」) */}
+        {/* 카테고리 대·중·소 3단(개발 요청 4번). 잠긴 동안에는 셀렉트 자신이 이유를 말한다(「유형 먼저 선택」) */}
         <Select
           className="w-40"
-          aria-label="카테고리"
-          options={categoryOptionsOf(filters.type)}
+          aria-label="카테고리 대분류"
+          options={levels.large}
           value={filters.cat}
           disabled={filters.type === "all"}
-          onValueChange={(value) => patch({ cat: value })}
+          onValueChange={(value) => patch({ cat: value, cat2: "", cat3: "" })}
+        />
+        {levels.middle && (
+          <Select
+            className="w-36"
+            aria-label="카테고리 중분류"
+            options={levels.middle}
+            value={filters.cat2}
+            onValueChange={(value) => patch({ cat2: value, cat3: "" })}
+          />
+        )}
+        {levels.small && (
+          <Select
+            className="w-36"
+            aria-label="카테고리 소분류"
+            options={levels.small}
+            value={filters.cat3}
+            onValueChange={(value) => patch({ cat3: value })}
+          />
+        )}
+        {/* 성장단계(개발 요청 3번) — 유형을 바꿔도 남는다 */}
+        <Select
+          className="w-36"
+          aria-label="성장단계"
+          options={STAGE_FILTER_OPTIONS}
+          value={filters.stage}
+          onValueChange={(value) => patch({ stage: value })}
         />
         <Select
           className="w-28"
@@ -343,12 +448,34 @@ export function ProductsPage(props: SellerNavProps) {
         bodyClassName={dimWhile(dataStatus)}
         aria-busy={isBusy(dataStatus)}
         toolbarStart={
-          <h2 className="heading-medium-bold text-text">
-            목록 (총 {filtered.length}건)
-          </h2>
+          <span className="flex flex-wrap items-center gap-3">
+            <h2 className="heading-medium-bold text-text">
+              목록 (총 {filtered.length}건)
+            </h2>
+            {/* 저장 결과 한 줄(개발 요청 5번) */}
+            {feedback && (
+              <span
+                role={feedback.error ? "alert" : "status"}
+                className={cn(
+                  "body-small-bold break-keep",
+                  feedback.error ? "text-text-critical" : "text-text-sub",
+                )}
+              >
+                {feedback.text}
+              </span>
+            )}
+          </span>
         }
         toolbarEnd={
           <span className="flex items-center gap-2">
+            {/* [가격 변경 취소] — 충돌 뒤에는 [서버값 다시 불러오기](개발 요청 5번) */}
+            {hasDrafts && (
+              <Button variant="secondary" onClick={discardDrafts}>
+                {feedback?.conflict
+                  ? PRODUCT_COPY.reload
+                  : PRODUCT_COPY.discard}
+              </Button>
+            )}
             <Button variant="secondary" onClick={exportCsv}>
               <ArrowDownToLine size={16} strokeWidth={1.2} aria-hidden />
               엑셀 다운로드
@@ -396,12 +523,16 @@ export function ProductsPage(props: SellerNavProps) {
             <col className="w-28" />
             <col className="w-28" />
             <col className="w-58" />
-            {/* 입력 열 144(입력칸 112 + 여백) · 계산 열(렌트가·판매가) 128 */}
+            {/* 입력 열 144(입력칸 112 + 여백) · 계산 열(렌트가·판매가) 128 · 할인 열 160(잠긴 칸은 안내 아이콘이 붙는다) */}
             {cols.map((c) => (
               <col
                 key={c}
                 className={
-                  c === "rentPrice" || c === "salePrice" ? "w-32" : "w-36"
+                  c === "rentPrice" || c === "salePrice"
+                    ? "w-32"
+                    : c === "rentDisc" || c === "saleDisc"
+                      ? "w-40"
+                      : "w-36"
                 }
               />
             ))}

@@ -104,6 +104,46 @@ export const SEARCH_FIELDS = [
  */
 export const CATEGORY_HINT = "유형 먼저 선택";
 
+/**
+ * 카테고리 3단 · 성장단계 — 개발 요청 2026-11-12 3·4번(develop `ProductsPage/adapter.ts` 글자 그대로).
+ * 대분류를 고르면 중·소를 비우고, 중분류를 고르면 소를 비운다. 중·소 셀렉트는 고른 칸에 하위 분류가 있을 때만 나온다.
+ * 유형을 바꾸면 카테고리 3단을 비우고 성장단계는 남긴다.
+ */
+export const CATEGORY_ALL_LABEL = {
+  large: "카테고리 전체",
+  middle: "중분류 전체",
+  small: "소분류 전체",
+} as const;
+export interface CategoryNode {
+  name: string;
+  children: CategoryNode[];
+}
+export const categorySelectOptions = (
+  nodes: readonly CategoryNode[],
+  allLabel: string,
+) => [
+  { value: "", label: allLabel },
+  ...nodes.map((node) => ({ value: node.name, label: node.name })),
+];
+export const STAGE_NONE = "none";
+export const stageSelectOptions = (
+  stages: readonly { value: string; label: string }[],
+) => [
+  { value: "all", label: "성장단계 전체" },
+  ...stages,
+  { value: STAGE_NONE, label: "없음" },
+];
+/** 요약 — 고른 단계의 보이는 글자 · 「없음」은 「성장단계 없음」 */
+export const stageSummaryOf = (
+  value: string,
+  stages: readonly { value: string; label: string }[],
+) =>
+  value === "all"
+    ? undefined
+    : value === STAGE_NONE
+      ? "성장단계 없음"
+      : (stages.find((stage) => stage.value === value)?.label ?? value);
+
 export interface ProductFilters {
   stat: SaleStat;
   dateField: string;
@@ -111,6 +151,9 @@ export interface ProductFilters {
   show: string;
   type: string;
   cat: string;
+  cat2: string;
+  cat3: string;
+  stage: string;
   searchField: string;
   keyword: string;
 }
@@ -121,6 +164,9 @@ export const EMPTY_FILTERS: ProductFilters = {
   show: "all",
   type: "all",
   cat: "",
+  cat2: "",
+  cat3: "",
+  stage: "all",
   searchField: "name",
   keyword: "",
 };
@@ -130,12 +176,27 @@ const ymd = (d: Date) =>
 const dayOf = (text: unknown) =>
   typeof text === "string" && text ? text.slice(0, 10).replace(/\./g, "-") : "";
 
-/** 상태를 뺀 조건 — 카드 건수가 이것으로 센다(원본 `applyFilters(scr,base,['saleStat'])`) */
-export function matchesExceptStat(p: SellerProduct, f: ProductFilters) {
+/**
+ * 상태를 뺀 조건 — 카드 건수가 이것으로 센다(원본 `applyFilters(scr,base,['saleStat'])`).
+ * `catPath` = 상품의 [대, 중, 소] 카테고리 이름(시드는 대분류 하나뿐 — 예시 하위 분류는 `.data` 가 준다)
+ */
+export function matchesExceptStat(
+  p: SellerProduct,
+  f: ProductFilters,
+  catPath: readonly string[] = [p.cat],
+) {
   if (f.show !== "all" && showStatOf(p) !== f.show) return false;
   if (f.type !== "all" && p.mode !== (f.type === "렌트" ? "rent" : "sale"))
     return false;
-  if (f.cat && p.cat !== f.cat) return false;
+  if (f.cat && catPath[0] !== f.cat) return false;
+  if (f.cat2 && catPath[1] !== f.cat2) return false;
+  if (f.cat3 && catPath[2] !== f.cat3) return false;
+  if (
+    f.stage === STAGE_NONE
+      ? Boolean(p.stage)
+      : f.stage !== "all" && p.stage !== f.stage
+  )
+    return false;
   if (f.period?.from) {
     const day = dayOf(p[f.dateField as keyof SellerProduct]);
     if (!day) return false;
@@ -153,13 +214,16 @@ export function matchesExceptStat(p: SellerProduct, f: ProductFilters) {
   return true;
 }
 
-export const matchesFilters = (p: SellerProduct, f: ProductFilters) =>
-  saleStatOf(p) === f.stat && matchesExceptStat(p, f);
+export const matchesFilters = (
+  p: SellerProduct,
+  f: ProductFilters,
+  catPath?: readonly string[],
+) => saleStatOf(p) === f.stat && matchesExceptStat(p, f, catPath);
 
 const dot = (d: Date) => ymd(d).replace(/-/g, ".");
 
-/** 요약 한 줄 — 판매 상태는 카드가 말하므로 넣지 않는다 */
-export function filterSummary(f: ProductFilters) {
+/** 요약 한 줄 — 판매 상태는 카드가 말하므로 넣지 않는다. 순서 = 기간 → 전시 → 유형 → 카테고리 → 성장단계 → 검색어 */
+export function filterSummary(f: ProductFilters, stageLabel?: string) {
   const out: string[] = [];
   if (f.period?.from) {
     const label = DATE_FIELDS.find((d) => d.value === f.dateField)?.label;
@@ -169,7 +233,9 @@ export function filterSummary(f: ProductFilters) {
   }
   if (f.show !== "all") out.push(`전시 상태 ${f.show}`);
   if (f.type !== "all") out.push(`유형 ${f.type}`);
-  if (f.cat) out.push(`카테고리 ${f.cat}`);
+  const deepest = f.cat3 || f.cat2 || f.cat;
+  if (deepest) out.push(`카테고리 ${deepest}`);
+  if (stageLabel) out.push(stageLabel);
   if (f.keyword.trim()) out.push(`검색어 "${f.keyword.trim()}"`);
   return out.length ? out.join(" · ") : "조건 없음 (전체)";
 }
@@ -186,10 +252,37 @@ export const priceOf = (
   f: PriceField,
 ) => draft?.[f] ?? Number(p[f] || 0);
 
-export const rentPriceOf = (p: SellerProduct, d?: PriceDraft) =>
-  Math.max(0, priceOf(p, d, "rent") - priceOf(p, d, "rentDisc"));
-export const salePriceOf = (p: SellerProduct, d?: PriceDraft) =>
-  Math.max(0, priceOf(p, d, "sale") - priceOf(p, d, "saleDisc"));
+/**
+ * 정률 할인 금액 — 원가 × 율(develop `productDiscountAmount` 식 · 반올림 · 100% 상한).
+ * 예전에 「%」로 저장된 상품은 목록에서 할인을 고칠 수 없어, 고친 원가로 다시 환산한 값을 잠긴 칸에 보인다(개발 요청 6번)
+ */
+export const rateDiscountAmount = (base: number, rate: number) =>
+  base <= 0 ? 0 : Math.round((base * Math.min(rate, 100)) / 100);
+
+/** 할인 금액 — 정률 상품(`rate`)은 원가로 환산, 나머지는 칸 값(원가를 넘지 않게) */
+const discountOf = (
+  p: SellerProduct,
+  d: PriceDraft | undefined,
+  base: PriceField,
+  disc: PriceField,
+  rate?: number,
+) =>
+  rate ? rateDiscountAmount(priceOf(p, d, base), rate) : priceOf(p, d, disc);
+
+export const rentDiscountOf = (
+  p: SellerProduct,
+  d?: PriceDraft,
+  rate?: number,
+) => discountOf(p, d, "rent", "rentDisc", rate);
+export const saleDiscountOf = (
+  p: SellerProduct,
+  d?: PriceDraft,
+  rate?: number,
+) => discountOf(p, d, "sale", "saleDisc", rate);
+export const rentPriceOf = (p: SellerProduct, d?: PriceDraft, rate?: number) =>
+  Math.max(0, priceOf(p, d, "rent") - rentDiscountOf(p, d, rate));
+export const salePriceOf = (p: SellerProduct, d?: PriceDraft, rate?: number) =>
+  Math.max(0, priceOf(p, d, "sale") - saleDiscountOf(p, d, rate));
 
 export const isRent = (p: SellerProduct) => p.mode !== "sale";
 export const isSale = (p: SellerProduct) => p.mode !== "rent";
@@ -208,6 +301,17 @@ export const PRODUCT_COPY = {
   reasonWaiting: "재심사를 요청해 본사 판단을 기다리는 중입니다.",
   reasonGuide:
     "사유를 보완한 뒤 상품 상세 하단 바에서 [재심사 요청]을 넣어주세요.",
+  /* 아래는 develop 문구 그대로(개발 요청 2026-11-12 5·6번) */
+  /** [가격 변경 취소]·[서버값 다시 불러오기] 뒤 저장 결과 줄 */
+  discarded: "입력한 가격 변경을 취소하고 서버 값을 다시 불러왔습니다.",
+  /** 다른 작업이 먼저 고쳐 저장이 막혔을 때(서버 409) — 입력·선택은 남긴다 */
+  conflict:
+    "다른 작업에서 상품이 먼저 수정되었습니다. 입력값과 선택은 유지했습니다. [서버값 다시 불러오기]로 충돌을 해소해주세요.",
+  discard: "가격 변경 취소",
+  reload: "서버값 다시 불러오기",
+  /** 정률 할인 상품의 잠긴 할인 칸 안내 */
+  rateLockTip:
+    "정률 할인 상품은 목록에서 할인을 고칠 수 없습니다. 할인을 끄려면 상품 상세에서 끕니다.",
 } as const;
 
 export const detailPathOf = (p: SellerProduct) => `/products/${p.id}`;

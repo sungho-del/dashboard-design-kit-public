@@ -86,10 +86,10 @@ describe("상품 관리", () => {
 
   it("유형 판매 → 렌트 가격 열이 빠지고 카테고리가 열린다", async () => {
     const { user } = renderPage();
-    expect(screen.getByRole("combobox", { name: "카테고리" })).toBeDisabled();
-    expect(
-      screen.getByRole("combobox", { name: "카테고리" }),
-    ).toHaveTextContent("유형 먼저 선택");
+    const large = () =>
+      screen.getByRole("combobox", { name: "카테고리 대분류" });
+    expect(large()).toBeDisabled();
+    expect(large()).toHaveTextContent("유형 먼저 선택");
     await pick(user, "유형", "판매");
     expect(
       screen.queryByRole("columnheader", { name: /렌트 원가/ }),
@@ -97,8 +97,8 @@ describe("상품 관리", () => {
     expect(
       screen.getByRole("columnheader", { name: /판매 원가/ }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "카테고리" })).toBeEnabled();
-    await pick(user, "카테고리", "외출·이동");
+    expect(large()).toBeEnabled();
+    await pick(user, "카테고리 대분류", "외출·이동");
     expect(
       screen.getByText("유형 판매 · 카테고리 외출·이동"),
     ).toBeInTheDocument();
@@ -107,9 +107,9 @@ describe("상품 관리", () => {
   it("가격을 고치면 렌트가가 다시 계산되고 「변경됨」 · 체크한 행만 [수정 저장]", async () => {
     const { user } = renderPage();
     await user.click(screen.getByRole("button", { name: "수정 저장" }));
-    expect(
-      await screen.findByText("수정할 상품의 체크박스를 선택해주세요."),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "수정할 상품의 체크박스를 선택해주세요.",
+    );
     const first = bodyRows()[0];
     const disc = within(first).getByRole("textbox", { name: /할인 금액/ });
     await user.clear(disc);
@@ -118,9 +118,108 @@ describe("상품 관리", () => {
     expect(within(first).getByText("변경됨")).toBeInTheDocument();
     await user.click(within(first).getByRole("checkbox"));
     await user.click(screen.getByRole("button", { name: "수정 저장" }));
+    /* 알림 + 목록 제목 옆 저장 결과 한 줄(개발 요청 5번) — 둘 다 같은 글자 */
     expect(
-      await screen.findByText("1건의 상품 가격이 저장되었습니다."),
+      await screen.findAllByText("1건의 상품 가격이 저장되었습니다."),
+    ).toHaveLength(2);
+  });
+
+  /* ---- 개발 요청 2026-11-12 3~6번 ---- */
+
+  it("카테고리 3단 — 하위 분류가 있을 때만 중·소 셀렉트 · 대분류를 바꾸면 아래를 비운다", async () => {
+    const { user } = renderPage();
+    await pick(user, "유형", "렌트");
+    await pick(user, "카테고리 대분류", "유축기");
+    expect(
+      screen.queryByRole("combobox", { name: "카테고리 중분류" }),
+    ).toBeNull();
+    await pick(user, "카테고리 대분류", "유모차");
+    await pick(user, "카테고리 중분류", "디럭스");
+    await pick(user, "카테고리 소분류", "4륜");
+    expect(screen.getByText("목록 (총 1건)")).toBeInTheDocument();
+    expect(
+      within(bodyRows()[0]).getByText("부가부 폭스3 디럭스 유모차"),
     ).toBeInTheDocument();
+    expect(screen.getByText("유형 렌트 · 카테고리 4륜")).toBeInTheDocument();
+    await pick(user, "카테고리 대분류", "카시트");
+    expect(
+      screen.getByRole("combobox", { name: "카테고리 중분류" }),
+    ).toHaveTextContent("중분류 전체");
+    expect(
+      screen.queryByRole("combobox", { name: "카테고리 소분류" }),
+    ).toBeNull();
+  });
+
+  it("성장단계 — 전체 · 단계 · 없음 · 유형을 바꿔도 남는다 · 요약에 단계 글자", async () => {
+    const { user } = renderPage();
+    const stage = () => screen.getByRole("combobox", { name: "성장단계" });
+    expect(stage()).toHaveTextContent("성장단계 전체");
+    await user.click(stage());
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "성장단계 전체",
+      "신생아 (0~3개월)",
+      "영아 (4~12개월)",
+      "걸음마 (13~24개월)",
+      "유아 (24개월~)",
+      "없음",
+    ]);
+    await user.click(screen.getByRole("option", { name: "영아 (4~12개월)" }));
+    await pick(user, "유형", "렌트");
+    expect(stage()).toHaveTextContent("영아 (4~12개월)");
+    expect(screen.getByText("유형 렌트 · 영아 (4~12개월)")).toBeInTheDocument();
+    await pick(user, "성장단계", "없음");
+    expect(screen.getByText("유형 렌트 · 성장단계 없음")).toBeInTheDocument();
+  });
+
+  it("정률 할인 상품은 할인 칸이 잠기고 고친 원가로 다시 환산 · 안내 아이콘", async () => {
+    const { user } = renderPage();
+    const row = bodyRows().find((r) =>
+      within(r).queryByText("부가부 폭스3 디럭스 유모차"),
+    )!;
+    const disc = within(row).getByRole("textbox", { name: /할인 금액/ });
+    expect(disc).toBeDisabled();
+    expect(disc).toHaveValue("8,900");
+    expect(within(row).getByText("80,100원/일")).toBeInTheDocument();
+    expect(
+      within(row).getByLabelText("할인 금액 잠김 안내"),
+    ).toBeInTheDocument();
+    const base = within(row).getByRole("textbox", { name: /렌트 원가/ });
+    await user.clear(base);
+    await user.type(base, "100000");
+    expect(disc).toHaveValue("10,000");
+    expect(within(row).getByText("90,000원/일")).toBeInTheDocument();
+  });
+
+  it("가격을 고치면 [가격 변경 취소] · 충돌하면 안내 + [서버값 다시 불러오기] → 초안만 버린다", async () => {
+    const { user } = renderPage();
+    expect(screen.queryByRole("button", { name: "가격 변경 취소" })).toBeNull();
+    const row = bodyRows().find((r) =>
+      within(r).queryByText("잘레토 전동 바운서 4세대"),
+    )!;
+    const base = within(row).getByRole("textbox", { name: /렌트 원가/ });
+    await user.clear(base);
+    await user.type(base, "50000");
+    expect(
+      screen.getByRole("button", { name: "가격 변경 취소" }),
+    ).toBeInTheDocument();
+    const box = within(row).getByRole("checkbox");
+    await user.click(box);
+    await user.click(screen.getByRole("button", { name: "수정 저장" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "다른 작업에서 상품이 먼저 수정되었습니다. 입력값과 선택은 유지했습니다. [서버값 다시 불러오기]로 충돌을 해소해주세요.",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "서버값 다시 불러오기" }),
+    );
+    expect(within(row).queryByText("변경됨")).toBeNull();
+    expect(base).toHaveValue("45,000");
+    expect(box).toBeChecked();
+    expect(
+      screen.getByText(
+        "입력한 가격 변경을 취소하고 서버 값을 다시 불러왔습니다.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "가격 변경 취소" })).toBeNull();
   });
 
   it("상품명·[수정] → 상품 상세", async () => {
