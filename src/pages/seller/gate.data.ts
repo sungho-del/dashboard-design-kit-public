@@ -73,7 +73,9 @@ export type Gate =
   | { kind: "rentBegin"; ids: string[] }
   | { kind: "retDone"; ids: string[] }
   | { kind: "shipRemind"; ids: string[]; act: "배송 준비" | "배송중" }
-  | { kind: "depositRefund"; ids: string[]; deduct: number };
+  | { kind: "depositRefund"; ids: string[]; deduct: number }
+  /** 자체 수령 직접 반납 [반납 확인](대여·연체 · 개발 요청 30·31번) */
+  | { kind: "returnConfirm"; ids: string[] };
 
 export type Route = Gate | { kind: "toast"; message: string };
 
@@ -173,6 +175,23 @@ export const CLAIM_GATE_COPY = {
     "반품 완료":
       "환불 실행 확정 · 되돌릴 수 없음. 반품 배송비를 뺀 금액이 카드로 취소되고 재고가 복원되며 고객에게 환불 완료 안내가 나갑니다.",
   } as Record<string, string>,
+} as const;
+
+/**
+ * 자체 수령 직접 반납 [반납 확인] — develop 문구 그대로(개발 요청 30·31번).
+ * 이용 종료 다음 날부터 누를 수 있고, 그 전에는 잠긴 버튼의 도움말이 이유를 말한다
+ */
+export const RETURN_CONFIRM_GATE = {
+  title: "반납 확인",
+  body: "반납 물품을 실제로 받았습니까? 확인하면 즉시 검수중으로 이동합니다.",
+  confirm: "반납 확인",
+  selfReturn: "직접 반납",
+  tipReady: "실제 반납 물품을 받은 뒤 검수를 시작합니다.",
+  tipTooEarly: "이용 종료 다음 날부터 반납 확인할 수 있습니다.",
+  done: (n: number) =>
+    n > 1
+      ? `${n}건 반납 확인 — 검수중으로 이동했습니다.`
+      : "반납 확인 — 검수중으로 이동했습니다.",
 } as const;
 
 /** 창 없이 끝나는 알림 — 원본 글자 그대로 */

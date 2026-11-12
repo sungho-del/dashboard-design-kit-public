@@ -2,6 +2,8 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentType } from "react";
 import { ToastProvider } from "../../components/ui";
+import { GateHost } from "./OrderGates";
+import { RENT_USE } from "./RentProcessPages.data";
 import {
   RentCancelPage,
   RentDispatchPage,
@@ -246,6 +248,40 @@ describe("RentDispatchPage — 배송 관리(렌트)", () => {
 });
 
 describe("RentUsePage — 대여·연체 관리", () => {
+  it("자체 수령 행 — 수거 칸 「직접 반납」 + [반납 확인](이용 종료 전엔 잠김 · 개발 요청 30번)", () => {
+    renderPage(RentUsePage);
+    const row = rowOf("20260507560696");
+    expect(row).toHaveTextContent("직접 반납");
+    expect(
+      within(row).getByRole("button", { name: "반납 확인" }),
+    ).toBeDisabled();
+    expect(
+      within(row).queryByRole("textbox", { name: /수거 송장번호/ }),
+    ).toBeNull();
+  });
+
+  it("[반납 확인] 창 — develop 문구 · 확인하면 검수중으로", async () => {
+    const user = userEvent.setup();
+    const onDone = vi.fn();
+    const u = RENT_USE.units.find((x) => x.shipWay === "방문 수령")!;
+    render(
+      <ToastProvider position="bottom">
+        <GateHost
+          gate={{ kind: "returnConfirm", ids: [u.id] }}
+          units={[u]}
+          onClose={vi.fn()}
+          onDone={onDone}
+        />
+      </ToastProvider>,
+    );
+    const dialog = screen.getByRole("dialog", { name: "반납 확인" });
+    expect(dialog).toHaveTextContent(
+      "반납 물품을 실제로 받았습니까? 확인하면 즉시 검수중으로 이동합니다.",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "반납 확인" }));
+    expect(onDone).toHaveBeenCalledWith("반납 확인 — 검수중으로 이동했습니다.");
+  });
+
   it("카드 원본 건수 · 상태 버튼 없이 [수거 신청]만 · 대여 시작일 + 수거 열 · 출고 송장 잠김", () => {
     renderPage(RentUsePage);
     expect(cardLabels()).toEqual([

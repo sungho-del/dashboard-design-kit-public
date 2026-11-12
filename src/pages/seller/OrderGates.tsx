@@ -19,6 +19,7 @@ import { CalcBreakdown } from "../babycube/CalcBreakdown";
 import {
   ACTION_COPY,
   CLAIM_GATE_COPY,
+  RETURN_CONFIRM_GATE,
   DEPOSIT_COPY,
   GATE_DONE,
   GATE_TOAST,
@@ -700,6 +701,17 @@ export function GateHost({
           반납완료는 <b>렌트 매출 확정 시점</b>입니다.
         </span>
         <Irreversible>전환 후 되돌릴 수 없습니다.</Irreversible>
+      </NoticeGateModal>
+      {/* 자체 수령 직접 반납 [반납 확인] — develop 문구(개발 요청 30·31번) */}
+      <NoticeGateModal
+        open={gate?.kind === "returnConfirm"}
+        title={RETURN_CONFIRM_GATE.title}
+        count={n}
+        confirmLabel={RETURN_CONFIRM_GATE.confirm}
+        onClose={onClose}
+        onConfirm={() => onDone(RETURN_CONFIRM_GATE.done(n))}
+      >
+        <span>{RETURN_CONFIRM_GATE.body}</span>
       </NoticeGateModal>
       {/* 출고 이미지 안내 — 원본 `shipRemind`. 왼쪽 = 이미지 없이 원래 전이 · 오른쪽 = 등록하러 */}
       <Modal open={gate?.kind === "shipRemind"} onClose={onClose} size="small">

@@ -92,7 +92,8 @@ export const RENT_USE: ProcessListConfig = {
   bulkBy: {},
   collectBulk: true,
   rentStartColumn: true,
-  collectColumn: () => "register",
+  /* 자체 수령은 「직접 반납」 + [반납 확인](개발 요청 30번) · 택배는 수거 신청 */
+  collectColumn: (u) => (u.shipWay === "방문 수령" ? "selfReturn" : "register"),
   shipColumns: () => "ro",
   detailPath: (u) => `/rent-use/${u.id}`,
 };

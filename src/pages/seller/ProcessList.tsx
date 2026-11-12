@@ -41,6 +41,7 @@ import { useSearchParams } from "../../lib/router";
 import { CLAIM_FLOW, claimStatOf, claimTypeOf } from "./claim.data";
 import {
   ACTION_COPY,
+  RETURN_CONFIRM_GATE,
   routeGate,
   shipImageMissing,
   statusIn,
@@ -766,6 +767,34 @@ export function ProcessList({
       case "collectCourier":
       case "collectInvoice": {
         const kind = config.collectColumn?.(u) ?? null;
+        /* 자체 수령 — 택배 수거가 없다. 「직접 반납」 + [반납 확인](이용 종료 다음 날부터 · develop · 개발 요청 30번) */
+        if (kind === "selfReturn") {
+          if (key === "collectCourier")
+            return td(RETURN_CONFIRM_GATE.selfReturn);
+          const ready = collectAllowed(u);
+          return td(
+            <Tooltip
+              content={
+                ready
+                  ? RETURN_CONFIRM_GATE.tipReady
+                  : RETURN_CONFIRM_GATE.tipTooEarly
+              }
+            >
+              <span tabIndex={0} className="inline-flex">
+                <Button
+                  variant="secondary"
+                  size="small"
+                  disabled={!ready}
+                  onClick={() =>
+                    setGate({ kind: "returnConfirm", ids: [u.id] })
+                  }
+                >
+                  {RETURN_CONFIRM_GATE.confirm}
+                </Button>
+              </span>
+            </Tooltip>,
+          );
+        }
         const d = collectDraftOf(u);
         if (key === "collectCourier")
           return td(

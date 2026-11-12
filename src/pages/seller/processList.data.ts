@@ -34,7 +34,8 @@ export type ShipColumnKind = "register" | "edit" | "cancel" | "collect" | "ro";
  * 렌트 **수거** 송장 칸 — 출고 칸과 따로 선다(원본 `isCollect` · 결제금액 뒤).
  * `register` [송장등록] = 수거 신청(대여·연체) · `edit` [송장수정](검수·반납 수거 신청 건) · `null` 잠김
  */
-export type CollectColumnKind = "register" | "edit";
+/** 렌트 수거 칸 — 송장등록(수거 신청) · 송장수정 · 자체 수령 「직접 반납」 + [반납 확인](개발 요청 30번) */
+export type CollectColumnKind = "register" | "edit" | "selfReturn";
 
 export interface Option {
   value: string;
