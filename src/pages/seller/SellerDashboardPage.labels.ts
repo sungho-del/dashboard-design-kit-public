@@ -72,3 +72,13 @@ export const AMOUNT_SERIES = [{ key: "amount", label: "주문 금액" }];
 
 /** 축 눈금 — 「06.05」(툴팁은 연도 포함 원래 값) */
 export const shortDay = (label: string | number) => String(label).slice(5);
+
+/**
+ * 흐름 카드 숫자 넘침 — 세 자리 이상이면 좁은 폭에서 2×2 로 접는다(develop · 본사 포크와 같은 접기 · 개발 요청 44번).
+ * 100건↑ = 480px 아래 접기 · 1,000건↑ = 480px 이상에서 숫자 한 단계 작게 · 10,000건↑ = 640px 아래 접기
+ */
+export const flowFoldOf = (counts: number[]) => ({
+  wide3: counts.some((n) => n >= 100),
+  wide4: counts.some((n) => n >= 1000),
+  wide5: counts.some((n) => n >= 10000),
+});

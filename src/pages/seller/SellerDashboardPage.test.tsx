@@ -7,7 +7,8 @@ import {
   SALE_FLOW,
   salesDaily,
 } from "./SellerDashboardPage.data";
-import { SellerDashboardPage, flowFoldOf } from "./SellerDashboardPage";
+import { SellerDashboardPage } from "./SellerDashboardPage";
+import { flowFoldOf } from "./SellerDashboardPage.data";
 import {
   CS_GOLDEN,
   DAILY_GOLDEN,
