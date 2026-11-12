@@ -65,7 +65,7 @@ describe("SellerApp — 계정 줄", () => {
     await userEvent.click(screen.getByRole("button", { name: "로그아웃" }));
     expect(window.location.pathname).toBe("/login");
     expect(
-      await screen.findByRole("heading", { name: "베이비큐브 입점사 어드민" }),
+      await screen.findByRole("heading", { name: "입점사 어드민 로그인" }),
     ).toBeVisible();
     expect(accountBar()).toBeNull();
   });

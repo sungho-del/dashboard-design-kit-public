@@ -3,7 +3,7 @@
  *
  * ## 문구는 개발 저장소(`babycube-admin-hq` develop) 글자 그대로다
  * `src/app/(legacy)/login` · `password` · `password-reset` · `password-reset/confirm`.
- * 다른 곳은 하나 — 로그인 머리 「BabyCube 본사 어드민」→「베이비큐브 본사 어드민」(판정 Q17).
+ * 다른 곳은 로그인 머리 — 로고 · 계정 칩 · 「… 어드민 로그인」으로 나눴다(아래 `AUTH_BRAND`).
  * 문구를 보태지 말 것(대조표 `docs/추가작업요청_대조표_2026-11-10.md` 2절 A3).
  *
  * ## 서비스가 바뀌면 갈아끼울 것
@@ -11,6 +11,32 @@
  *   - `AUTH_PATHS` — 화면 사이 이동 경로
  *   - `PASSWORD_RE` — 비밀번호 규칙(서버 규칙과 같아야 한다)
  * ---------------------------------------------------------------------- */
+
+/**
+ * 앱마다 다른 것 — 로고 옆 계정 칩 · 로그인 머리 · 안내 한 줄.
+ * develop 머리 「베이비큐브 본사(입점사) 어드민」을 로고 + 칩 + 「… 어드민 로그인」으로 나눴다
+ * (사용자 요청 2026-11-12 「BabyCube 로고를 넣어 그럴듯하게」 · 유아이볼 관리자 로그인 레퍼런스).
+ * 안내 한 줄과 저작권 줄은 퍼블이 정한 문구다
+ */
+export type AuthAccount = "본사" | "입점사";
+
+export const AUTH_BRAND: Record<
+  AuthAccount,
+  { chip: string; loginTitle: string; loginGuide: string }
+> = {
+  본사: {
+    chip: "본사",
+    loginTitle: "본사 어드민 로그인",
+    loginGuide: "관리자 계정으로 로그인해 주세요.",
+  },
+  입점사: {
+    chip: "입점사",
+    loginTitle: "입점사 어드민 로그인",
+    loginGuide: "입점사 계정으로 로그인해 주세요.",
+  },
+};
+
+export const AUTH_COPYRIGHT = "© BabyCube. All rights reserved.";
 
 /** 화면 사이 이동 경로 — `App.tsx` 의 `ROUTES` 키와 같다 */
 export const AUTH_PATHS = {
@@ -37,9 +63,6 @@ export const AUTH_TEXT = {
   ruleError: "비밀번호는 영문·숫자·특수문자를 조합해 8~16자로 입력해 주세요.",
 
   login: {
-    title: "베이비큐브 본사 어드민",
-    /** 입점사 어드민 — 셀러 develop 「BabyCube 입점사 어드민」의 한글 표기(판정 Q17) */
-    sellerTitle: "베이비큐브 입점사 어드민",
     find: "비밀번호 찾기",
     submit: "로그인",
   },

@@ -8,7 +8,6 @@ import {
   PasswordResetConfirmPage,
   PasswordResetRequestPage,
 } from "./pages/babycube/AuthPages";
-import { AUTH_TEXT } from "./pages/babycube/AuthPages.data";
 import { SELLER_ACCOUNT } from "./pages/sellerGnbSections";
 import {
   InqDetailPage,
@@ -140,12 +139,14 @@ const ROUTES: Record<string, ComponentType<NavProps>> = {
    * 인증 4화면 — 본사 퍼블과 같은 화면 · 셀러 develop 문구(개발 요청 2026-11-12 1번).
    * 셸(메뉴·계정 줄) 없이 가운데 창 하나다. 정확 일치라 `/password-reset/confirm` 과 `/password-reset` 이 서로를 가리지 않는다
    */
-  "/login": (props) => (
-    <LoginPage {...props} title={AUTH_TEXT.login.sellerTitle} />
+  "/login": (props) => <LoginPage {...props} account="입점사" />,
+  "/password": (props) => <PasswordChangePage {...props} account="입점사" />,
+  "/password-reset/confirm": (props) => (
+    <PasswordResetConfirmPage {...props} account="입점사" />
   ),
-  "/password": PasswordChangePage,
-  "/password-reset/confirm": PasswordResetConfirmPage,
-  "/password-reset": PasswordResetRequestPage,
+  "/password-reset": (props) => (
+    <PasswordResetRequestPage {...props} account="입점사" />
+  ),
 
   /* 저장소 색인 — 원본에 없다(본사와 같다) */
   "/screens": SellerScreenIndexPage,

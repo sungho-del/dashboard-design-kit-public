@@ -7,7 +7,7 @@ import {
   PasswordResetConfirmPage,
   PasswordResetRequestPage,
 } from "./AuthPages";
-import { AUTH_TEXT } from "./AuthPages.data";
+import { AUTH_TEXT, AUTH_COPYRIGHT } from "./AuthPages.data";
 
 /* -------------------------------------------------------------------------
  * 인증 화면 4종 — 동작을 본다: 버튼 활성 조건 · 오류 문구와 순서 · 상태 전환 · 이동 경로.
@@ -44,12 +44,32 @@ const button = (name: string) => screen.getByRole("button", { name });
 const field = (label: string) => screen.getByLabelText(label);
 
 describe("인증 화면 공통", () => {
-  it("메뉴(GNB)를 그리지 않고 머리가 화면 제목이다", () => {
+  it("메뉴(GNB)를 그리지 않고 머리가 화면 제목이다 · 로고 + 「본사」 칩 · 저작권 줄", () => {
     renderAt(LoginPage, "/login");
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "베이비큐브 본사 어드민",
+      "본사 어드민 로그인",
     );
+    expect(screen.getByRole("img", { name: "BabyCube" })).toBeInTheDocument();
+    expect(screen.getByText("본사")).toBeInTheDocument();
+    expect(screen.getByText(AUTH_COPYRIGHT)).toBeInTheDocument();
+  });
+
+  it("입점사 — 네 화면 모두 칩 「입점사」 · 로그인 머리 「입점사 어드민 로그인」", () => {
+    render(
+      <LoginPage
+        navOpen
+        onNavOpenChange={vi.fn()}
+        activeNav="/login"
+        onNavSelect={vi.fn()}
+        account="입점사"
+      />,
+    );
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "입점사 어드민 로그인",
+    );
+    expect(screen.getByText("입점사 계정으로 로그인해 주세요.")).toBeVisible();
+    expect(screen.getByText("입점사")).toBeInTheDocument();
   });
 });
 
