@@ -33,6 +33,8 @@ import {
   careTextOf,
   judgmentDescOf,
   judgmentOptionsOf,
+  RENT_INSP_COPY,
+  type Judgment,
   RENT_USE_COPY,
   extensionsOf,
   orNone,
@@ -377,6 +379,9 @@ export function RentInfoBody({
   /* 대여·연체 상세의 자체 수령 — 택배 수거 대신 「직접 반납」 + [반납 확인](develop · 개발 요청 31번) */
   const direct = mode === "request" && u.shipWay === "방문 수령";
   const returnReady = collectAllowed(u);
+  /* 이용 종료일이 지났으면 연체 안내가 나간다(D-101) */
+  const overdue = collectAllowed(u);
+  const [failOpen, setFailOpen] = useState(false);
   return (
     <div className="flex flex-col gap-4">
       <PickupChangeBox u={u} />
@@ -448,10 +453,42 @@ export function RentInfoBody({
               <Button variant="secondary" onClick={submit}>
                 {mode === "request" ? "수거 신청" : "송장수정"}
               </Button>
+              {/* 검수·반납 수거 신청 건 — 회수 종료 · 회수 실패(미반납)(develop · 개발 요청 32번) */}
+              {mode === "edit" && (
+                <>
+                  <Button
+                    variant="secondary"
+                    title={RENT_INSP_COPY.collectDoneTip}
+                    onClick={() => toast(RENT_INSP_COPY.collectDone)}
+                  >
+                    회수 종료
+                  </Button>
+                  <Button
+                    variant="criticalTonal"
+                    title={RENT_INSP_COPY.failTip(overdue)}
+                    onClick={() => setFailOpen(true)}
+                  >
+                    회수 실패(미반납)
+                  </Button>
+                </>
+              )}
             </span>
           )}
         </Item>
       </InfoList>
+      <NoticeGateModal
+        open={failOpen}
+        title={RENT_INSP_COPY.failTitle}
+        count={1}
+        confirmLabel={RENT_INSP_COPY.failConfirm}
+        onClose={() => setFailOpen(false)}
+        onConfirm={() => {
+          setFailOpen(false);
+          toast(RENT_INSP_COPY.failDone(overdue));
+        }}
+      >
+        <span>{RENT_INSP_COPY.failNotice(overdue)}</span>
+      </NoticeGateModal>
       {mode === "request" && <ExtensionHistory u={u} />}
     </div>
   );
@@ -468,6 +505,8 @@ export function InspectBody({
   const { toast } = useToast();
   const j = state.judgment;
   const settled = !!u.depDone;
+  /** 고른 판정 — [판정 저장]을 눌러야 반영된다(develop · 개발 요청 32번) */
+  const [draft, setDraft] = useState<Judgment | null>(null);
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
@@ -493,6 +532,7 @@ export function InspectBody({
                 size="small"
                 onClick={() => {
                   state.reset();
+                  setDraft(null);
                   toast(INSPECT_COPY.reset);
                 }}
               >
@@ -500,6 +540,36 @@ export function InspectBody({
               </Button>
             </span>
           )}
+        </>
+      ) : draft ? (
+        <>
+          <p className="label-medium-bold flex items-center gap-2 text-text">
+            {RENT_INSP_COPY.picked} · <StatusTag status={draft} />
+          </p>
+          {draft === "이상없음" ? (
+            <Help>{RENT_INSP_COPY.fullRefund}</Help>
+          ) : careCoveredOf(u, draft) ? (
+            <Help>{RENT_INSP_COPY.careCovered}</Help>
+          ) : null}
+          <span className="flex flex-wrap gap-2">
+            <Button
+              size="small"
+              onClick={() => {
+                state.judge(draft);
+                setDraft(null);
+                toast(INSPECT_COPY.judged(u, draft));
+              }}
+            >
+              판정 저장
+            </Button>
+            <Button
+              variant="secondary"
+              size="small"
+              onClick={() => setDraft(null)}
+            >
+              다시 선택
+            </Button>
+          </span>
         </>
       ) : (
         <div
@@ -512,10 +582,7 @@ export function InspectBody({
             <button
               key={o.value}
               type="button"
-              onClick={() => {
-                state.judge(o.value);
-                toast(INSPECT_COPY.judged(u, o.value));
-              }}
+              onClick={() => setDraft(o.value)}
               className={cn(
                 "flex flex-col items-start gap-1 rounded-medium bg-surface px-4 py-3 text-left outline outline-1 -outline-offset-1 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus",
                 o.warn

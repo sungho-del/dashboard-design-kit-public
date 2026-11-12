@@ -213,7 +213,9 @@ describe("RentUseDetailPage — 대여·연체 관리 상세", () => {
   it("회수지 변경 요청 상자 — 접수 내용 + [확정] → 확인 창 → 확정 알림", async () => {
     const { user } = renderAt(RentUseDetailPage, "/rent-use/20260623493905-1");
     expect(screen.getByText("회수지 변경 요청")).toBeVisible();
-    expect(screen.getByText("회수지 변경 요청").parentElement).toHaveTextContent(
+    expect(
+      screen.getByText("회수지 변경 요청").parentElement,
+    ).toHaveTextContent(
       "서울특별시 마포구 월드컵북로 400 (상암동) 5층 · 메모 경비실 앞",
     );
     expect(
@@ -317,6 +319,48 @@ describe("RentUseDetailPage — 대여·연체 관리 상세", () => {
 describe("RentInspDetailPage — 검수·반납 관리 상세", () => {
   const PATH = "/rent-insp-return/20260621138968-1";
 
+  /* ---- 개발 요청 2026-11-12 32번 ---- */
+  it("수거 신청 건 — [회수 종료] 알림 · [회수 실패(미반납)] 확인 창(이용 종료 뒤라 연체 안내가 나간다)", async () => {
+    const { user } = renderAt(RentInspDetailPage, PATH);
+    await user.click(screen.getByRole("button", { name: "회수 종료" }));
+    expect(
+      await screen.findByText(
+        "회수 종료로 처리했습니다. 상품주문상태를 검수중으로 전환하세요.",
+      ),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "회수 실패(미반납)" }));
+    const gate = dialog("회수 실패(미반납) 처리");
+    expect(gate).toHaveTextContent("고객에게 연체 안내(AT-U-06)가 발송됩니다.");
+    await user.click(
+      within(gate).getByRole("button", { name: "회수 실패 처리" }),
+    );
+    expect(
+      await screen.findByText(
+        "회수 실패(미반납)로 기록했습니다. 고객에게 연체 안내를 발송했습니다.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("이용 종료 전 수거 신청 건 — 연체 안내는 나가지 않는다", async () => {
+    const { user } = renderAt(
+      RentInspDetailPage,
+      "/rent-insp-return/20260406661705-1",
+    );
+    await user.click(screen.getByRole("button", { name: "회수 실패(미반납)" }));
+    expect(dialog("회수 실패(미반납) 처리")).toHaveTextContent(
+      "이용 종료일 전(조기 반납 수거)이라 연체 안내는 발송되지 않습니다.",
+    );
+  });
+
+  it("판정은 고른 뒤 [판정 저장] — [다시 선택]이면 선택지로 돌아간다", async () => {
+    const { user } = renderAt(RentInspDetailPage, PATH);
+    await user.click(screen.getByRole("button", { name: /^이상없음/ }));
+    expect(screen.getByText(/선택한 판정/)).toBeVisible();
+    expect(screen.getByText("보증금 전액 반환")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "다시 선택" }));
+    expect(screen.getByRole("group", { name: "검수 판정" })).toBeVisible();
+  });
+
   it("중간 구역 5개(안심케어 가입 건) · 판정 4택 · 정산 원본 값", () => {
     renderAt(RentInspDetailPage, PATH);
     expect(sectionTitles()).toEqual([
@@ -344,6 +388,7 @@ describe("RentInspDetailPage — 검수·반납 관리 상세", () => {
   it("분실 판정 → 보증금 전액 차감 · 차감 후 환급 창은 사유 필수(환급 경로 문구 보드 01)", async () => {
     const { user } = renderAt(RentInspDetailPage, PATH);
     await user.click(screen.getByRole("button", { name: /^분실/ }));
+    await user.click(screen.getByRole("button", { name: "판정 저장" }));
     expect(sectionOf("보증금 정산")).toHaveTextContent("반환 예정액0원");
     /* 입력칸도 같은 차감액(보증금 전액) */
     expect(screen.getByRole("textbox", { name: "차감액" })).toHaveValue("3500");
@@ -370,6 +415,7 @@ describe("RentInspDetailPage — 검수·반납 관리 상세", () => {
   it("이상없음 — 차감 0 · 차감액 칸 없음(원본 「정상」 결함 수정) · [판정 초기화] 로 다시", async () => {
     const { user } = renderAt(RentInspDetailPage, PATH);
     await user.click(screen.getByRole("button", { name: /^이상없음/ }));
+    await user.click(screen.getByRole("button", { name: "판정 저장" }));
     expect(screen.queryByRole("textbox", { name: "차감액" })).toBeNull();
     expect(screen.getByRole("button", { name: "전액환급 처리" })).toBeVisible();
     await user.click(
@@ -383,6 +429,7 @@ describe("RentInspDetailPage — 검수·반납 관리 상세", () => {
     await user.click(
       screen.getByRole("button", { name: /^파손 \(복원가능\)/ }),
     );
+    await user.click(screen.getByRole("button", { name: "판정 저장" }));
     expect(screen.getByText("차감 — 안심케어 본사 부담")).toBeVisible();
     expect(screen.queryByRole("textbox", { name: "차감액" })).toBeNull();
     await user.type(screen.getByRole("textbox", { name: "복원 비용" }), "8000");
@@ -404,6 +451,7 @@ describe("RentInspDetailPage — 검수·반납 관리 상세", () => {
       await screen.findByText(/검수 판정 후 검수완료로 전환할 수 있습니다/),
     ).toBeVisible();
     await user.click(screen.getByRole("button", { name: /^이상없음/ }));
+    await user.click(screen.getByRole("button", { name: "판정 저장" }));
     await user.click(select());
     await user.click(screen.getByRole("option", { name: "검수완료" }));
     expect(dialog("상태 변경 확인")).toBeVisible();
