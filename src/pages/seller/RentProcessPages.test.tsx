@@ -151,17 +151,27 @@ describe("RentListPage — 렌트 발주 관리", () => {
     expect(rows().every((r) => within(r).queryByText("안심케어"))).toBe(true);
   });
 
-  it("배송 준비 — 출고 이미지 없는 건이면 안내 창 · [배송 준비로 변경] 은 원래 전이 알림", async () => {
+  it("배송 준비 — 목록은 이미지 장수를 몰라 안내 창을 늘 연다(첫 줄 develop 문구 · 개발 요청 28번) · [배송 준비로 변경] 은 원래 전이 알림", async () => {
     const { user } = renderPage(RentListPage);
     await pick(user, "20260624225758");
     await user.click(bulk("배송 준비"));
     expect(
       screen.getByRole("dialog", { name: "출고 이미지 등록 안내" }),
-    ).toHaveTextContent("출고 이미지가 아직 등록되지 않았습니다.");
+    ).toHaveTextContent("출고 이미지 등록 여부를 확인해주세요.");
     await user.click(screen.getByRole("button", { name: "배송 준비로 변경" }));
     expect(
       await screen.findByText("'배송 준비' 상태로 변경했습니다."),
     ).toBeVisible();
+  });
+
+  it("여러 건이면 「고른 N건의 출고 이미지 등록 여부를 확인해주세요.」(개발 요청 28번)", async () => {
+    const { user } = renderPage(RentListPage);
+    await user.click(within(rows()[0]).getByRole("checkbox"));
+    await user.click(within(rows()[1]).getByRole("checkbox"));
+    await user.click(bulk("배송 준비"));
+    expect(
+      screen.getByRole("dialog", { name: "출고 이미지 등록 안내" }),
+    ).toHaveTextContent("고른 2건의 출고 이미지 등록 여부를 확인해주세요.");
   });
 
   it("출고 이미지 안내 [출고 이미지 등록] — 1건이면 그 상세의 출고 이미지 자리로", async () => {

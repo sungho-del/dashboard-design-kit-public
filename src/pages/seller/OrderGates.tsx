@@ -624,6 +624,11 @@ export interface GateHostProps {
   onDone: (message: string) => void;
   /** 출고 이미지 안내 창 [출고 이미지 등록](1건) — 그 건의 출고 이미지 자리로 데려간다 */
   onShipImage?: (unit: OrderUnit) => void;
+  /**
+   * 출고 이미지 장수를 모르는 자리(렌트 목록) — 「없다」고 단정하지 않는 첫 줄(develop · 개발 요청 28번).
+   * 상세는 장수를 알아 이미지 0장일 때만 열고 원래 문구
+   */
+  shipImagesUnknown?: boolean;
 }
 
 /**
@@ -636,6 +641,7 @@ export function GateHost({
   onClose,
   onDone,
   onShipImage,
+  shipImagesUnknown = false,
 }: GateHostProps) {
   const { toast } = useToast();
   const n = gate?.ids.length ?? 0;
@@ -701,9 +707,13 @@ export function GateHost({
         <ModalBody>
           <div className="body-medium flex flex-col gap-1 break-keep text-text">
             <b>
-              {n > 1
-                ? `고른 ${n}건 중 ${missing}건은 출고 이미지가 등록되지 않았습니다.`
-                : "출고 이미지가 아직 등록되지 않았습니다."}
+              {shipImagesUnknown
+                ? n > 1
+                  ? `고른 ${n}건의 출고 이미지 등록 여부를 확인해주세요.`
+                  : "출고 이미지 등록 여부를 확인해주세요."
+                : n > 1
+                  ? `고른 ${n}건 중 ${missing}건은 출고 이미지가 등록되지 않았습니다.`
+                  : "출고 이미지가 아직 등록되지 않았습니다."}
             </b>
             <span>
               출고 당시 상품 상태 이미지를 등록해두면 반납 검수 시{" "}

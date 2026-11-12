@@ -522,7 +522,8 @@ export function ProcessList({
   /** 배송중 전환(송장 등록) — 출고 이미지 없는 렌트 건이 있으면 안내 창이 먼저(원본 `rentShipOne`·`rentShipBulk`) */
   const ship = (units: OrderUnit[]) => {
     const ids = units.map((u) => u.id);
-    if (shipImageMissing(units).length)
+    /* 렌트 목록은 출고 이미지 장수를 모르는 자리라 안내 창을 늘 연다(develop · 개발 요청 28번) */
+    if (rent || shipImageMissing(units).length)
       return setGate({ kind: "shipRemind", ids, act: "배송중" });
     finish(ids, ACTION_COPY.shipped(units.length));
   };
@@ -566,6 +567,9 @@ export function ProcessList({
     }
     const route = routeGate(action, selectedUnits, config.screen);
     if (route.kind === "toast") return toast(route.message);
+    /* 렌트 [배송 준비]도 안내 창을 늘 연다(장수를 모르는 자리 · 개발 요청 28번) */
+    if (rent && action === "배송 준비" && route.kind === "confirm")
+      return setGate({ kind: "shipRemind", ids: route.ids, act: "배송 준비" });
     setGate(route);
   };
 
@@ -1161,6 +1165,7 @@ export function ProcessList({
       <GateHost
         gate={gate}
         units={config.units}
+        shipImagesUnknown={rent}
         onClose={() => setGate(null)}
         onDone={(message) => gate && finish(gate.ids, message)}
         onShipImage={(u) =>
