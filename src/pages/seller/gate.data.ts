@@ -1,4 +1,4 @@
-import { CLAIM_FLOW, claimStatOf, type ClaimType } from "./claim.data";
+import { CLAIM_FLOW, claimStatOf, type ClaimType } from "./claim.labels";
 import type { OrderUnit } from "./seed/orders.data";
 
 /* =========================================================================

@@ -1,15 +1,10 @@
-import { UNITS, type OrderUnit } from "./seed/orders.data";
+import { UNITS } from "./seed/orders.data";
 import type { UnitDetailConfig } from "./unitDetail.data";
+import { LIST_PATH, isPreShip } from "./SaleOrderDetailPage.labels";
 
-/* =========================================================================
- * 발주 관리 상세(SO-ORD-002) — **도메인 층**(화면 설정). 뼈대는 공용 `UnitDetail.tsx`,
- * 상세 공용 값(명세·날짜·배송지)은 `unitDetail.data.ts`.
- *
- * 원본 = 기획 v0.4 `DETAILS.saleOrderDetail`(5026) → `udOrderPage`(4930). 대조 문서 `docs/seller/pilot-saleProc.md` B 절.
- * ====================================================================== */
+export * from "./SaleOrderDetailPage.labels";
 
-/** 경로 — 목록 `/sale-proc` 뒤에 처리단위 id */
-export const LIST_PATH = "/sale-proc";
+/* 예시 데이터(`seed/`)에 기대는 것만 여기 둔다 — 행 목록 · 시드 조회 · 시드로 계산하는 값. 라벨·상수·문구·포맷터는 `./SaleOrderDetailPage.labels`(개발 요청 2026-11-12 46번) */
 
 /**
  * 원본 `byKey(UNITS, k, 'id')` + `u.type === '판매'` — **판매 처리단위면 상태를 가리지 않는다**
@@ -17,10 +12,6 @@ export const LIST_PATH = "/sale-proc";
  */
 export const findSaleUnit = (id: string) =>
   UNITS.find((u) => u.id === id && u.type === "판매");
-
-/** 출고 전 — 상태 셀렉트·송장 등록·[배송지 변경]·[주문 취소]가 살아 있는 상태(원본 `preShip`) */
-const PRE_SHIP = ["신규 주문", "배송 준비", "배송 지연"];
-export const isPreShip = (u: OrderUnit) => PRE_SHIP.includes(u.stat ?? "");
 
 export const SALE_ORDER_DETAIL: UnitDetailConfig = {
   screen: "saleProc",

@@ -368,14 +368,14 @@ describe("Dropdown", () => {
   });
 
   describe("스타일", () => {
-    it("패널은 surface · radius medium · shadow-popover · z-sidesheet", async () => {
+    it("패널은 surface · radius medium · shadow-popover · 창 위 층", async () => {
       renderDropdown({ defaultOpen: true });
 
       const className = (await screen.findByRole("menu")).className;
       expect(className).toContain("bg-surface");
       expect(className).toContain("rounded-medium");
       expect(className).toContain("shadow-popover");
-      expect(className).toContain("z-(--z-sidesheet)");
+      expect(className).toContain("z-[calc(var(--z-modal)+1)]");
       expect(className).toContain("p-1.5");
       expect(className).toContain("gap-2");
     });

@@ -51,7 +51,8 @@ publishing/
 │  ├─ SellerApp.tsx       경로 → 화면 맵 (`ROUTES` 목록 · `DETAIL_ROUTES` 상세 접두사)
 │  ├─ pages/seller/       화면. 1화면(또는 한 묶음) = 3파일
 │  │    X.tsx             뼈대 — 레이아웃·상호작용
-│  │    X.data.ts         도메인 — 타입·라벨·계산식·문구 (API 가 들어올 자리)
+│  │    X.data.ts         도메인 — 예시 데이터에 기대는 것(행 목록·시드 조회·시드로 계산하는 값) + X.labels 다시 내보내기
+│  │    X.labels.ts       라벨·상수·문구·포맷터·타입 — seed/ 를 값으로 불러오지 않는다(가져다 써도 예시 배열이 딸려 오지 않음)
 │  │    X.test.tsx        동작 테스트
 │  │    seed/*.data.ts    원본 기획 v0.4 시드 덤프(자동 생성 — 손대지 않는다)
 │  │    *.golden.ts       원본을 브라우저로 열어 뽑은 정답(테스트가 우리 식과 대조)

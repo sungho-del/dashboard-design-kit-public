@@ -114,7 +114,8 @@ export interface DropdownProps {
  *   두어 닫힐 때 트리거로 포커스를 되돌리는 역할만 맡는다.
  * - 마우스로 열면 포커스가 트리거에 남고(초점 도둑질 방지), 키보드로 열면
  *   `focusItemOnOpen: 'auto'` 가 첫 아이템으로 포커스를 보낸다.
- * - **z-index 는 `--z-sidesheet`(9000)** — 드롭다운은 헤더(8000) 위, 모달(10000) 아래다.
+ * - **z-index 는 `--z-modal` + 1** — 창 안에서 열어도 목록이 창 위에 뜨고, 토스트(11000) 아래다
+ *   (개발 요청 2026-11-12 45번 · 그 전엔 9000 이라 Modal 막 아래에 깔렸다).
  */
 export function Dropdown({
   open: controlledOpen,
@@ -256,7 +257,7 @@ const menuSizeClasses: Record<DropdownSize, string> = {
 const menuBaseClasses = cn(
   "flex max-h-70 flex-col gap-2 overflow-auto p-1.5",
   "rounded-medium bg-surface shadow-popover",
-  "z-(--z-sidesheet)",
+  "z-[calc(var(--z-modal)+1)]",
 );
 
 export type DropdownMenuProps = Omit<HTMLAttributes<HTMLDivElement>, "role">;

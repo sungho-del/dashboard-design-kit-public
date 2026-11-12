@@ -1,6 +1,6 @@
 import type { DateRange } from "../../components/ui";
-import { CLAIM_DONE } from "./claim.data";
-import { FLOW_STEPS, flowCatOf, flowStatOf } from "./orderUnit.data";
+import { CLAIM_DONE } from "./claim.labels";
+import { FLOW_STEPS, flowCatOf, flowStatOf } from "./orderUnit.labels";
 import { careLabelOf } from "./processList.data";
 import type { OrderUnit } from "./seed/orders.data";
 

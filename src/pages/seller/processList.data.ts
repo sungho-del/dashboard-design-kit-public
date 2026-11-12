@@ -1,7 +1,7 @@
 import type { DateRange } from "../../components/ui";
 import { periodPresetsFrom } from "../../lib/periodPresets";
 import type { ProcessScreen } from "./gate.data";
-import { STATUS_TIPS, careOf } from "./orderUnit.data";
+import { STATUS_TIPS, careOf } from "./orderUnit.labels";
 import type { OrderUnit } from "./seed/orders.data";
 
 /* =========================================================================

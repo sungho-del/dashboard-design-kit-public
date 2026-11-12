@@ -1,6 +1,11 @@
 import { claimDetail } from "./SaleClaimDetailPage.data";
 import { UNITS } from "./seed/orders.data";
 import type { UnitDetailConfig } from "./unitDetail.data";
+import { preShip } from "./RentDetailPages.labels";
+
+export * from "./RentDetailPages.labels";
+
+/* 예시 데이터(`seed/`)에 기대는 것만 여기 둔다 — 행 목록 · 시드 조회 · 시드로 계산하는 값. 라벨·상수·문구·포맷터는 `./RentDetailPages.labels`(개발 요청 2026-11-12 46번) */
 
 /* =========================================================================
  * 렌트 상세 6종 — **도메인 층**(화면 설정). 뼈대는 판매와 같은 공용 `UnitDetail.tsx`.
@@ -14,8 +19,6 @@ import type { UnitDetailConfig } from "./unitDetail.data";
 /** 원본 — 렌트 처리단위면 상태를 가리지 않는다(판매 상세와 같다) */
 const findRent = (id: string) =>
   UNITS.find((u) => u.id === id && u.type === "렌트");
-const preShip = (stat: string | undefined) =>
-  ["신규 주문", "배송 준비", "배송 지연"].includes(stat ?? "");
 
 export const RENT_ORDER_DETAIL: UnitDetailConfig = {
   screen: "rentList",

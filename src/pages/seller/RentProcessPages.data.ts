@@ -1,6 +1,19 @@
 import { CLAIM_BUCKETS, claimStatOf, claimStatuses } from "./claim.data";
 import type { ProcessListConfig } from "./processList.data";
 import { UNITS, type OrderUnit } from "./seed/orders.data";
+import {
+  RENT_LIST_STATS,
+  PROCESS_DATES,
+  PROCESS_SEARCH,
+  RENT_USE_STATS,
+  RENT_INSP_STATS,
+  CLAIM_DATES,
+  CLAIM_SEARCH,
+} from "./RentProcessPages.labels";
+
+export * from "./RentProcessPages.labels";
+
+/* 예시 데이터(`seed/`)에 기대는 것만 여기 둔다 — 행 목록 · 시드 조회 · 시드로 계산하는 값. 라벨·상수·문구·포맷터는 `./RentProcessPages.labels`(개발 요청 2026-11-12 46번) */
 
 /* =========================================================================
  * 렌트 처리 목록 6장 — **도메인 층**(화면 설정). 뼈대는 판매와 같은 공용 `ProcessList.tsx`.
@@ -18,31 +31,6 @@ import { UNITS, type OrderUnit } from "./seed/orders.data";
 const RENT = UNITS.filter((u) => u.type === "렌트");
 const inStats = (stats: readonly string[]) =>
   RENT.filter((u) => stats.includes(u.stat ?? ""));
-
-/** 처리 4화면 검색 — 원본 `search.fieldOpts`(판매 발주와 같다) */
-const PROCESS_SEARCH = [
-  { value: "all", label: "전체" },
-  { value: "mem", label: "구매자명" },
-  { value: "email", label: "구매자 ID" },
-  { value: "receiver", label: "수령인" },
-  { value: "receiverTel", label: "수령인 연락처" },
-  { value: "no", label: "주문번호" },
-  { value: "code", label: "상품코드" },
-  { value: "invoice", label: "송장번호" },
-] as const;
-const PROCESS_DATES = [
-  { value: "orderedAt", label: "결제일" },
-  { value: "confirmedAt", label: "주문 확인일" },
-] as const;
-/** 클레임 2화면 — 기간은 주문일 하나(원본 · 판매 클레임의 요청일·완료일은 없다) */
-const CLAIM_SEARCH = [
-  { value: "no", label: "주문번호" },
-  { value: "mem", label: "회원명" },
-  { value: "prod", label: "상품명" },
-] as const;
-const CLAIM_DATES = [{ value: "orderedAt", label: "주문일" }] as const;
-
-const RENT_LIST_STATS = ["신규 주문", "배송 준비", "배송 지연"];
 export const RENT_LIST: ProcessListConfig = {
   screen: "rentList",
   title: "렌트 발주 관리",
@@ -87,12 +75,6 @@ export const RENT_DISPATCH: ProcessListConfig = {
   shipColumns: () => "edit",
   detailPath: (u) => `/rent-dispatch/${u.id}`,
 };
-
-/**
- * 대여·연체 — **상태 버튼이 없다**(원본 2026-08-06 A-2·A-3: 연장은 고객 결제 전이, 연체는 수거 신청 뒤에만).
- * 셀러 일은 [수거 신청](수거 송장 등록)뿐 · 출고 송장은 읽기
- */
-const RENT_USE_STATS = ["대여중", "대여중(연장)", "연체중"];
 export const RENT_USE: ProcessListConfig = {
   screen: "rentUse",
   title: "대여·연체 관리",
@@ -110,12 +92,6 @@ export const RENT_USE: ProcessListConfig = {
   shipColumns: () => "ro",
   detailPath: (u) => `/rent-use/${u.id}`,
 };
-
-/**
- * 검수·반납 — 순차(수거 신청 → 검수중 → 검수완료 → 반납완료). **수거 신청에서만 연체중(회수 실패)으로 갈라진다**
- * (원본 A-3). 수거 송장은 수거 신청 건만 [송장수정]
- */
-const RENT_INSP_STATS = ["수거 신청", "검수중", "검수완료", "반납완료"];
 export const RENT_INSP_RETURN: ProcessListConfig = {
   screen: "rentInspReturn",
   title: "검수·반납 관리",

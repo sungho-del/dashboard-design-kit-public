@@ -6,6 +6,11 @@ import {
 } from "./claim.data";
 import type { ProcessListConfig } from "./processList.data";
 import { UNITS, type OrderUnit } from "./seed/orders.data";
+import { CLAIM_SEARCH, bulkOf } from "./SaleClaimPages.labels";
+
+export * from "./SaleClaimPages.labels";
+
+/* 예시 데이터(`seed/`)에 기대는 것만 여기 둔다 — 행 목록 · 시드 조회 · 시드로 계산하는 값. 라벨·상수·문구·포맷터는 `./SaleClaimPages.labels`(개발 요청 2026-11-12 46번) */
 
 /* =========================================================================
  * 취소 관리(SO-RMA-001) · 반품 관리(SO-RMA-003) · 교환 관리(SO-RMA-005) — **도메인 층**(화면 설정 3벌).
@@ -20,17 +25,6 @@ export const claimUnitsOf = (type: ClaimType): OrderUnit[] =>
   UNITS.filter(
     (u) => u.type === "판매" && u.req?.type === type && !!u.req.stat,
   );
-
-/** 상태변경 버튼 — 원본 `rmaOpts(type)`(흐름 + 예외) 순서 · 값 = 글자 */
-const bulkOf = (type: ClaimType) =>
-  claimStatuses(type).map((s) => ({ value: s, label: s }));
-
-/** 클레임 화면 검색 — 원본 `search.fieldOpts`(전체 없음 · 주문번호가 기본) */
-const CLAIM_SEARCH = [
-  { value: "no", label: "주문번호" },
-  { value: "mem", label: "회원명" },
-  { value: "prod", label: "상품명" },
-] as const;
 
 export const SALE_CANCEL: ProcessListConfig = {
   screen: "saleCancel",

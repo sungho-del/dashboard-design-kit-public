@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { OrderUnit } from "./seed/orders.data";
-import { initialDeductOf, judgmentOf, type Judgment } from "./unitDetail.data";
+import {
+  initialDeductOf,
+  judgmentOf,
+  type Judgment,
+} from "./unitDetail.labels";
 
 /* =========================================================================
  * 렌트 상세 화면 안 상태 — 출고·반납 이미지 · 검수 판정 · 차감액 · 수거 송장(`RentSections` 구역들이 같이 본다).

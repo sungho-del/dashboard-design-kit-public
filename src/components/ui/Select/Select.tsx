@@ -125,7 +125,7 @@ const triggerBaseClasses = cn(
 const panelClasses = cn(
   "flex flex-col gap-1 overflow-x-hidden overflow-y-auto overscroll-contain p-1.5",
   "rounded-large bg-surface shadow-layer",
-  "z-(--z-sidesheet)",
+  "z-[calc(var(--z-modal)+1)]",
 );
 
 /**
@@ -166,7 +166,8 @@ const optionBaseClasses = cn(
  *   복원할 것이 없고, 오히려 focus manager 가 포커스를 가져가면 활성 옵션 추적이 깨진다.
  * - 위치·폭·최대 높이는 모두 floating-ui 가 inline style 로 넣는다. 컴포넌트는
  *   위치 관련 Tailwind 클래스를 방출하지 않는다.
- * - **z-index 는 `--z-sidesheet`(9000)** — Dropdown 과 같은 층이다.
+ * - **z-index 는 `--z-modal` + 1** — Dropdown 과 같은 층이다. Modal(10000) 안의 셀렉트 목록이
+ *   창 막 아래에 깔리지 않게 창 바로 위, 토스트(11000) 아래에 둔다(개발 요청 2026-11-12 45번).
  */
 export function Select({
   options,
