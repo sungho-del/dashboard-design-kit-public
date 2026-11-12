@@ -2,6 +2,8 @@ import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentType } from "react";
 import { ToastProvider } from "../../components/ui";
+import { careOf } from "./orderUnit.data";
+import { DEPOSIT_LIST } from "./settle.data";
 import { navigate } from "../../lib/router";
 import { RentDepositDetailPage, RentDepositPage } from "./RentDepositPages";
 import type { SellerNavProps } from "./SettleParts";
@@ -101,12 +103,26 @@ describe("보증금 상세", () => {
     expect(screen.getByText("등록 3장")).toBeInTheDocument();
     expect(screen.getByText("반환 예정액")).toBeInTheDocument();
     expect(screen.getByText(/보증금 반환 실행됨/)).toBeInTheDocument();
+    /* 개발 요청 41번 — 구역 이름 · 환급 실행 일시 */
     expect(
-      screen.getByRole("heading", { name: "처리 상태" }),
+      screen.getByRole("heading", { name: "처리 상태 (조회 전용)" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("환급 처리 완료", { exact: false }).closest("p"),
+    ).toHaveTextContent(
+      "환급 처리 완료 · 2026.06.20 16:51:12 — 보증금 반환 실행됨.",
+    );
     expect(
       screen.queryByRole("button", { name: "검수·반납 상세에서 처리" }),
     ).toBeNull();
+  });
+
+  it("안심케어 가입 건 — 「가입 — 복원가능 손상 본사 부담」(개발 요청 41번)", () => {
+    const u = DEPOSIT_LIST.find(careOf)!;
+    renderAt(RentDepositDetailPage, `/rent-deposit/${u.id}`);
+    expect(
+      screen.getByText("— 복원가능 손상 본사 부담", { exact: false }),
+    ).toBeInTheDocument();
   });
 
   it("환급 대기 건 — [검수·반납 상세에서 처리] 로 간다", async () => {

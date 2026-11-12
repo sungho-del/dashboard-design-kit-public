@@ -22,7 +22,12 @@ import {
   TextButton,
   useToast,
 } from "../../components/ui";
-import { lastPathSegment, usePathname } from "../../lib/router";
+import { asStatus } from "../../lib/dataStatus";
+import {
+  lastPathSegment,
+  usePathname,
+  useSearchParams,
+} from "../../lib/router";
 import { CalcBreakdown } from "../babycube/CalcBreakdown";
 import { StatusTag } from "./OrderGates";
 import { LIST_COPY, PAGE_SIZE, PAGE_SIZES } from "./processList.data";
@@ -39,22 +44,26 @@ import {
   type StmtGate,
 } from "./SettleParts";
 import {
-  PAST_TX_NOTE,
   PAYOUT_ACCOUNT,
   SETTLE_FOOT,
   SETTLE_MONTH,
   SETTLE_MONTH_KO,
   SETTLE_PAYDAY,
+  SETTLE_EMPTY,
   SETTLE_POLICY,
   SETTLE_TX,
   STATEMENTS,
-  STMT_REQUEST_NOTE,
   SUMMARY,
+  TAX_PENDING,
+  canObjectOf,
+  objectedNoteOf,
+  pastSummaryOf,
+  requestNoteOf,
+  totalLabelOf,
   TAX_INVOICES,
   findStatement,
   minus,
   plus,
-  pastStatementBlocks,
   settleBlocksOf,
   txPathOf,
   unpaidNoteOf,
@@ -82,6 +91,7 @@ import {
 
 export function SettleOwnPage(props: SellerNavProps) {
   const { toast } = useToast();
+  const noCycle = asStatus(useSearchParams().get("preview")) === "empty";
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [selected, setSelected] = useState<string[]>([]);
@@ -102,6 +112,23 @@ export function SettleOwnPage(props: SellerNavProps) {
     toast(LIST_COPY.excel(picked ? selected.length : list.length, picked));
   };
   const open = (u: OrderUnit) => props.onNavSelect(txPathOf(u));
+
+  /* 정산 회차가 아직 하나도 없는 스토어 — `?preview=empty`(develop · 개발 요청 35번) */
+  if (noCycle)
+    return (
+      <SellerShell {...props} header={<PageHeader title="매출 정산" />}>
+        <Card variant="soft">
+          <CardBody>
+            <EmptyState
+              size="page"
+              icon={<FileText strokeWidth={1.2} aria-hidden />}
+              title={SETTLE_EMPTY.title}
+              description={SETTLE_EMPTY.description}
+            />
+          </CardBody>
+        </Card>
+      </SellerShell>
+    );
 
   return (
     <SellerShell {...props} header={<PageHeader title="매출 정산" />}>
@@ -374,13 +401,15 @@ export function SettleStatementPage(props: SellerNavProps) {
                     {/* 판단 한 쌍은 같이 줄바꿈된다 */}
                     {s.stat === "확인요청" && (
                       <span className="flex gap-2">
-                        <Button
-                          variant="secondary"
-                          size="small"
-                          onClick={() => setGate("object")}
-                        >
-                          이의제기
-                        </Button>
+                        {canObjectOf(s) && (
+                          <Button
+                            variant="secondary"
+                            size="small"
+                            onClick={() => setGate("object")}
+                          >
+                            이의제기
+                          </Button>
+                        )}
                         <Button size="small" onClick={() => setGate("confirm")}>
                           확인
                         </Button>
@@ -401,7 +430,6 @@ export function SettleStatementPage(props: SellerNavProps) {
 /* ---------- 세금계산서·증빙 (SO-STL-007) ---------- */
 
 export function SettleTaxPage(props: SellerNavProps) {
-  const { toast } = useToast();
   const sel = useRowSelection(TAX_INVOICES.map((t) => t.no));
 
   return (
@@ -477,14 +505,21 @@ export function SettleTaxPage(props: SellerNavProps) {
                   <StatusTag status={t.stat} />
                 </TableTd>
                 <TableTd>
+                  {/* 발행분은 [다운로드] 비활성 + 「연동 준비 중」(develop · 개발 요청 40번) */}
                   {t.stat === "수취완료" ? (
-                    <Button
-                      variant="secondary"
-                      size="small"
-                      onClick={() => toast(`${t.month} 세금계산서 다운로드`)}
-                    >
-                      다운로드
-                    </Button>
+                    <span className="flex flex-wrap items-center gap-2">
+                      <Button
+                        variant="secondary"
+                        size="small"
+                        disabled
+                        title={`세금계산서 ${TAX_PENDING}`}
+                      >
+                        다운로드
+                      </Button>
+                      <span className="body-small text-text-sub">
+                        {TAX_PENDING}
+                      </span>
+                    </span>
                   ) : (
                     <span className="break-keep text-text-sub">
                       매월 10일 발행
@@ -557,11 +592,16 @@ function StatementDetailBody({
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const toList = () => props.onNavSelect(config.listPath);
   const requested = s.stat === "확인요청";
+  const requestNote = requestNoteOf(s);
+  const objectedNote = objectedNoteOf(s);
+  /* 지난 회차도 거래 표(develop · 개발 요청 37번) — 지난 회차 거래 예시는 시드에 없어 빈 표 */
+  const txs = s.live ? SETTLE_TX : [];
+  const monthLabel = `${s.month.replace(".", "년 ")}월`;
 
-  const totalPages = Math.max(1, Math.ceil(SETTLE_TX.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(txs.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const start = (currentPage - 1) * pageSize;
-  const paged = SETTLE_TX.slice(start, start + pageSize);
+  const paged = txs.slice(start, start + pageSize);
 
   return (
     <SellerShell
@@ -591,11 +631,36 @@ function StatementDetailBody({
           <InfoItem label="상태" labelWidth={LABEL_WIDTH}>
             <StatusTag status={s.stat} />
           </InfoItem>
+          {/* develop 줄 — 있는 것만(개발 요청 36번) */}
+          {s.paidAt && (
+            <InfoItem label="지급완료일" labelWidth={LABEL_WIDTH}>
+              {s.paidAt}
+            </InfoItem>
+          )}
+          {s.objection && (
+            <InfoItem label="이의제기 사유" labelWidth={LABEL_WIDTH}>
+              <span className="text-text-warning">{s.objection.reason}</span>{" "}
+              <span className="text-text-sub">({s.objection.at})</span>
+            </InfoItem>
+          )}
+          {s.reissue && (
+            <InfoItem label="수정 명세 재발송" labelWidth={LABEL_WIDTH}>
+              {s.reissue.reason}{" "}
+              <span className="text-text-sub">({s.reissue.at})</span>
+            </InfoItem>
+          )}
         </InfoList>
-        {requested && (
+        {requestNote && (
           <NoteBox>
             <p>
-              <Bold text={STMT_REQUEST_NOTE} />
+              <Bold text={requestNote} />
+            </p>
+          </NoteBox>
+        )}
+        {objectedNote && (
+          <NoteBox>
+            <p>
+              <Bold text={objectedNote} />
             </p>
           </NoteBox>
         )}
@@ -603,13 +668,16 @@ function StatementDetailBody({
 
       <Section title="정산 명세">
         <CalcBreakdown
-          blocks={s.live ? settleBlocksOf(SUMMARY) : pastStatementBlocks(s)}
+          blocks={settleBlocksOf(
+            s.live ? SUMMARY : pastSummaryOf(s),
+            totalLabelOf(s.live),
+          )}
           notes={[unpaidNoteOf(s.unpaid)].filter(Boolean)}
         />
       </Section>
 
-      <Section title={`${SETTLE_MONTH_KO} 거래 내역`}>
-        {s.live ? (
+      <Section title={`${monthLabel} 거래 내역`}>
+        {txs.length ? (
           <>
             {/* 상품명이 길면 표가 카드보다 넓어진다 — 표만 가로로 민다 */}
             <div className="overflow-x-auto">
@@ -634,10 +702,10 @@ function StatementDetailBody({
                 />
               }
             />
-            <TxFoot units={SETTLE_TX} />
+            <TxFoot units={txs} />
           </>
         ) : (
-          <p className="body-medium text-text-sub">{PAST_TX_NOTE}</p>
+          <EmptyState size="section" title={LIST_COPY.emptyTitle} />
         )}
       </Section>
 
@@ -647,7 +715,7 @@ function StatementDetailBody({
         </p>
       </Section>
 
-      {/* 하단 바 — 좌 [목록] / 우 보조 → 주 버튼 하나 맨 오른쪽(확인요청이면 [확인], 아니면 [저장]) */}
+      {/* 하단 바 — 좌 [목록] / 우 [다운로드] [이의제기] [확인](주). [저장]·[취소]는 없다(저장할 것이 없다 · develop · 개발 요청 38번) */}
       <Card variant="soft" className="sticky bottom-6 z-10">
         <div className="flex items-center justify-between gap-2">
           <Button variant="secondary" onClick={toList}>
@@ -660,20 +728,11 @@ function StatementDetailBody({
             >
               다운로드
             </Button>
-            {requested && (
+            {canObjectOf(s) && (
               <Button variant="secondary" onClick={() => setGate("object")}>
                 이의제기
               </Button>
             )}
-            <Button variant="secondary" onClick={toList}>
-              취소
-            </Button>
-            <Button
-              variant={requested ? "secondary" : "primary"}
-              onClick={() => toast(`${s.no} 저장`)}
-            >
-              저장
-            </Button>
             {requested && (
               <Button onClick={() => setGate("confirm")}>확인</Button>
             )}

@@ -5,6 +5,7 @@ import {
   type Option,
   type ProcFilters,
 } from "./processList.data";
+import { unitTime } from "./orderUnit.labels";
 import type { OrderUnit } from "./seed/orders.data";
 import {
   DEP_STATUSES,
@@ -128,5 +129,15 @@ export const DEP_PROCESS_COPY = {
     "**환급 실행 대기**(검수 판정 완료 · 환급 실행 전) — 반환·청구 실행은 **[검수·반납 관리] 상세의 보증금 정산**에서 합니다.",
   pendingButton: "검수·반납 상세에서 처리",
 } as const;
+
+/**
+ * 「환급 처리 완료」 뒤 환급 실행 일시(develop · 개발 요청 41번). 시드에 실행 일시가 없어
+ * 다른 처리 시각처럼 처리단위 해시로 결정적으로 만든다(`unitTime` · 예시)
+ */
+export const depDoneCopyOf = (u: OrderUnit) =>
+  DEP_PROCESS_COPY.done.replace(
+    "**환급 처리 완료**",
+    `**환급 처리 완료** · ${unitTime(u, 6)}`,
+  );
 
 export const inspPathOf = (u: OrderUnit) => `/rent-insp-return/${u.id}`;

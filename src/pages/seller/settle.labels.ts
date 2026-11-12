@@ -364,41 +364,85 @@ export interface Statement {
   /** 이번 회차 — 명세·거래 내역을 실제로 계산한다 */
   live: boolean;
   unpaid: number;
+  /** 지급완료일 — 지급완료 회차만(개발 요청 36번) */
+  paidAt?: string;
+  /** 이의제기 사유·시각 — 제기한 회차만 */
+  objection?: { reason: string; at: string };
+  /** 수정 명세 재발송 사유·시각 */
+  reissue?: { reason: string; at: string };
 }
 
-/** 지난 회차 명세 — 원본은 합계 3줄만 */
-export const pastStatementBlocks = (s: Statement): CalcBlock[] => [
-  {
-    key: "past",
-    lines: [
-      { key: "gmv", label: "매출 합계", value: won(s.gmv) },
-      {
-        key: "ded",
-        label: "차감 합계",
-        hint: "수수료·PG",
-        value: minus(s.ded),
-      },
-    ],
-  },
-  {
-    key: "result",
-    emphasis: true,
-    lines: [
-      { key: "total", label: "지급액", value: won(s.payout), kind: "total" },
-    ],
-  },
-];
+/**
+ * 지난 회차도 전체 명세(develop · 개발 요청 37번 — 원본은 합계 3줄). 지난 회차 예시는 합계만 있어
+ * 판매·PG 수수료를 이번 회차와 같은 요율로 매기고 나머지 차감을 취소·반품 차감으로 둔다(예시 · 실제 값은 서버 스냅샷)
+ */
+export function pastSummaryOf(s: Statement): SettleSummary {
+  const fee = Math.round((s.gmv * STORE_FEE_RATE) / 100);
+  const pg = Math.round(s.gmv * PG_RATE);
+  return {
+    units: [],
+    sale: 0,
+    rent: 0,
+    list: s.gmv,
+    coupon: 0,
+    point: 0,
+    gmv: s.gmv,
+    fee,
+    pg,
+    cancel: Math.max(0, s.ded - fee - pg),
+    care: s.add,
+    penalty: 0,
+    pickup: 0,
+    shipping: 0,
+    payout: s.payout,
+    unpaid: s.unpaid,
+  };
+}
+/** 명세 합계 줄 — 이번 회차 「지급 예정액」 · 지난 회차 「지급액」(develop) */
+export const totalLabelOf = (live: boolean) =>
+  live ? "지급 예정액" : "지급액";
 
 /** 확인요청 안내 — 원본 `sellerStmtPage` 지급 정보 하단(굵은 낱말 `**`) */
 export const STMT_REQUEST_NOTE =
   "본사가 정산 명세를 **확인요청**한 건입니다. 내용에 이상이 없으면 하단 **[확인]** 버튼으로 확정해 주세요. **이상이 있으면 [이의제기]**로 사유를 접수하시면 본사 검토 후 수정 명세가 재발송됩니다(확인·이의제기 기간 **3일** · 회차당 1회).";
 
-/** 정산 정책 — 원본 문면(굵은 낱말 `**`) */
-export const SETTLE_POLICY =
-  "**매출 확정 기준** — 판매는 **구매확정**, 렌트는 **반납완료** 시 매출로 확정되어 정산 대상이 됩니다(확정 전 건은 정산 제외). 지급액 = 확정 매출 − 판매 수수료(셀러별 요율) − PG 수수료 − 취소·반품 차감 **+ 안심케어 보전**이며, **수수료는 본사 수익**으로 귀속됩니다. 세금계산서는 매월 10일에 발행됩니다(연동 준비 중). **보증금·연체료·배상은 보증금 내역**에서 분리 관리됩니다. **지급 전 발견 오류는 본사가 직권 정정**합니다.";
+/**
+ * 확인요청 안내 — 이미 이의제기한 회차면 끝에 「— **이미 제기한 회차**라 재제기는 할 수 없습니다」(develop · 개발 요청 36번).
+ * 확인요청이 아니면 null
+ */
+export function requestNoteOf(s: Pick<Statement, "stat" | "objection">) {
+  if (s.stat !== "확인요청") return null;
+  if (!s.objection) return STMT_REQUEST_NOTE;
+  return STMT_REQUEST_NOTE.replace(
+    "회차당 1회).",
+    "회차당 1회 — **이미 제기한 회차**라 재제기는 할 수 없습니다).",
+  );
+}
+/** 이의제기 접수 안내 — 이의제기 상태이고 사유가 있을 때만(develop · 개발 요청 36번) */
+export const OBJECTED_NOTE =
+  "**이의제기 접수됨** — 본사가 명세를 검토 중입니다. 수정 명세가 재발송되면 다시 확인해 주세요.";
+export const objectedNoteOf = (s: Pick<Statement, "stat" | "objection">) =>
+  s.stat === "이의제기" && s.objection ? OBJECTED_NOTE : null;
+/** [이의제기]는 회차당 1회 — 이미 제기했으면 버튼이 없다(develop) */
+export const canObjectOf = (s: Pick<Statement, "stat" | "objection">) =>
+  s.stat === "확인요청" && !s.objection;
 
-export const PAST_TX_NOTE =
-  "지난달 거래 내역은 명세서 다운로드로 확인할 수 있습니다.";
+/**
+ * 정산 정책 — develop 문구의 셀러 귀속 줄(「+ 셀러 귀속 위약금·픽업 요금·배송비(수수료 비대상)」 · 개발 요청 38번)을 넣었다.
+ * 보증금 문장 끝은 기획 답(부록 A B8 「…분리 관리됩니다.」)이 develop(「…분리 관리되어 이 명세에 포함되지 않습니다.」)과 달라 기획 답을 둔다(굵은 낱말 `**`)
+ */
+export const SETTLE_POLICY =
+  "**매출 확정 기준** — 판매는 **구매확정**, 렌트는 **반납완료** 시 매출로 확정되어 정산 대상이 됩니다(확정 전 건은 정산 제외). 지급액 = 확정 매출 − 판매 수수료(셀러별 요율) − PG 수수료 − 취소·반품 차감 **+ 안심케어 보전** + 셀러 귀속 위약금·픽업 요금·배송비(수수료 비대상)이며, **수수료는 본사 수익**으로 귀속됩니다. 세금계산서는 매월 10일에 발행됩니다(연동 준비 중). **보증금·연체료·배상은 보증금 내역**에서 분리 관리됩니다. **지급 전 발견 오류는 본사가 직권 정정**합니다.";
+
+/** 매출 정산 — 정산 회차가 하나도 없는 스토어(0원 회차와 다르다 · develop 문구 · 개발 요청 35번) */
+export const SETTLE_EMPTY = {
+  title: "아직 정산 회차가 없습니다.",
+  description:
+    "첫 매출이 확정되면 그 달의 정산 회차가 열리고 이 화면에 명세가 표시됩니다.",
+} as const;
+
+/** 세금계산서 발행분 [다운로드] — 문서 보관소 연동 전이라 비활성(develop · 개발 요청 40번) */
+export const TAX_PENDING = "연동 준비 중";
 
 /** 확인·이의제기 창 — 원본 `gateStmt`·`gateObject`(2839~2856) 문구 */
 export const STMT_GATE = {

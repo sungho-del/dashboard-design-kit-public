@@ -11,6 +11,7 @@ import {
   SettleStmtDetailPage,
   SettleTaxPage,
 } from "./SettlePages";
+import { canObjectOf, objectedNoteOf, requestNoteOf } from "./settle.data";
 
 /* -------------------------------------------------------------------------
  * 정산 묶음 — 매출 정산 · 정산 명세서(+ 상세 2) · 세금계산서 · 보증금 내역(+ 상세).
@@ -183,15 +184,17 @@ describe("정산 내역/명세서 · 세금계산서", () => {
     expect(onNavSelect).toHaveBeenCalledWith("/settle-statement/2026.05");
   });
 
-  it("세금계산서 — 원본 숫자 · 수취완료만 [다운로드] · 그 밖은 「매월 10일 발행」(판정 Q4)", async () => {
-    const { user } = renderAt(SettleTaxPage, "/settle-tax");
+  it("세금계산서 — 원본 숫자 · 수취완료는 [다운로드] 비활성 + 「연동 준비 중」(개발 요청 40번) · 그 밖은 「매월 10일 발행」(판정 Q4)", () => {
+    renderAt(SettleTaxPage, "/settle-tax");
     const rows = bodyRows();
     expect(within(rows[0]).getByText("206,635원")).toBeInTheDocument();
     expect(within(rows[0]).getByText("매월 10일 발행")).toBeInTheDocument();
-    await user.click(within(rows[1]).getByRole("button", { name: "다운로드" }));
     expect(
-      await screen.findByText("2026.05 세금계산서 다운로드"),
-    ).toBeInTheDocument();
+      within(rows[1]).getByRole("button", { name: "다운로드" }),
+    ).toBeDisabled();
+    expect(within(rows[1]).getByText("연동 준비 중")).toBeInTheDocument();
+    /* 공급자는 기획 답(11-10 3번) 예시 그대로 */
+    expect(within(rows[1]).getByText("주식회사 렌티크")).toBeInTheDocument();
   });
 });
 
@@ -201,8 +204,9 @@ describe("명세서 상세", () => {
     expect(
       screen.getByRole("heading", { name: "정산 명세서 상세" }),
     ).toBeInTheDocument();
+    /* 계좌번호는 서버에 없어 develop 문구(개발 요청 39번) */
     expect(
-      screen.getByText("우리은행 1002-***-****** (리틀베이비)"),
+      screen.getByText("우리은행 등록 계좌 (리틀베이비) · 검증 완료"),
     ).toBeInTheDocument();
     expect(screen.getByText(/정산 명세를/)).toBeInTheDocument();
     expect(screen.getByText("지급 예정액")).toBeInTheDocument();
@@ -210,16 +214,12 @@ describe("명세서 상세", () => {
       screen.getByRole("columnheader", { name: "No" }),
     ).toBeInTheDocument();
     const buttons = screen.getAllByRole("button").map((b) => b.textContent);
-    expect(buttons.slice(-5)).toEqual([
-      "다운로드",
-      "이의제기",
-      "취소",
-      "저장",
-      "확인",
-    ]);
+    /* [저장]·[취소]는 없다 — 저장할 것이 없다(개발 요청 38번) */
+    expect(buttons.slice(-3)).toEqual(["다운로드", "이의제기", "확인"]);
+    expect(screen.queryByRole("button", { name: "저장" })).toBeNull();
   });
 
-  it("지난 회차 — 합계 3줄 · 거래 내역 대신 안내 · 주 버튼 [저장]", async () => {
+  it("지난 회차 — 전체 명세(합계 줄 「지급액」) · 거래 내역 표 자리 · 지급완료일 · 이의제기 사유 · 수정 명세 재발송(개발 요청 36·37번)", async () => {
     const { user, onNavSelect } = renderAt(
       SettleOwnDetailPage,
       "/settle-own/2026.05",
@@ -227,21 +227,59 @@ describe("명세서 상세", () => {
     expect(
       screen.getByRole("heading", { name: "매출 정산 상세" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("매출 합계")).toBeInTheDocument();
-    expect(screen.getByText("−398,000원")).toBeInTheDocument();
+    /* 이번 회차와 같은 명세 꼴 — 판매 수수료 10% · PG 3% · 나머지 차감 */
+    expect(screen.getByText("판매 수수료")).toBeInTheDocument();
+    expect(screen.getByText("지급액")).toBeInTheDocument();
+    expect(screen.getByText("2,443,000원")).toBeInTheDocument();
     expect(
-      screen.getByText(
+      screen.getByRole("heading", { name: "2026년 05월 거래 내역" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
         "지난달 거래 내역은 명세서 다운로드로 확인할 수 있습니다.",
       ),
+    ).toBeNull();
+    expect(screen.getByText("지급완료일")).toBeInTheDocument();
+    expect(
+      screen.getByText("취소·반품 차감 금액이 주문 내역과 다릅니다."),
     ).toBeInTheDocument();
+    expect(screen.getByText("수정 명세 재발송")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "이의제기" })).toBeNull();
-    await user.click(screen.getByRole("button", { name: "저장" }));
-    expect(await screen.findByText("STM-2605 저장")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "저장" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "목록" }));
     expect(onNavSelect).toHaveBeenCalledWith("/settle-own");
   });
 
-  /* 부록 A B8(개발 §3-2-1 — 입점사 매출 정산도 같이) · 대장 2부 [57] */
+  it("확인요청 안내 꼬리 · 이의제기 접수 안내 — 이미 제기한 회차 / 이의제기 상태(개발 요청 36번)", () => {
+    const base = { stat: "확인요청" as const };
+    expect(requestNoteOf(base)).toContain(
+      "(확인·이의제기 기간 **3일** · 회차당 1회).",
+    );
+    expect(
+      requestNoteOf({ ...base, objection: { reason: "x", at: "y" } }),
+    ).toContain(
+      "회차당 1회 — **이미 제기한 회차**라 재제기는 할 수 없습니다).",
+    );
+    expect(
+      objectedNoteOf({ stat: "이의제기", objection: { reason: "x", at: "y" } }),
+    ).toBe(
+      "**이의제기 접수됨** — 본사가 명세를 검토 중입니다. 수정 명세가 재발송되면 다시 확인해 주세요.",
+    );
+    expect(canObjectOf({ ...base, objection: { reason: "x", at: "y" } })).toBe(
+      false,
+    );
+  });
+
+  it("매출 정산 — 정산 회차가 없으면 빈 화면(`?preview=empty` · 개발 요청 35번)", () => {
+    renderAt(SettleOwnPage, "/settle-own?preview=empty");
+    expect(screen.getByText("아직 정산 회차가 없습니다.")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "첫 매출이 확정되면 그 달의 정산 회차가 열리고 이 화면에 명세가 표시됩니다.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("정산 정책 — 보증금 문장은 「분리 관리됩니다」 · 「미정의」 절 없음", () => {
     renderAt(SettleStmtDetailPage, "/settle-statement/2026.06");
     const policy = screen.getByText(/매출 확정 기준/).closest("p");
@@ -249,6 +287,10 @@ describe("명세서 상세", () => {
       "보증금·연체료·배상은 보증금 내역에서 분리 관리됩니다. 지급 전 발견 오류는 본사가 직권 정정합니다.",
     );
     expect(policy?.textContent).not.toMatch(/미정의|이 명세에 포함되지/);
+    /* develop 셀러 귀속 줄(개발 요청 38번) */
+    expect(policy?.textContent).toContain(
+      "+ 셀러 귀속 위약금·픽업 요금·배송비(수수료 비대상)이며",
+    );
     /* 기획 답 2026-11-06 §4 #26 */
     expect(policy?.textContent).toContain("− PG 수수료 − 취소·반품 차감");
     expect(policy?.textContent).not.toContain("요율 미정");

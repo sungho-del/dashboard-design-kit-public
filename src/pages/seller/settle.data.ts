@@ -116,6 +116,13 @@ export const STATEMENTS: Statement[] = [
     stat: "지급완료",
     live: false,
     unpaid: 0,
+    /* 예시 — 이의제기 → 수정 명세 재발송 → 확인 → 지급까지 거친 회차(개발 요청 36번 줄이 보이도록) */
+    paidAt: "2026.06.10",
+    objection: {
+      reason: "취소·반품 차감 금액이 주문 내역과 다릅니다.",
+      at: "2026.06.03 15:20:00",
+    },
+    reissue: { reason: "취소·반품 차감 금액 정정", at: "2026.06.05 11:00:00" },
   },
   {
     no: "STM-2604",
@@ -128,14 +135,15 @@ export const STATEMENTS: Statement[] = [
     stat: "지급완료",
     live: false,
     unpaid: 0,
+    paidAt: "2026.05.11",
   },
 ];
 
 export const findStatement = (month: string) =>
   STATEMENTS.find((s) => s.month === month);
 
-/** 지급 계좌 — 원본 고정 문구 */
-export const PAYOUT_ACCOUNT = `우리은행 1002-***-****** (${STORE.name})`;
+/** 지급 계좌 — 계좌번호는 서버에 없어 develop 문구 「{은행} 등록 계좌 ({예금주}) · 검증 완료」(개발 요청 39번 · 은행은 원본 예시) */
+export const PAYOUT_ACCOUNT = `우리은행 등록 계좌 (${STORE.name}) · 검증 완료`;
 
 /** 명세서 한 회차 + 본사 발행 상태 → 세금계산서 한 줄. 상태는 `s.stat`(지급 상태)을 읽지 않는다 */
 export const taxInvoiceOf = (s: Statement, issue: HqTaxIssue): TaxInvoice => {

@@ -49,6 +49,7 @@ import {
 import {
   DEP_LIST_PATH,
   DEP_PROCESS_COPY,
+  depDoneCopyOf,
   DEP_SEARCH_FIELDS,
   DEP_STATUS_OPTIONS,
   DEPOSIT_HELP,
@@ -481,7 +482,14 @@ export function RentDepositDetailPage(props: SellerNavProps) {
           <Item label="상품">{u.prod}</Item>
           <Item label="이용 기간">{u.period || "-"}</Item>
           <Item label="안심케어">
-            {care ? <Tag size="small">가입</Tag> : "미가입"}
+            {/* 「— 복원가능 손상 본사 부담」(develop · 개발 요청 41번) */}
+            {care ? (
+              <>
+                <Tag size="small">가입</Tag> — 복원가능 손상 본사 부담
+              </>
+            ) : (
+              "미가입"
+            )}
           </Item>
           {(u.od ?? 0) > 0 && (
             <Item label="연체 경과">
@@ -524,7 +532,8 @@ export function RentDepositDetailPage(props: SellerNavProps) {
         </NoteBox>
       </Section>
 
-      <Section title="처리 상태">
+      {/* 「(조회 전용)」 — develop 구역 이름(개발 요청 41번) */}
+      <Section title="처리 상태 (조회 전용)">
         <p className="body-medium break-keep text-text">
           {process === "holding" ? (
             <>
@@ -533,7 +542,11 @@ export function RentDepositDetailPage(props: SellerNavProps) {
             </>
           ) : (
             <Bold
-              text={DEP_PROCESS_COPY[process]}
+              text={
+                process === "done"
+                  ? depDoneCopyOf(u)
+                  : DEP_PROCESS_COPY[process]
+              }
               strong="body-medium-bold text-text"
             />
           )}
