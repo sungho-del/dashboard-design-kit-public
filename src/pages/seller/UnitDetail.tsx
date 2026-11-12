@@ -28,6 +28,7 @@ import {
   TextButton,
   useToast,
 } from "../../components/ui";
+import { cn } from "../../lib/cn";
 import { SellerGnb } from "./SellerGnb";
 import { asStatus, dimWhile, isBusy } from "../../lib/dataStatus";
 import {
@@ -94,6 +95,8 @@ import {
   reachedAt,
   readyDueOf,
   readyNoticeOf,
+  refundNoticeOf,
+  reshipOf,
   receiverOf,
   receiverTelOf,
   rentComponentOf,
@@ -389,6 +392,8 @@ function UnitDetailBody({
     setGate(r);
   };
   const ready = readyNoticeOf(u);
+  const refundNotice = refundNoticeOf(u);
+  const reship = reshipOf(u);
 
   const runAction = (action: DetailAction) => {
     if ("to" in action) return route(action.to);
@@ -408,9 +413,13 @@ function UnitDetailBody({
     if (action.special === "ready") return setOverlay("ready");
     if (action.special === "delayAgain")
       return setGate({ kind: "delay", ids: [u.id] });
+    if (action.special === "collect" && (claim === "반품" || claim === "교환"))
+      return setGate({ kind: "collectInvoice", ids: [u.id], type: claim });
     /* 원본 `act('배송 추적')` — 알림만(조회는 개발 영역) */
     if (action.special === "track") return toast("배송 추적");
-    toast(UNIT_DETAIL_COPY.toReturn);
+    /* 출고 뒤 취소 → 반품 전환 창(사유 + 고객 안내 동의 · 개발 요청 21번) */
+    if (action.special === "toReturn")
+      return setGate({ kind: "toReturn", ids: [u.id] });
   };
 
   const closeAddress = () => {
@@ -444,6 +453,21 @@ function UnitDetailBody({
         />
       }
     >
+      {/* 환불 시도 안내 — PG 응답 대기 · 거절(develop 문구 · 개발 요청 22번) */}
+      {refundNotice && (
+        <Card variant="soft">
+          <p
+            role={refundNotice.failed ? "alert" : undefined}
+            className={cn(
+              "body-medium break-keep",
+              refundNotice.failed ? "text-text-critical" : "text-text",
+            )}
+          >
+            {refundNotice.text}
+          </p>
+        </Card>
+      )}
+
       <Section title="주문정보" busy={busy} dim={dim}>
         {loading ? (
           <LoadingLines rows={7} />
@@ -695,6 +719,10 @@ function UnitDetailBody({
                 )}
                 <Item label="안내">{UNIT_DETAIL_COPY.readyHelp}</Item>
               </>
+            )}
+            {/* 재반송 송장 — 반려·거부된 상품을 되돌려 보낸 송장(개발 요청 23번) */}
+            {reship && (
+              <Item label="재반송 송장">{`${reship.courier} ${reship.invoice}`}</Item>
             )}
             <Item label="지연 사유">{delayReasonOf(u)}</Item>
             <Item label="주문확인일">{reachedAt(u, 1)}</Item>

@@ -123,9 +123,6 @@ export const UNIT_DETAIL_COPY = {
   readyHelp:
     "[준비 완료] → 고객 알림 → 배송 관리에서 [배송 완료 처리]로 수령 확인",
   readyNotice: (at: string, due: string) => `${at} · 수령 기한 ${due}`,
-
-  /** 원본 `rmaToReturn` — 출고 뒤 취소 건 */
-  toReturn: "반품으로 전환했습니다 → [반품 관리]에서 처리하세요.",
 } as const;
 
 /** 자체 수령(방문 수령) — 송장 대신 [준비 완료] */
@@ -192,7 +189,9 @@ export type DetailAction = {
         /** 자체 수령 [준비 완료] — 확인 창 */
         | "ready"
         /** 이미 배송 지연인 건의 사유 다시 등록 — 셀렉트는 같은 값을 못 고른다 */
-        | "delayAgain";
+        | "delayAgain"
+        /** 반품·교환 승인 뒤 [수거 송장 등록] — 택배사·송장 창 */
+        | "collect";
     }
   /** 다른 메뉴로(원본 [대여·연체 관리로]) */
   | { go: string }

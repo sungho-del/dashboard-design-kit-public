@@ -37,18 +37,28 @@ export function claimActionsOf(u: OrderUnit, type: ClaimType): DetailAction[] {
       label = "수거완료 처리";
     }
   }
-  const actions: DetailAction[] = next ? [{ label, to: next }] : [];
+  /* 택배 반품·교환 승인 뒤 — [수거 송장 등록](택배사·송장 창 · develop · 개발 요청 23번) */
+  const collectStep =
+    type !== "취소" && !pickupOf(u) && stat === `${type} 승인`;
+  const actions: DetailAction[] = collectStep
+    ? [{ label: "수거 송장 등록", special: "collect" }]
+    : next
+      ? [{ label, to: next }]
+      : [];
+  /*
+   * 반려·거부 — develop: 수거 전에는 [반려], 수거완료·검수 단계에서는 [거부](사유 필수 · 개발 요청 20·23번).
+   * 반려·거부 건은 [재반송 처리]
+   */
+  const collected = [`${type} 수거완료`, `${type} 검수`].includes(stat);
   if (
     exceptions.length &&
     !CLAIM_DONE.includes(stat) &&
     !exceptions.includes(stat)
-  )
-    actions.push({
-      label: `${type} 반려`,
-      to: `${type} 반려`,
-      tone: "criticalTonal",
-    });
-  if (stat === `${type} 반려`)
+  ) {
+    const reject = `${type} ${collected ? "거부" : "반려"}`;
+    actions.push({ label: reject, to: reject, tone: "criticalTonal" });
+  }
+  if (stat === `${type} 반려` || stat === `${type} 거부`)
     actions.push({ label: "재반송 처리", to: "재반송", tone: "criticalTonal" });
   return actions;
 }

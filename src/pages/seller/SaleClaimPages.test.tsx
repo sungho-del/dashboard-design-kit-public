@@ -178,7 +178,7 @@ describe("SaleReturnPage — 반품 관리", () => {
     ).toBeVisible();
   });
 
-  it("[반품 완료] → 되돌릴 수 없음 고지 창(원본 `gateRefundDone`)", async () => {
+  it("[반품 완료] → 환불 실행 확인 창(develop 문구)", async () => {
     const { user } = renderPage(SaleReturnPage);
     await user.click(within(cards()).getByRole("button", { name: /진행/ }));
     await user.click(within(rows()[0]).getByRole("checkbox"));
@@ -186,9 +186,15 @@ describe("SaleReturnPage — 반품 관리", () => {
     const dialog = await screen.findByRole("dialog", {
       name: "반품 완료 처리",
     });
+    /* 누르는 순간 환불이 실행된다 — develop 문구(개발 요청 25번) */
     expect(
-      within(dialog).getByText("처리 후 되돌릴 수 없습니다."),
+      within(dialog).getByText(
+        "환불 실행 확정 · 되돌릴 수 없음. 반품 배송비를 뺀 금액이 카드로 취소되고 재고가 복원되며 고객에게 환불 완료 안내가 나갑니다.",
+      ),
     ).toBeVisible();
+    expect(
+      within(dialog).queryByText("환불 실행이 완료되었음을 확정합니다."),
+    ).toBeNull();
   });
 
   it("수거 송장은 신청 상태만 고친다 · 방문 수령 건은 잠김(D-315) · [송장등록] → 수거중", async () => {

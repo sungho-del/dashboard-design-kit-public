@@ -218,3 +218,38 @@ const READY_NOTIFIED: Record<string, { at: string; due: string }> = {
   "20260606833562-1": { at: "2026.06.07 10:12:00", due: "2026.06.14" },
 };
 export const readyNoticeOf = (u: OrderUnit) => READY_NOTIFIED[u.id] ?? null;
+
+/**
+ * 환불 시도 안내 예시 — develop `refundStatusNotice` 문구(개발 요청 22번). 시드에 환불 시도가 없어
+ * 환불 처리중 두 건에 둔다: 취소 건 = PG 응답 확인 중 · 반품 건 = PG 거절(코드·문구는 develop 테스트 예시). 실제 값은 서버
+ */
+const REFUND_ATTEMPTS: Record<
+  string,
+  { no: number; failed?: { code: string; message: string } }
+> = {
+  "20260612907519-1": { no: 1 },
+  "20260622758427-1": {
+    no: 1,
+    failed: { code: "E2E_DECLINE", message: "카드사 거절." },
+  },
+};
+export function refundNoticeOf(u: OrderUnit) {
+  const a = REFUND_ATTEMPTS[u.id];
+  if (!a) return null;
+  if (!a.failed)
+    return {
+      failed: false,
+      text: `환불 ${a.no}차 시도 — PG 응답 확인 중입니다. 자동으로 반영되니 다시 누르지 마세요.`,
+    };
+  const reason = a.failed.message.trim().replace(/\.+$/, "");
+  return {
+    failed: true,
+    text: `환불 ${a.no}차 시도가 PG에서 거절됐습니다 (${a.failed.code})${reason ? ` ${reason}` : ""}. 원인을 확인한 뒤 같은 버튼으로 다시 실행할 수 있습니다.`,
+  };
+}
+
+/** 재반송 송장 예시 — 반품 재반송 한 건(개발 요청 23번 「재반송 송장」 줄). 실제 값은 서버 */
+const RESHIP: Record<string, { courier: string; invoice: string }> = {
+  "20260618339421-1": { courier: "CJ대한통운", invoice: "607300112233" },
+};
+export const reshipOf = (u: OrderUnit) => RESHIP[u.id] ?? null;

@@ -12,6 +12,7 @@ import {
   type SaleClaimDetailPageProps,
 } from "./SaleClaimDetailPage";
 import { claimActionsOf, VISIT_RETURN_WAIT } from "./SaleClaimDetailPage.data";
+import { GateHost } from "./OrderGates";
 import { UNITS } from "./seed/orders.data";
 
 /* -------------------------------------------------------------------------
@@ -217,5 +218,147 @@ describe("교환 상세", () => {
     await user.click(screen.getByRole("option", { name: "재반송" }));
     const dialog = await screen.findByRole("dialog", { name: "재반송 처리" });
     expect(within(dialog).getByText(/재반송은 종결 상태입니다/)).toBeVisible();
+  });
+});
+
+describe("클레임 상세 — 개발 요청 2026-11-12 21~24번", () => {
+  it("21 · 출고 뒤 취소는 [반품 전환] · 창은 사유 + 고객 안내 동의가 다 있어야 확정", async () => {
+    const base = unit("20260612907519-1");
+    expect(
+      claimActionsOf({ ...base, ship: "2026.06.13 10:00" }, "취소")[0],
+    ).toEqual({ label: "반품 전환", special: "toReturn" });
+
+    const user = userEvent.setup();
+    const onDone = vi.fn();
+    render(
+      <ToastProvider position="bottom">
+        <GateHost
+          gate={{ kind: "toReturn", ids: [base.id] }}
+          units={[base]}
+          onClose={vi.fn()}
+          onDone={onDone}
+        />
+      </ToastProvider>,
+    );
+    const dialog = screen.getByRole("dialog", { name: "반품 전환" });
+    const confirm = within(dialog).getByRole("button", { name: "반품 전환" });
+    expect(confirm).toBeDisabled();
+    await user.type(
+      within(dialog).getByRole("textbox", { name: "반품 전환 사유" }),
+      "출고 뒤 고객 변심",
+    );
+    expect(confirm).toBeDisabled();
+    await user.click(
+      within(dialog).getByRole("checkbox", {
+        name: "고객에게 유형 전환과 비가역성을 안내하고 동의를 확인했습니다.",
+      }),
+    );
+    await user.click(confirm);
+    expect(onDone).toHaveBeenCalledWith(
+      "반품으로 전환했습니다 → [반품 관리]에서 처리하세요.",
+    );
+  });
+
+  it("21 · 반품 [교환으로 변경] 창에도 동의 체크", async () => {
+    const { user } = renderAt(
+      SaleReturnDetailPage,
+      "/sale-return/20260624144694-1",
+    );
+    await user.click(screen.getByRole("combobox", { name: "반품상태" }));
+    await user.click(screen.getByRole("option", { name: "교환으로 변경" }));
+    const dialog = screen.getByRole("dialog", { name: "교환으로 변경" });
+    expect(
+      within(dialog).getByRole("checkbox", {
+        name: "고객에게 유형 전환과 비가역성을 안내하고 동의를 확인했습니다.",
+      }),
+    ).not.toBeChecked();
+    expect(
+      within(dialog).getByRole("button", { name: "교환으로 변경" }),
+    ).toBeDisabled();
+  });
+
+  it("22 · 환불 시도 안내 줄 — PG 응답 확인 중 / PG 거절", () => {
+    renderAt(SaleCancelDetailPage, "/sale-cancel/20260612907519-1");
+    expect(
+      screen.getByText(
+        "환불 1차 시도 — PG 응답 확인 중입니다. 자동으로 반영되니 다시 누르지 마세요.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("22 · PG 거절 안내는 경고 줄", () => {
+    renderAt(SaleReturnDetailPage, "/sale-return/20260622758427-1");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "환불 1차 시도가 PG에서 거절됐습니다 (E2E_DECLINE) 카드사 거절. 원인을 확인한 뒤 같은 버튼으로 다시 실행할 수 있습니다.",
+    );
+  });
+
+  it("23 · 택배 반품 승인 뒤 [수거 송장 등록] → 택배사·송장 창 → 수거중", async () => {
+    const approved = UNITS.find(
+      (u) =>
+        u.type === "판매" &&
+        u.req?.type === "반품" &&
+        u.req.stat === "반품 승인" &&
+        u.shipWay === "택배",
+    )!;
+    const { user } = renderAt(
+      SaleReturnDetailPage,
+      `/sale-return/${approved.id}`,
+    );
+    await user.click(screen.getByRole("button", { name: "수거 송장 등록" }));
+    const dialog = screen.getByRole("dialog", { name: "수거 송장 등록" });
+    expect(
+      within(dialog).getByText(
+        "실제 수거 택배사와 송장번호를 등록하면 수거중 단계로 전환됩니다.",
+      ),
+    ).toBeVisible();
+    await user.click(within(dialog).getByRole("combobox", { name: "택배사" }));
+    await user.click(screen.getByRole("option", { name: "CJ대한통운" }));
+    await user.type(
+      within(dialog).getByRole("textbox", { name: "송장번호" }),
+      "606101059999",
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "수거 송장 등록" }),
+    );
+    expect(await screen.findByText(/수거 송장 등록 완료/)).toBeVisible();
+  });
+
+  it("23 · 수거완료 상태는 [반품 반려] 대신 [반품 거부](사유 필수) · 거부 건은 [재반송 처리]", () => {
+    renderAt(SaleReturnDetailPage, "/sale-return/20260624144694-1");
+    expect(barButtons()).toContain("반품 거부");
+    expect(barButtons()).not.toContain("반품 반려");
+  });
+
+  it("23 · 거부 건은 [재반송 처리]", () => {
+    renderAt(SaleReturnDetailPage, "/sale-return/20260619949970-1");
+    expect(barButtons()).toContain("재반송 처리");
+  });
+
+  it("23 · 재반송 건은 배송정보에 「재반송 송장」 줄", () => {
+    renderAt(SaleReturnDetailPage, "/sale-return/20260618339421-1");
+    expect(valueOf("재반송 송장")).toHaveTextContent("CJ대한통운 607300112233");
+  });
+
+  it("24 · 자체 수령 교환 재배송은 송장 없이 — 창 제목 「재배송 등록」 · 본문 develop 문구", async () => {
+    const { user } = renderAt(
+      SaleExchangeDetailPage,
+      "/sale-exchange/20260621982292-1",
+    );
+    await user.click(screen.getByRole("combobox", { name: "교환상태" }));
+    await user.click(screen.getByRole("option", { name: "교환 재배송" }));
+    const dialog = screen.getByRole("dialog", { name: "재배송 등록" });
+    expect(
+      within(dialog).getByText(
+        "자체 수령 주문이라 송장 없이 재수령 안내로 진행합니다.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(dialog).queryByRole("combobox", { name: "택배사" }),
+    ).toBeNull();
+    await user.click(
+      within(dialog).getByRole("button", { name: "재배송 등록" }),
+    );
+    expect(await screen.findByText(/교환 재배송 처리되었습니다/)).toBeVisible();
   });
 });

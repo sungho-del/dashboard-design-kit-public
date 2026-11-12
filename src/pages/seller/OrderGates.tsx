@@ -12,11 +12,13 @@ import {
   Select,
   Tag,
   Textarea,
+  Checkbox,
   useToast,
 } from "../../components/ui";
 import { CalcBreakdown } from "../babycube/CalcBreakdown";
 import {
   ACTION_COPY,
+  CLAIM_GATE_COPY,
   DEPOSIT_COPY,
   GATE_DONE,
   GATE_TOAST,
@@ -308,9 +310,11 @@ export interface RequiredReasonModalProps {
   /** 입력칸 위 고지(교환으로 변경 — 비가역 · 수거 송장 삭제) */
   lead?: ReactNode;
   placeholder: string;
-  notice: ReactNode;
+  notice?: ReactNode;
   emptyMessage: string;
   confirmLabel: string;
+  /** 고객 안내 동의 체크 — 있으면 사유와 체크가 다 있어야 확정(develop · 개발 요청 21번) */
+  consent?: string;
   onClose: () => void;
   onConfirm: (reason: string) => void;
 }
@@ -325,13 +329,16 @@ export function RequiredReasonModal({
   notice,
   emptyMessage,
   confirmLabel,
+  consent,
   onClose,
   onConfirm,
 }: RequiredReasonModalProps) {
   const { toast } = useToast();
   const [reason, setReason] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const close = () => {
     setReason("");
+    setAgreed(false);
     onClose();
   };
   return (
@@ -349,7 +356,16 @@ export function RequiredReasonModal({
           value={reason}
           onChange={(event) => setReason(event.target.value)}
         />
-        <p className="body-small break-keep text-text-sub">{notice}</p>
+        {notice && (
+          <p className="body-small break-keep text-text-sub">{notice}</p>
+        )}
+        {consent && (
+          <Checkbox
+            label={consent}
+            checked={agreed}
+            onChange={(event) => setAgreed(event.target.checked)}
+          />
+        )}
       </ModalBody>
       <ModalFooter>
         <Button variant="secondary" size="large" onClick={close}>
@@ -358,9 +374,11 @@ export function RequiredReasonModal({
         <Button
           variant="critical"
           size="large"
+          disabled={!!consent && (!reason.trim() || !agreed)}
           onClick={() => {
             if (!reason.trim()) return toast(emptyMessage);
             setReason("");
+            setAgreed(false);
             onConfirm(reason.trim());
           }}
         >
@@ -384,6 +402,7 @@ function InvoiceGateModal({
   lead,
   confirmLabel,
   danger = false,
+  invoiceOptional = false,
   onClose,
   onConfirm,
 }: {
@@ -393,6 +412,8 @@ function InvoiceGateModal({
   lead: ReactNode;
   confirmLabel: string;
   danger?: boolean;
+  /** 자체 수령 교환 재배송 — 송장 칸 없이 확정(develop · 개발 요청 24번) */
+  invoiceOptional?: boolean;
   onClose: () => void;
   onConfirm: () => void;
 }) {
@@ -415,22 +436,24 @@ function InvoiceGateModal({
       />
       <ModalBody>
         <p className="body-medium break-keep text-text">{lead}</p>
-        <div className="flex gap-2">
-          <Select
-            className="w-40"
-            aria-label="택배사"
-            options={GATE_COURIERS}
-            value={courier}
-            onValueChange={setCourier}
-          />
-          <Input
-            inputMode="numeric"
-            aria-label="송장번호"
-            placeholder="송장번호 입력"
-            value={invoice}
-            onChange={(event) => setInvoice(event.target.value)}
-          />
-        </div>
+        {!invoiceOptional && (
+          <div className="flex gap-2">
+            <Select
+              className="w-40"
+              aria-label="택배사"
+              options={GATE_COURIERS}
+              value={courier}
+              onValueChange={setCourier}
+            />
+            <Input
+              inputMode="numeric"
+              aria-label="송장번호"
+              placeholder="송장번호 입력"
+              value={invoice}
+              onChange={(event) => setInvoice(event.target.value)}
+            />
+          </div>
+        )}
       </ModalBody>
       <ModalFooter>
         <Button variant="secondary" size="large" onClick={close}>
@@ -440,8 +463,10 @@ function InvoiceGateModal({
           variant={danger ? "critical" : "primary"}
           size="large"
           onClick={() => {
-            if (!courier) return toast(GATE_TOAST.courierPick);
-            if (!invoice.trim()) return toast(ACTION_COPY.invoiceFirst);
+            if (!invoiceOptional) {
+              if (!courier) return toast(GATE_TOAST.courierPick);
+              if (!invoice.trim()) return toast(ACTION_COPY.invoiceFirst);
+            }
             clear();
             onConfirm();
           }}
@@ -617,6 +642,8 @@ export function GateHost({
   const targets = units.filter((u) => gate?.ids.includes(u.id));
   const one = n === 1 ? targets[0] : undefined;
   const rent = targets[0]?.type === "렌트";
+  /** 자체 수령 — 교환 재배송을 송장 없이 */
+  const selfPickup = !!one && one.shipWay === "방문 수령";
   const stat =
     gate?.kind === "reject" || gate?.kind === "refundDone" ? gate.stat : "";
   const act = gate?.kind === "shipRemind" ? gate.act : "배송 준비";
@@ -767,8 +794,35 @@ export function GateHost({
         }
         emptyMessage="유형 변경 사유를 입력해주세요."
         confirmLabel="교환으로 변경"
+        consent={CLAIM_GATE_COPY.consent}
         onClose={onClose}
         onConfirm={() => onDone(GATE_DONE.toExchange(n))}
+      />
+      {/* 출고 뒤 취소 → 반품 전환 — 사유 + 고객 안내 동의(develop · 개발 요청 21번) */}
+      <RequiredReasonModal
+        open={gate?.kind === "toReturn"}
+        title="반품 전환"
+        count={n}
+        lead={CLAIM_GATE_COPY.toReturnLead}
+        placeholder={CLAIM_GATE_COPY.toReturnPlaceholder}
+        emptyMessage="사유를 입력해주세요."
+        confirmLabel="반품 전환"
+        consent={CLAIM_GATE_COPY.consent}
+        onClose={onClose}
+        onConfirm={() => onDone(GATE_DONE.toReturn)}
+      />
+      {/* 반품·교환 승인 뒤 수거 송장 등록(develop · 개발 요청 23번) */}
+      <InvoiceGateModal
+        open={gate?.kind === "collectInvoice"}
+        title={CLAIM_GATE_COPY.collectTitle}
+        count={n}
+        lead={CLAIM_GATE_COPY.collectLead}
+        confirmLabel={CLAIM_GATE_COPY.collectTitle}
+        onClose={onClose}
+        onConfirm={() =>
+          gate?.kind === "collectInvoice" &&
+          onDone(ACTION_COPY.collected(gate.type))
+        }
       />
       <InvoiceGateModal
         open={gate?.kind === "reship"}
@@ -787,12 +841,24 @@ export function GateHost({
         onClose={onClose}
         onConfirm={() => onDone(GATE_DONE.reship)}
       />
+      {/* 자체 수령 교환은 송장 없이 — 제목·본문·버튼을 develop 문구로(개발 요청 24번) */}
       <InvoiceGateModal
         open={gate?.kind === "exchangeShip"}
-        title="교환 재배송 송장 등록"
+        title={
+          selfPickup
+            ? CLAIM_GATE_COPY.pickupRedeliverTitle
+            : "교환 재배송 송장 등록"
+        }
         count={n}
-        lead="검수를 마친 교환 상품의 재배송 송장을 등록해주세요. 등록과 함께 '교환 재배송'으로 전환됩니다."
-        confirmLabel="재배송 처리"
+        lead={
+          selfPickup
+            ? CLAIM_GATE_COPY.pickupRedeliverLead
+            : "검수를 마친 교환 상품의 재배송 송장을 등록해주세요. 등록과 함께 '교환 재배송'으로 전환됩니다."
+        }
+        confirmLabel={
+          selfPickup ? CLAIM_GATE_COPY.pickupRedeliverTitle : "재배송 처리"
+        }
+        invoiceOptional={selfPickup}
         onClose={onClose}
         onConfirm={() => onDone(GATE_DONE.exchangeShip(n))}
       />
@@ -830,8 +896,8 @@ export function GateHost({
         onClose={onClose}
         onConfirm={() => onDone(GATE_DONE.refundDone(stat, n))}
       >
-        <span>환불 실행이 완료되었음을 확정합니다.</span>
-        <Irreversible>처리 후 되돌릴 수 없습니다.</Irreversible>
+        {/* 누르는 순간 환불이 실행된다 — develop 문구(개발 요청 25번) */}
+        <Irreversible>{CLAIM_GATE_COPY.refundDone[stat]}</Irreversible>
       </NoticeGateModal>
       <NoticeGateModal
         open={gate?.kind === "saleDone"}

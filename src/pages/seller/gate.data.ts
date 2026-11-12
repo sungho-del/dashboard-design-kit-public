@@ -60,6 +60,10 @@ export type Gate =
   | { kind: "sellerCancel"; ids: string[] }
   | { kind: "reject"; ids: string[]; stat: string }
   | { kind: "toExchange"; ids: string[] }
+  /** 출고 뒤 취소 → 반품 전환(사유 + 고객 안내 동의 · 개발 요청 21번) */
+  | { kind: "toReturn"; ids: string[] }
+  /** 반품·교환 승인 뒤 수거 송장 등록(택배사·송장 · 개발 요청 23번) */
+  | { kind: "collectInvoice"; ids: string[]; type: "반품" | "교환" }
   | { kind: "reship"; ids: string[] }
   | { kind: "exchangeShip"; ids: string[] }
   | { kind: "refundStart"; ids: string[] }
@@ -149,6 +153,28 @@ export function routeGate(
   };
 }
 
+/**
+ * develop 문구(개발 요청 2026-11-12 21·23·24·25번) — 유형 전환 동의 체크 · 반품 전환 · 수거 송장 등록 ·
+ * 자체 수령 재배송 · 환불 실행 확인 창(누르는 순간 환불이 실행된다 — 퍼블 「완료되었음을 확정」은 실제와 달랐다)
+ */
+export const CLAIM_GATE_COPY = {
+  consent: "고객에게 유형 전환과 비가역성을 안내하고 동의를 확인했습니다.",
+  toReturnLead:
+    "출고 또는 대여 시작 후에는 취소할 수 없어 반품 트랙으로 전환합니다. 이 전환은 되돌릴 수 없습니다.",
+  toReturnPlaceholder: "처리 근거를 입력해 주세요.",
+  collectTitle: "수거 송장 등록",
+  collectLead:
+    "실제 수거 택배사와 송장번호를 등록하면 수거중 단계로 전환됩니다.",
+  pickupRedeliverTitle: "재배송 등록",
+  pickupRedeliverLead: "자체 수령 주문이라 송장 없이 재수령 안내로 진행합니다.",
+  refundDone: {
+    "취소 완료":
+      "환불 실행 확정 · 되돌릴 수 없음. 결제 승인 취소(PG)와 포인트·쿠폰 복원이 함께 실행되고 고객에게 환불 완료 안내가 나갑니다.",
+    "반품 완료":
+      "환불 실행 확정 · 되돌릴 수 없음. 반품 배송비를 뺀 금액이 카드로 취소되고 재고가 복원되며 고객에게 환불 완료 안내가 나갑니다.",
+  } as Record<string, string>,
+} as const;
+
 /** 창 없이 끝나는 알림 — 원본 글자 그대로 */
 export const GATE_TOAST = {
   purchase:
@@ -197,6 +223,8 @@ export const GATE_DONE = {
       ? `${n}건 교환으로 변경되었습니다 — 사유가 고객에게 통지되고 [교환 관리]로 이동했습니다.`
       : "교환으로 변경되었습니다 — 사유가 고객에게 통지되고 [교환 관리]로 이동했습니다.",
   reship: "재반송 처리되었습니다 — 종결 상태로 이후 되돌릴 수 없습니다.",
+  /** 원본 `rmaToReturn` — 출고 뒤 취소 건 */
+  toReturn: "반품으로 전환했습니다 → [반품 관리]에서 처리하세요.",
   exchangeShip: (n: number) =>
     n > 1
       ? `${n}건 교환 재배송 처리되었습니다 — 송장이 등록되었습니다.`
