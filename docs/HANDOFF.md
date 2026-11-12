@@ -12,7 +12,8 @@
 - **원칙**: develop(`babycube-admin-seller` `origin/develop` `src/pub/pages/**`) 그대로. 기획 회신과 부딪히면 기획 쪽 유지(정산 정책 끝 문장 두 개)
 - **완료**: 46건 전부(키트 `c689fc7` ~ `941d198`). 2번은 develop 처럼 주문 통합 관리 주문번호 → `/sale-orders/{id}` · `/rent-orders/{id}`(발주 상세와 같은 `UnitDetail` 틀 · 담당 메뉴 갈래 `orderHomeScr` 버림). 46번은 화면마다 `X.labels.ts`(seed 안 불러옴 · `labels.test.ts` 가 지킴)
 - **검증**: 키트 typecheck · lint · vitest 123파일 3,341 · build · 셀러 47화면 × 1440·1280 콘솔 에러 0 · 가로 넘침 0(Playwright — Chrome 확장 미연결). 전달본 1,769 테스트 · build 통과
-- **전달 커밋(미푸시)**: 셀러 `feat/publishing` **162de06**(추출 기준 `941d198` · check-commit 통과). 셀러 PR #1 은 11-05 머지됨 · 46b8bd0 도 develop 에 들어감 · develop 은 그 뒤 `publishing/` 안 건드림 → 푸시 뒤 **새 PR**
+- **전달 커밋(미푸시)**: 셀러 `feat/publishing` **c7b8028**(추출 기준 `d378255` — 검수 뒤 다시 뽑아 162de06 을 덮음 · check-commit 통과). 셀러 PR #1 은 11-05 머지됨 · 46b8bd0 도 develop 에 들어감 · develop 은 그 뒤 `publishing/` 안 건드림 → 푸시 뒤 **새 PR**
+- **검수(사용자 요청 · Playwright 로 46건 화면 대조)**: 구현은 다 있었고 예시 건이 없어 화면에서 못 보던 것 4곳에 예시를 붙임(`5619506` · `d378255`) — 21번 `/sale-cancel/20260614914021-1` · 33번 `/rent-cancel/20260617158784-1`(출고된 취소 · `SHIPPED_CANCEL`) · 34번 `/rent-rma/20260617170452-1` · `20260620179203-1`(`RENT_RETURN_STAT`) · 30번 연체 건 20260509572958-1 직접 반납(`selfReturnOf`). 상세(30번은 목록도)에만 얹고 시드는 안 바꿈. 36번 「이의제기 접수됨」 안내만 예시 회차가 없어 안 보임(회차를 늘려야 해서 두고 슬랙에 알림)
 - **본사는 이번에 재추출 안 함**: 45번(셀렉트 층) · `AuthPages` `title` prop 은 본사 전달본에도 해당 — 다음 본사 전달 때 같이 나간다
 - **결과 문서**: `docs/퍼블_베이비큐브_셀러퍼블_추가작업요청_반영결과_2026-11-12.md` · 슬랙 스레드 답 초안 저장(사용자가 문서 첨부 후 보냄)
 - **다음**: 사용자 푸시(키트 main · seller feat/publishing) → seller 새 PR → 셀러 확인용 배포
