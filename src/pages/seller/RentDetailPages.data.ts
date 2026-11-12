@@ -38,6 +38,14 @@ export const RENT_ORDER_DETAIL: UnitDetailConfig = {
   actions: (u) => (preShip(u.stat) ? preShipActions(u) : []),
 };
 
+/** 렌트 주문 상세 `/rent-orders/{처리단위}` — 렌트 주문 통합 관리에서 연다. develop 은 렌트 발주 상세와 같은 화면(개발 요청 2026-11-12 2번) */
+export const RENT_ORDERS_DETAIL: UnitDetailConfig = {
+  ...RENT_ORDER_DETAIL,
+  title: "렌트 주문 상세",
+  listPath: "/rent-orders",
+  listLabel: "렌트 주문 통합 관리로",
+};
+
 export const RENT_SHIP_DETAIL: UnitDetailConfig = {
   screen: "rentDispatch",
   title: "배송 관리 상세(렌트)",

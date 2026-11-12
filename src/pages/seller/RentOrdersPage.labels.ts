@@ -1,4 +1,3 @@
-import { flowStatOf } from "./orderUnit.labels";
 import { flowOptionsOf } from "./ordersOverview.data";
 import type { OrderUnit } from "./seed/orders.data";
 
@@ -11,22 +10,7 @@ export const rentFlowOptions = (cat: string) =>
   flowOptionsOf(RENT_CATS, cat ? [cat] : []);
 
 /**
- * 주문번호 목적지 — 원본 `orderHomeScr` 렌트 갈래. 클레임이면 취소/반품 메뉴, 아니면 처리상태(`flowStat`)로
- * 발주 · 배송 · 대여·연체 · 검수·반납
+ * 주문번호 목적지 — 렌트 주문 상세 `/rent-orders/{처리단위}`(develop `rentOrderPathOf` · 개발 요청 2026-11-12 2번).
+ * 처리상태 담당 메뉴로 가르던 원본 `orderHomeScr` 는 버렸다(판매와 같은 까닭)
  */
-export function rentHomePathOf(u: OrderUnit) {
-  const t = u.req?.stat ? u.req.type : null;
-  const st = flowStatOf(u);
-  const base = t
-    ? t === "취소"
-      ? "/rent-cancel"
-      : "/rent-rma"
-    : ["신규 주문", "배송 준비", "배송 지연"].includes(st)
-      ? "/rent-list"
-      : st === "배송중"
-        ? "/rent-dispatch"
-        : ["대여중", "대여중(연장)", "연체중"].includes(st)
-          ? "/rent-use"
-          : "/rent-insp-return";
-  return `${base}/${u.id}`;
-}
+export const rentHomePathOf = (u: OrderUnit) => `/rent-orders/${u.id}`;

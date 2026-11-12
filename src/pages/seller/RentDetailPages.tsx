@@ -2,6 +2,7 @@ import {
   RENT_CANCEL_DETAIL,
   RENT_INSP_DETAIL,
   RENT_ORDER_DETAIL,
+  RENT_ORDERS_DETAIL,
   RENT_RMA_DETAIL,
   RENT_SHIP_DETAIL,
   RENT_USE_DETAIL,
@@ -28,6 +29,11 @@ export interface RentDetailPageProps {
 
 export function RentOrderDetailPage(props: RentDetailPageProps) {
   return <UnitDetail {...props} config={RENT_ORDER_DETAIL} />;
+}
+
+/** 렌트 주문 상세 — 렌트 주문 통합 관리에서 여는 같은 틀(개발 요청 2026-11-12 2번) */
+export function RentOrdersDetailPage(props: RentDetailPageProps) {
+  return <UnitDetail {...props} config={RENT_ORDERS_DETAIL} />;
 }
 
 export function RentShipDetailPage(props: RentDetailPageProps) {

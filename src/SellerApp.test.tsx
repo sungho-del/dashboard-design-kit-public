@@ -81,6 +81,17 @@ describe("SellerApp — 계정 줄", () => {
       unmount();
     }
   });
+
+  it("주문 통합 관리에서 여는 상세 — 판매 주문 상세 · 렌트 주문 상세(개발 요청 2026-11-12 2번)", () => {
+    for (const [path, title] of [
+      ["/sale-orders/20260623864962-1", "판매 주문 상세"],
+      ["/rent-orders/20260624225758-1", "렌트 주문 상세"],
+    ]) {
+      const { unmount } = renderAt(path);
+      expect(screen.getByRole("heading", { name: title })).toBeVisible();
+      unmount();
+    }
+  });
 });
 
 /** 원본 `SCREEN_MAP` menu:true 순서 그대로 — 그룹 라벨 · 항목 라벨 */

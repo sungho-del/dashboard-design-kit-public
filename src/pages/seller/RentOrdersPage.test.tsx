@@ -47,14 +47,6 @@ function renderPage() {
   return { user, onNavSelect };
 }
 
-const PATH: Record<string, string> = {
-  rentList: "/rent-list",
-  rentDispatch: "/rent-dispatch",
-  rentUse: "/rent-use",
-  rentInspReturn: "/rent-insp-return",
-  rentCancel: "/rent-cancel",
-  rentRma: "/rent-rma",
-};
 const tiles = () =>
   within(screen.getByRole("region", { name: "주문 집계" })).getAllByText(
     /^\d+$/,
@@ -65,10 +57,11 @@ const rows = () =>
 describe("RentOrdersPage — 렌트 주문 통합 관리", () => {
   it("원본 정답 — 렌트 94건 처리상태·처리구분·주문번호 목적지가 전부 같다", () => {
     expect(RENT_ORDER_UNITS).toHaveLength(RENT_ORDERS_GOLDEN.length);
-    for (const [id, flow, home, cat] of RENT_ORDERS_GOLDEN) {
+    /* 원본 담당 메뉴(셋째 값)는 버렸다 — 목적지는 렌트 주문 상세(develop · 개발 요청 2026-11-12 2번) */
+    for (const [id, flow, , cat] of RENT_ORDERS_GOLDEN) {
       const u = RENT_ORDER_UNITS.find((x) => x.id === id)!;
       expect([id, flowStatOf(u), flowCatOf(u)]).toEqual([id, flow, cat]);
-      expect(rentHomePathOf(u)).toBe(`${PATH[home]}/${id}`);
+      expect(rentHomePathOf(u)).toBe(`/rent-orders/${id}`);
     }
   });
 
@@ -127,13 +120,15 @@ describe("RentOrdersPage — 렌트 주문 통합 관리", () => {
     expect(rows()[0]).toHaveTextContent(first);
   });
 
-  it("주문번호 → 지금 담당하는 메뉴의 상세(신규 주문 = 렌트 발주 · 대여중 = 대여·연체)", async () => {
+  it("주문번호 → 렌트 주문 상세(처리상태와 상관없이 · develop · 개발 요청 2026-11-12 2번)", async () => {
     const { user, onNavSelect } = renderPage();
     await user.click(screen.getByRole("button", { name: "20260624225758" }));
-    expect(onNavSelect).toHaveBeenLastCalledWith("/rent-list/20260624225758-1");
+    expect(onNavSelect).toHaveBeenLastCalledWith(
+      "/rent-orders/20260624225758-1",
+    );
     await user.click(screen.getByRole("combobox", { name: "처리상태" }));
     await user.click(screen.getByRole("option", { name: "대여중" }));
     await user.click(within(rows()[0]).getAllByRole("button")[0]);
-    expect(onNavSelect.mock.lastCall?.[0]).toMatch(/^\/rent-use\//);
+    expect(onNavSelect.mock.lastCall?.[0]).toMatch(/^\/rent-orders\//);
   });
 });

@@ -37,7 +37,7 @@
 | SO-SEL-001  | 스토어 정보 · 설정  | `/store`            | `seller/SystemPages.tsx`         |
 | (원본 없음) | 공휴일 관리         | `/ops-calendar`     | `seller/SystemPages.tsx`         |
 
-## B. 상세·등록 화면 22
+## B. 상세·등록 화면 24
 
 「예시 주소」는 시드에서 상태가 잘 보이는 건이다. 같은 꼴의 다른 id 도 열린다(없는 id 는 「찾을 수 없음」).
 
@@ -45,12 +45,14 @@
 | ---------- | ------------------------- | -------------------------- | ------------------------------------ | -------------------------------- |
 | SO-PRD-002 | 상품 상세 (수정)          | `/products/[id]`           | `/products/P-001`                    | `seller/ProductFormPage.tsx`     |
 | SO-ORD-002 | 주문 상세(통합)           | `/order-details/[orderNo]` | `/order-details/20260705880011`      | `seller/OrderDetailsPage.tsx`    |
+| SO-ORD-003 | 판매 주문 상세            | `/sale-orders/[id]`        | `/sale-orders/20260623864962-1`      | `seller/SaleOrderDetailPage.tsx` |
 | SO-ORD-002 | 발주 관리 상세            | `/sale-proc/[id]`          | `/sale-proc/20260623864962-1`        | `seller/SaleOrderDetailPage.tsx` |
 | SO-DLV-002 | 배송 관리 상세            | `/shipping/[id]`           | `/shipping/20260622541158-1`         | `seller/ShippingDetailPage.tsx`  |
 | SO-RMA-002 | 취소 상세                 | `/sale-cancel/[id]`        | `/sale-cancel/20260628200061-1`      | `seller/SaleClaimDetailPage.tsx` |
 | SO-RMA-004 | 반품 상세                 | `/sale-return/[id]`        | `/sale-return/20260618360510-1`      | `seller/SaleClaimDetailPage.tsx` |
 | SO-RMA-006 | 교환 상세                 | `/sale-exchange/[id]`      | `/sale-exchange/20260617540318-1`    | `seller/SaleClaimDetailPage.tsx` |
 | SO-RNT-002 | 렌트 발주 관리 상세       | `/rent-list/[id]`          | `/rent-list/20260624225758-1`        | `seller/RentDetailPages.tsx`     |
+| SO-ORD-004 | 렌트 주문 상세            | `/rent-orders/[id]`        | `/rent-orders/20260624225758-1`      | `seller/RentDetailPages.tsx`     |
 | SO-DLV-004 | 배송 관리 상세(렌트)      | `/rent-dispatch/[id]`      | `/rent-dispatch/20260623452502-1`    | `seller/RentDetailPages.tsx`     |
 | SO-RNT-005 | 대여·연체 관리 상세       | `/rent-use/[id]`           | `/rent-use/20260623493905-1`         | `seller/RentDetailPages.tsx`     |
 | SO-INS-002 | 검수·반납 관리 상세       | `/rent-insp-return/[id]`   | `/rent-insp-return/20260621138968-1` | `seller/RentDetailPages.tsx`     |
@@ -79,11 +81,21 @@
 | 쿠폰        | 정액 `CP-2608-01` · 사용중지 `CP-2608-04` · 새 쿠폰 `/promo/new`                                                     |
 | 직영 계정   | 아무 주소 뒤에 `?account=direct` (예 `/store?account=direct`)                                                        |
 
+## 인증 화면 4
+
+메뉴 없이 가운데 창 하나다. 본사 퍼블과 같은 화면이고 로그인 머리 글자만 「베이비큐브 입점사 어드민」이다.
+
+| 화면            | 경로                                   | 퍼블 파일                |
+| --------------- | -------------------------------------- | ------------------------ |
+| 로그인          | `/login`                               | `babycube/AuthPages.tsx` |
+| 비밀번호 변경   | `/password`                            | `babycube/AuthPages.tsx` |
+| 비밀번호 찾기   | `/password-reset`                      | `babycube/AuthPages.tsx` |
+| 비밀번호 재설정 | `/password-reset/confirm?token=sample` | `babycube/AuthPages.tsx` |
+
 ## C. 경로 모양이 이 저장소와 다른 곳 · 퍼블 대상이 아닌 곳
 
-| 이 저장소                                                                       | 퍼블                        | 비고                                                                                                                                                 |
-| ------------------------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/sale-orders/[id]` · `/rent-orders/[id]`                                       | 없음                        | 주문 통합 관리의 주문번호는 원본(`orderHomeScr`)대로 **처리상태 담당 메뉴의 상세**(`/sale-proc/[id]` · `/shipping/[id]` · `/rent-use/[id]` …)로 간다 |
-| `/products/new`                                                                 | `/product-new` 와 같은 화면 | 이 저장소도 `/product-new` 로 보낸다                                                                                                                 |
-| `/login` · `/password` · `/password-reset` · `/password-reset/confirm` · `/dev` | 없음                        | 인증·개발 화면 — 퍼블 대상 아님                                                                                                                      |
-| —                                                                               | `/screens`                  | 퍼블 전용 화면 목록(원본에 없다)                                                                                                                     |
+| 이 저장소       | 퍼블                        | 비고                                 |
+| --------------- | --------------------------- | ------------------------------------ |
+| `/products/new` | `/product-new` 와 같은 화면 | 이 저장소도 `/product-new` 로 보낸다 |
+| `/dev`          | 없음                        | 개발 화면 — 퍼블 대상 아님           |
+| —               | `/screens`                  | 퍼블 전용 화면 목록(원본에 없다)     |

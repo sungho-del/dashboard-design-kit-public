@@ -44,13 +44,6 @@ function renderPage() {
   return { user, onNavSelect };
 }
 
-const PATH: Record<string, string> = {
-  saleProc: "/sale-proc",
-  shipping: "/shipping",
-  saleCancel: "/sale-cancel",
-  saleReturn: "/sale-return",
-  saleExchange: "/sale-exchange",
-};
 const tiles = () =>
   within(screen.getByRole("region", { name: "주문 집계" })).getAllByText(
     /^\d+$/,
@@ -61,10 +54,11 @@ const rows = () =>
 describe("SaleOrdersPage — 주문 통합 관리", () => {
   it("원본 정답 — 판매 89건 처리상태·처리구분·주문번호 목적지가 전부 같다", () => {
     expect(SALE_ORDER_UNITS).toHaveLength(SALE_ORDERS_GOLDEN.length);
-    for (const [id, flow, home, cat] of SALE_ORDERS_GOLDEN) {
+    /* 원본 담당 메뉴(셋째 값)는 버렸다 — 목적지는 판매 주문 상세(develop · 개발 요청 2026-11-12 2번) */
+    for (const [id, flow, , cat] of SALE_ORDERS_GOLDEN) {
       const u = SALE_ORDER_UNITS.find((x) => x.id === id)!;
       expect([id, flowStatOf(u), flowCatOf(u)]).toEqual([id, flow, cat]);
-      expect(homePathOf(u)).toBe(`${PATH[home]}/${id}`);
+      expect(homePathOf(u)).toBe(`/sale-orders/${id}`);
     }
   });
 
@@ -140,13 +134,13 @@ describe("SaleOrdersPage — 주문 통합 관리", () => {
     ).toHaveTextContent("처리상태 전체");
   });
 
-  it("주문번호 → 지금 담당하는 메뉴의 상세(신규 주문 = 발주 관리 · 배송중 = 배송 관리)", async () => {
+  it("주문번호 → 판매 주문 상세(처리상태와 상관없이 · develop · 개발 요청 2026-11-12 2번)", async () => {
     const { user, onNavSelect } = renderPage();
     await user.click(screen.getByRole("button", { name: "20260623864962" }));
     await user.click(screen.getByRole("button", { name: "20260622541158" }));
     expect(onNavSelect.mock.calls).toEqual([
-      ["/sale-proc/20260623864962-1"],
-      ["/shipping/20260622541158-1"],
+      ["/sale-orders/20260623864962-1"],
+      ["/sale-orders/20260622541158-1"],
     ]);
   });
 

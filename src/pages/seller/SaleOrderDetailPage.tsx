@@ -1,4 +1,7 @@
-import { SALE_ORDER_DETAIL } from "./SaleOrderDetailPage.data";
+import {
+  SALE_ORDER_DETAIL,
+  SALE_ORDERS_DETAIL,
+} from "./SaleOrderDetailPage.data";
 import { UnitDetail } from "./UnitDetail";
 
 /* =========================================================================
@@ -17,4 +20,9 @@ export interface SaleOrderDetailPageProps {
 
 export function SaleOrderDetailPage(props: SaleOrderDetailPageProps) {
   return <UnitDetail {...props} config={SALE_ORDER_DETAIL} />;
+}
+
+/** 판매 주문 상세 — 주문 통합 관리에서 여는 같은 틀(개발 요청 2026-11-12 2번) */
+export function SaleOrdersDetailPage(props: SaleOrderDetailPageProps) {
+  return <UnitDetail {...props} config={SALE_ORDERS_DETAIL} />;
 }

@@ -115,6 +115,16 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     icon: ShoppingCart,
   },
   {
+    navId: "/sale-orders/20260623864962-1",
+    code: "SO-ORD-003",
+    name: "판매 주문 상세",
+    type: "상세형",
+    summary:
+      "주문 통합 관리에서 주문번호로 여는 처리단위 상세 — 발주 관리 상세와 같은 틀(목록은 주문 통합 관리)",
+    file: "seller/SaleOrderDetailPage.tsx",
+    icon: ShoppingCart,
+  },
+  {
     navId: "/sale-proc",
     code: "SO-ORD-001",
     name: "발주 관리",
@@ -215,6 +225,16 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
     summary:
       "렌트 주문 전체 조회 창구 — 판매 「주문 통합 관리」와 같은 역할·같은 규칙(조회 전용)",
     file: "seller/RentOrdersPage.tsx",
+    icon: CalendarRange,
+  },
+  {
+    navId: "/rent-orders/20260624225758-1",
+    code: "SO-ORD-004",
+    name: "렌트 주문 상세",
+    type: "상세형",
+    summary:
+      "렌트 주문 통합 관리에서 주문번호로 여는 처리단위 상세 — 렌트 발주 관리 상세와 같은 틀(목록은 렌트 주문 통합 관리)",
+    file: "seller/RentDetailPages.tsx",
     icon: CalendarRange,
   },
   {

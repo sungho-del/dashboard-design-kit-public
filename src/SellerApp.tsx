@@ -27,6 +27,7 @@ import {
   RentCancelDetailPage,
   RentInspDetailPage,
   RentOrderDetailPage,
+  RentOrdersDetailPage,
   RentRmaDetailPage,
   RentShipDetailPage,
   RentUseDetailPage,
@@ -63,7 +64,10 @@ import {
   SaleExchangePage,
   SaleReturnPage,
 } from "./pages/seller/SaleClaimPages";
-import { SaleOrderDetailPage } from "./pages/seller/SaleOrderDetailPage";
+import {
+  SaleOrderDetailPage,
+  SaleOrdersDetailPage,
+} from "./pages/seller/SaleOrderDetailPage";
 import { SaleOrdersPage } from "./pages/seller/SaleOrdersPage";
 import { SaleProcPage } from "./pages/seller/SaleProcPage";
 import { ShippingDetailPage } from "./pages/seller/ShippingDetailPage";
@@ -157,6 +161,17 @@ const DETAIL_ROUTES: {
   screen: ComponentType<NavProps>;
 }[] = [
   { prefix: "/products/", parent: "/products", screen: ProductDetailPage },
+  /* 주문 통합 관리에서 여는 상세(개발 요청 2026-11-12 2번) */
+  {
+    prefix: "/sale-orders/",
+    parent: "/sale-orders",
+    screen: SaleOrdersDetailPage,
+  },
+  {
+    prefix: "/rent-orders/",
+    parent: "/rent-orders",
+    screen: RentOrdersDetailPage,
+  },
   {
     prefix: "/order-details/",
     parent: "/sale-orders",
@@ -232,9 +247,7 @@ const FALLBACK = SellerScreenIndexPage;
 
 /** 계정 줄 내용 — [로그아웃]은 본사와 같이 로그인 화면으로(로그인 화면이 생겼다 · 개발 요청 2026-11-12 1번) */
 function SellerAccountBar() {
-  return (
-    <AccountBar {...SELLER_ACCOUNT} onLogout={() => navigate("/login")} />
-  );
+  return <AccountBar {...SELLER_ACCOUNT} onLogout={() => navigate("/login")} />;
 }
 
 export function SellerApp() {

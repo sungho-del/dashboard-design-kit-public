@@ -30,3 +30,14 @@ export const SALE_ORDER_DETAIL: UnitDetailConfig = {
   /* 출고 전에만 — develop 버튼 순서([배송중 전환] · [준비 완료] · [배송 지연] · [배송지 변경] · [주문 취소] · 개발 요청 16~18번) */
   actions: (u) => (isPreShip(u) ? preShipActions(u) : []),
 };
+
+/**
+ * 판매 주문 상세 `/sale-orders/{처리단위}` — 주문 통합 관리에서 연다(개발 요청 2026-11-12 2번).
+ * develop 은 발주 상세와 같은 화면(`saleOrderDetail` · listRoute `/sale-orders`)이라 설정도 제목·목록만 바꾼다
+ */
+export const SALE_ORDERS_DETAIL: UnitDetailConfig = {
+  ...SALE_ORDER_DETAIL,
+  title: "판매 주문 상세",
+  listPath: "/sale-orders",
+  listLabel: "주문 통합 관리로",
+};

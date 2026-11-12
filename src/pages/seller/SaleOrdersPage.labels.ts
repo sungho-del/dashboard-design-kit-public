@@ -1,4 +1,3 @@
-import { flowStatOf } from "./orderUnit.labels";
 import { flowOptionsOf } from "./ordersOverview.data";
 import type { OrderUnit } from "./seed/orders.data";
 
@@ -11,20 +10,7 @@ export const flowOptions = (cat: string) =>
   flowOptionsOf(CATS, cat ? [cat] : []);
 
 /**
- * 주문번호 목적지 — 원본 `orderHomeScr` → `SCR_DETAIL`. 클레임이 걸려 있으면 그 클레임 메뉴,
- * 아니면 **화면이 보여 주는 처리상태**(`flowStat`)로 발주/배송을 가른다(원본 주석: 저장값으로 가르면 엇갈린다)
+ * 주문번호 목적지 — 판매 주문 상세 `/sale-orders/{처리단위}`(develop `saleOrderPathOf` · 개발 요청 2026-11-12 2번).
+ * 담당 메뉴 상세로 가르던 원본 `orderHomeScr` 는 버렸다 — 목록 응답에 클레임 유형이 없어 「환불 처리중」·「재반송」을 메뉴로 가를 수 없다
  */
-export function homePathOf(u: OrderUnit) {
-  const t = u.req?.stat ? u.req.type : null;
-  const base =
-    t === "취소"
-      ? "/sale-cancel"
-      : t === "반품"
-        ? "/sale-return"
-        : t === "교환"
-          ? "/sale-exchange"
-          : ["신규 주문", "배송 준비", "배송 지연"].includes(flowStatOf(u))
-            ? "/sale-proc"
-            : "/shipping";
-  return `${base}/${u.id}`;
-}
+export const homePathOf = (u: OrderUnit) => `/sale-orders/${u.id}`;

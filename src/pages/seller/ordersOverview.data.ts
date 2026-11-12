@@ -21,7 +21,7 @@ import type { OrderUnit } from "./seed/orders.data";
  * ## 원본을 그대로 둔 것
  * - **조회 전용** — 상태변경 버튼이 없다(전이 실행 지점은 처리 메뉴 하나뿐 · UI-313). 행 체크박스는 선택분 엑셀용(개발 요청 13번)
  * - 상태 카드가 아니라 **읽기 전용 집계 타일**(카드를 두면 [전체]가 성립하지 않는다) · 세는 대상은 검색 결과
- * - 주문번호를 누르면 그 건을 **지금 담당하는 메뉴의 상세**로 간다(클레임이 걸리면 그 클레임 메뉴)
+ * - 주문번호를 누르면 그 건의 **주문 상세**(`/sale-orders/{id}` · `/rent-orders/{id}`)로 간다(develop · 개발 요청 2026-11-12 2번)
  * - 왼쪽 고정 열 없음 — 표 전체가 한 덩어리로 가로 스크롤(원본 2026-08-06 사용자 지시)
  *
  * ## 원본과 다르게 둔 곳
@@ -38,7 +38,7 @@ export interface OrdersOverviewConfig {
   cats: readonly string[];
   /** 렌트 — 안심케어 검색 · 이용기간 열 · 상품명 옆 안심케어 */
   rent?: boolean;
-  /** 주문번호 목적지 — 원본 `orderHomeScr` → `SCR_DETAIL` */
+  /** 주문번호 목적지 — 주문 상세(develop `saleOrderPathOf` · `rentOrderPathOf`) */
   homePathOf: (u: OrderUnit) => string;
 }
 
