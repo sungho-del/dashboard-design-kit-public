@@ -46,10 +46,15 @@ const section = () =>
   screen.getByRole("region", { name: "베이비큐브 입점사 어드민" });
 
 describe("SellerScreenIndexPage", () => {
-  it("원본 메뉴 27항목(화면 26 + 상품 등록) + 만든 상세가 카드로 선다", () => {
+  it("원본 메뉴 27항목(화면 26 + 상품 등록) + 만든 상세 + 인증 4화면이 카드로 선다", () => {
     renderPage();
     const details = SELLER_SCREENS.filter((s) => s.type === "상세형");
-    expect(SELLER_SCREENS.length - details.length).toBe(27);
+    /* 인증 4화면(메뉴 밖 · 개발 요청 2026-11-12 1번) */
+    const auth = SELLER_SCREENS.filter(
+      (s) => s.file === "babycube/AuthPages.tsx",
+    );
+    expect(auth).toHaveLength(4);
+    expect(SELLER_SCREENS.length - details.length - auth.length).toBe(27);
     expect(
       within(section()).getAllByRole("button", { name: / 열기$/ }),
     ).toHaveLength(SELLER_SCREENS.length);

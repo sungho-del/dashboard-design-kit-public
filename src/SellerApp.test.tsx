@@ -60,15 +60,26 @@ describe("SellerApp — 계정 줄", () => {
     expect(within(bar).queryByText(/김유진/)).toBeNull();
   });
 
-  it("[로그아웃]은 이동하지 않고 알림을 띄운다 (퍼블에 로그인 화면이 없다)", async () => {
+  it("[로그아웃] → 로그인 화면(입점사 머리 · 계정 줄 없음 · 개발 요청 2026-11-12 1번)", async () => {
     renderAt("/sale-proc");
     await userEvent.click(screen.getByRole("button", { name: "로그아웃" }));
-
+    expect(window.location.pathname).toBe("/login");
     expect(
-      await screen.findByText("로그아웃은 개발 연동 시 제공됩니다."),
+      await screen.findByRole("heading", { name: "베이비큐브 입점사 어드민" }),
     ).toBeVisible();
-    expect(window.location.pathname).toBe("/sale-proc");
-    expect(accountBar()).not.toBeNull();
+    expect(accountBar()).toBeNull();
+  });
+
+  it("인증 4화면 경로 — 비밀번호 변경 · 찾기 · 재설정", () => {
+    for (const [path, title] of [
+      ["/password", "비밀번호 변경"],
+      ["/password-reset", "비밀번호 찾기"],
+      ["/password-reset/confirm?token=sample", "비밀번호 재설정"],
+    ]) {
+      const { unmount } = renderAt(path);
+      expect(screen.getByRole("heading", { name: title })).toBeVisible();
+      unmount();
+    }
   });
 });
 

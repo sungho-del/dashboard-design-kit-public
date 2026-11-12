@@ -23,6 +23,7 @@ import {
   Undo2,
   Wallet,
   XCircle,
+  KeyRound,
 } from "lucide-react";
 
 /* -------------------------------------------------------------------------
@@ -514,6 +515,40 @@ export const SELLER_SCREENS: SellerScreenEntry[] = [
       "본사 등록 공휴일(수정 불가)을 보고 자사 휴무를 따로 등록하는 화면",
     file: "seller/SystemPages.tsx",
     icon: CalendarOff,
+  },
+  /* ── 인증 화면 4종 — 메뉴 없이 가운데 창 하나(본사 화면 공용 · 개발 요청 2026-11-12 1번) ── */
+  {
+    navId: "/login",
+    name: "로그인",
+    type: "폼형",
+    summary: "아이디(이메일) · 비밀번호 — 두 칸을 채워야 [로그인]",
+    file: "babycube/AuthPages.tsx",
+    icon: KeyRound,
+  },
+  {
+    navId: "/password",
+    name: "비밀번호 변경",
+    type: "폼형",
+    summary:
+      "현재 · 새 비밀번호 · 확인 — 첫 로그인 비밀번호 변경 강제 계정이 온다",
+    file: "babycube/AuthPages.tsx",
+    icon: KeyRound,
+  },
+  {
+    navId: "/password-reset",
+    name: "비밀번호 찾기",
+    type: "폼형",
+    summary: "재설정 메일 요청 — 입력 전 / 보낸 뒤",
+    file: "babycube/AuthPages.tsx",
+    icon: KeyRound,
+  },
+  {
+    navId: "/password-reset/confirm?token=sample",
+    name: "비밀번호 재설정",
+    type: "폼형",
+    summary: "새 비밀번호 · 확인 — 토큰 없이 열면 링크 무효 안내",
+    file: "babycube/AuthPages.tsx",
+    icon: KeyRound,
   },
 ];
 

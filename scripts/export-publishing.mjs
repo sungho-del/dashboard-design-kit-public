@@ -153,6 +153,10 @@ const APP_FILES = {
     /* 글머리 목록(도형 점) — 본사와 공용 */
     "src/pages/babycube/BulletList.tsx",
     "src/pages/babycube/BulletList.test.tsx",
+    /* 인증 4화면(로그인 · 비밀번호 변경·찾기·재설정) — 본사와 공용 · 머리 글자만 셀러 */
+    "src/pages/babycube/AuthPages.tsx",
+    "src/pages/babycube/AuthPages.data.ts",
+    "src/pages/babycube/AuthPages.test.tsx",
   ],
 };
 

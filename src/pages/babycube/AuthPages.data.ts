@@ -38,6 +38,8 @@ export const AUTH_TEXT = {
 
   login: {
     title: "베이비큐브 본사 어드민",
+    /** 입점사 어드민 — 셀러 develop 「BabyCube 입점사 어드민」의 한글 표기(판정 Q17) */
+    sellerTitle: "베이비큐브 입점사 어드민",
     find: "비밀번호 찾기",
     submit: "로그인",
   },

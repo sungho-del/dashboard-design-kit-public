@@ -96,13 +96,20 @@ function Guide({ children }: { children: ReactNode }) {
 
 /* ── 로그인 ─────────────────────────────────────────────────────────── */
 
-export function LoginPage({ onNavSelect }: AuthPageProps) {
+/**
+ * 로그인 — 머리 글자만 앱마다 다르다(본사 「베이비큐브 본사 어드민」 · 입점사 「베이비큐브 입점사 어드민」).
+ * 입점사 어드민은 같은 네 화면을 그대로 쓴다(셀러 develop 문구가 본사와 같다 · 개발 요청 2026-11-12 1번)
+ */
+export function LoginPage({
+  onNavSelect,
+  title = AUTH_TEXT.login.title,
+}: AuthPageProps & { title?: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   return (
     <AuthWindow
-      title={AUTH_TEXT.login.title}
+      title={title}
       /* 실패는 서버가 판정한다 — 퍼블에는 실패 경로가 없어 오류 줄이 뜨지 않는다 */
       error={null}
       onSubmit={() => onNavSelect(AUTH_PATHS.home)}

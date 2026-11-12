@@ -1,7 +1,14 @@
 import { useState, type ComponentType } from "react";
-import { AppShellProvider, ToastProvider, useToast } from "./components/ui";
+import { AppShellProvider, ToastProvider } from "./components/ui";
 import { navigate, usePathname } from "./lib/router";
 import { AccountBar } from "./pages/AccountBar";
+import {
+  LoginPage,
+  PasswordChangePage,
+  PasswordResetConfirmPage,
+  PasswordResetRequestPage,
+} from "./pages/babycube/AuthPages";
+import { AUTH_TEXT } from "./pages/babycube/AuthPages.data";
 import { SELLER_ACCOUNT } from "./pages/sellerGnbSections";
 import {
   InqDetailPage,
@@ -125,6 +132,17 @@ const ROUTES: Record<string, ComponentType<NavProps>> = {
   "/store": StorePage,
   "/ops-calendar": OpsCalendarPage,
 
+  /*
+   * 인증 4화면 — 본사 퍼블과 같은 화면 · 셀러 develop 문구(개발 요청 2026-11-12 1번).
+   * 셸(메뉴·계정 줄) 없이 가운데 창 하나다. 정확 일치라 `/password-reset/confirm` 과 `/password-reset` 이 서로를 가리지 않는다
+   */
+  "/login": (props) => (
+    <LoginPage {...props} title={AUTH_TEXT.login.sellerTitle} />
+  ),
+  "/password": PasswordChangePage,
+  "/password-reset/confirm": PasswordResetConfirmPage,
+  "/password-reset": PasswordResetRequestPage,
+
   /* 저장소 색인 — 원본에 없다(본사와 같다) */
   "/screens": SellerScreenIndexPage,
 };
@@ -212,17 +230,10 @@ const DETAIL_ROUTES: {
 /** 없는 경로 — 화면 목록(본사와 같다) */
 const FALLBACK = SellerScreenIndexPage;
 
-/**
- * 계정 줄 내용 — 셀러 퍼블에는 로그인 화면이 없어 [로그아웃]은 이동하지 않고 알림만 띄운다.
- * 알림(`useToast`)을 쓰려면 `ToastProvider` 안에서 그려져야 해서 따로 떼었다.
- */
+/** 계정 줄 내용 — [로그아웃]은 본사와 같이 로그인 화면으로(로그인 화면이 생겼다 · 개발 요청 2026-11-12 1번) */
 function SellerAccountBar() {
-  const { toast } = useToast();
   return (
-    <AccountBar
-      {...SELLER_ACCOUNT}
-      onLogout={() => toast("로그아웃은 개발 연동 시 제공됩니다.")}
-    />
+    <AccountBar {...SELLER_ACCOUNT} onLogout={() => navigate("/login")} />
   );
 }
 
