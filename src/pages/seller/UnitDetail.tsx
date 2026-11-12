@@ -53,7 +53,7 @@ import {
   statusIn,
   type Gate,
 } from "./gate.data";
-import { GateHost, StatusTag } from "./OrderGates";
+import { GateHost, NoticeGateModal, StatusTag } from "./OrderGates";
 import {
   COURIERS,
   courierOf,
@@ -85,12 +85,15 @@ import {
   extraTelOf,
   growthStageOf,
   headlineOf,
+  isSelfPickup,
   longRentTextOf,
   orNone,
   pickupRequestOf,
   productCodeOf,
   purchasedAtOf,
   reachedAt,
+  readyDueOf,
+  readyNoticeOf,
   receiverOf,
   receiverTelOf,
   rentComponentOf,
@@ -272,7 +275,17 @@ export function UnitDetail({ config, ...props }: UnitDetailProps) {
   );
 }
 
-type Overlay = "address" | "statement" | null;
+type Overlay = "address" | "statement" | "ready" | null;
+
+/** [배송지 변경] 창 값 — 받는 분·연락처·요청사항(렌트는 추가 연락처)은 지금 값, 주소·상세주소는 비운다(develop `addressDraftOf`) */
+interface AddressDraft {
+  receiver: string;
+  phone: string;
+  subPhone: string;
+  address: string;
+  detail: string;
+  memo: string;
+}
 
 const SHIP_IMAGE_SECTION = "unit-section-shipimg";
 
@@ -303,7 +316,12 @@ function UnitDetailBody({
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [courier, setCourier] = useState(courierOf(u));
   const [invoice, setInvoice] = useState(u.invoice ?? "");
-  const [address, setAddress] = useState("");
+  /** 저장한 송장 — [송장수정]이 여기에 적고, [배송중 전환]은 고친 칸이 없을 때만(develop · 개발 요청 18번) */
+  const [savedShip, setSavedShip] = useState({
+    courier: courierOf(u),
+    invoice: u.invoice ?? "",
+  });
+  const [address, setAddress] = useState<AddressDraft | null>(null);
   /* 렌트 중간 구역의 화면 안 입력(이미지·판정·차감·수거 송장) — 구역을 접어도 남게 여기서 */
   const rentState = useRentDetail(u);
 
@@ -347,37 +365,60 @@ function UnitDetailBody({
     setGate(r);
   };
 
-  /** 배송정보 송장 버튼 — 등록(원본 `rentShipOne` · 출고 이미지 없으면 안내 창) · 수정(`rentInvoiceEdit`) */
+  /**
+   * 배송정보 [송장수정] — 출고 전(register)은 택배사·송장을 **저장만** 하고 배송중 전환은 하단 [배송중 전환]이 한다
+   * (develop · 개발 요청 18번 — 퍼블 「송장등록 · 배송처리」 한 버튼을 둘로). 출고 뒤(edit)는 원본 `rentInvoiceEdit`
+   */
+  const shipDirty =
+    courier !== savedShip.courier || invoice.trim() !== savedShip.invoice;
+  const canSaveShip =
+    shipMode === "register"
+      ? shipDirty && !!courier && !!invoice.trim()
+      : !!invoice.trim();
   const submitInvoice = () => {
-    if (shipMode === "register" && !courier)
-      return toast(ACTION_COPY.courierFirst);
-    if (!invoice.trim()) return toast(ACTION_COPY.invoiceFirst);
-    if (shipMode === "register" && shipImageMissing([live]).length)
-      return setGate({ kind: "shipRemind", ids: [u.id], act: "배송중" });
-    toast(
-      shipMode === "register"
-        ? ACTION_COPY.shipped(1)
-        : ACTION_COPY.invoiceEdited,
-    );
+    if (shipMode === "edit") return toast(ACTION_COPY.invoiceEdited);
+    setSavedShip({ courier, invoice: invoice.trim() });
+    toast(UNIT_DETAIL_COPY.shipmentSaved);
   };
+  /** [배송중 전환] — 출고 이미지 없는 렌트 건이면 안내 창이 먼저(원본 `rentShipOne`) */
+  const startShipping = () => {
+    if (shipImageMissing([live]).length)
+      return setGate({ kind: "shipRemind", ids: [u.id], act: "배송중" });
+    const r = routeGate("배송중", [live], config.screen);
+    if (r.kind === "toast") return toast(r.message);
+    setGate(r);
+  };
+  const ready = readyNoticeOf(u);
 
   const runAction = (action: DetailAction) => {
     if ("to" in action) return route(action.to);
     if ("go" in action) return onNavSelect(action.go);
     if (action.special === "address") {
-      /* 지금 배송지를 채워 연다 — 고쳐 쓰는 흐름(GPT 검토 2026-11-04) */
-      setAddress(u.addr && u.addr !== "-" ? u.addr : "");
+      setAddress({
+        receiver: receiverOf(u) === "-" ? "" : receiverOf(u),
+        phone: receiverTelOf(u) === "-" ? "" : receiverTelOf(u),
+        subPhone: extraTelOf(u) === "-" ? "" : extraTelOf(u),
+        address: "",
+        detail: "",
+        memo: u.shipMemo && u.shipMemo !== "-" ? u.shipMemo : "",
+      });
       return setOverlay("address");
     }
+    if (action.special === "ship") return startShipping();
+    if (action.special === "ready") return setOverlay("ready");
+    if (action.special === "delayAgain")
+      return setGate({ kind: "delay", ids: [u.id] });
     /* 원본 `act('배송 추적')` — 알림만(조회는 개발 영역) */
     if (action.special === "track") return toast("배송 추적");
     toast(UNIT_DETAIL_COPY.toReturn);
   };
 
   const closeAddress = () => {
-    setAddress("");
+    setAddress(null);
     setOverlay(null);
   };
+  const editAddress = (key: keyof AddressDraft) => (value: string) =>
+    setAddress((prev) => (prev ? { ...prev, [key]: value } : prev));
 
   const statusControl = selectable ? (
     /* 값은 지금 상태에 묶는다 — 창을 닫거나 확인해도 그대로(퍼블 범위) */
@@ -632,14 +673,27 @@ function UnitDetailBody({
                         value={invoice}
                         onChange={(event) => setInvoice(event.target.value)}
                       />
-                      <Button variant="secondary" onClick={submitInvoice}>
-                        {shipMode === "register"
-                          ? "송장등록 · 배송처리"
-                          : "송장수정"}
+                      <Button
+                        variant="secondary"
+                        disabled={!canSaveShip}
+                        onClick={submitInvoice}
+                      >
+                        송장수정
                       </Button>
                     </span>
                   )}
                 </Item>
+              </>
+            )}
+            {/* 자체 수령 — 준비 완료 안내(등록한 건만) · 안내 문장(develop · 개발 요청 17·29번) */}
+            {isSelfPickup(u) && (
+              <>
+                {ready && (
+                  <Item label="준비 완료 안내">
+                    {UNIT_DETAIL_COPY.readyNotice(ready.at, ready.due)}
+                  </Item>
+                )}
+                <Item label="안내">{UNIT_DETAIL_COPY.readyHelp}</Item>
               </>
             )}
             <Item label="지연 사유">{delayReasonOf(u)}</Item>
@@ -721,15 +775,25 @@ function UnitDetailBody({
             목록
           </Button>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {config.actions(u).map((action) => (
-              <Button
-                key={action.label}
-                variant={action.tone ?? "secondary"}
-                onClick={() => runAction(action)}
-              >
-                {action.label}
-              </Button>
-            ))}
+            {config.actions(u).map((action) => {
+              /* [배송중 전환]은 저장한 송장이 있고 고친 칸이 없을 때만(develop) */
+              const ship = "special" in action && action.special === "ship";
+              return (
+                <Button
+                  key={action.label}
+                  variant={action.tone ?? "secondary"}
+                  disabled={ship && (shipDirty || !savedShip.invoice)}
+                  title={
+                    ship && shipDirty
+                      ? UNIT_DETAIL_COPY.shipDirtyHint
+                      : undefined
+                  }
+                  onClick={() => runAction(action)}
+                >
+                  {action.label}
+                </Button>
+              );
+            })}
             <Button
               variant="secondary"
               onClick={() => onNavSelect(config.listPath)}
@@ -751,29 +815,103 @@ function UnitDetailBody({
         onShipImage={toShipImages}
       />
 
-      {/* 배송지 변경 — 원본은 브라우저 입력창(prompt). 빈 칸이면 원본처럼 아무 일도 없다 → 버튼 잠금 */}
-      <Modal open={overlay === "address"} onClose={closeAddress} size="small">
+      {/*
+        배송지 변경 — develop `AddressModal` 칸 그대로(개발 요청 16·29번): 받는 분 · 연락처 · (렌트) 추가 연락처 ·
+        현재 배송지(읽기) · 주소 + [주소검색] · 상세주소 · 요청사항. 받는 분·연락처가 비면 [변경] 잠금, 주소가 비면 안내
+      */}
+      <Modal
+        open={overlay === "address" && address !== null}
+        onClose={closeAddress}
+        size="medium"
+      >
         <ModalHeader
           closeLabel="대화상자 닫기"
           title={UNIT_DETAIL_COPY.addrTitle}
         />
-        <ModalBody>
-          <FormField label={UNIT_DETAIL_COPY.addrLabel}>
-            <Input
-              placeholder={UNIT_DETAIL_COPY.addrPlaceholder}
-              value={address}
-              onChange={(event) => setAddress(event.target.value)}
-            />
-          </FormField>
-        </ModalBody>
+        {address && (
+          <ModalBody>
+            <FormField label="받는 분" required>
+              <Input
+                maxLength={100}
+                value={address.receiver}
+                onChange={(event) =>
+                  editAddress("receiver")(event.target.value)
+                }
+              />
+            </FormField>
+            <FormField label="연락처" required>
+              <Input
+                inputMode="numeric"
+                maxLength={13}
+                placeholder={UNIT_DETAIL_COPY.phonePlaceholder}
+                value={address.phone}
+                onChange={(event) => editAddress("phone")(event.target.value)}
+              />
+            </FormField>
+            {rent && (
+              <FormField label="추가 연락처">
+                <Input
+                  inputMode="numeric"
+                  maxLength={13}
+                  placeholder={UNIT_DETAIL_COPY.phonePlaceholder}
+                  value={address.subPhone}
+                  onChange={(event) =>
+                    editAddress("subPhone")(event.target.value)
+                  }
+                />
+              </FormField>
+            )}
+            <FormField label="현재 배송지" group>
+              <p className="body-medium break-keep text-text-sub">
+                {orNone(u.addr)}
+              </p>
+            </FormField>
+            <FormField label="주소" required group>
+              <span className="flex gap-2">
+                <Input
+                  className="flex-1"
+                  aria-label="주소"
+                  maxLength={300}
+                  placeholder={UNIT_DETAIL_COPY.addrPlaceholder}
+                  value={address.address}
+                  onChange={(event) =>
+                    editAddress("address")(event.target.value)
+                  }
+                />
+                <Button
+                  variant="secondary"
+                  onClick={() => toast(UNIT_DETAIL_COPY.addrSearchPending)}
+                >
+                  주소검색
+                </Button>
+              </span>
+            </FormField>
+            <FormField label="상세주소">
+              <Input
+                maxLength={300}
+                value={address.detail}
+                onChange={(event) => editAddress("detail")(event.target.value)}
+              />
+            </FormField>
+            <FormField label="요청사항">
+              <Input
+                maxLength={200}
+                value={address.memo}
+                onChange={(event) => editAddress("memo")(event.target.value)}
+              />
+            </FormField>
+          </ModalBody>
+        )}
         <ModalFooter>
           <Button variant="secondary" size="large" onClick={closeAddress}>
             취소
           </Button>
           <Button
             size="large"
-            disabled={!address.trim()}
+            disabled={!address?.receiver.trim() || !address?.phone.trim()}
             onClick={() => {
+              if (!address?.address.trim())
+                return toast(UNIT_DETAIL_COPY.addrRequired);
               closeAddress();
               toast(UNIT_DETAIL_COPY.addrChanged);
             }}
@@ -782,6 +920,22 @@ function UnitDetailBody({
           </Button>
         </ModalFooter>
       </Modal>
+
+      {/* 자체 수령 [준비 완료] — 고객 알림이 나가는 전이라 한 번 더 확인(develop 문구 · 개발 요청 17·29번) */}
+      <NoticeGateModal
+        open={overlay === "ready"}
+        title="준비 완료"
+        count={1}
+        confirmLabel="준비 완료 등록"
+        onClose={() => setOverlay(null)}
+        onConfirm={() => {
+          setOverlay(null);
+          toast(UNIT_DETAIL_COPY.readyDone);
+        }}
+      >
+        <span>{UNIT_DETAIL_COPY.readyLead(readyDueOf(u))}</span>
+        <span>{UNIT_DETAIL_COPY.readyNext}</span>
+      </NoticeGateModal>
 
       {/* 주문 명세 — 원본 `udPriceBox`. 클레임 상세는 환불·교환 몫이 이어진다 */}
       <Modal

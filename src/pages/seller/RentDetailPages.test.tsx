@@ -69,7 +69,7 @@ const barButtons = () =>
   )
     .getAllByRole("button")
     .map((b) => b.textContent);
-const dialog = (name: string) => screen.getByRole("dialog", { name });
+const dialog = (name: string | RegExp) => screen.getByRole("dialog", { name });
 /** 구역 카드 — 접기 버튼에서 카드까지 */
 const sectionOf = (title: string) =>
   screen
@@ -120,14 +120,21 @@ describe("RentOrderDetailPage — 렌트 발주 관리 상세", () => {
     );
   });
 
-  it("송장등록 — 출고 이미지가 없으면 안내 창 · 이미지를 올리면 바로 배송중", async () => {
-    const { user } = renderAt(RentOrderDetailPage, PATH);
+  it("[송장수정]으로 저장 → [배송중 전환] — 출고 이미지가 없으면 안내 창 · 이미지를 올리면 확인 창 → 배송중(개발 요청 18·29번)", async () => {
+    const prepared = UNITS.find(
+      (u) =>
+        u.type === "렌트" &&
+        u.stat === "배송 준비" &&
+        u.shipWay === "택배" &&
+        !u.shipImgs?.length,
+    )!;
+    const { user } = renderAt(RentOrderDetailPage, `/rent-list/${prepared.id}`);
     await user.click(screen.getByRole("combobox", { name: "택배사" }));
     await user.click(screen.getByRole("option", { name: "CJ대한통운" }));
+    await user.clear(screen.getByRole("textbox", { name: "송장번호" }));
     await user.type(screen.getByRole("textbox", { name: "송장번호" }), "123");
-    await user.click(
-      screen.getByRole("button", { name: "송장등록 · 배송처리" }),
-    );
+    await user.click(screen.getByRole("button", { name: "송장수정" }));
+    await user.click(screen.getByRole("button", { name: "배송중 전환" }));
     expect(dialog("출고 이미지 등록 안내")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "출고 이미지 등록" }));
 
@@ -135,12 +142,36 @@ describe("RentOrderDetailPage — 렌트 발주 관리 상세", () => {
       target: { files: [new File(["x"], "out.png", { type: "image/png" })] },
     });
     expect(screen.getByRole("img", { name: "출고 이미지 1" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "배송중 전환" }));
     await user.click(
-      screen.getByRole("button", { name: "송장등록 · 배송처리" }),
+      within(dialog(/상태 변경 확인/)).getByRole("button", { name: "확인" }),
     );
     expect(
       await screen.findByText("송장 등록 완료 → [배송 관리]로 이동했습니다."),
     ).toBeVisible();
+  });
+
+  it("[배송지 변경] 창에 렌트 추가 연락처 칸(개발 요청 29번)", async () => {
+    const { user } = renderAt(RentOrderDetailPage, PATH);
+    await user.click(screen.getByRole("button", { name: "배송지 변경" }));
+    expect(
+      within(dialog("배송지 변경")).getByText("추가 연락처"),
+    ).toBeVisible();
+  });
+
+  it("자체 수령 준비 단계 — [준비 완료] + 확인 창(수령 기한 = 이용 시작일 · 개발 요청 29번)", async () => {
+    const unit = UNITS.find(
+      (u) =>
+        u.type === "렌트" &&
+        u.shipWay === "방문 수령" &&
+        ["배송 준비", "배송 지연"].includes(u.stat ?? ""),
+    )!;
+    const { user } = renderAt(RentOrderDetailPage, `/rent-list/${unit.id}`);
+    expect(screen.queryByRole("button", { name: "배송지 변경" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "준비 완료" }));
+    expect(dialog("준비 완료")).toHaveTextContent(
+      `수령 기한 ${(unit.period ?? "").replace(/^예정\s*/, "").split(" ~ ")[0]}`,
+    );
   });
 });
 

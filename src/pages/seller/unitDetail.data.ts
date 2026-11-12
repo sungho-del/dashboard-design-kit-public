@@ -209,3 +209,12 @@ export function statementBlocksOf(u: OrderUnit, claim = false): CalcBlock[] {
     },
   ];
 }
+
+/**
+ * 「준비 완료 안내」 줄 예시 — 이미 [준비 완료]를 등록해 고객 알림이 나간 자체 수령 건 하나(개발 요청 17번).
+ * 발주 관리 상세는 판매 처리단위면 상태를 가리지 않고 열린다(`/sale-proc/20260606833562-1`). 실제 값은 서버
+ */
+const READY_NOTIFIED: Record<string, { at: string; due: string }> = {
+  "20260606833562-1": { at: "2026.06.07 10:12:00", due: "2026.06.14" },
+};
+export const readyNoticeOf = (u: OrderUnit) => READY_NOTIFIED[u.id] ?? null;

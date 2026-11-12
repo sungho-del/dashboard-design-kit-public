@@ -632,7 +632,11 @@ export function GateHost({
         onClose={onClose}
         onConfirm={() =>
           gate?.kind === "confirm" &&
-          onDone(GATE_DONE.confirm(gate.next, n, gate.skipped))
+          onDone(
+            gate.next === "배송중"
+              ? ACTION_COPY.shipped(n)
+              : GATE_DONE.confirm(gate.next, n, gate.skipped),
+          )
         }
       />
       <NoticeGateModal

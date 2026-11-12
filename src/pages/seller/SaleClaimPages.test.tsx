@@ -126,7 +126,7 @@ describe("SaleReturnPage — 반품 관리", () => {
     expect(rows()[0]).toHaveTextContent("20260627514785");
     expect(headers()).toContain("수거 택배사");
     expect(headers()).toContain("수거 송장번호");
-    expect(bulkButtons()).toEqual(["반품 승인", "반품 거부"]);
+    expect(bulkButtons()).toEqual(["반품 승인", "반품 반려"]);
     await user.click(within(cards()).getByRole("button", { name: /진행/ }));
     expect(bulkButtons()).toEqual([
       "반품 수거완료",
@@ -140,24 +140,24 @@ describe("SaleReturnPage — 반품 관리", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("[반품 거부] → 사유 필수 창 — 비면 막고, 적으면 원본 알림", async () => {
+  it("[반품 반려](접수 단계 · 개발 요청 20번) → 사유 필수 창 — 비면 막고, 적으면 원본 알림", async () => {
     const { user } = renderPage(SaleReturnPage);
     await user.click(within(rows()[0]).getByRole("checkbox"));
-    await user.click(bulk("반품 거부"));
+    await user.click(bulk("반품 반려"));
     const dialog = await screen.findByRole("dialog", {
-      name: "반품 거부 사유 입력",
+      name: "반품 반려 사유 입력",
     });
     await user.click(
-      within(dialog).getByRole("button", { name: "반품 거부 처리" }),
+      within(dialog).getByRole("button", { name: "반품 반려 처리" }),
     );
     expect(await screen.findByText("사유를 입력해주세요.")).toBeVisible();
     await user.type(within(dialog).getByRole("textbox"), "사용 흔적 확인");
     await user.click(
-      within(dialog).getByRole("button", { name: "반품 거부 처리" }),
+      within(dialog).getByRole("button", { name: "반품 반려 처리" }),
     );
     expect(
       await screen.findByText(
-        "'반품 거부' 처리되었습니다 — 입력한 사유가 고객 주문 내역에 노출됩니다.",
+        "'반품 반려' 처리되었습니다 — 입력한 사유가 고객 주문 내역에 노출됩니다.",
       ),
     ).toBeVisible();
   });
@@ -236,7 +236,7 @@ describe("SaleExchangePage — 교환 관리", () => {
   it("카드 원본 건수 · 진행 버킷 버튼 · [교환 재배송] 은 송장 창(택배사 먼저)", async () => {
     const { user } = renderPage(SaleExchangePage);
     expect(cardLabels()).toEqual(["접수5건", "진행9건", "완료7건"]);
-    expect(bulkButtons()).toEqual(["교환 승인", "교환 거부"]);
+    expect(bulkButtons()).toEqual(["교환 승인", "교환 반려"]);
     await user.click(within(cards()).getByRole("button", { name: /진행/ }));
     expect(bulkButtons()).toEqual([
       "교환 수거완료",

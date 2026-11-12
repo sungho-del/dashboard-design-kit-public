@@ -1,6 +1,7 @@
 import type { CalcLine } from "../babycube/CalcBreakdown";
 import type { ProcessScreen } from "./gate.data";
 import { careOf, stageIdx, unitTime } from "./orderUnit.labels";
+import { DEMO_TODAY, periodOf } from "./processList.data";
 import type { OrderUnit } from "./seed/orders.data";
 
 /* 셀러 `unitDetail.data.ts` 의 라벨·상수·문구·포맷터 — 예시 데이터(`seed/`)를 값으로 불러오지 않는다(개발 요청 2026-11-12 46번).
@@ -99,15 +100,70 @@ export const UNIT_DETAIL_COPY = {
   notFoundDescription: "해당 항목이 존재하지 않거나 삭제되었습니다.",
   /** 원본 `act(unitNo + ' 변경 저장')` — 표시 축 = 주문번호+순번(원본 판정 ②) */
   saved: (u: OrderUnit) => `${unitNo(u)} 변경 저장`,
-  /** 원본 `saleChangeAddr` — prompt 문구 · 완료 알림 */
+  /** [배송지 변경] 창 — develop `AddressModal` 칸·문구 그대로(개발 요청 2026-11-12 16·29번) */
   addrTitle: "배송지 변경",
-  addrLabel: "변경할 배송지",
   addrPlaceholder: "변경할 배송지를 입력하세요",
   addrChanged: "배송지를 변경했습니다.",
+  phonePlaceholder: "-없이 숫자만 입력",
+  /** 주소 없이 [변경] */
+  addrRequired: "주소를 입력하거나 검색해 선택해 주세요.",
+  /** [주소검색]은 외부 주소 API 라 퍼블은 알림만 */
+  addrSearchPending: "주소 검색은 개발 연동 시 제공됩니다.",
+
+  /** 송장 — [송장수정](저장)과 하단 [배송중 전환]을 따로(develop · 개발 요청 18번) */
+  shipmentSaved: "택배사와 송장번호를 저장했습니다.",
+  shipDirtyHint: "변경한 송장 정보를 먼저 저장해 주세요.",
+
+  /** 자체 수령 [준비 완료](develop · 개발 요청 17·29번) */
+  readyDone: "준비 완료를 등록했습니다.",
+  readyLead: (due: string) =>
+    `고객에게 수령 준비 완료 알림(알림톡)을 보냅니다. 수령 기한 ${due}`,
+  readyNext:
+    "등록 뒤 주문은 '배송중'(수령 대기)으로 바뀌고, 고객이 수령하면 배송 관리에서 [배송 완료 처리]로 수령을 확인합니다.",
+  readyHelp:
+    "[준비 완료] → 고객 알림 → 배송 관리에서 [배송 완료 처리]로 수령 확인",
+  readyNotice: (at: string, due: string) => `${at} · 수령 기한 ${due}`,
 
   /** 원본 `rmaToReturn` — 출고 뒤 취소 건 */
   toReturn: "반품으로 전환했습니다 → [반품 관리]에서 처리하세요.",
 } as const;
+
+/** 자체 수령(방문 수령) — 송장 대신 [준비 완료] */
+export const isSelfPickup = (u: OrderUnit) => u.shipWay === "방문 수령";
+
+/**
+ * 출고 전 하단 버튼 — develop 발주 상세(판매·렌트 같다) 순서 그대로:
+ * [배송중 전환](택배 · 준비·지연) · [준비 완료](자체 수령 · 준비·지연) · [배송 지연](이미 지연) ·
+ * [배송지 변경](택배) · [주문 취소]
+ */
+export function preShipActions(u: OrderUnit): DetailAction[] {
+  const pickup = isSelfPickup(u);
+  const prepared = ["배송 준비", "배송 지연"].includes(u.stat ?? "");
+  return [
+    ...(prepared && !pickup
+      ? [{ label: "배송중 전환", special: "ship" as const }]
+      : []),
+    ...(prepared && pickup
+      ? [{ label: "준비 완료", special: "ready" as const }]
+      : []),
+    ...(u.stat === "배송 지연"
+      ? [{ label: "배송 지연", special: "delayAgain" as const }]
+      : []),
+    ...(!pickup ? [{ label: "배송지 변경", special: "address" as const }] : []),
+    { label: "주문 취소", to: "취소", tone: "criticalTonal" as const },
+  ];
+}
+
+/**
+ * [준비 완료]를 지금 누르면 정해질 수령 기한 — develop `readyDueDate`: 판매 = 오늘 + 7일 · 렌트 = 이용 시작일.
+ * 퍼블의 「오늘」은 데모 기준일(`DEMO_TODAY`)
+ */
+export function readyDueOf(u: OrderUnit) {
+  if (u.type === "렌트") return periodOf(u).split(" ~ ")[0];
+  const d = new Date(`${DEMO_TODAY}T00:00:00`);
+  d.setDate(d.getDate() + 7);
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+}
 
 /* -------------------------------------------------------------------------
  * 화면 설정 — 원본 `udOrderPage(u, cfg)` 의 cfg. 상세 5개가 이 꼴로 준다
@@ -126,7 +182,18 @@ export type DetailAction = {
   tone?: "secondary" | "criticalTonal";
 } & (
   | { to: string }
-  | { special: "address" | "track" | "toReturn" }
+  | {
+      special:
+        | "address"
+        | "track"
+        | "toReturn"
+        /** [배송중 전환] — 저장한 송장이 있고 고친 칸이 없을 때만(develop) */
+        | "ship"
+        /** 자체 수령 [준비 완료] — 확인 창 */
+        | "ready"
+        /** 이미 배송 지연인 건의 사유 다시 등록 — 셀렉트는 같은 값을 못 고른다 */
+        | "delayAgain";
+    }
   /** 다른 메뉴로(원본 [대여·연체 관리로]) */
   | { go: string }
 );

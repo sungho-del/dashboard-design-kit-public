@@ -194,39 +194,104 @@ describe("SaleOrderDetailPage — 발주 관리 상세", () => {
     ).toBeVisible();
   });
 
-  it("[송장등록 · 배송처리] — 송장번호가 비면 막고, 적으면 배송 관리로 넘긴다는 알림", async () => {
-    const { user } = renderAt(DEFAULT_ID);
-    const submit = screen.getByRole("button", { name: "송장등록 · 배송처리" });
-    await user.click(submit);
-    expect(await screen.findByText("송장번호를 입력해주세요.")).toBeVisible();
+  /* ---- 개발 요청 2026-11-12 16~18번 ---- */
+
+  const prepared = UNITS.find(
+    (u) => u.type === "판매" && u.stat === "배송 준비" && u.shipWay === "택배",
+  )!;
+  const delayed = UNITS.find(
+    (u) => u.type === "판매" && u.stat === "배송 지연" && u.shipWay === "택배",
+  )!;
+
+  it("[송장수정]은 저장만 · [배송중 전환]은 저장한 송장이 있고 고친 칸이 없을 때만 → 확인 창 → 배송 관리로 넘긴다는 알림", async () => {
+    const { user } = renderAt(prepared.id);
+    const save = screen.getByRole("button", { name: "송장수정" });
+    const ship = within(bar()).getByRole("button", { name: "배송중 전환" });
+    expect(save).toBeDisabled();
+    expect(ship).toBeDisabled();
+
+    await user.click(screen.getByRole("combobox", { name: "택배사" }));
+    await user.click(screen.getByRole("option", { name: "CJ대한통운" }));
     await user.type(
       screen.getByRole("textbox", { name: "송장번호" }),
       "612877412203",
     );
-    await user.click(submit);
+    expect(ship).toBeDisabled();
+    expect(ship).toHaveAttribute(
+      "title",
+      "변경한 송장 정보를 먼저 저장해 주세요.",
+    );
+    await user.click(save);
+    expect(
+      await screen.findByText("택배사와 송장번호를 저장했습니다."),
+    ).toBeVisible();
+    expect(save).toBeDisabled();
+    expect(ship).toBeEnabled();
+
+    await user.click(ship);
+    const dialog = screen.getByRole("dialog", { name: /상태 변경 확인/ });
+    await user.click(within(dialog).getByRole("button", { name: "확인" }));
     expect(
       await screen.findByText("송장 등록 완료 → [배송 관리]로 이동했습니다."),
     ).toBeVisible();
   });
 
-  it("[배송지 변경] — 지금 배송지가 채워져 열리고, 비우면(공백만도) 잠기고, 적으면 원본 알림", async () => {
+  it("이미 배송 지연인 건은 하단 [배송 지연]으로 사유를 다시 등록", async () => {
+    const { user } = renderAt(delayed.id);
+    await user.click(within(bar()).getByRole("button", { name: "배송 지연" }));
+    expect(screen.getByRole("dialog", { name: /배송 지연/ })).toBeVisible();
+  });
+
+  it("[배송지 변경] — develop 칸(받는 분 · 연락처 · 현재 배송지 · 주소+[주소검색] · 상세주소 · 요청사항) · 받는 분·연락처가 비면 잠금 · 주소가 비면 안내", async () => {
     const { user } = renderAt(DEFAULT_ID);
     await user.click(
       within(bar()).getByRole("button", { name: "배송지 변경" }),
     );
     const dialog = await screen.findByRole("dialog", { name: "배송지 변경" });
-    const field = within(dialog).getByRole("textbox", {
-      name: "변경할 배송지",
-    });
-    expect(field).toHaveValue("배송지 정보");
+    expect(within(dialog).getByText("현재 배송지")).toBeVisible();
+    expect(within(dialog).queryByText("추가 연락처")).toBeNull();
+    const address = within(dialog).getByRole("textbox", { name: "주소" });
+    expect(address).toHaveValue("");
     const confirm = within(dialog).getByRole("button", { name: "변경" });
-    await user.clear(field);
-    await user.type(field, "   ");
-    expect(confirm).toBeDisabled();
-    await user.clear(field);
-    await user.type(field, "서울 성동구 왕십리로 1");
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+    expect(
+      await screen.findByText("주소를 입력하거나 검색해 선택해 주세요."),
+    ).toBeVisible();
+    await user.click(within(dialog).getByRole("button", { name: "주소검색" }));
+    expect(
+      await screen.findByText("주소 검색은 개발 연동 시 제공됩니다."),
+    ).toBeVisible();
+    await user.type(address, "서울 성동구 왕십리로 1");
     await user.click(confirm);
     expect(await screen.findByText("배송지를 변경했습니다.")).toBeVisible();
+  });
+
+  it("자체 수령 준비 단계 — [준비 완료] + 확인 창(수령 기한 = 기준일 + 7일) · [배송지 변경]·[배송중 전환] 없음 · 안내 줄", async () => {
+    const { user } = renderAt("20260617737370-1");
+    const buttons = within(bar().lastElementChild as HTMLElement)
+      .getAllByRole("button")
+      .map((b) => b.textContent);
+    expect(buttons).toEqual(["준비 완료", "주문 취소", "취소", "변경 저장"]);
+    expect(valueOf("안내")).toHaveTextContent(
+      "[준비 완료] → 고객 알림 → 배송 관리에서 [배송 완료 처리]로 수령 확인",
+    );
+    await user.click(within(bar()).getByRole("button", { name: "준비 완료" }));
+    const dialog = screen.getByRole("dialog", { name: "준비 완료" });
+    expect(dialog).toHaveTextContent(
+      "고객에게 수령 준비 완료 알림(알림톡)을 보냅니다. 수령 기한 2026.07.06",
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "준비 완료 등록" }),
+    );
+    expect(await screen.findByText("준비 완료를 등록했습니다.")).toBeVisible();
+  });
+
+  it("준비 완료 안내가 나간 자체 수령 건은 「준비 완료 안내」 줄", () => {
+    renderAt("20260606833562-1");
+    expect(valueOf("준비 완료 안내")).toHaveTextContent(
+      "2026.06.07 10:12:00 · 수령 기한 2026.06.14",
+    );
   });
 
   it("하단 바 — [목록]·[취소]는 목록으로, [변경 저장]은 처리단위 번호로 알림(원본)", async () => {
@@ -252,7 +317,7 @@ describe("SaleOrderDetailPage — 발주 관리 상세", () => {
       screen.queryByRole("combobox", { name: "택배사" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "송장등록 · 배송처리" }),
+      screen.queryByRole("button", { name: "송장수정" }),
     ).not.toBeInTheDocument();
     expect(
       within(bar().lastElementChild as HTMLElement)

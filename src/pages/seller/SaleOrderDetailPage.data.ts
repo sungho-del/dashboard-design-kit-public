@@ -1,5 +1,5 @@
 import { UNITS } from "./seed/orders.data";
-import type { UnitDetailConfig } from "./unitDetail.data";
+import { preShipActions, type UnitDetailConfig } from "./unitDetail.data";
 import { LIST_PATH, isPreShip } from "./SaleOrderDetailPage.labels";
 
 export * from "./SaleOrderDetailPage.labels";
@@ -27,12 +27,6 @@ export const SALE_ORDER_DETAIL: UnitDetailConfig = {
     { value: "취소", label: "주문 취소" },
   ],
   shipMode: (u) => (isPreShip(u) ? "register" : "ro"),
-  /* 원본 `extraBtns` — 출고 전에만 [배송지 변경]·[주문 취소] */
-  actions: (u) =>
-    isPreShip(u)
-      ? [
-          { label: "배송지 변경", special: "address" },
-          { label: "주문 취소", to: "취소", tone: "criticalTonal" },
-        ]
-      : [],
+  /* 출고 전에만 — develop 버튼 순서([배송중 전환] · [준비 완료] · [배송 지연] · [배송지 변경] · [주문 취소] · 개발 요청 16~18번) */
+  actions: (u) => (isPreShip(u) ? preShipActions(u) : []),
 };

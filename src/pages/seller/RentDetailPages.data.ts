@@ -1,6 +1,6 @@
 import { claimDetail } from "./SaleClaimDetailPage.data";
 import { UNITS } from "./seed/orders.data";
-import type { UnitDetailConfig } from "./unitDetail.data";
+import { preShipActions, type UnitDetailConfig } from "./unitDetail.data";
 import { preShip } from "./RentDetailPages.labels";
 
 export * from "./RentDetailPages.labels";
@@ -34,14 +34,8 @@ export const RENT_ORDER_DETAIL: UnitDetailConfig = {
   ],
   shipMode: (u) => (preShip(u.stat) ? "register" : "ro"),
   sections: ["shipImages"],
-  /* 원본 `extraBtns` — 출고 전에만 */
-  actions: (u) =>
-    preShip(u.stat)
-      ? [
-          { label: "배송지 변경", special: "address" },
-          { label: "주문 취소", to: "취소", tone: "criticalTonal" },
-        ]
-      : [],
+  /* 출고 전에만 — develop 버튼 순서([배송중 전환] · [준비 완료] · [배송 지연] · [배송지 변경] · [주문 취소] · 개발 요청 29번) */
+  actions: (u) => (preShip(u.stat) ? preShipActions(u) : []),
 };
 
 export const RENT_SHIP_DETAIL: UnitDetailConfig = {
