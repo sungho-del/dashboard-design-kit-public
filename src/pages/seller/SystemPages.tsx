@@ -131,7 +131,7 @@ export function StorePage(props: SellerNavProps) {
 
       <Section title="개인정보 처리방침" summary={STORE_COPY.privacySummary}>
         <p className="body-small max-w-3xl break-keep text-text-sub">
-          <Bold text={STORE_COPY.privacy} />
+          <Bold text={direct ? STORE_COPY.privacyDirect : STORE_COPY.privacy} />
         </p>
       </Section>
 

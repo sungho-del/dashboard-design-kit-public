@@ -114,6 +114,16 @@ function MetricRow({
   );
 }
 
+/**
+ * 흐름 카드 숫자 넘침 — 세 자리 이상이면 좁은 폭에서 2×2 로 접는다(develop · 본사 포크와 같은 접기 · 개발 요청 44번).
+ * 100건↑ = 480px 아래 접기 · 1,000건↑ = 480px 이상에서 숫자 한 단계 작게 · 10,000건↑ = 640px 아래 접기
+ */
+export const flowFoldOf = (counts: number[]) => ({
+  wide3: counts.some((n) => n >= 100),
+  wide4: counts.some((n) => n >= 1000),
+  wide5: counts.some((n) => n >= 10000),
+});
+
 function FlowCard({
   title,
   steps,
@@ -125,38 +135,55 @@ function FlowCard({
   status: DataStatus;
   onNavSelect: (path: string) => void;
 }) {
+  const { wide3, wide4, wide5 } = flowFoldOf(steps.map((s) => s.count));
   return (
     <Card variant="soft" aria-busy={isBusy(status)}>
       <CardHeader title={title} />
       <CardBody className={dimWhile(status)}>
-        <div role="list" className="flex items-stretch">
-          {steps.map((step, index) => (
-            <Fragment key={step.label}>
-              {index > 0 ? (
-                <ChevronRight
-                  aria-hidden
-                  size={24}
-                  strokeWidth={1.2}
-                  className="mx-2 shrink-0 self-center text-icon-sub"
-                />
-              ) : null}
-              <div role="listitem" className="min-w-0 flex-1">
-                {status === "loading" ? (
-                  <Skeleton shape="block" className="h-24 w-full" />
-                ) : (
-                  <StatTile
-                    compact
-                    denseLabel
-                    label={step.label}
-                    value={num(step.count)}
-                    unit="건"
-                    onOpen={() => onNavSelect(step.navId)}
-                    openLabel={`${title} ${step.label} ${count(step.count)} 목록 열기`}
+        <div className="@container">
+          <div
+            role="list"
+            className={cn(
+              "flex items-stretch",
+              wide3 &&
+                "@max-[30rem]:grid @max-[30rem]:grid-cols-2 @max-[30rem]:gap-3",
+              wide5 &&
+                "@max-[40rem]:grid @max-[40rem]:grid-cols-2 @max-[40rem]:gap-3",
+              wide4 && "@min-[30rem]:[&_strong]:heading-medium-bold",
+            )}
+          >
+            {steps.map((step, index) => (
+              <Fragment key={step.label}>
+                {index > 0 ? (
+                  <ChevronRight
+                    aria-hidden
+                    size={24}
+                    strokeWidth={1.2}
+                    className={cn(
+                      "mx-2 shrink-0 self-center text-icon-sub",
+                      wide3 && "@max-[30rem]:hidden",
+                      wide5 && "@max-[40rem]:hidden",
+                    )}
                   />
-                )}
-              </div>
-            </Fragment>
-          ))}
+                ) : null}
+                <div role="listitem" className="min-w-0 flex-1">
+                  {status === "loading" ? (
+                    <Skeleton shape="block" className="h-24 w-full" />
+                  ) : (
+                    <StatTile
+                      compact
+                      denseLabel
+                      label={step.label}
+                      value={num(step.count)}
+                      unit="건"
+                      onOpen={() => onNavSelect(step.navId)}
+                      openLabel={`${title} ${step.label} ${count(step.count)} 목록 열기`}
+                    />
+                  )}
+                </div>
+              </Fragment>
+            ))}
+          </div>
         </div>
       </CardBody>
     </Card>

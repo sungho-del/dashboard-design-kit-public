@@ -471,6 +471,12 @@ function AskDetailBody({
                 maxLength={ASK_TITLE_MAX}
                 value={title}
                 placeholder={ASK_COPY.titlePlaceholder}
+                /* 글자 수 「N/60」 — 입력칸 오른쪽(develop · 개발 요청 43번) */
+                rightIcon={
+                  <span className="body-small text-text-sub tabular-nums">
+                    {title.length}/{ASK_TITLE_MAX}
+                  </span>
+                }
                 onChange={(event) => setTitle(event.target.value)}
               />
             </FormField>

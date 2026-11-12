@@ -260,7 +260,10 @@ describe("1:1 문의 상세", () => {
     await user.click(screen.getByRole("button", { name: "문의 접수" }));
     expect(await screen.findByText("제목을 입력해주세요.")).toBeInTheDocument();
     expect(onNavSelect).not.toHaveBeenCalled();
+    /* 제목 글자 수 「N/60」(개발 요청 43번) */
+    expect(screen.getByText("0/60")).toBeInTheDocument();
     await user.type(screen.getByRole("textbox", { name: "제목" }), "제목");
+    expect(screen.getByText("2/60")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "문의 접수" }));
     expect(onNavSelect).toHaveBeenCalledWith("/seller-ask");
     expect(

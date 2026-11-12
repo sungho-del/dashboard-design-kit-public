@@ -7,7 +7,7 @@ import {
   SALE_FLOW,
   salesDaily,
 } from "./SellerDashboardPage.data";
-import { SellerDashboardPage } from "./SellerDashboardPage";
+import { SellerDashboardPage, flowFoldOf } from "./SellerDashboardPage";
 import {
   CS_GOLDEN,
   DAILY_GOLDEN,
@@ -110,5 +110,47 @@ describe("셀러 대시보드 화면", () => {
     );
     await user.click(screen.getByRole("button", { name: "전체보기" }));
     expect(onNavSelect).toHaveBeenLastCalledWith("/seller-notice");
+  });
+});
+
+describe("흐름 카드 숫자 넘침 — 개발 요청 2026-11-12 44번", () => {
+  it("세 자리부터 좁은 폭 2×2 접기 · 네 자리면 숫자 한 단계 작게 · 다섯 자리면 더 넓은 폭까지 접기", () => {
+    expect(flowFoldOf([3, 12, 99])).toEqual({
+      wide3: false,
+      wide4: false,
+      wide5: false,
+    });
+    expect(flowFoldOf([3, 120])).toEqual({
+      wide3: true,
+      wide4: false,
+      wide5: false,
+    });
+    expect(flowFoldOf([1200])).toEqual({
+      wide3: true,
+      wide4: true,
+      wide5: false,
+    });
+    expect(flowFoldOf([12000])).toEqual({
+      wide3: true,
+      wide4: true,
+      wide5: true,
+    });
+  });
+
+  it("흐름 목록은 컨테이너 안에 있다(폭 기준 접기)", () => {
+    render(
+      <ToastProvider position="bottom">
+        <SellerDashboardPage
+          navOpen
+          onNavOpenChange={vi.fn()}
+          activeNav="/"
+          onNavSelect={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+    const lists = screen.getAllByRole("list");
+    expect(
+      lists.some((l) => l.parentElement?.classList.contains("@container")),
+    ).toBe(true);
   });
 });

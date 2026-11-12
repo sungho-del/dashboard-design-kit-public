@@ -149,9 +149,17 @@ describe("직영 계정 미리보기 (D-337 · Q-69 · ?account=direct)", () => 
   it("스토어 — 안내가 바뀌고 [1:1 문의로 정보 변경 요청]이 빠진다", () => {
     act(() => navigate("/store?account=direct"));
     renderPage(StorePage);
+    /* develop 문구(개발 요청 42번) — 굵은 낱말로 갈라져 문단으로 본다 */
     expect(
-      screen.getByText(/본사 어드민 \[셀러 관리\]에서 수정합니다/),
-    ).toBeInTheDocument();
+      screen.getByText(/본사가 관리/, { selector: "b, strong" }).closest("p"),
+    ).toHaveTextContent(
+      "스토어 정보(상호·대표자·사업자등록번호·정산 계좌·연락처·소개)는 본사가 관리합니다. 본사 어드민 [셀러 관리]에서 수정합니다.",
+    );
+    expect(
+      screen.getByText(/플랫폼 공통/, { selector: "b, strong" }).closest("p"),
+    ).toHaveTextContent(
+      "본문 수정이 필요하면 본사 어드민 [약관 관리]에서 수정합니다.",
+    );
     expect(
       screen.queryByRole("button", { name: "1:1 문의로 정보 변경 요청" }),
     ).toBeNull();
