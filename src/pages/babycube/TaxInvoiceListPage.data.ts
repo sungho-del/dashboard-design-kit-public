@@ -55,6 +55,12 @@ export type { TaxInvoiceRow, TaxInvoiceStatus };
  * 미발행은 자동 발행이 실패해 [발행]으로 처리할 일이라 `warning`, 발행완료는 종결이라 `default`.
  * 라벨만 「미발행」(부록 A A14-1 · 판정 Q4) — 값 `pending` 은 그대로다.
  */
+/**
+ * 미발행 행의 상태 배지 글자 — 기획 17차 회신 원문(20차에서 다시 확인 · 개발 2차 요청 2026-11-16 A-1).
+ * 행은 매월 10일 배치가 만들고 발행 연동 전이다. **필터 선택지 글자는 그대로 「미발행」**
+ */
+export const PENDING_ROW_LABEL = "매월 10일 발행 (연동 준비 중)";
+
 export const STATUS_META: Record<
   TaxInvoiceStatus,
   { label: string; tone: TagTone }

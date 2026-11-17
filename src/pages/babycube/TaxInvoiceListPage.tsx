@@ -33,6 +33,7 @@ import {
   PAGE_SIZES,
   SEARCH_FIELDS,
   SEARCH_PLACEHOLDER,
+  PENDING_ROW_LABEL,
   STATUS_META,
   STATUS_OPTIONS,
   TAX_INVOICES,
@@ -79,7 +80,7 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
   ⚠️ 파생값이라 `<colgroup>` 끝 세 열을 고치면 **반드시 함께** 고친다.
   왼쪽 1px 선은 묶음 맨 왼쪽(합계)에만 가상 요소로, 본문 셀 배경은 행에서 물려받는다(줄무늬가 가려지지 않게)
 */
-const FROZEN_RIGHT = ["right-70", "right-45", "right-0"]; // 합계 · 상태 · 처리
+const FROZEN_RIGHT = ["right-93", "right-45", "right-0"]; // 합계 · 상태(192) · 처리(180)
 const RIGHT_EDGE =
   "before:absolute before:inset-y-0 before:left-0 before:w-px before:bg-divide before:content-['']";
 const frozenRightTh = (i: number) =>
@@ -230,16 +231,18 @@ export function TaxInvoiceListPage({
             계산서번호는 한 줄로(`TX-2609-0226` 굵게 + 좌우 여백) · 공급자는 늘 「주식회사 렌티크」라 그만큼만.
             처리 열은 오른쪽에 붙박아 [발행]·[다운로드]가 스크롤 밖으로 사라지지 않게 한다.
             처리 열 180 = [다운로드] 72 + 8 + 「연동 준비 중」 58 + 셀 여백 36(실측 139 + 36) — 공급받는자·금액 열에서 덜어냈다
+            상태 열 192 = 미발행 배지 「매월 10일 발행 (연동 준비 중)」 168 + 여백 24(개발 2차 요청 2026-11-16 A-1).
+            늘어난 92 는 앞 여섯 열과 합계에서 덜어 합계를 1136 으로 지켰다 — 1440 에서 세액·합계·상태·처리가 처음부터 다 보인다
           */}
           <colgroup>
-            <col className="w-36" />
-            <col className="w-32" />
-            <col className="w-32" />
-            <col className="w-25" />
             <col className="w-34" />
-            <col className="w-26" />
             <col className="w-29" />
             <col className="w-25" />
+            <col className="w-25" />
+            <col className="w-27" />
+            <col className="w-24" />
+            <col className="w-27" />
+            <col className="w-48" />
             <col className="w-45" />
           </colgroup>
           <TableHead>
@@ -281,8 +284,11 @@ export function TaxInvoiceListPage({
                           {row.no}
                         </span>
                       </TableTd>
-                      <TableTd>{row.supplier}</TableTd>
-                      <TableTd>{row.buyer}</TableTd>
+                      {/* 공급자는 늘 한 상호라 한 줄로 · 공급받는자는 길면 낱말 단위로 꺾는다 */}
+                      <TableTd className="whitespace-nowrap">
+                        {row.supplier}
+                      </TableTd>
+                      <TableTd className="break-keep">{row.buyer}</TableTd>
                       <TableTd className="tabular-nums">
                         {ymd(row.date)}
                       </TableTd>
@@ -297,7 +303,9 @@ export function TaxInvoiceListPage({
                       </TableTd>
                       <TableTd align="center" className={frozenRightTd(1)}>
                         <Tag tone={status.tone} dot>
-                          {status.label}
+                          {row.status === "pending"
+                            ? PENDING_ROW_LABEL
+                            : status.label}
                         </Tag>
                       </TableTd>
                       <TableTd className={frozenRightTd(2)}>
