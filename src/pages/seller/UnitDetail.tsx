@@ -110,6 +110,7 @@ import {
   type RentSectionKey,
   type UnitDetailConfig,
 } from "./unitDetail.data";
+import { addressLineOf } from "./ProductFormPage.labels";
 
 /* =========================================================================
  * 처리단위 상세 공용 뼈대 — 판매 상세 5개(발주·배송·취소·반품·교환)가 설정만 바꿔 쓴다
@@ -654,7 +655,7 @@ function UnitDetailBody({
                 {pickup.address
                   ? [
                       pickup.address.name,
-                      pickup.address.addr,
+                      addressLineOf(pickup.address),
                       [pickup.address.tel1, pickup.address.tel2]
                         .filter(Boolean)
                         .join(" / "),

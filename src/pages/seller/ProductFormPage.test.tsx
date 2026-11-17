@@ -626,6 +626,70 @@ describe("주소록 창 안의 창들 — 개발 요청 2026-11-12 10번(develop
   });
 });
 
+describe("주소록 — 개발 2차 요청 2026-11-13 B-2(develop 모양)", () => {
+  const openBook = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByRole("button", { name: "판매자 주소록" }));
+    return screen.getByRole("dialog", { name: "판매자 주소록" });
+  };
+
+  it("카드 — 「일반」이 아니면 구분 태그 · 주소 끝 「(우 : 우편번호)」(우편번호 있을 때만)", async () => {
+    const { user } = renderEdit("P-002");
+    const book = await openBook(user);
+    expect(within(book).getByText("출고지")).toBeVisible();
+    expect(within(book).getByText("반품/교환지")).toBeVisible();
+    expect(within(book).queryByText("일반")).toBeNull();
+    expect(
+      within(book).getByText(
+        "서울특별시 강남구 테헤란로 123 (역삼동, 셀러타워) 7층 701호 (우 : 06234)",
+      ),
+    ).toBeVisible();
+    expect(
+      within(book).getByText(
+        "김포공항 국내선 2층 4번 출구 앞 베이비큐브 픽업존",
+      ),
+    ).toBeVisible();
+  });
+
+  it("관리이름 검색에 맞는 주소가 없으면 「등록된 주소가 없습니다.」", async () => {
+    const { user } = renderEdit("P-002");
+    const book = await openBook(user);
+    await user.type(
+      within(book).getByRole("textbox", { name: "관리이름 검색" }),
+      "없는이름",
+    );
+    expect(within(book).getByText("등록된 주소가 없습니다.")).toBeVisible();
+  });
+
+  it("[주소검색] → 주소검색 창 · 결과 없음 문구 · 결과를 누르면 폼 주소 칸에 들어간다", async () => {
+    const { user } = renderEdit("P-002");
+    const book = await openBook(user);
+    await user.click(within(book).getByRole("button", { name: "신규등록" }));
+    await user.click(
+      within(screen.getByRole("dialog", { name: "주소록 신규등록" })).getByRole(
+        "button",
+        { name: "주소검색" },
+      ),
+    );
+    const search = screen.getByRole("dialog", { name: "주소검색" });
+    expect(within(search).queryByText("검색 결과가 없습니다.")).toBeNull();
+    const box = within(search).getByRole("textbox", { name: "주소 검색어" });
+    await user.type(box, "없는길 999");
+    await user.click(within(search).getByRole("button", { name: "검색" }));
+    expect(within(search).getByText("검색 결과가 없습니다.")).toBeVisible();
+    await user.clear(box);
+    await user.type(box, "판교역로");
+    await user.click(within(search).getByRole("button", { name: "검색" }));
+    expect(within(search).getByText("13494")).toBeVisible();
+    await user.click(
+      within(search).getByRole("button", { name: /판교역로 235/ }),
+    );
+    const form = screen.getByRole("dialog", { name: "주소록 신규등록" });
+    expect(within(form).getByRole("textbox", { name: "주소" })).toHaveValue(
+      "경기도 성남시 분당구 판교역로 235 (삼평동, 에이치스퀘어)",
+    );
+  });
+});
+
 describe("유형 · 이동", () => {
   it("유형을 바꾸면 카테고리를 비우고, 가격·수량 섹션이 그 유형 것으로 바뀐다", async () => {
     const { user } = renderEdit("P-001");

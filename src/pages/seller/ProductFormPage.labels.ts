@@ -652,7 +652,6 @@ export const COPY = {
     },
   },
   /** 주소 검색은 외부 주소 API 라 퍼블은 알림만 */
-  addressPending: "주소 검색은 개발 연동 시 제공됩니다.",
   /**
    * 주소록 창 안의 창들 — develop `AddressBookModal` 문구 그대로(개발 요청 2026-11-12 10번).
    * 창 제목은 연 자리에 따라 「판매자 주소록」·「공항 픽업 주소록」(= `address.*.button`)
@@ -673,6 +672,11 @@ export const COPY = {
     /** 수정 저장 전 — 수령 전 주문이 있으면 */
     pendingOrders: (n: number) =>
       `진행 중인 주문 ${n}건은 주문 당시 주소 그대로 안내됩니다. 장소가 바뀌었다면 고객에게 직접 알려 주세요.`,
+    /* develop 문구(개발 2차 요청 2026-11-13 B-2) — 빈 목록 · 주소검색 창 */
+    listEmpty: "등록된 주소가 없습니다.",
+    searchTitle: "주소검색",
+    searchPlaceholder: "도로명·건물명·지번 (예: 테헤란로 1)",
+    searchEmpty: "검색 결과가 없습니다.",
   },
   airportHelp: "공항 픽업 상품은 반납도 같은 공항에서 합니다.",
   optionHelp:
@@ -767,3 +771,14 @@ export const COPY = {
     tags: "검색 태그는 최대 10개까지 입력할 수 있습니다.",
   } satisfies Record<FieldKey | "certNo", string>,
 };
+
+/** 주소록 구분 — 시드 값(원본 `ADDR_BOOK.tag`) → 화면 글자(본사 주소록과 같은 글자). 「일반」은 태그를 붙이지 않는다(develop) */
+export const ADDRESS_TAG_LABEL: Record<string, string> = {
+  ship: "출고지",
+  return: "반품/교환지",
+  normal: "일반",
+};
+
+/** 주소 한 줄 — 주소 + 「(우 : 우편번호)」(우편번호가 있을 때만 · develop) */
+export const addressLineOf = (a: { addr: string; zip?: string }) =>
+  a.zip ? `${a.addr} (우 : ${a.zip})` : a.addr;

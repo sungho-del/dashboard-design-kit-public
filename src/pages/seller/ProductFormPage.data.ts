@@ -1,6 +1,7 @@
 import { PRODUCTS, type SellerProduct } from "./seed/products.data";
 import {
   ADDR_BOOK,
+  ADDRESS_SEARCH_SAMPLE,
   RENT_CATTREE,
   SALE_CATTREE,
   STAGES,
@@ -38,6 +39,15 @@ export const STAGE_OPTIONS = STAGES.map((stage) => ({
 
 /** 판매자 주소록 — 원본 `ADDR_BOOK` 시드(리틀베이비 출고지·반품교환지·공항 픽업존 2) */
 export const ADDRESSES = ADDR_BOOK;
+
+/** 주소검색 — 예시 결과를 검색어로 거른다(띄어쓰기 무시 · 도로명·지번). 실제 검색은 서버 */
+export const searchAddresses = (keyword: string) => {
+  const q = keyword.replace(/s/g, "");
+  if (!q) return [];
+  return ADDRESS_SEARCH_SAMPLE.filter((hit) =>
+    `${hit.road}${hit.jibun}`.replace(/s/g, "").includes(q),
+  );
+};
 
 /** 등록 알림의 새 상품 id — 원본 `pfSave` 의 `P-{가장 큰 번호 + 1}` (저장하지 않으니 늘 같다) */
 export const NEXT_ID = `P-${String(

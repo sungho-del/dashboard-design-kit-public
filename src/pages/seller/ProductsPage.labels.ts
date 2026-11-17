@@ -254,12 +254,15 @@ export const priceOf = (
 
 /**
  * 정률 할인 금액 — 원가 × 율(develop `productDiscountAmount` 식 · 반올림 · 100% 상한).
- * 예전에 「%」로 저장된 상품은 목록에서 할인을 고칠 수 없어, 고친 원가로 다시 환산한 값을 잠긴 칸에 보인다(개발 요청 6번)
+ * 예전에 「%」로 저장된 상품도 목록 할인 칸은 열려 있고, 0을 넣으면 할인을 끈다(기획 20차 회신 · 개발 2차 요청 2026-11-13 B-1)
  */
 export const rateDiscountAmount = (base: number, rate: number) =>
   base <= 0 ? 0 : Math.round((base * Math.min(rate, 100)) / 100);
 
-/** 할인 금액 — 정률 상품(`rate`)은 원가로 환산, 나머지는 칸 값(원가를 넘지 않게) */
+/**
+ * 할인 금액 — 정률 상품(`rate`)은 칸에 0을 넣었으면 끈 결과(0), 아니면 고친 원가로 환산(develop `previewDiscount`).
+ * 나머지는 칸 값(원가를 넘지 않게)
+ */
 const discountOf = (
   p: SellerProduct,
   d: PriceDraft | undefined,
@@ -267,7 +270,20 @@ const discountOf = (
   disc: PriceField,
   rate?: number,
 ) =>
-  rate ? rateDiscountAmount(priceOf(p, d, base), rate) : priceOf(p, d, disc);
+  rate
+    ? d?.[disc] === 0
+      ? 0
+      : rateDiscountAmount(priceOf(p, d, base), rate)
+    : priceOf(p, d, disc);
+
+/** 정률 상품 할인 칸에 처음 보이는 값 — 저장된 원가로 환산한 금액(develop `priceSourceOf`). 고치면 그 값 */
+export const rateDiscountInputOf = (
+  p: SellerProduct,
+  d: PriceDraft | undefined,
+  base: PriceField,
+  disc: PriceField,
+  rate: number,
+) => d?.[disc] ?? rateDiscountAmount(Number(p[base] || 0), rate);
 
 export const rentDiscountOf = (
   p: SellerProduct,
@@ -309,9 +325,9 @@ export const PRODUCT_COPY = {
     "다른 작업에서 상품이 먼저 수정되었습니다. 입력값과 선택은 유지했습니다. [서버값 다시 불러오기]로 충돌을 해소해주세요.",
   discard: "가격 변경 취소",
   reload: "서버값 다시 불러오기",
-  /** 정률 할인 상품의 잠긴 할인 칸 안내 */
-  rateLockTip:
-    "정률 할인 상품은 목록에서 할인을 고칠 수 없습니다. 할인을 끄려면 상품 상세에서 끕니다.",
+  /** 정률 할인 상품의 할인 칸 안내 — develop 문구(개발 2차 요청 2026-11-13 B-1) */
+  rateDiscountTip:
+    "정률 할인 상품은 0을 넣으면 할인을 끕니다(정률 값은 남습니다). 다른 금액으로는 바꿀 수 없습니다.",
 } as const;
 
 export const detailPathOf = (p: SellerProduct) => `/products/${p.id}`;

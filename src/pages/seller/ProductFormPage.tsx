@@ -55,7 +55,10 @@ import type { SellerProduct } from "./seed/products.data";
 import {
   ADDRESSES,
   ADDRESS_IN_USE_SAMPLE,
+  ADDRESS_TAG_LABEL,
   addressInUse,
+  addressLineOf,
+  searchAddresses,
   pendingOrdersOf,
   CATEGORY_TREES,
   CERT_TYPES,
@@ -471,12 +474,25 @@ function DetailEditor({
 /** 주소록을 여는 자리 — 방문 수령·공항 픽업이 같은 주소록을 쓴다(원본 `addrBookOpen(target)`) */
 type AddressTarget = "pickup" | "airport";
 
-/** 주소록에서 고른 주소 한 덩이 — 관리이름 · 주소 · 연락처 1/2 (원본 `adr-sel`) */
+/**
+ * 주소록에서 고른 주소 한 덩이 — 관리이름 · 주소 · 연락처 1/2 (원본 `adr-sel`).
+ * 이름 옆 구분 태그(「일반」이 아닐 때) · 주소 끝 「(우 : 우편번호)」— develop(개발 2차 요청 2026-11-13 B-2)
+ */
 function AddressLines({ address }: { address: AddressBookEntry }) {
+  const tag = ADDRESS_TAG_LABEL[address.tag] ?? address.tag;
   return (
     <div className="body-medium flex flex-col gap-1 text-text">
-      <span className="label-medium-bold">{address.name}</span>
-      <span className="text-text-sub">{address.addr}</span>
+      <span className="label-medium-bold">
+        {address.name}
+        {tag && tag !== "일반" ? (
+          <>
+            {" "}
+            <Tag size="small">{tag}</Tag>
+          </>
+        ) : null}
+      </span>
+      {/* 낱말 단위로 줄바꿈 — 「에이치스퀘 / 어」처럼 음절 중간에서 꺾이지 않게 */}
+      <span className="break-keep text-text-sub">{addressLineOf(address)}</span>
       <span className="text-text-sub tabular-nums">
         {address.tel1 || "-"} / {address.tel2 || "-"}
       </span>
@@ -499,13 +515,14 @@ const EMPTY_ADDRESS: AddressDraft = {
   tel1: "",
   tel2: "",
 };
-type AddressView = "list" | "form" | "confirmDelete" | "confirmSave";
+type AddressView = "list" | "form" | "search" | "confirmDelete" | "confirmSave";
 
 /**
  * 주소록 창 — develop `AddressBookModal` 과 같은 창들(개발 요청 10번).
  * 목록(고르기·수정·삭제·신규등록) → 등록·수정 폼(이름 · 주소 + [주소검색] · 연락처1 · 연락처2) →
  * 수정이면 수령 전 주문이 있을 때 확인 창 → 저장 알림. 삭제는 확인 창 → 쓰는 상품이 있으면 거부 알림.
- * 퍼블 범위: 저장·삭제는 알림만이라 목록은 그대로 남는다 · [주소검색]은 알림. 창은 한 번에 하나만 띄운다
+ * [주소검색]은 주소검색 창(검색칸 · 결과 목록 · 결과 없음) — 결과를 누르면 폼 주소 칸에 들어간다(개발 2차 요청 B-2).
+ * 퍼블 범위: 저장·삭제는 알림만이라 목록은 그대로 남는다 · 검색은 예시 결과를 거른다. 창은 한 번에 하나만 띄운다
  */
 function AddressBookModal({
   target,
@@ -529,6 +546,10 @@ function AddressBookModal({
     Partial<Record<"name" | "addr" | "tel1" | "tel2", string>>
   >({});
   const [deleting, setDeleting] = useState<AddressBookEntry | null>(null);
+  const [keyword, setKeyword] = useState("");
+  /** 검색을 한 번이라도 했는가 — 하기 전에는 「결과 없음」을 띄우지 않는다(develop) */
+  const [searched, setSearched] = useState(false);
+  const [hits, setHits] = useState<ReturnType<typeof searchAddresses>>([]);
   const copy = COPY.addressBook;
 
   /* 닫았다 다시 열면 목록부터 */
@@ -611,41 +632,45 @@ function AddressBookModal({
               onChange={(event) => onQueryChange(event.target.value)}
             />
           </div>
-          <ul className="flex flex-col gap-2">
-            {addresses.map((address) => (
-              <li
-                key={address.id}
-                className="flex items-start justify-between gap-2 rounded-medium p-3 outline-1 -outline-offset-1 outline-border"
-              >
-                <AddressLines address={address} />
-                <span className="flex shrink-0 items-center gap-2">
-                  <TextButton
-                    aria-label={`${address.name} 선택`}
-                    onClick={() => onSelect(address)}
-                  >
-                    선택
-                  </TextButton>
-                  <TextButton
-                    tone="secondary"
-                    aria-label={`${address.name} 수정`}
-                    onClick={() => openForm(address)}
-                  >
-                    수정
-                  </TextButton>
-                  <TextButton
-                    tone="secondary"
-                    aria-label={`${address.name} 삭제`}
-                    onClick={() => {
-                      setDeleting(address);
-                      setView("confirmDelete");
-                    }}
-                  >
-                    삭제
-                  </TextButton>
-                </span>
-              </li>
-            ))}
-          </ul>
+          {addresses.length === 0 ? (
+            <EmptyState size="section" title={copy.listEmpty} />
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {addresses.map((address) => (
+                <li
+                  key={address.id}
+                  className="flex items-start justify-between gap-2 rounded-medium p-3 outline-1 -outline-offset-1 outline-border"
+                >
+                  <AddressLines address={address} />
+                  <span className="flex shrink-0 items-center gap-2">
+                    <TextButton
+                      aria-label={`${address.name} 선택`}
+                      onClick={() => onSelect(address)}
+                    >
+                      선택
+                    </TextButton>
+                    <TextButton
+                      tone="secondary"
+                      aria-label={`${address.name} 수정`}
+                      onClick={() => openForm(address)}
+                    >
+                      수정
+                    </TextButton>
+                    <TextButton
+                      tone="secondary"
+                      aria-label={`${address.name} 삭제`}
+                      onClick={() => {
+                        setDeleting(address);
+                        setView("confirmDelete");
+                      }}
+                    >
+                      삭제
+                    </TextButton>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </ModalBody>
         <ModalFooter>
           <Button
@@ -694,7 +719,12 @@ function AddressBookModal({
               />
               <Button
                 variant="secondary"
-                onClick={() => toast(COPY.addressPending)}
+                onClick={() => {
+                  setKeyword("");
+                  setHits([]);
+                  setSearched(false);
+                  setView("search");
+                }}
               >
                 주소검색
               </Button>
@@ -729,6 +759,66 @@ function AddressBookModal({
           </Button>
           <Button size="large" onClick={save}>
             저장
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* 주소검색 창 — develop 모양(검색칸 + [검색] · 결과 카드 · 결과 없음 · [닫기]) */}
+      <Modal
+        open={view === "search"}
+        onClose={() => setView("form")}
+        size="medium"
+        closeOnOverlayClick={false}
+      >
+        <ModalHeader closeLabel="대화상자 닫기" title={copy.searchTitle} />
+        <ModalBody>
+          <form
+            className="flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setHits(searchAddresses(keyword));
+              setSearched(true);
+            }}
+          >
+            <Input
+              className="flex-1"
+              aria-label="주소 검색어"
+              placeholder={copy.searchPlaceholder}
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+            />
+            <Button type="submit">검색</Button>
+          </form>
+          {hits.length > 0 ? (
+            <ul className="flex flex-col gap-2">
+              {hits.map((hit) => (
+                <li key={`${hit.zip}-${hit.road}`}>
+                  <button
+                    type="button"
+                    className="body-medium flex w-full flex-col gap-1 rounded-medium p-3 text-left text-text outline-1 -outline-offset-1 outline-border hover:bg-surface-sub"
+                    onClick={() => {
+                      setDraft((prev) => ({ ...prev, addr: hit.road }));
+                      setView("form");
+                    }}
+                  >
+                    <span className="label-medium-bold tabular-nums">
+                      {hit.zip}
+                    </span>
+                    <span>{hit.road}</span>
+                    <span className="body-small text-text-sub">
+                      {hit.jibun}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : searched ? (
+            <EmptyState size="section" title={copy.searchEmpty} />
+          ) : null}
+        </ModalBody>
+        <ModalFooter>
+          <Button size="large" onClick={() => setView("form")}>
+            닫기
           </Button>
         </ModalFooter>
       </Modal>

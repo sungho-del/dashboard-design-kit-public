@@ -65,10 +65,9 @@ import {
   matchesFilters,
   priceOf,
   rateDiscountOf,
-  rentDiscountOf,
+  rateDiscountInputOf,
   rentPriceOf,
   reviewOf,
-  saleDiscountOf,
   saleStatOf,
   salePriceOf,
   showStatOf,
@@ -104,7 +103,8 @@ import { SellerShell, type SellerNavProps } from "./SettleParts";
  * - 3·4번: 검색조건 카테고리 대·중·소 3단(고른 칸에 하위 분류가 있을 때만 다음 셀렉트) · 성장단계(전체 · 단계 · 없음)
  * - 5번: 목록 제목 옆 저장 결과 한 줄 + 가격을 고쳤으면 [가격 변경 취소]. 저장이 충돌하면(예시 상품 하나)
  *   충돌 안내 + 같은 자리 버튼이 [서버값 다시 불러오기]가 된다
- * - 6번: 정률 할인 상품은 할인 칸을 잠그고(고친 원가로 다시 환산한 금액) 옆에 안내 아이콘
+ * - 6번 → 2차 요청(2026-11-13) B-1: 정률 할인 상품도 할인 칸을 열어 두고 옆에 안내 아이콘. 0을 넣으면 할인이 꺼지고,
+ *   그 밖에는 고친 원가로 다시 환산한 금액이 렌트가·판매가에 반영된다(기획 20차 회신)
  * ====================================================================== */
 
 /** 좌측 고정 5열 52 / 72 / 112 / 112 / 232 → left 누적합(합 580). `<colgroup>` 과 함께 고친다 */
@@ -270,7 +270,7 @@ export function ProductsPage(props: SellerNavProps) {
       onChange={(event) => setPrice(p.id, f, event.target.value)}
     />
   );
-  /** 할인 칸 — 정률 할인 상품은 잠그고 고친 원가 기준 환산 금액을 보인다(개발 요청 6번) */
+  /** 할인 칸 — 정률 할인 상품도 열어 두고 안내 아이콘(0 = 할인 끄기 · 개발 2차 요청 B-1) */
   const discountCell = (
     p: SellerProduct,
     col: "rentDisc" | "saleDisc",
@@ -278,21 +278,23 @@ export function ProductsPage(props: SellerNavProps) {
   ) => {
     const rate = rateDiscountOf(p);
     if (!rate) return moneyCell(p, col, label);
-    const amount =
-      col === "rentDisc"
-        ? rentDiscountOf(p, drafts[p.id], rate)
-        : saleDiscountOf(p, drafts[p.id], rate);
+    const base = col === "rentDisc" ? "rent" : "sale";
     return (
       <span className="flex items-center gap-1">
         <Input
           size="small"
           className="w-28"
-          disabled
-          readOnly
+          inputMode="numeric"
           aria-label={`${p.name} ${label}`}
-          value={withCommas(amount)}
+          value={withCommas(
+            rateDiscountInputOf(p, drafts[p.id], base, col, rate),
+          )}
+          onChange={(event) => setPrice(p.id, col, event.target.value)}
         />
-        <HelpIcon label={`${label} 잠김 안내`} tip={PRODUCT_COPY.rateLockTip} />
+        <HelpIcon
+          label={`${label} 정률 할인 안내`}
+          tip={PRODUCT_COPY.rateDiscountTip}
+        />
       </span>
     );
   };

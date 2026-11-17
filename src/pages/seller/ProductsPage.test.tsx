@@ -171,23 +171,27 @@ describe("상품 관리", () => {
     expect(screen.getByText("유형 렌트 · 성장단계 없음")).toBeInTheDocument();
   });
 
-  it("정률 할인 상품은 할인 칸이 잠기고 고친 원가로 다시 환산 · 안내 아이콘", async () => {
+  it("정률 할인 상품도 할인 칸이 열려 있고 안내 아이콘 · 원가를 고치면 다시 환산 · 0을 넣으면 할인이 꺼진다(개발 2차 요청 B-1)", async () => {
     const { user } = renderPage();
     const row = bodyRows().find((r) =>
       within(r).queryByText("부가부 폭스3 디럭스 유모차"),
     )!;
     const disc = within(row).getByRole("textbox", { name: /할인 금액/ });
-    expect(disc).toBeDisabled();
+    expect(disc).toBeEnabled();
     expect(disc).toHaveValue("8,900");
     expect(within(row).getByText("80,100원/일")).toBeInTheDocument();
     expect(
-      within(row).getByLabelText("할인 금액 잠김 안내"),
+      within(row).getByLabelText("할인 금액 정률 할인 안내"),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/목록에서 할인을 고칠 수 없습니다/)).toBeNull();
     const base = within(row).getByRole("textbox", { name: /렌트 원가/ });
     await user.clear(base);
     await user.type(base, "100000");
-    expect(disc).toHaveValue("10,000");
     expect(within(row).getByText("90,000원/일")).toBeInTheDocument();
+    await user.clear(disc);
+    await user.type(disc, "0");
+    expect(disc).toHaveValue("0");
+    expect(within(row).getByText("100,000원/일")).toBeInTheDocument();
   });
 
   it("가격을 고치면 [가격 변경 취소] · 충돌하면 안내 + [서버값 다시 불러오기] → 초안만 버린다", async () => {

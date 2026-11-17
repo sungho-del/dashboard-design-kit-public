@@ -51,6 +51,8 @@ export interface AddressBookEntry {
   name: string;
   tag: string;
   addr: string;
+  /** 우편번호 — 주소검색으로 고른 주소에 함께 저장된다(develop `zipcode`). 없으면 카드에 안 붙는다 */
+  zip?: string;
   tel1: string;
   tel2: string;
 }
@@ -60,7 +62,8 @@ export const ADDR_BOOK: AddressBookEntry[] = [
     id: "A1",
     name: "리틀베이비 출고지",
     tag: "ship",
-    addr: "서울특별시 강남구 테헤란로 123 (역삼동, 셀러타워) 7층 701호 (우 : 06234)",
+    addr: "서울특별시 강남구 테헤란로 123 (역삼동, 셀러타워) 7층 701호",
+    zip: "06234",
     tel1: "02-1234-5678",
     tel2: "010-2345-6789",
   },
@@ -68,7 +71,8 @@ export const ADDR_BOOK: AddressBookEntry[] = [
     id: "A2",
     name: "반품교환지",
     tag: "return",
-    addr: "경기도 성남시 분당구 판교역로 235 (삼평동, 에이치스퀘어) 2층 (우 : 13494)",
+    addr: "경기도 성남시 분당구 판교역로 235 (삼평동, 에이치스퀘어) 2층",
+    zip: "13494",
     tel1: "031-987-6543",
     tel2: "",
   },
@@ -77,6 +81,7 @@ export const ADDR_BOOK: AddressBookEntry[] = [
     name: "공항 픽업존 (인천 T1)",
     tag: "normal",
     addr: "인천국제공항 T1 3층 출국장 H카운터 앞 베이비큐브 픽업존",
+    zip: "22382",
     tel1: "1588-2673",
     tel2: "",
   },
@@ -87,6 +92,42 @@ export const ADDR_BOOK: AddressBookEntry[] = [
     addr: "김포공항 국내선 2층 4번 출구 앞 베이비큐브 픽업존",
     tel1: "1588-1004",
     tel2: "",
+  },
+];
+
+/** 주소검색 결과 한 줄 — 우편번호 · 도로명 · 지번(develop 주소검색 창) */
+export interface AddressSearchHit {
+  zip: string;
+  road: string;
+  jibun: string;
+}
+
+/** 주소검색 예시 결과 — 실제 검색은 서버(`GET /seller/address-search`). 퍼블은 이 목록을 검색어로 거른다 */
+export const ADDRESS_SEARCH_SAMPLE: AddressSearchHit[] = [
+  {
+    zip: "06234",
+    road: "서울특별시 강남구 테헤란로 123 (역삼동, 셀러타워)",
+    jibun: "서울특별시 강남구 역삼동 736-1 셀러타워",
+  },
+  {
+    zip: "06236",
+    road: "서울특별시 강남구 테헤란로 152 (역삼동, 강남파이낸스센터)",
+    jibun: "서울특별시 강남구 역삼동 737 강남파이낸스센터",
+  },
+  {
+    zip: "13494",
+    road: "경기도 성남시 분당구 판교역로 235 (삼평동, 에이치스퀘어)",
+    jibun: "경기도 성남시 분당구 삼평동 681 에이치스퀘어",
+  },
+  {
+    zip: "13529",
+    road: "경기도 성남시 분당구 판교역로 166 (백현동)",
+    jibun: "경기도 성남시 분당구 백현동 532",
+  },
+  {
+    zip: "22382",
+    road: "인천광역시 중구 공항로 272 (운서동, 인천국제공항 제1여객터미널)",
+    jibun: "인천광역시 중구 운서동 2850",
   },
 ];
 
