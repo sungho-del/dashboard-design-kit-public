@@ -186,6 +186,13 @@ describe("셀러 명세 — 코지베이비 (확인요청 · 안심케어 보전
     expect(groupOf("care")).toBe("가산");
   });
 
+  /* 개발 2차 요청 B-2 — 요율이 섞인 회차 */
+  it("요율이 섞인 회차(아이랑) — 판매 수수료 「주문별 적용」", () => {
+    at("STM-2609-0230");
+    const fee = calcLines().find(([label]) => label === "판매 수수료");
+    expect(fee?.[1]).toBe("주문별 적용");
+  });
+
   it("하단 바 — 원본 5버튼, [셀러 정산에서 처리]는 그 셀러의 정산 상세로", async () => {
     const { user, onNavSelect } = at("STM-2609-0231");
 
@@ -364,5 +371,30 @@ describe("거래 내역 페이지 · 접기 · 명세서가 바뀌면 처음부�
     act(() => navigate("/settle-statement/STM-2609-0230"));
     expect(valueOf("정산 대상")).toBe("아이랑");
     expect(valueOf("지급 계좌")).toContain("아이랑");
+  });
+});
+
+/* 개발 2차 요청 B-1 — 반영된 조정만 읽기 전용 · 행이 없으면 구역이 없다 */
+describe("「조정」 — 읽기 전용", () => {
+  it("맘스케어 — 반영 한 쌍만 · 상태 열 · 버튼 · 표 아래 안내 없음", () => {
+    at("STM-2609-0228");
+    const area = screen.getByRole("group", { name: "조정" });
+    const table = within(area).getByRole("table");
+    expect(within(table).getAllByRole("row")).toHaveLength(3);
+    expect(
+      within(table)
+        .getAllByRole("columnheader")
+        .map((th) => th.textContent),
+    ).toEqual(["유형", "금액", "사유"]);
+    expect(within(area).queryByRole("button")).toBeNull();
+    expect(within(area).queryByText("재발송 전")).toBeNull();
+    expect(within(area).queryByText(/재발송하면/)).toBeNull();
+    expect(within(area).queryByText(/상쇄합니다/)).toBeNull();
+    expect(screen.queryByText("재발송 전 · 지급액 미반영")).toBeNull();
+  });
+
+  it("조정이 없는 명세(베이비루)는 구역이 없다", () => {
+    at("STM-2609-0226");
+    expect(screen.queryByRole("group", { name: "조정" })).toBeNull();
   });
 });

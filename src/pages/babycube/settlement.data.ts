@@ -31,6 +31,9 @@ import { SELLERS } from "./SellerListPage.data";
  *   예시 값이 없어 모두 0원이다(화면에는 0원 초과일 때만 줄이 선다 — 예시 값은 두지 않는다: 넣으면 정산 화면 숫자가 모두 바뀐다 · 퍼블이 정함)
  * - net = 정산 매출 − 수수료 − PG − 환수 + 보전 + 셀러 귀속 · 지급액 = max(0, net) · 미회수 = max(0, −net)(별도 청구, 이월 없음)
  *   — 「매출 − 차감 + 가산 = 지급액」(판정 Q3, 0원 하한 행 제외)
+ * - 조정(개발 2차 요청 B-1) — **반영된** 조정 순액만 net 에 더한다(초안은 「재발송하면 …」 예상액에만).
+ *   예시의 반영 조정은 서로 상쇄되는 한 쌍(맘스케어)뿐이라 순액 0 — 정산 숫자는 그대로다
+ *   (순액이 0 이 아니면 전 셀러 합산 산출 내역에 조정 줄이 없어 합계가 어긋난다 — 합산 규칙은 개발 몫)
  * - 포인트 = 본사 부담 · 정산 영향 없음(참고 값). 보증금·안심케어 가입 요금·배송비는 매출에 넣지 않는다(배송비는 셀러 귀속 가산)
  *
  * ## 처리단위 판정 (원본 순서 그대로)
@@ -118,7 +121,129 @@ interface SettlementSeed {
   objection?: { reason: string; at: string };
   /** 본사 수정 명세 재발송 — 검토 결과 요지 */
   resend?: { note: string; at: string };
+  /** 회차 안에 요율이 섞임(주문마다 결제일 요율 기록 · develop `mixedRate`) — 판매 수수료 보조 글자만 바뀐다 */
+  mixedRate?: boolean;
+  /** 「조정」 행(개발 2차 요청 B-1) — 수수료·순액은 행을 만들 때 이 회차 요율로 낸다 */
+  adjustments?: AdjustmentSeed[];
 }
+
+/* =========================================================================
+ * 조정 — 정산 확정 뒤 금액을 바로잡는 행 (개발 2차 요청 B-1 · develop `SettlementAdjustments` · 17차 기획 회신)
+ * ====================================================================== */
+
+export type AdjustmentKind = "지급 조정" | "매출 정정";
+export const ADJUSTMENT_KINDS: AdjustmentKind[] = ["지급 조정", "매출 정정"];
+
+interface AdjustmentSeed {
+  kind: AdjustmentKind;
+  /** 입력 원금(부호 있음) */
+  amount: number;
+  reason: string;
+  /** false = 초안(재발송 전 · 지급액 미반영) */
+  locked: boolean;
+}
+
+export interface SettlementAdjustment extends AdjustmentSeed {
+  id: string;
+  /** 매출 정정만 — 이 회차 요율로 다시 낸 판매 수수료 · PG 수수료(지급 조정은 0) */
+  platformFeeAmount: number;
+  pgFeeAmount: number;
+  /** 지급액에 더해지는 순액 — 매출 정정 = 원금 − 두 수수료 · 지급 조정 = 원금. 표의 원금과 다른 값 */
+  netAmount: number;
+}
+
+/** 조정 구역 문구 — develop `ADJUST_COPY` 그대로 */
+export const ADJUST_COPY = {
+  title: "조정",
+  add: "조정 추가",
+  edit: "조정 수정",
+  empty: "조정 내역이 없습니다.",
+  draft: "재발송 전",
+  offset: "반영된 조정은 반대 금액 행으로 상쇄합니다.",
+  afterDraft: (won: string) => `재발송하면 지급 예정액이 ${won}원이 됩니다.`,
+  kindHelp: {
+    "지급 조정": "지급 예정액만 바뀝니다. 수수료와 세금계산서는 그대로입니다.",
+    "매출 정정":
+      "이 회차 요율로 판매 수수료와 PG 수수료를 다시 계산합니다. 세금계산서 금액도 바뀝니다.",
+  } satisfies Record<AdjustmentKind, string>,
+  confirmNow:
+    "저장하면 바로 지급 예정액에 반영되고, 입점사 명세에도 보입니다. 저장한 뒤에는 고치거나 지울 수 없습니다.",
+  amountLabel: "금액(원)",
+  amountHelp:
+    "빼는 금액은 앞에 −를 붙입니다(예: -10000). 0원은 넣을 수 없습니다.",
+  amountPlaceholder: "예: 50000 또는 -10000",
+  amountInvalid: "0이 아닌 정수로 ±99,999,999원 안에서 입력해 주세요.",
+  reasonPlaceholder: "입점사 명세에 그대로 보입니다.",
+  reasonEmpty: "사유를 입력해 주세요.",
+  reasonMax: 200,
+  added: "조정을 추가했습니다.",
+  edited: "조정을 수정했습니다.",
+  removed: "조정을 삭제했습니다.",
+  /** 산출 내역 「조정」 묶음 — 초안 줄 보조 글자 */
+  calcDraftHint: "재발송 전 · 지급액 미반영",
+} as const;
+
+/** 부호 있는 금액 — 0보다 크면 +, 작으면 −(U+2212) */
+export const signedWon = (n: number) =>
+  `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toLocaleString("ko-KR")}원`;
+
+/** 매출 정정 보조 줄 — 수수료는 지급액에서 빠지는 쪽이라 부호를 뒤집어 보인다 */
+export const feeLineOf = (a: SettlementAdjustment): string | null =>
+  a.kind === "매출 정정"
+    ? `판매 수수료 ${signedWon(-a.platformFeeAmount)} · PG 수수료 ${signedWon(-a.pgFeeAmount)}`
+    : null;
+
+/** 입력 금액 → 정수(실패하면 `null`) — 쉼표·공백·「원」 허용, 앞 −(U+2212)·- 둘 다 음수 */
+export const parseAdjustAmount = (raw: string): number | null => {
+  const text = raw.replace(/[,\s원]/g, "").replace(/^−/, "-");
+  if (!/^-?\d+$/.test(text)) return null;
+  const n = Number(text);
+  return n !== 0 && Math.abs(n) <= 99_999_999 ? n : null;
+};
+
+/** 사유 오류 — trim 뒤 글자 수(코드 포인트)로 센다. 잘라 내지 않고 오류로 알린다 */
+export const adjustReasonError = (reason: string): string | undefined => {
+  const text = reason.trim();
+  if (!text) return ADJUST_COPY.reasonEmpty;
+  return [...text].length > ADJUST_COPY.reasonMax
+    ? `사유는 ${ADJUST_COPY.reasonMax}자까지 입력할 수 있습니다.`
+    : undefined;
+};
+
+/** 산출 내역 「조정」 묶음 줄 — 가산 아래 · 지급액 위. 값은 순액 */
+export const adjustmentCalcLines = (rows: readonly SettlementAdjustment[]) =>
+  rows.map((row) => ({
+    key: `adjust-${row.id}`,
+    label: row.reason ? `${row.kind} — ${row.reason}` : row.kind,
+    value: signedWon(row.netAmount),
+    hint: row.locked ? undefined : ADJUST_COPY.calcDraftHint,
+  }));
+
+/** 정산 내역/명세서(조회 전용)가 보는 조정 — 반영된 행만(develop 은 서버 응답이 반영분만 준다) */
+export const lockedAdjustmentsOf = (row: Pick<SettlementRow, "adjustments">) =>
+  row.adjustments.filter((adjustment) => adjustment.locked);
+
+/** 목록 지급액 칸 아래 보조 글자 — 반영된 조정이 있을 때만(지급액에 이미 들어 있다) */
+export const adjustmentNoteOf = (adjustment: number): string | null =>
+  adjustment ? `조정 ${signedWon(adjustment)} 포함` : null;
+
+/** 조정 행 — 매출 정정은 이 회차 요율로 수수료를 다시 낸다 */
+const adjustmentOf = (
+  seed: AdjustmentSeed,
+  index: number,
+  rate: number,
+): SettlementAdjustment => {
+  const sales = seed.kind === "매출 정정";
+  const platformFeeAmount = sales ? Math.round(seed.amount * (rate / 100)) : 0;
+  const pgFeeAmount = sales ? Math.round(seed.amount * PG_RATE) : 0;
+  return {
+    ...seed,
+    id: `ADJ-${index + 1}`,
+    platformFeeAmount,
+    pgFeeAmount,
+    netAmount: seed.amount - platformFeeAmount - pgFeeAmount,
+  };
+};
 
 const SETTLEMENT_SEEDS: Record<string, Record<string, SettlementSeed>> = {
   "2026.09": {
@@ -134,9 +259,42 @@ const SETTLEMENT_SEEDS: Record<string, Record<string, SettlementSeed>> = {
         at: "2026-10-02 16:40",
       },
     },
-    "S-228": { status: "held" }, // 맘스케어
+    "S-228": {
+      /* 맘스케어 — 보류. 반영된 조정 한 쌍(서로 상쇄 · 지급액 그대로) + 재발송 전 초안 둘(개발 2차 요청 B-1) */
+      status: "held",
+      adjustments: [
+        {
+          kind: "지급 조정",
+          amount: 2000,
+          reason: "택배 파손 보상 지급",
+          locked: true,
+        },
+        {
+          kind: "지급 조정",
+          amount: -2000,
+          reason: "택배 파손 보상 중복 반영 상쇄",
+          locked: true,
+        },
+        {
+          kind: "매출 정정",
+          amount: 10000,
+          reason: "U-S07 판매 1건 매출 누락분",
+          locked: false,
+        },
+        {
+          kind: "지급 조정",
+          amount: -5000,
+          reason: "8월 회차 배송비 중복 지급분 회수",
+          locked: false,
+        },
+      ],
+    },
     "S-229": { status: "agreed" }, // 베베하우스 — 시연용 상태
-    "S-230": { status: "agreed" }, // 아이랑 — 시연용 상태
+    "S-230": {
+      /* 아이랑 — 시연용 상태 · 요율 섞인 회차(B-2) · 확인완료라 새 조정은 저장 즉시 반영(B-1 확인 단계) */
+      status: "agreed",
+      mixedRate: true,
+    },
     "S-231": {
       /* 코지베이비 — 이의제기 → 수정 명세 재발송 → 다시 확인요청 */
       status: "requested",
@@ -298,6 +456,18 @@ export interface SettlementRow {
   status: SettlementStatus;
   objection: { reason: string; at: string } | null;
   resend: { note: string; at: string } | null;
+  /** 「조정」 행 — 초안 포함(정산 내역/명세서는 반영분만 골라 쓴다 · 개발 2차 요청 B-1) */
+  adjustments: SettlementAdjustment[];
+  /** 반영된 조정 순액 — net·지급액에 이미 들어 있다 */
+  adjustment: number;
+  /** 초안까지 반영하면 될 지급 예정액 */
+  payoutAfterDraft: number;
+  /** 지금 조정을 넣을 수 있는가 — 이의제기·보류 = 초안 · 확인완료 = 즉시 반영(develop 서버 값) */
+  canAdjust: boolean;
+  /** 확인완료 — 저장하면 바로 반영된다(저장 전 확인 단계) */
+  adjustLocksImmediately: boolean;
+  /** 요율이 섞인 회차 — 산출 내역 · 지급 확인 창의 판매 수수료 보조 글자가 「주문별 적용」(개발 2차 요청 B-2) */
+  mixedRate: boolean;
   /** 지급 처리일 — 지급완료만 */
   paidAt: string | null;
   /**
@@ -360,10 +530,17 @@ const rowOf = (
   const shippingFee = 0;
   const netDeduction =
     fee + pg + clawback - care - (penalty + pickupFee + shippingFee);
-  const net = revenue - netDeduction;
   const seed: SettlementSeed = hq
     ? { status: "paid" }
     : (SETTLEMENT_SEEDS[round]?.[sellerId] ?? { status: "waiting" });
+  const adjustments = (seed.adjustments ?? []).map((row, index) =>
+    adjustmentOf(row, index, rate),
+  );
+  const netOf = (rows: SettlementAdjustment[]) =>
+    rows.reduce((total, row) => total + row.netAmount, 0);
+  /* 반영된 조정만 지급액에 — 초안은 재발송 뒤 예상액에만 */
+  const adjustment = netOf(adjustments.filter((row) => row.locked));
+  const net = revenue - netDeduction + adjustment;
 
   return {
     kind,
@@ -393,6 +570,15 @@ const rowOf = (
     status: seed.status,
     objection: seed.objection ?? null,
     resend: seed.resend ?? null,
+    adjustments,
+    adjustment,
+    payoutAfterDraft: Math.max(
+      0,
+      net + netOf(adjustments.filter((row) => !row.locked)),
+    ),
+    canAdjust: ["disputed", "held", "agreed"].includes(seed.status),
+    adjustLocksImmediately: seed.status === "agreed",
+    mixedRate: seed.mixedRate ?? false,
     paidAt: seed.status === "paid" ? PAYOUT_DATE : null,
     transactions,
   };

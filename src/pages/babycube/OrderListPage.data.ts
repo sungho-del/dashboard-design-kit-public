@@ -283,6 +283,26 @@ export interface Order {
    * 퍼블은 환급을 실행하지 않아 예시 건이 없다 — 모두 `null`(실패 예시 건은 두지 않았다 — 퍼블이 정함)
    */
   depositRefundFailureCode: string | null;
+  /**
+   * 렌트 반납 신청(조기반납) — **렌트 반품 건만**, 그 밖은 `null`(develop `returnRequest` · 개발 2차 요청 B-6).
+   * 렌트 주문 상세 「조기반납 정보」/「반품 전환 정보」 · 렌트 반품 상세 판정 줄 · 두 화면 「수거 요청사항」이 읽는다
+   */
+  returnRequest: ReturnRequest | null;
+}
+
+/** 불량·오배송 판정(develop `DefectVerdict`) */
+export type DefectVerdict = "불량 인정" | "오배송 인정" | "불인정";
+
+/** 렌트 반납 신청 — develop `ReturnRequestView` 중 본사 상세가 읽는 칸 */
+export interface ReturnRequest {
+  /** 사유 저장값 그대로 — 반품 전환 건은 고객의 취소 사유 */
+  reason: string;
+  /** 출고 뒤 취소를 셀러가 [반품 전환]한 건 */
+  convertedFromCancel: boolean;
+  /** 불량·오배송 사유인 건만(그 밖은 `null`) — `verdict` `null` = 판정 전 */
+  defect: { verdict: DefectVerdict | null; rejectReason: string | null } | null;
+  /** 수거 요청사항 — 고객이 반납 신청 때 적은 경우만 */
+  pickupRequestMemo: string | null;
 }
 
 /** 클레임이 **거래를 되돌리지 않고** 끝났는가 — 반려·거부·재반송(원본 불성립 어휘) */
@@ -734,6 +754,26 @@ const CLAIM_SEEDS: Record<
   "U-S33": ["returnRejected", "2026-09-06 10:00", "단순변심 (개봉한 위생용품)"],
 };
 
+/**
+ * 렌트 반납 신청 예시(개발 2차 요청 B-6) — 렌트 반품 4건 중 셋에 조건부 줄이 보이도록(퍼블이 정함).
+ * U-R25 반품 전환 · U-R21 불량 판정 전 · U-R27 불량 불인정 + 수거 요청사항. U-R26 은 사유만
+ */
+const RETURN_REQUEST_SEEDS: Record<
+  string,
+  Partial<Omit<ReturnRequest, "reason">>
+> = {
+  "U-R25": { convertedFromCancel: true },
+  "U-R21": { defect: { verdict: null, rejectReason: null } },
+  "U-R27": {
+    defect: {
+      verdict: "불인정",
+      rejectReason:
+        "검수 결과 회전 잠금이 정상 작동합니다. 사용 설명서의 잠금 순서를 확인해 주세요.",
+    },
+    pickupRequestMemo: "경비실에 맡겨 둘게요",
+  },
+};
+
 /** 상품을 받아 보낸 뒤의 단계 — 원래 배송 송장이 붙는다(클레임 건도 원래 단계로 본다) */
 const SHIPPED: FlowStatus[] = [
   "shipping",
@@ -922,6 +962,16 @@ const toOrder = (row: string, index: number): Order => {
     inspectedAt,
     confirmedAt,
     depositRefundFailureCode: null,
+    returnRequest:
+      isRent && claim?.type === "return"
+        ? {
+            reason: claim.reason,
+            convertedFromCancel: false,
+            defect: null,
+            pickupRequestMemo: null,
+            ...RETURN_REQUEST_SEEDS[id],
+          }
+        : null,
   };
 };
 

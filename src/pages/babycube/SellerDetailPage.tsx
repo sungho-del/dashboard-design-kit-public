@@ -50,6 +50,7 @@ import {
   COMMISSION_HINT,
   EXITING_NOTE,
   HQ_COMMISSION_HINT,
+  COMMISSION_RATE_APPLY_NOTE,
   commissionError,
   countText,
   DEAL_KIND_LABEL,
@@ -777,20 +778,24 @@ function SellerDetailBody({
               <FormField
                 label="수수료율"
                 description={
-                  hq ? (
-                    HQ_COMMISSION_HINT
-                  ) : (
-                    <>
-                      {COMMISSION_HINT}
-                      {isAtypicalCommission(
-                        parseCommissionRate(draft.commission),
-                      ) ? (
-                        <span className="block text-text-warning">
-                          {COMMISSION_RATE_WARNING}
-                        </span>
-                      ) : null}
-                    </>
-                  )
+                  <>
+                    {hq ? (
+                      HQ_COMMISSION_HINT
+                    ) : (
+                      <>
+                        {COMMISSION_HINT}
+                        {isAtypicalCommission(
+                          parseCommissionRate(draft.commission),
+                        ) ? (
+                          <span className="block text-text-warning">
+                            {COMMISSION_RATE_WARNING}
+                          </span>
+                        ) : null}
+                      </>
+                    )}
+                    {/* 요율은 주문마다 기록 — 바꿔도 이미 결제된 주문은 그대로(개발 2차 요청 B-3) */}
+                    <span className="block">{COMMISSION_RATE_APPLY_NOTE}</span>
+                  </>
                 }
                 error={errorOf(errors.commission)}
                 suffix="%"

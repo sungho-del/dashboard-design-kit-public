@@ -341,8 +341,23 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
       expect(screen.getByText("최초 구매일")).toBeVisible();
       expect(screen.getByRole("radio", { name: "A급" })).toBeChecked();
 
+      /* 개발 2차 요청 B-4 — 등급 굵게 + 띄어쓰기 + 문구(본사 · 입점사 같은 줄 모양) */
+      await user.hover(screen.getByLabelText("상품 등급 기준 도움말"));
+      const tip = await screen.findByRole("tooltip");
+      expect(tip).toHaveTextContent("상품 등급 기준");
+      expect(
+        Array.from(tip.querySelectorAll("li")).map((li) => li.textContent),
+      ).toEqual([
+        "S급 사용 흔적이 거의 없어요",
+        "A급 사용감이 적고 기능에 문제없어요",
+        "B급 사용감과 생활 흠집이 있지만 기능에 문제없어요",
+        "C급 눈에 띄는 흠집·변색이 있지만 사용할 수 있어요",
+      ]);
+      expect(tip.textContent).not.toContain("—");
+
       await user.click(screen.getByRole("radio", { name: "새상품" }));
       expect(screen.queryByText("최초 구매일")).toBeNull();
+      expect(screen.queryByLabelText("상품 등급 기준 도움말")).toBeNull();
     });
   });
 
@@ -426,6 +441,43 @@ describe("ProductDetailPage (상품 상세 · 1단계)", () => {
     expect(
       screen.getByRole("checkbox", { name: "방문 수령 추가 제공" }),
     ).not.toHaveAccessibleDescription();
+  });
+
+  /* 개발 2차 요청 B-5 — 판매 상품만 · 입점 상품은 값을 보이되 잠근다 */
+  describe("위생 밀봉", () => {
+    it("입점 판매 상품(AR271948)은 「위생 밀봉 상품」 을 잠긴 채 보인다", () => {
+      renderAt("AR271948");
+      const group = screen.getByRole("radiogroup", { name: "위생 밀봉" });
+
+      expect(
+        within(group).getByRole("radio", { name: "위생 밀봉 상품" }),
+      ).toBeChecked();
+      within(group)
+        .getAllByRole("radio")
+        .forEach((radio) => expect(radio).toBeDisabled());
+    });
+
+    it("직영 판매 상품(HQ240806)은 고칠 수 있다", async () => {
+      const { user } = renderAt("HQ240806");
+      const group = screen.getByRole("radiogroup", { name: "위생 밀봉" });
+
+      expect(
+        within(group).getByRole("radio", { name: "해당 없음" }),
+      ).toBeChecked();
+      await user.click(
+        within(group).getByRole("radio", { name: "위생 밀봉 상품" }),
+      );
+      expect(
+        within(group).getByRole("radio", { name: "위생 밀봉 상품" }),
+      ).toBeChecked();
+    });
+
+    it("렌트 상품(BL240814)에는 없다", () => {
+      renderAt("BL240814");
+      expect(
+        screen.queryByRole("radiogroup", { name: "위생 밀봉" }),
+      ).toBeNull();
+    });
   });
 
   describe("하단 바 — 상태가 처분 버튼을 정한다", () => {

@@ -68,6 +68,7 @@ import {
   type SettlementFilters,
   type SettlementRow,
   NO_AMOUNT,
+  adjustmentNoteOf,
 } from "./SellerSettlementPage.data";
 import { SettlementCalc } from "./SettlementCalc";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
@@ -519,6 +520,12 @@ export function SellerSettlementPage({
                         <span className="body-medium-bold">
                           {cellMoney.payout(row)}
                         </span>
+                        {/* 반영된 조정이 있으면 지급액 아래 보조 글자(개발 2차 요청 B-1) */}
+                        {adjustmentNoteOf(row.adjustment) ? (
+                          <span className="body-small block text-text-sub">
+                            {adjustmentNoteOf(row.adjustment)}
+                          </span>
+                        ) : null}
                       </TableTd>
                       <TableTd align="center" className={frozenRightTd(1)}>
                         <Tag tone={meta.tone} dot size="small">

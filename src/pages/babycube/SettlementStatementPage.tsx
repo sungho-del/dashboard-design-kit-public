@@ -45,6 +45,7 @@ import {
   won,
   type StatementFilters,
   type StatementSearchField,
+  adjustmentNoteOf,
 } from "./SettlementStatementPage.data";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
@@ -298,6 +299,12 @@ export function SettlementStatementPage({
                         <span className="body-medium-bold">
                           {won(row.payout)}
                         </span>
+                        {/* 반영된 조정이 있으면 지급액 아래 보조 글자(개발 2차 요청 B-1) */}
+                        {adjustmentNoteOf(row.adjustment) ? (
+                          <span className="body-small block text-text-sub">
+                            {adjustmentNoteOf(row.adjustment)}
+                          </span>
+                        ) : null}
                       </TableTd>
                       <TableTd align="center" className={frozenRightTd(1)}>
                         <Tag tone={status.tone} dot size="small">

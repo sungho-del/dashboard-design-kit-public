@@ -192,6 +192,18 @@ export type OptionSort = "reg" | "abc" | "lo" | "hi";
 /** 상품 등급 — 원본 S·A·B·C */
 export const GRADES = ["S급", "A급", "B급", "C급"];
 
+/**
+ * 상품 등급 기준 도움말 — 기획 21차 회신 문구 그대로(개발 2차 요청 B-4).
+ * 줄 모양은 본사 · 입점사 하나로: 등급 굵게 + 띄어쓰기 + 문구(줄표 없음)
+ */
+export const GRADE_GUIDE_TITLE = "상품 등급 기준";
+export const GRADE_GUIDE: Readonly<Record<string, string>> = {
+  S급: "사용 흔적이 거의 없어요",
+  A급: "사용감이 적고 기능에 문제없어요",
+  B급: "사용감과 생활 흠집이 있지만 기능에 문제없어요",
+  C급: "눈에 띄는 흠집·변색이 있지만 사용할 수 있어요",
+};
+
 /** 기간 옵션 상한 — 원본 `PF_PRESET_MAX` */
 export const PERIOD_MAX = 5;
 

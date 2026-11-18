@@ -175,7 +175,7 @@ export const calcLinesOf = (row: SettlementRow): StatementLine[] =>
           kind: "total",
         },
       ]
-    : statementLinesOf(row, { rate: row.rate });
+    : statementLinesOf(row, { rate: row.rate, mixedRate: row.mixedRate });
 
 /* =========================================================================
  * 거래 내역 — 원본 `settleTxTable` · `settleTxFoot`

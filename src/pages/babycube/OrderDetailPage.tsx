@@ -45,6 +45,9 @@ import {
   claimTypeTextOf,
   delayReasonOf,
   depositStatusOf,
+  earlyReturnTitleOf,
+  pickupMemoOf,
+  returnRequestRowsOf,
   faultTextOf,
   feeBurdenOf,
   feeText,
@@ -111,6 +114,8 @@ import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
  * - 브랜드는 상품 샘플에 없어 `-` 다(원본 행은 남긴다)
  * - 주문정보에 결제금액 한 줄(원본은 팝업 안에만) — 팝업과 같은 `payTotalOf`
  * - 처리 이력 표는 읽기 폭 `max-w-3xl` · 상태 열 160 — 배지와 시각이 화면 양 끝으로 벌어지지 않게
+ * - 렌트 반납 신청(개발 2차 요청 B-6 · 조회만): 렌트 주문 상세 주문정보 안 「조기반납 정보」/「반품 전환 정보」 구획 ·
+ *   렌트 반품 상세 「반품 정보」 끝 판정 줄 · 두 화면 배송지 정보 「수거 요청사항」 — `.data.ts` `returnRequestRowsOf`
  * - 추가 기획 보드: 배송지 정보 「수령인 연락처」 아래 **「추가 연락처」**(보드 02 · 개발 d53c51d — 판매·렌트,
  *   값 없으면 `-`) · 결제수단 **「네이버페이」**(보드 01 — 값은 주문 샘플 `payMethod`). 둘 다 같은 라벨 폭
  * ====================================================================== */
@@ -278,6 +283,7 @@ function OrderDetailBody({
   const meta = STATUS_META[order.status];
   const deposit = DEPOSIT_STATUS_META[depositStatusOf(order)];
   const refundDue = refundDueNoteOf(order);
+  const pickupMemo = pickupMemoOf(order.returnRequest);
   const longRentText = longRentTextOf(order);
   /* 구성품 — 있을 때만 한 줄에 하나씩(렌트는 보증금 앞 · 판매는 수량 뒤에 놓인다) */
   const componentTexts = componentTextsOf(order);
@@ -381,9 +387,32 @@ function OrderDetailBody({
                       </Item>
                     ),
                   )}
+                  {/* 렌트 반품 — 불량·오배송 판정 · 불인정 사유(조회만 · 개발 2차 요청 B-6) */}
+                  {returnRequestRowsOf(order.returnRequest, {
+                    withReason: false,
+                  }).map((row) => (
+                    <Item key={row.label} label={row.label}>
+                      {row.value}
+                    </Item>
+                  ))}
                 </InfoList>
               </section>
             )}
+            {/* 렌트 주문 — 반납 신청 사유 저장값 · 판정(조회만 · 개발 2차 요청 B-6). 클레임 화면엔 없다 */}
+            {!claimMode && order.returnRequest ? (
+              <section className="flex flex-col gap-3">
+                <h3 className="label-large-bold text-text">
+                  {earlyReturnTitleOf(order.returnRequest)}
+                </h3>
+                <InfoList>
+                  {returnRequestRowsOf(order.returnRequest).map((row) => (
+                    <Item key={row.label} label={row.label}>
+                      {row.value}
+                    </Item>
+                  ))}
+                </InfoList>
+              </section>
+            ) : null}
           </>
         )}
       </Section>
@@ -520,6 +549,10 @@ function OrderDetailBody({
             <Item label="추가 연락처">{order.receiverSubPhone ?? NONE}</Item>
             <Item label="배송지">{order.address}</Item>
             <Item label="배송 메모">{order.shipMemo || NONE}</Item>
+            {/* 고객이 반납 신청 때 적은 경우에만(개발 2차 요청 B-6) */}
+            {pickupMemo ? (
+              <Item label="수거 요청사항">{pickupMemo}</Item>
+            ) : null}
           </InfoList>
         )}
       </Section>

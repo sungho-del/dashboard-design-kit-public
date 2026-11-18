@@ -29,7 +29,12 @@ import {
   STATUS_META as ORDER_STATUS_META,
   TYPE_META,
 } from "./OrderListPage.data";
-import { SETTLEMENT_STATUS_META, type SettlementRow } from "./settlement.data";
+import {
+  adjustmentCalcLines,
+  lockedAdjustmentsOf,
+  SETTLEMENT_STATUS_META,
+  type SettlementRow,
+} from "./settlement.data";
 import { won } from "./SettlementStatementPage.data";
 import {
   DETAIL_TITLE,
@@ -56,6 +61,7 @@ import {
   type Rich,
 } from "./SettlementStatementDetailPage.data";
 import { BulletList } from "./BulletList";
+import { SettlementAdjustments } from "./SettlementAdjustments";
 import { SettlementCalc } from "./SettlementCalc";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
@@ -259,7 +265,16 @@ function StatementDetailBody({
     >
       <Section title={SECTIONS.calc}>
         {/* 셀러 정산과 같은 산출 내역 부품 + 계산 기준 안내 */}
-        <SettlementCalc lines={calcLinesOf(row)} notes={calcNotesOf()} />
+        <SettlementCalc
+          lines={calcLinesOf(row)}
+          notes={calcNotesOf()}
+          adjustments={adjustmentCalcLines(lockedAdjustmentsOf(row))}
+        />
+        {/* 반영된 조정만 읽기 전용 — 행이 없으면 구역이 없다(개발 2차 요청 B-1) */}
+        <SettlementAdjustments
+          row={{ ...row, adjustments: lockedAdjustmentsOf(row) }}
+          editable={false}
+        />
       </Section>
 
       <Section title={SECTIONS.pay}>

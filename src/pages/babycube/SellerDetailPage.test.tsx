@@ -205,6 +205,11 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
             "퇴점 처리중·퇴점 셀러는 수수료율을 바꿀 수 없습니다",
           ),
         ).toBeVisible();
+        expect(
+          within(operation).queryByText(
+            "바꾼 요율은 바꾼 뒤 결제된 주문부터 적용됩니다.",
+          ),
+        ).toBeNull();
       },
     );
 
@@ -354,6 +359,11 @@ describe("SellerDetailPage (S03-D 셀러 상세)", () => {
         ),
       ).toBeNull();
       expect(within(operation).queryByText(/일반적인 범위/)).toBeNull();
+      expect(
+        within(operation).getByText(
+          "바꾼 요율은 바꾼 뒤 결제된 주문부터 적용됩니다.",
+        ),
+      ).toBeVisible();
     });
 
     it("본사 행도 100 을 넘으면 저장하지 않는다", async () => {

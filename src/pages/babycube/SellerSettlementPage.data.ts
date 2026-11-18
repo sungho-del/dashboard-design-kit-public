@@ -9,6 +9,9 @@ import {
   type SettlementStatus,
   type SettlementSummary,
 } from "./settlement.data";
+
+/** 조정 표시(개발 2차 요청 B-1) — 화면이 이 파일만 보도록 다시 내보낸다 */
+export { adjustmentCalcLines, adjustmentNoteOf } from "./settlement.data";
 import { CARE_FEE } from "./OrderListPage.data";
 
 /* -------------------------------------------------------------------------
@@ -256,10 +259,14 @@ type StatementAmounts = Pick<
   | "unpaid"
 >;
 
+/** 요율이 섞인 회차의 판매 수수료 보조 글자(develop `MIXED_RATE_HINT`) */
+export const MIXED_RATE_HINT = "주문별 적용";
+
 /**
  * 산출 내역 줄 — 원본 `settleAmtRows`. 쿠폰·환수·보전·셀러 귀속 3줄·포인트·미회수는 **0 이면 줄이 없다**
  * (묶음에 줄이 없으면 묶음도 없다). 수수료·PG 는 0 이어도 `0원` 으로 보인다.
  * `rate` 를 주면 판매 수수료 보조 글자가 `요율 N%`(셀러별), 없으면 `셀러별 요율 · 본사 수익`(합산).
+ * `mixedRate` — 요율이 섞인 회차면 `요율 N%` 대신 「주문별 적용」(개발 2차 요청 B-2).
  * `unpaidBy` — 합산에서 미회수가 **어느 셀러**인지(미회수 줄 보조 글자 앞에 붙는다).
  */
 export const statementLinesOf = (
@@ -268,11 +275,13 @@ export const statementLinesOf = (
     listLabel = "확정 거래액",
     totalLabel = "지급액",
     rate,
+    mixedRate = false,
     unpaidBy,
   }: {
     listLabel?: string;
     totalLabel?: string;
     rate?: number;
+    mixedRate?: boolean;
     unpaidBy?: string;
   } = {},
 ): StatementLine[] => {
@@ -302,7 +311,11 @@ export const statementLinesOf = (
     {
       key: "fee",
       label: "판매 수수료",
-      hint: rate === undefined ? "셀러별 요율 · 본사 수익" : `요율 ${rate}%`,
+      hint: mixedRate
+        ? MIXED_RATE_HINT
+        : rate === undefined
+          ? "셀러별 요율 · 본사 수익"
+          : `요율 ${rate}%`,
       value: minus(d.fee),
       group: "deduct",
     },
@@ -419,7 +432,7 @@ export const payLinesOf = (row: SettlementRow): StatementLine[] => {
     {
       key: "fee",
       label: "판매 수수료",
-      hint: `요율 ${row.rate}%`,
+      hint: row.mixedRate ? MIXED_RATE_HINT : `요율 ${row.rate}%`,
       value: minus(row.fee),
       group: "deduct",
     },

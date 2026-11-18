@@ -4,6 +4,12 @@ import { PRODUCTS } from "./ProductListPage.data";
 import { SELLERS } from "./SellerListPage.data";
 import {
   HQ_SETTLEMENT,
+  adjustReasonError,
+  adjustmentNoteOf,
+  findSettlement,
+  lockedAdjustmentsOf,
+  parseAdjustAmount,
+  signedWon,
   SELLER_SETTLEMENTS,
   SETTLEMENT_SUMMARY,
   STATEMENTS,
@@ -281,5 +287,45 @@ describe("샘플 연결", () => {
       expect(seller!.date.slice(0, 10) <= product.date.slice(0, 10)).toBe(true);
       expect(product.date.slice(0, 16) <= item.date).toBe(true);
     });
+  });
+});
+
+/* 개발 2차 요청 B-1 — 조정 순수 함수 */
+describe("조정", () => {
+  it("금액 해석 — 쉼표·공백·원 · 앞 − 허용, 0·소수·범위 밖은 null", () => {
+    expect(parseAdjustAmount("50,000원")).toBe(50000);
+    expect(parseAdjustAmount("−10 000")).toBe(-10000);
+    expect(parseAdjustAmount("-99999999")).toBe(-99999999);
+    for (const bad of ["0", "1.5", "100000000", "", "abc"])
+      expect(parseAdjustAmount(bad)).toBeNull();
+  });
+
+  it("사유 — 공백뿐 · 200자 초과 오류", () => {
+    expect(adjustReasonError("   ")).toBe("사유를 입력해 주세요.");
+    expect(adjustReasonError("가".repeat(200))).toBeUndefined();
+    expect(adjustReasonError("가".repeat(201))).toBe(
+      "사유는 200자까지 입력할 수 있습니다.",
+    );
+  });
+
+  it("맘스케어 — 매출 정정 수수료는 이 회차 요율 · 반영분만 지급액 · 초안은 예상액", () => {
+    const row = findSettlement("S-228")!;
+    const sales = row.adjustments.find((a) => a.kind === "매출 정정")!;
+    expect([
+      sales.platformFeeAmount,
+      sales.pgFeeAmount,
+      sales.netAmount,
+    ]).toEqual([950, 300, 8750]);
+    expect(row.adjustment).toBe(0);
+    expect(row.payout).toBe(12250);
+    expect(row.payoutAfterDraft).toBe(16000);
+    expect([row.canAdjust, row.adjustLocksImmediately]).toEqual([true, false]);
+    expect(lockedAdjustmentsOf(row)).toHaveLength(2);
+  });
+
+  it("목록 보조 글자 — 반영 순액이 있을 때만", () => {
+    expect(adjustmentNoteOf(40000)).toBe("조정 +40,000원 포함");
+    expect(adjustmentNoteOf(0)).toBeNull();
+    expect(signedWon(-1200)).toBe("−1,200원");
   });
 });

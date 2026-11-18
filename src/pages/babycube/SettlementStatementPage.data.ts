@@ -6,6 +6,9 @@ import {
   type SettlementStatus,
 } from "./settlement.data";
 
+/** 조정 표시(개발 2차 요청 B-1) — 화면이 이 파일만 보도록 다시 내보낸다 */
+export { adjustmentCalcLines, adjustmentNoteOf } from "./settlement.data";
+
 /* -------------------------------------------------------------------------
  * 정산 내역/명세서 (목록) — **도메인 층** (BabyCube 본사 운영 어드민)
  * 기준 기획: v0.4 `plan-members/proto.html` 4619~4631 (`SCREENS.settleStatement`)

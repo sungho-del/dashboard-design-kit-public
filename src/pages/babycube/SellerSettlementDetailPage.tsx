@@ -61,9 +61,11 @@ import {
   statementLinesOf,
   STATUS_META,
   type SettlementRow,
+  adjustmentCalcLines,
 } from "./SellerSettlementPage.data";
 import { SettlementGateModal } from "./SellerSettlementPage";
 import { BulletList } from "./BulletList";
+import { SettlementAdjustments } from "./SettlementAdjustments";
 import { SettlementCalc } from "./SettlementCalc";
 import { GNB_LOGO_SLOTS, GNB_SECTIONS } from "../gnbSections";
 
@@ -314,8 +316,10 @@ function DetailBody({
               lines={statementLinesOf(row, {
                 totalLabel: "지급 예정액",
                 rate: row.rate,
+                mixedRate: row.mixedRate,
               })}
               notes={SETTLE_NOTES}
+              adjustments={adjustmentCalcLines(row.adjustments)}
             />
             {/* 지급할 수 없는 이유가 있을 때만 — develop 자리(정산 명세 금액 아래). 예시 건은 없다 */}
             {payLock ? (
@@ -324,6 +328,8 @@ function DetailBody({
                 {payLock}
               </p>
             ) : null}
+            {/* 「조정」 구역 — 지급 처리 잠김 줄 아래(개발 2차 요청 B-1) */}
+            <SettlementAdjustments row={row} editable />
           </>
         )}
       </Section>

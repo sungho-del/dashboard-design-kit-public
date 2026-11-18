@@ -704,6 +704,28 @@ describe("유형 · 이동", () => {
     expect(screen.getByRole("heading", { name: /재고 수량/ })).toBeVisible();
   });
 
+  it("판매 중고만 「상품 등급」 옆에 등급 기준 도움말", async () => {
+    const { user } = renderEdit("P-001");
+    expect(screen.queryByLabelText("상품 등급 기준 도움말")).toBeNull();
+
+    await user.click(screen.getByRole("radio", { name: "판매" }));
+    await user.click(screen.getByRole("radio", { name: "중고 상품" }));
+
+    /* 개발 2차 요청 B-4 — 등급 굵게 + 띄어쓰기 + 문구(본사 · 입점사 같은 줄 모양) */
+    await user.hover(screen.getByLabelText("상품 등급 기준 도움말"));
+    const tip = await screen.findByRole("tooltip");
+    expect(tip).toHaveTextContent("상품 등급 기준");
+    expect(
+      Array.from(tip.querySelectorAll("li")).map((li) => li.textContent),
+    ).toEqual([
+      "S급 사용 흔적이 거의 없어요",
+      "A급 사용감이 적고 기능에 문제없어요",
+      "B급 사용감과 생활 흠집이 있지만 기능에 문제없어요",
+      "C급 눈에 띄는 흠집·변색이 있지만 사용할 수 있어요",
+    ]);
+    expect(tip.textContent).not.toContain("—");
+  });
+
   /** 원본은 「대분류 선택」 으로 보이면서 다른 유형의 값이 남아 검사를 통과한다 */
   it("그 유형의 트리에 없는 카테고리(P-311 렌트 · 판매 분류)는 빈 대분류로 연다", () => {
     renderEdit("P-311");

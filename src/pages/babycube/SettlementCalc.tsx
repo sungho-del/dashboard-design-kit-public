@@ -43,12 +43,15 @@ export interface SettlementCalcProps {
   /** 산출 내역 아래 안내 상자 줄 — 없으면 상자 없음 */
   notes?: readonly string[];
   className?: string;
+  /** 「조정」 묶음 — 가산 아래 · 지급액 위. 줄이 없으면 묶음 없음(개발 2차 요청 B-1 · `adjustmentCalcLines`) */
+  adjustments?: CalcLine[];
 }
 
 export function SettlementCalc({
   lines,
   notes,
   className,
+  adjustments,
 }: SettlementCalcProps) {
   const ofKind = (kind: StatementLine["kind"]) =>
     lines.filter((line) => !line.group && line.kind === kind).map(toCalc);
@@ -63,6 +66,9 @@ export function SettlementCalc({
           label: group.label,
           lines: lines.filter((line) => line.group === group.key).map(toCalc),
         })),
+        ...(adjustments?.length
+          ? [{ key: "adjust", label: "조정", lines: adjustments }]
+          : []),
         /* 지급액 + 미회수 — 지급액과 별개 금액이라 지급액 바로 아래 경고 줄로 */
         {
           key: "total",

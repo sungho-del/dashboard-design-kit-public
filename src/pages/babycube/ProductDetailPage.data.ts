@@ -134,6 +134,8 @@ export interface ProductDraft {
   collectFee: Fee;
   returnFee: string;
   exchangeFee: string;
+  /** 위생 밀봉 상품 — 판매만(개발 2차 요청 B-5) */
+  hygieneSealed: boolean;
   pickupOn: boolean;
   /** 방문 수령 주소 — 주소록(`ADDRESSES`)의 id. 비면 미선택 */
   pickupAddress: string;
@@ -203,6 +205,24 @@ export type OptionSort = "reg" | "abc" | "lo" | "hi";
 
 /** 상품 등급 — 원본 S·A·B·C */
 export const GRADES = ["S급", "A급", "B급", "C급"];
+
+/**
+ * 상품 등급 기준 도움말 — 기획 21차 회신 문구 그대로(개발 2차 요청 B-4).
+ * 줄 모양은 본사 · 입점사 하나로: 등급 굵게 + 띄어쓰기 + 문구(줄표 없음)
+ */
+/** 위생 밀봉 세그먼트(개발 2차 요청 B-5 · develop 문구) */
+export const HYGIENE_SEAL_OPTIONS = [
+  { value: "none", label: "해당 없음" },
+  { value: "sealed", label: "위생 밀봉 상품" },
+];
+
+export const GRADE_GUIDE_TITLE = "상품 등급 기준";
+export const GRADE_GUIDE: Readonly<Record<string, string>> = {
+  S급: "사용 흔적이 거의 없어요",
+  A급: "사용감이 적고 기능에 문제없어요",
+  B급: "사용감과 생활 흠집이 있지만 기능에 문제없어요",
+  C급: "눈에 띄는 흠집·변색이 있지만 사용할 수 있어요",
+};
 
 /** 기간 옵션 상한 — 원본 `PF_PRESET_MAX` */
 export const PERIOD_MAX = 5;
@@ -505,6 +525,8 @@ export const draftOf = (product: Product): ProductDraft => {
     collectFee: product.mode === "rent" ? fee(product.shipFee) : fee(null),
     returnFee: String(product.returnFee),
     exchangeFee: String(product.exchangeFee),
+    /* 입점 판매 상품 하나는 위생 밀봉 — 잠긴 칸이 값을 그대로 보이도록 */
+    hygieneSealed: product.id === "AR271948",
     pickupOn: false,
     pickupAddress: "",
     pickupFee: { amount: "", free: true },
@@ -598,6 +620,7 @@ export const newDraft = (): ProductDraft => ({
   collectFee: { amount: "", free: false },
   returnFee: "",
   exchangeFee: "",
+  hygieneSealed: false,
   pickupOn: false,
   pickupAddress: "",
   pickupFee: { amount: "", free: false },

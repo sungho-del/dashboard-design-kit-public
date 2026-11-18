@@ -14,6 +14,7 @@ import {
   type FlowStatus,
   type Order,
   type OrderStatus,
+  type ReturnRequest,
 } from "./OrderListPage.data";
 import { autoCancelLabelOf } from "./OrderCancelListPage.data";
 import { ADDRESSES, AIRPORTS, stageOf } from "./ProductDetailPage.data";
@@ -855,3 +856,48 @@ export const claimStatementOf = (order: Order): StatementLine[] =>
       value: line.value ?? "",
       tone: line.kind === "total" ? "total" : "plain",
     }));
+
+/* =========================================================================
+ * 렌트 반납 신청(조기반납) — 조회만 (개발 2차 요청 B-6 · develop `returnRequestRowsOf`)
+ * ====================================================================== */
+
+/** 본사 표기 — 「반납 신청」으로 바꾸지 않는다(손님 화면만) */
+export const EARLY_RETURN_LABEL = "조기반납";
+
+/** 렌트 주문 상세 구획 제목 — 출고 뒤 취소를 반품으로 바꾼 건은 「반품 전환 정보」 */
+export const earlyReturnTitleOf = (rr: ReturnRequest) =>
+  rr.convertedFromCancel ? "반품 전환 정보" : `${EARLY_RETURN_LABEL} 정보`;
+
+/**
+ * 반납 신청 줄 — 사유(저장값 그대로) · 판정(불량·오배송 건만 · 값 없으면 「판정 전」) · 불인정 사유(값이 있을 때).
+ * 렌트 반품 상세는 「반품 정보」 신청 사유가 같은 값이라 `withReason: false` 로 판정 줄만. 신청이 없으면 빈 배열
+ */
+export const returnRequestRowsOf = (
+  rr: ReturnRequest | null,
+  { withReason = true }: { withReason?: boolean } = {},
+): { label: string; value: string }[] => {
+  if (!rr) return [];
+  const rows = withReason
+    ? [
+        {
+          label: rr.convertedFromCancel
+            ? "취소 사유(반품 전환)"
+            : `${EARLY_RETURN_LABEL} 사유`,
+          value: rr.reason,
+        },
+      ]
+    : [];
+  if (rr.defect) {
+    rows.push({
+      label: "불량·오배송 판정",
+      value: rr.defect.verdict ?? "판정 전",
+    });
+    if (rr.defect.rejectReason)
+      rows.push({ label: "불인정 사유", value: rr.defect.rejectReason });
+  }
+  return rows;
+};
+
+/** 수거 요청사항 — 공백뿐이면 없음(줄을 그리지 않는다) */
+export const pickupMemoOf = (rr: ReturnRequest | null) =>
+  rr?.pickupRequestMemo?.trim() || null;

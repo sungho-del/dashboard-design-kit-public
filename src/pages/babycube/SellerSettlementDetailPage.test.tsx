@@ -82,6 +82,15 @@ describe("셀러 정산 상세 — 찾을 수 없음", () => {
   });
 });
 
+/* 개발 2차 요청 B-2 — 요율이 섞인 회차는 「요율 N%」 대신 「주문별 적용」 · PG 보조 글자는 그대로 */
+describe("셀러 정산 상세 — 아이랑(요율이 섞인 회차)", () => {
+  it("판매 수수료 보조 글자가 「주문별 적용」", () => {
+    renderAt("/settle-seller/S-230");
+    expect(hasRow("판매 수수료주문별 적용")).toBe(true);
+    expect(hasRow("판매 수수료요율")).toBe(false);
+  });
+});
+
 describe("셀러 정산 상세 — 베베하우스(확인완료 · 안심케어 보전)", () => {
   it("머리 — 제목 · 셀러·회차 · 상태 배지", () => {
     renderAt("/settle-seller/S-229");
@@ -348,5 +357,145 @@ describe("셀러 정산 상세 — 지급 처리 잠김 안내(조건부)", () =
     } finally {
       delete row.payUnavailableReason;
     }
+  });
+});
+
+/* 개발 2차 요청 B-1 — 「조정」 구역(develop `SettlementAdjustments`) · 저장·삭제는 알림만 */
+describe("「조정」 구역", () => {
+  const area = () => screen.getByRole("group", { name: "조정" });
+  const adjustRows = () =>
+    within(within(area()).getByRole("table")).getAllByRole("row").slice(1);
+
+  it("맘스케어(보류) — 반영 한 쌍 + 초안 둘 · 수수료 보조 줄 · 재발송 예상액 · 상쇄 안내", () => {
+    renderAt("/settle-seller/S-228");
+    expect(
+      within(area()).getByRole("button", { name: "조정 추가" }),
+    ).toBeVisible();
+    expect(adjustRows()).toHaveLength(4);
+    expect(within(area()).getAllByText("재발송 전")).toHaveLength(2);
+    expect(
+      within(area()).getByText("판매 수수료 −950원 · PG 수수료 −300원"),
+    ).toBeVisible();
+    /* 반영된 행은 상태 칸이 비어 있다 */
+    expect(within(adjustRows()[0]).queryByRole("button")).toBeNull();
+    expect(
+      within(area()).getByText("재발송하면 지급 예정액이 16,000원이 됩니다."),
+    ).toBeVisible();
+    expect(
+      within(area()).getByText("반영된 조정은 반대 금액 행으로 상쇄합니다."),
+    ).toBeVisible();
+    /* 산출 내역 「조정」 묶음 — 순액 · 초안 보조 글자 · 지급 예정액은 그대로 */
+    expect(valueOf("매출 정정 — U-S07 판매 1건 매출 누락분")).toBe("+8,750원");
+    expect(screen.getAllByText("재발송 전 · 지급액 미반영")).toHaveLength(2);
+    expect(valueOf("지급 예정액")).toBe("12,250원");
+  });
+
+  it("[조정 추가] — 빈 값 · 0 · 범위 · 201자 오류, 고치면 알림만", async () => {
+    const { user } = renderAt("/settle-seller/S-228");
+    await user.click(within(area()).getByRole("button", { name: "조정 추가" }));
+    const dialog = screen.getByRole("dialog", { name: "조정 추가" });
+    expect(
+      within(dialog).getByRole("radio", { name: /지급 조정/ }),
+    ).toBeChecked();
+
+    await user.click(within(dialog).getByRole("button", { name: "저장" }));
+    expect(
+      within(dialog).getByText(
+        "0이 아닌 정수로 ±99,999,999원 안에서 입력해 주세요.",
+      ),
+    ).toBeVisible();
+    expect(within(dialog).getByText("사유를 입력해 주세요.")).toBeVisible();
+
+    const amount = within(dialog).getByRole("textbox", { name: /금액/ });
+    for (const bad of ["0", "100000000", "1.5"]) {
+      await user.clear(amount);
+      await user.type(amount, bad);
+      expect(within(dialog).getByText(/0이 아닌 정수로/)).toBeVisible();
+    }
+    await user.clear(amount);
+    await user.type(amount, "−10,000원");
+    expect(within(dialog).queryByText(/0이 아닌 정수로/)).toBeNull();
+
+    const reason = within(dialog).getByRole("textbox", { name: /사유/ });
+    await user.click(reason);
+    await user.paste("가".repeat(201));
+    expect(
+      within(dialog).getByText("사유는 200자까지 입력할 수 있습니다."),
+    ).toBeVisible();
+    await user.type(reason, "{Backspace}");
+    expect(within(dialog).queryByText(/200자까지/)).toBeNull();
+
+    await user.click(within(dialog).getByRole("button", { name: "저장" }));
+    expect(await screen.findByText("조정을 추가했습니다.")).toBeVisible();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(adjustRows()).toHaveLength(4);
+  });
+
+  it("초안 [수정]은 값이 채워진 「조정 수정」 · [삭제]는 알림만", async () => {
+    const { user } = renderAt("/settle-seller/S-228");
+    await user.click(
+      within(adjustRows()[2]).getByRole("button", { name: "수정" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "조정 수정" });
+    expect(
+      within(dialog).getByRole("radio", { name: /매출 정정/ }),
+    ).toBeChecked();
+    expect(within(dialog).getByRole("textbox", { name: /금액/ })).toHaveValue(
+      "10000",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "저장" }));
+    expect(await screen.findByText("조정을 수정했습니다.")).toBeVisible();
+
+    await user.click(
+      within(adjustRows()[3]).getByRole("button", { name: "삭제" }),
+    );
+    expect(await screen.findByText("조정을 삭제했습니다.")).toBeVisible();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("확인완료(아이랑) — 새 조정은 같은 창에서 확인 한 번 더 · [취소]는 값 그대로 돌아온다", async () => {
+    const { user } = renderAt("/settle-seller/S-230");
+    expect(within(area()).getByText("조정 내역이 없습니다.")).toBeVisible();
+    await user.click(within(area()).getByRole("button", { name: "조정 추가" }));
+    const dialog = screen.getByRole("dialog", { name: "조정 추가" });
+    await user.type(
+      within(dialog).getByRole("textbox", { name: /금액/ }),
+      "5000",
+    );
+    await user.type(
+      within(dialog).getByRole("textbox", { name: /사유/ }),
+      "누락분",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "저장" }));
+
+    const confirm = /저장하면 바로 지급 예정액에 반영되고/;
+    expect(within(dialog).getByText(confirm)).toBeVisible();
+    expect(within(dialog).queryByRole("textbox")).toBeNull();
+
+    await user.click(within(dialog).getByRole("button", { name: "취소" }));
+    expect(screen.getByRole("dialog", { name: "조정 추가" })).toBeVisible();
+    expect(within(dialog).getByRole("textbox", { name: /금액/ })).toHaveValue(
+      "5000",
+    );
+
+    await user.click(within(dialog).getByRole("button", { name: "저장" }));
+    await user.click(within(dialog).getByRole("button", { name: "저장" }));
+    expect(await screen.findByText("조정을 추가했습니다.")).toBeVisible();
+  });
+
+  it("이의제기(리틀스텝)는 빈 표 + [조정 추가]", () => {
+    renderAt("/settle-seller/S-227");
+    expect(within(area()).getByText("조정 내역이 없습니다.")).toBeVisible();
+    expect(
+      within(area()).getByRole("button", { name: "조정 추가" }),
+    ).toBeVisible();
+  });
+
+  it("지급완료(베이비루)는 [조정 추가] 가 없다", () => {
+    renderAt("/settle-seller/S-226");
+    expect(within(area()).getByText("조정 내역이 없습니다.")).toBeVisible();
+    expect(
+      within(area()).queryByRole("button", { name: "조정 추가" }),
+    ).toBeNull();
   });
 });

@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ChevronUp,
   Image as ImageIcon,
+  Info,
   Package,
   Plus,
   X,
@@ -40,6 +41,7 @@ import {
   Tag,
   Textarea,
   TextButton,
+  Tooltip,
   useToast,
 } from "../../components/ui";
 import { cn } from "../../lib/cn";
@@ -71,6 +73,9 @@ import {
   COURIERS,
   EXTRA_IMAGE_MAX,
   GRADES,
+  HYGIENE_SEAL_OPTIONS,
+  GRADE_GUIDE,
+  GRADE_GUIDE_TITLE,
   INFO_REF_TEXT,
   NAME_MAX,
   OPTION_AXIS_MAX,
@@ -982,6 +987,31 @@ function ProductDetailBody({
                   required
                   group
                   error={errors.grade}
+                  labelAction={
+                    /* 라벨 칸은 양끝 정렬(글자 수 자리) — mr-auto 로 도움말을 라벨 바로 옆(gap-2)에 붙인다 */
+                    <span className="mr-auto inline-flex">
+                      <Tooltip
+                        title={GRADE_GUIDE_TITLE}
+                        content={
+                          <ul className="flex flex-col gap-1">
+                            {GRADES.map((grade) => (
+                              <li key={grade} className="body-small break-keep">
+                                <span className="body-small-bold">{grade}</span>{" "}
+                                {GRADE_GUIDE[grade]}
+                              </li>
+                            ))}
+                          </ul>
+                        }
+                      >
+                        <IconButton
+                          variant="ghost"
+                          size="xsmall"
+                          label={`${GRADE_GUIDE_TITLE} 도움말`}
+                          icon={<Info strokeWidth={1.2} aria-hidden />}
+                        />
+                      </Tooltip>
+                    </span>
+                  }
                 >
                   <RadioGroup
                     value={draft.grade}
@@ -1794,6 +1824,19 @@ function ProductDetailBody({
                 }
               />
             </FormField>
+            {/* 위생 밀봉 — 판매 상품만. 입점 상품은 값을 보이되 고칠 수 없다(개발 2차 요청 B-5) */}
+            {!rent ? (
+              <FormField label="위생 밀봉" group>
+                <SegmentedControl
+                  className="self-start"
+                  items={lockable(HYGIENE_SEAL_OPTIONS)}
+                  value={draft.hygieneSealed ? "sealed" : "none"}
+                  onValueChange={(next) =>
+                    set("hygieneSealed", next === "sealed")
+                  }
+                />
+              </FormField>
+            ) : null}
             <div className="flex flex-col gap-2">
               <Checkbox
                 className={HELP_WIDTH}

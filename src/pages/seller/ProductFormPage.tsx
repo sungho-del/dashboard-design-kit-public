@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ChevronDown,
   ChevronUp,
+  CircleHelp,
   Image as ImageIcon,
   Package,
   Plus,
@@ -39,6 +40,7 @@ import {
   Tag,
   Textarea,
   TextButton,
+  Tooltip,
   useToast,
 } from "../../components/ui";
 import { cn } from "../../lib/cn";
@@ -67,6 +69,8 @@ import {
   COURIERS,
   EXTRA_IMAGE_MAX,
   GRADES,
+  GRADE_GUIDE,
+  GRADE_GUIDE_TITLE,
   INFO_REF_TEXT,
   NAME_MAX,
   NEXT_ID,
@@ -1424,7 +1428,42 @@ function ProductFormBody({
                     placeholder="날짜 선택"
                   />
                 </FormField>
-                <FormField label="상품 등급" required group>
+                <FormField
+                  label="상품 등급"
+                  required
+                  group
+                  labelAction={
+                    /* 라벨 칸은 양끝 정렬(글자 수 자리) — mr-auto 로 도움말을 라벨 바로 옆(gap-2)에 붙인다 */
+                    <span className="mr-auto inline-flex">
+                      <Tooltip
+                        title={GRADE_GUIDE_TITLE}
+                        content={
+                          <ul className="flex flex-col gap-1">
+                            {GRADES.map((grade) => (
+                              <li key={grade} className="body-small break-keep">
+                                <span className="body-small-bold">{grade}</span>{" "}
+                                {GRADE_GUIDE[grade]}
+                              </li>
+                            ))}
+                          </ul>
+                        }
+                      >
+                        <span
+                          tabIndex={0}
+                          aria-label={`${GRADE_GUIDE_TITLE} 도움말`}
+                          className="inline-flex"
+                        >
+                          <CircleHelp
+                            size={16}
+                            strokeWidth={1.2}
+                            aria-hidden
+                            className="text-icon-sub"
+                          />
+                        </span>
+                      </Tooltip>
+                    </span>
+                  }
+                >
                   <RadioGroup
                     value={draft.grade}
                     onValueChange={(next) => set("grade", next)}

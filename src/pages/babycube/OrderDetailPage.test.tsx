@@ -19,6 +19,7 @@ import {
   longRentTextOf,
   orderApprovedOf,
   payTotalOf,
+  pickupMemoOf,
   rentDaysTextOf,
   statementBlocksOf,
 } from "./OrderDetailPage.data";
@@ -1017,5 +1018,67 @@ describe("클레임 모드", () => {
     expect(
       screen.getByRole("heading", { name: "주문 상세(판매)" }),
     ).toBeVisible();
+  });
+});
+
+/* 개발 2차 요청 B-6 — 렌트 반납 신청 정보(조회만) */
+describe("렌트 반납 신청 — 조기반납 정보 · 판정 · 수거 요청사항", () => {
+  it("렌트 주문 상세(U-R27) — 「조기반납 정보」 사유 · 판정 · 불인정 사유 + 수거 요청사항", () => {
+    renderAt("/orders-all/U-R27");
+    expect(
+      screen.getByRole("heading", { name: "조기반납 정보" }),
+    ).toBeVisible();
+    expect(valueOf("조기반납 사유")).toBe("제품 불량 (회전 잠금 고장)");
+    expect(valueOf("불량·오배송 판정")).toBe("불인정");
+    expect(valueOf("불인정 사유")).toMatch(/^검수 결과 회전 잠금이/);
+    expect(valueOf("수거 요청사항")).toBe("경비실에 맡겨 둘게요");
+  });
+
+  it("반품 전환 건(U-R25) — 제목 「반품 전환 정보」 · 「취소 사유(반품 전환)」 · 판정 줄 없음", () => {
+    renderAt("/orders-all/U-R25");
+    expect(
+      screen.getByRole("heading", { name: "반품 전환 정보" }),
+    ).toBeVisible();
+    expect(valueOf("취소 사유(반품 전환)")).toBe("사이즈 안맞음");
+    expect(hasRow("조기반납 사유")).toBe(false);
+    expect(hasRow("불량·오배송 판정")).toBe(false);
+    expect(hasRow("수거 요청사항")).toBe(false);
+  });
+
+  it("판정 전(U-R21) — 「판정 전」 · 불인정 사유 줄 없음", () => {
+    renderAt("/orders-all/U-R21");
+    expect(valueOf("불량·오배송 판정")).toBe("판정 전");
+    expect(hasRow("불인정 사유")).toBe(false);
+  });
+
+  it("렌트 반품 상세(U-R27) — 「반품 정보」 끝에 판정 줄만 · 조기반납 구획 없음 · 수거 요청사항", () => {
+    renderAt("/orders-return/U-R27");
+    expect(screen.queryByRole("heading", { name: "조기반납 정보" })).toBeNull();
+    expect(hasRow("조기반납 사유")).toBe(false);
+    expect(valueOf("불량·오배송 판정")).toBe("불인정");
+    expect(valueOf("불인정 사유")).toMatch(/^검수 결과 회전 잠금이/);
+    expect(valueOf("수거 요청사항")).toBe("경비실에 맡겨 둘게요");
+  });
+
+  it("수거 요청사항이 공백뿐이면 줄이 없다", () => {
+    const rr = {
+      reason: "조기 반납",
+      convertedFromCancel: false,
+      defect: null,
+      pickupRequestMemo: "   ",
+    };
+    expect(pickupMemoOf(rr)).toBeNull();
+    expect(pickupMemoOf(null)).toBeNull();
+  });
+
+  it("반납 신청이 없는 건(판매 U-S18 · 렌트 U-R01)은 구획 · 줄이 없다", () => {
+    for (const path of ["/orders-all/U-S18", "/orders-all/U-R01"]) {
+      renderAt(path);
+      expect(
+        screen.queryByRole("heading", { name: /조기반납 정보|반품 전환 정보/ }),
+      ).toBeNull();
+      expect(hasRow("수거 요청사항")).toBe(false);
+      cleanup();
+    }
   });
 });

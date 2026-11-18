@@ -365,6 +365,20 @@ describe("셀러 정산 — 표", () => {
 });
 
 describe("셀러 정산 — 확인 모달 3종 (알림만 · 상태 그대로)", () => {
+  /* 개발 2차 요청 B-2 — 요율이 섞인 회차(아이랑)는 판매 수수료 보조 글자가 「주문별 적용」 */
+  it("요율이 섞인 회차의 지급 확인 창 — 「주문별 적용」", async () => {
+    const { user } = renderPage();
+    await user.click(
+      within(rowOf("아이랑")).getByRole("button", { name: "지급완료" }),
+    );
+    const dialog = screen.getByRole("dialog");
+    const terms = within(dialog)
+      .getAllByRole("term")
+      .map((term) => term.textContent);
+    expect(terms).toContain("판매 수수료주문별 적용");
+    expect(terms.join()).not.toMatch(/요율 [0-9]/);
+  });
+
   it("확인완료 [지급완료] — 지급 명세 미리보기 → 처리하면 알림, 행 상태는 그대로", async () => {
     const { user } = renderPage();
     await user.click(
